@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getEverything } from '@/lib/notion';
 import { requireReady } from '@/lib/tenant';
-import { topicProgress } from '@/lib/derive';
 import { pct } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
 import { ProgressBar } from '@/components/progress-bar';
@@ -22,10 +21,10 @@ export default async function AreaPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ f?: string; open?: string }>;
+  searchParams: Promise<{ f?: string }>;
 }) {
   const { slug } = await params;
-  const { f, open } = await searchParams;
+  const { f } = await searchParams;
 
   const tenant = await requireReady();
   const { areas, topics, tasks } = await getEverything(tenant);
@@ -34,14 +33,8 @@ export default async function AreaPage({
 
   const areaTopics = topics.filter((t) => t.areaIds.includes(area.id));
   const areaTasks = tasks.filter((t) => t.areaIds.includes(area.id));
-  const rows = topicProgress(areaTopics, areaTasks);
-
   const done = areaTasks.filter((t) => t.done).length;
   const total = areaTasks.length;
-
-  // Open the topic in progress by default, so the page resumes where you were.
-  const inProgress = rows.find((r) => r.done > 0 && r.done < r.total);
-  const openId = open ?? inProgress?.topic.id ?? rows[0]?.topic.id;
 
   return (
     <div className="js-content-in space-y-4">
@@ -60,7 +53,6 @@ export default async function AreaPage({
         tasks={areaTasks}
         areaName={area.name}
         initialFilter={f}
-        initialOpen={openId}
       />
     </div>
   );

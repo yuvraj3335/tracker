@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Search, X, Rows3, Rows4, Keyboard } from 'lucide-react';
+import { Search, X, Rows3, Rows4, Keyboard, Check } from 'lucide-react';
 import { Card } from './ui/card';
 import { HeadingBand } from './heading-band';
 import { ProgressBar } from './progress-bar';
@@ -39,13 +39,11 @@ export function Sheet({
   tasks,
   areaName,
   initialFilter,
-  initialOpen,
 }: {
   topics: Topic[];
   tasks: Task[];
   areaName: string;
   initialFilter?: string;
-  initialOpen?: string;
 }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>(isFilter(initialFilter) ? initialFilter : 'all');
@@ -124,17 +122,50 @@ export function Sheet({
   const active = cursor < 0 ? -1 : Math.min(cursor, flat.length - 1);
   const activeTask = active >= 0 ? flat[active] : undefined;
 
-  // Which sections are expanded. While searching every match is shown, because
-  // hiding a hit inside a collapsed section makes search look broken.
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    const start = new Set<string>();
-    for (const t of topics) if (initialOpen && t.id !== initialOpen) start.add(t.id);
-    return start;
-  });
+  /*
+   * Everything starts collapsed.
+   *
+   * 18 sections holding 456 questions is far too much to open into. Collapsed,
+   * the whole area fits on about one screen and you choose what to open;
+   * expanded, finding anything means scrolling past hundreds of rows you did
+   * not ask for.
+   *
+   * `expanded` rather than `collapsed` so the default state is the empty set
+   * and no section list has to be enumerated up front.
+   */
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+
+  // Searching overrides the collapse state: hiding a hit inside a collapsed
+  // section makes search look broken.
   const isOpen = useCallback(
-    (id: string) => searching || !collapsed.has(id),
-    [searching, collapsed],
+    (id: string) => searching || expanded.has(id),
+    [searching, expanded],
   );
+
+  const toggleSection = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  /*
+   * Where to pick up: the first section that is started but unfinished, or
+   * failing that the first with nothing done. Collapsing everything only works
+   * if the page still says where you were.
+   */
+  const resumeId = useMemo(() => {
+    let firstUntouched: string | undefined;
+    for (const { topic, done, total } of sections) {
+      if (done > 0 && done < total) return topic.id;
+      if (done === 0 && firstUntouched === undefined) firstUntouched = topic.id;
+    }
+    return firstUntouched;
+  }, [sections]);
+
+  const allExpanded = sections.length > 0 && sections.every((s) => expanded.has(s.topic.id));
 
   // ---- keyboard ---------------------------------------------------------
   // One listener for the whole sheet, not one per row.
@@ -215,7 +246,7 @@ export function Sheet({
     return publishCommands([
       ...sectionCommands(topics, (id) => {
         setQuery('');
-        setCollapsed(new Set(topics.filter((t) => t.id !== id).map((t) => t.id)));
+        setExpanded(new Set([id]));
         requestAnimationFrame(() => {
           document
             .querySelector(`[data-section-id="${cssEscape(id)}"]`)
@@ -247,7 +278,10 @@ export function Sheet({
 
   return (
     <div ref={root} className="space-y-3">
-      {/* ---- search + controls ---- */}
+      {/* Search and filters stay put while the list scrolls — on a page this
+          long, having to scroll back to the top to search is the whole
+          problem. `top-14` clears the sticky nav bar. */}
+      <div className="sticky top-14 z-20 -mx-3 space-y-2 border-b border-hairline bg-plane/90 px-3 pt-2 pb-2 backdrop-blur-md sm:-mx-4 sm:px-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-muted" />
@@ -298,7 +332,7 @@ export function Sheet({
       </div>
 
       {/* ---- filter chips: instant, no navigation ---- */}
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+      <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
         {(['all', 'todo', 'done', 'bookmarked', 'revisit'] as const).map((key) => {
           // Counts reflect the current search, so the chips describe what
           // switching to them would actually show.
@@ -323,6 +357,21 @@ export function Sheet({
             </button>
           );
         })}
+
+        {/* Opening all 18 at once is occasionally what you want; it is never
+            what you want by default. */}
+        {!searching && sections.length > 1 ? (
+          <button
+            type="button"
+            onClick={() =>
+              setExpanded(allExpanded ? new Set() : new Set(sections.map((x) => x.topic.id)))
+            }
+            className="skin-pill ml-auto shrink-0 border border-hairline px-2.5 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          >
+            {allExpanded ? 'Collapse all' : 'Expand all'}
+          </button>
+        ) : null}
+      </div>
       </div>
 
       {/* ---- results ---- */}
@@ -361,21 +410,26 @@ export function Sheet({
             <Card key={topic.id} className="js-lift overflow-hidden" data-section-id={topic.id}>
               <button
                 type="button"
-                onClick={() =>
-                  setCollapsed((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(topic.id)) next.delete(topic.id);
-                    else next.add(topic.id);
-                    return next;
-                  })
-                }
+                onClick={() => toggleSection(topic.id)}
                 aria-expanded={isOpen(topic.id)}
                 className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-5"
               >
                 <Chevron open={isOpen(topic.id)} />
                 <span className="min-w-0 flex-1">
                   <span className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{topic.name}</span>
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="truncate text-sm font-medium">{topic.name}</span>
+                      {/* The one section worth opening first, named rather than
+                          left for you to hunt for. */}
+                      {!searching && topic.id === resumeId ? (
+                        <span className="skin-pill shrink-0 bg-accent/12 px-1.5 py-0.5 text-micro font-semibold text-accent">
+                          Continue
+                        </span>
+                      ) : null}
+                      {done === total && total > 0 ? (
+                        <Check className="size-3 shrink-0 text-good" aria-label="Section complete" />
+                      ) : null}
+                    </span>
                     <span className="shrink-0 text-xs text-ink-muted tnum">
                       {searching ? `${rows.length} of ${total}` : `${done}/${total}`}
                     </span>
@@ -433,12 +487,11 @@ export function Sheet({
       )}
 
       <p className="px-1 pb-1 text-center text-micro text-ink-muted">
-        {pct(
-          tasks.filter((t) => t.done).length,
-          tasks.length,
-        )}
-        % of {areaName} done · press{' '}
-        <kbd className="rounded border border-hairline bg-surface-2 px-1">?</kbd> for shortcuts
+        {pct(tasks.filter((t) => t.done).length, tasks.length)}% of {areaName} complete
+        <span className="hidden [@media(hover:hover)]:inline">
+          {' · press '}
+          <kbd className="rounded border border-hairline bg-surface-2 px-1">?</kbd> for shortcuts
+        </span>
       </p>
 
       <ShortcutsOverlay open={help} onClose={() => setHelp(false)} />
