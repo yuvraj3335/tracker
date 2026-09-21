@@ -10,8 +10,8 @@ import {
   type Command,
 } from '@/lib/commands';
 import {
-  getDensity, getSkin, serverDensity, serverSkin,
-  setDensity, setMode, setSkin, subscribe,
+  getDensity, getEffects, getSkin, serverDensity, serverEffects, serverSkin,
+  setDensity, setEffects, setMode, setSkin, subscribe,
 } from '@/lib/appearance';
 import { SKINS, THEMES } from '@/lib/themes';
 import { isPaletteShortcut, isTypingTarget } from '@/lib/keys';
@@ -41,6 +41,7 @@ export function CommandPalette() {
   const published = useSyncExternalStore(onCommandsChange, getCommands, serverCommands);
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
   const density = useSyncExternalStore(subscribe, getDensity, serverDensity);
+  const effects = useSyncExternalStore(subscribe, getEffects, serverEffects);
 
   // ---- global shortcut ----
   useEffect(() => {
@@ -89,8 +90,14 @@ export function CommandPalette() {
         group: 'Appearance',
         run: () => setDensity(density === 'compact' ? 'comfortable' : 'compact'),
       },
+      {
+        id: 'effects',
+        label: effects ? 'Turn off sound & haptics' : 'Turn on sound & haptics',
+        group: 'Appearance',
+        run: () => setEffects(!effects),
+      },
     ],
-    [router, skin, density],
+    [router, skin, density, effects],
   );
 
   const all = useMemo(() => [...published, ...builtin], [published, builtin]);

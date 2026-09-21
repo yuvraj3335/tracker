@@ -561,6 +561,16 @@ body {
   100% { transform: translateY(0); opacity: 1; }
 }
 
+/* Streak flame. Scale and skew only — no colour change per frame, so the
+   ordinal encoding (longer streak = hotter) stays readable in a still frame. */
+@keyframes jsFlicker {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  30%      { transform: scaleY(1.08) scaleX(0.96); }
+  55%      { transform: scaleY(0.96) scaleX(1.03); }
+  78%      { transform: scaleY(1.05) scaleX(0.98); }
+}
+
+.js-flicker   { animation: jsFlicker 2.4s ease-in-out infinite; }
 .js-rise-in   { animation: jsRiseIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .js-countdown { animation: jsCountdown 6000ms linear both; }
 .js-cell-in   { animation: jsCellIn 320ms ease-out both; animation-delay: var(--d, 0ms); }
@@ -569,12 +579,28 @@ body {
 /* Elevation on hover, pointer devices only. A touch device has no hover state
    to leave, so the lift would stick after a tap. */
 @media (hover: hover) and (pointer: fine) {
+  /* Transform only. Elevation on hover is carried by a pseudo-element's
+     opacity rather than transitioning box-shadow, which would repaint the
+     whole card on every frame. */
   .js-lift {
-    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease;
+    position: relative;
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .js-lift::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: var(--lift-2);
+    opacity: 0;
+    transition: opacity 160ms ease;
+    pointer-events: none;
   }
   .js-lift:hover {
     transform: translateY(-2px);
-    box-shadow: var(--lift-2);
+  }
+  .js-lift:hover::after {
+    opacity: 1;
   }
 }
 

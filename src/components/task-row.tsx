@@ -4,8 +4,9 @@ import { useOptimistic, useTransition } from 'react';
 import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
 import { toggleTaskAction, toggleFlagAction, setDifficultyAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
-import { celebrate } from '@/lib/celebrate';
+import { celebrate, type CelebrationKind } from '@/lib/celebrate';
 import { offerUndo } from '@/lib/undo';
+import { feedbackForTick } from '@/lib/effects';
 import { DIFFICULTY, type Difficulty } from '@/lib/schema';
 import { formatKey } from '@/lib/date';
 import { Check } from './ui/check';
@@ -33,18 +34,19 @@ const LINK_LABEL = { tuf: 'Article', leetcode: 'LeetCode', gfg: 'GFG', youtube: 
 export function TaskRow({
   task,
   index,
-  headingRemaining,
+  remaining,
   compact = false,
   focused = false,
 }: {
   task: Task;
   index: number;
   /**
-   * Undone questions left in this heading, including this one. When it is 1,
-   * ticking this row finishes the heading and earns the bigger celebration.
-   * Only the sheet view groups by heading, so elsewhere this is omitted.
+   * Undone questions left at each level, including this one. When a count is 1,
+   * ticking this row finishes that level and earns the matching celebration
+   * tier. Only the sheet knows these, so elsewhere it is omitted and every tick
+   * is a plain cheer.
    */
-  headingRemaining?: number;
+  remaining?: { heading: number; section: number; area: number };
   /** Tighter rows. 456 of them is a lot of scrolling; the choice is the user's. */
   compact?: boolean;
   /** Carries the sheet's j/k cursor. Drawn, not inferred from :focus-visible. */
@@ -69,7 +71,15 @@ export function TaskRow({
     // The row does not resolve the line: picking copy needs the skin and the
     // active character, and subscribing to those here would mean one store
     // subscription per row across 456 of them. The overlay reads them once.
-    if (next) celebrate(headingRemaining === 1 ? 'milestone' : 'cheer');
+    // Biggest completed level wins, so finishing the last question of a
+    // section reads as a section finish rather than just another heading.
+    if (next) {
+      const tier = tierFor(remaining);
+      celebrate(tier);
+      // Reads the preference at call time rather than subscribing — a store
+      // subscription here would cost one per row across 456 of them.
+      feedbackForTick(tier !== 'cheer');
+    }
     // A mis-tap on a 456-row list is easy and, on a filtered view, the row
     // vanishes the moment it is ticked — so the correction has to come to you.
     offerUndo(`${next ? 'Marked' : 'Cleared'} “${task.name}”`, () =>
@@ -191,6 +201,15 @@ export function TaskRow({
       </div>
     </li>
   );
+}
+
+/** The largest level this tick completes. */
+function tierFor(remaining?: { heading: number; section: number; area: number }): CelebrationKind {
+  if (!remaining) return 'cheer';
+  if (remaining.area === 1) return 'area';
+  if (remaining.section === 1) return 'section';
+  if (remaining.heading === 1) return 'milestone';
+  return 'cheer';
 }
 
 /**

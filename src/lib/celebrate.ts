@@ -14,7 +14,12 @@
  * single component, so it reads them once and picks the line itself; the row
  * just says what happened and how far along it is.
  */
-export type CelebrationKind = 'cheer' | 'milestone';
+/**
+ * Escalating tiers. Each one is a strictly bigger moment than the last, and the
+ * overlay scales the figure, the sparks and the ring to match — so finishing a
+ * whole section does not land with the same weight as ticking one question.
+ */
+export type CelebrationKind = 'cheer' | 'milestone' | 'section' | 'area';
 
 export type Celebration = {
   kind: CelebrationKind;

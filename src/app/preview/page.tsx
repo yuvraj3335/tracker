@@ -132,7 +132,7 @@ export default function PreviewPage() {
               <HeadingBand label={h.heading} count={`${h.done}/${h.total}`} />
               <ul>
                 {h.items.slice(0, 3).map((t) => (
-                  <TaskRow key={t.id} task={t} index={t.order + 1} headingRemaining={h.total - h.done} />
+                  <TaskRow key={t.id} task={t} index={t.order + 1} remaining={{ heading: h.total - h.done, section: h.total - h.done, area: 99 }} />
                 ))}
               </ul>
             </section>

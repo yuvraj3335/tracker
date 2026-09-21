@@ -51,7 +51,7 @@ export default async function DailyPage({
   const isFuture = next > todayKey();
 
   return (
-    <div className="space-y-4">
+    <div className="js-content-in space-y-4">
       <PageHeader
         title="Daily Tracker"
         sub="Filled in automatically from when you tick each question."
@@ -113,11 +113,18 @@ export default async function DailyPage({
           ) : (
             <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
               <CharacterBadge size={44} />
-              <p className="text-sm text-ink-muted">
-                {isToday(day)
-                  ? 'Nothing yet today.'
-                  : 'No questions were marked done on this day.'}
-              </p>
+              <div className="min-w-0">
+                <p className="text-sm text-ink-muted">
+                  {isToday(day)
+                    ? 'Nothing yet today.'
+                    : 'No questions were marked done on this day.'}
+                </p>
+                <p className="mt-1 text-xs">
+                  <Link href="/areas/dsa" className="font-medium text-accent hover:underline">
+                    {isToday(day) ? 'Open the sheet and pick one' : 'Open the sheet'}
+                  </Link>
+                </p>
+              </div>
             </div>
           )}
         </CardContent>

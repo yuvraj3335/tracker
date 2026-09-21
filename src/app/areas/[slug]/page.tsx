@@ -44,7 +44,7 @@ export default async function AreaPage({
   const openId = open ?? inProgress?.topic.id ?? rows[0]?.topic.id;
 
   return (
-    <div className="space-y-4">
+    <div className="js-content-in space-y-4">
       <div className="space-y-2.5">
         <PageHeader
           title={`${area.emoji ? area.emoji + ' ' : ''}${area.name}`}

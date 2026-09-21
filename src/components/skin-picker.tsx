@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Check, Palette } from 'lucide-react';
-import { getSkin, serverSkin, setSkin, subscribe } from '@/lib/appearance';
+import { Check, Palette, Volume2, VolumeX } from 'lucide-react';
+import { getEffects, getSkin, serverEffects, serverSkin, setEffects, setSkin, subscribe } from '@/lib/appearance';
 import { SKINS, THEMES } from '@/lib/themes';
 import { celebrate } from '@/lib/celebrate';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 /** Theme switcher. Picking a skin fires its own mascot so you see it move. */
 export function SkinPicker() {
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
+  const effects = useSyncExternalStore(subscribe, getEffects, serverEffects);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
 
@@ -84,8 +85,28 @@ export function SkinPicker() {
             );
           })}
 
+          {/* Feedback is off by default; this is the visible, persisted switch. */}
+          <button
+            type="button"
+            onClick={() => setEffects(!effects)}
+            aria-pressed={effects}
+            className="skin-pill mt-1 flex w-full items-center gap-2 border-t border-hairline px-2 pt-2 pb-1.5 text-left text-xs transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          >
+            {effects ? (
+              <Volume2 className="size-3.5 shrink-0 text-accent" />
+            ) : (
+              <VolumeX className="size-3.5 shrink-0 text-ink-muted" />
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium text-ink">Sound &amp; haptics</span>
+              <span className="block text-micro text-ink-muted">
+                {effects ? 'On for this device' : 'Off'}
+              </span>
+            </span>
+          </button>
+
           <p className="px-2 pt-1.5 pb-1 text-micro leading-snug text-ink-muted">
-            Original artwork. Saved on this device.
+            Saved on this device.
           </p>
         </div>
       ) : null}

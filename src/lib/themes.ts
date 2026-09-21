@@ -28,8 +28,12 @@ export type ThemeMeta = {
   /** Shown on a single completion. Picked in rotation, not at random, so it
    *  never repeats the same line twice running. */
   cheers: string[];
-  /** Shown when a heading or section is finished. */
+  /** Shown when a heading is finished. */
   milestone: string[];
+  /** Shown when a whole section is finished — a bigger moment than a heading. */
+  sectionDone: string[];
+  /** Shown when every question in an area is done. The rarest line in the app. */
+  finale: string[];
   /** Shown when a streak ticks over. */
   streak: (days: number) => string;
 };
@@ -42,7 +46,9 @@ export const THEMES: Record<Skin, ThemeMeta> = {
     mascot: 'none',
     swatch: ['#fcfcfb', '#2a78d6', '#6da7ec'],
     cheers: ['Done.', 'Logged.', 'Next.', 'Counted.'],
-    milestone: ['Section complete.', 'That block is finished.'],
+    milestone: ['Heading complete.', 'That block is finished.'],
+    sectionDone: ['Section complete.', 'Whole section done.'],
+    finale: ['Every question. Done.'],
     streak: (d) => `${d}-day streak.`,
   },
 
@@ -61,6 +67,8 @@ export const THEMES: Record<Skin, ThemeMeta> = {
       'Push forward.',
     ],
     milestone: ['Sector cleared.', 'The wall holds. Sector secure.', 'Position taken.'],
+    sectionDone: ['Front secured.', 'The whole line is yours.'],
+    finale: ['Campaign complete. Stand down.'],
     streak: (d) => `${d} days on the wall.`,
   },
 
@@ -79,7 +87,9 @@ export const THEMES: Record<Skin, ThemeMeta> = {
       'Amazing!',
       'Keep going! 💫',
     ],
-    milestone: ['Whole section done! ✨', 'That is a full set — wow!', 'Every single one! 🌸'],
+    milestone: ['Whole heading done! ✨', 'That is a full set — wow!', 'Every single one! 🌸'],
+    sectionDone: ['A whole section! 🌸✨', 'Look at you go — section cleared!'],
+    finale: ['Every. Single. Question. 🌸✨'],
     streak: (d) => `${d} days in a row! ✨`,
   },
 };

@@ -35,7 +35,7 @@ export default async function Dashboard() {
   const currentTopic = tp.find((r) => r.done > 0 && r.done < r.total) ?? tp.find((r) => r.done === 0);
 
   return (
-    <div className="space-y-4 sm:space-y-5">
+    <div className="js-content-in space-y-4 sm:space-y-5">
       <PageHeader title="Today" sub={formatKey(today, 'EEEE, d MMMM yyyy')} />
 
       <HeroProgress
@@ -44,6 +44,7 @@ export default async function Dashboard() {
         streak={stats.streak.current}
         todayCount={stats.todayCount}
         greeting={greeting()}
+        day={today}
       />
 
       {/* ---- Job Switch progress, with DSA folded in automatically ---- */}
@@ -151,11 +152,21 @@ export default async function Dashboard() {
             // streak is live.
             <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
               <CharacterFigure pose={mood === 'broken' ? 'sad' : 'idle'} size={48} />
-              <p className="text-sm text-ink-muted">
-                {mood === 'broken'
-                  ? 'Been a few days. One question is enough to start again.'
-                  : 'Nothing yet today. Pick one up below.'}
-              </p>
+              <div className="min-w-0">
+                <p className="text-sm text-ink-muted">
+                  {mood === 'broken'
+                    ? 'Been a few days. One question is enough to start again.'
+                    : 'Nothing yet today.'}
+                </p>
+                {nextUp[0] ? (
+                  <p className="mt-1 text-xs">
+                    <Link href="/areas/dsa" className="font-medium text-accent hover:underline">
+                      Start with {nextUp[0].name}
+                      <ArrowRight className="ml-0.5 inline size-3 align-[-1px]" />
+                    </Link>
+                  </p>
+                ) : null}
+              </div>
             </div>
           )}
         </CardContent>
@@ -193,9 +204,18 @@ export default async function Dashboard() {
               </div>
             </>
           ) : (
-            <p className="px-4 pb-4 text-sm text-ink-muted sm:px-5 sm:pb-5">
-              Every question is done. That is the whole sheet. 🎉
-            </p>
+            <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
+              <CharacterFigure pose="celebrate" size={48} />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink">Every question is done.</p>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  That is the whole sheet.{' '}
+                  <Link href="/analytics" className="font-medium text-accent hover:underline">
+                    See how you got here
+                  </Link>
+                </p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

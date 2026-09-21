@@ -42,7 +42,7 @@ export default async function AnalyticsPage() {
   const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
 
   return (
-    <div className="space-y-4">
+    <div className="js-content-in space-y-4">
       <PageHeader title="Analytics" sub="All derived from your Notion databases." />
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">

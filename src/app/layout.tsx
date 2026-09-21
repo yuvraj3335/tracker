@@ -1,3 +1,4 @@
+import { ViewTransition } from 'react';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Nav } from '@/components/nav';
@@ -45,8 +46,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-dvh antialiased">
         <CharacterProvider catalog={characters}>
           <Nav username={user?.username ?? null} />
-          {/* pb-20 keeps content clear of the mobile bottom bar */}
-          <main className="mx-auto max-w-5xl px-3 pt-4 pb-20 sm:px-4 sm:pb-10">{children}</main>
+          {/* pb-20 keeps content clear of the mobile bottom bar.
+
+              <ViewTransition> cross-fades route changes through the browser's
+              View Transitions API. Next's navigations are React Transitions, so
+              this activates on its own with no config. Where the API is missing
+              it is a no-op and navigation is exactly as it was. */}
+          <main className="mx-auto max-w-5xl px-3 pt-4 pb-20 sm:px-4 sm:pb-10">
+            <ViewTransition>{children}</ViewTransition>
+          </main>
           {/* Fixed, pointer-events-none: never blocks a tap or shifts the page. */}
           <CelebrationLayer />
           {/* Separate from the celebration because it has to be clickable. */}

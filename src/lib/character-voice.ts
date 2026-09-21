@@ -13,11 +13,13 @@
 import { pickLine, type ThemeMeta } from './themes';
 import type { Character } from './characters';
 
-export type VoiceKind = 'cheer' | 'milestone' | 'idle';
+export type VoiceKind = 'cheer' | 'milestone' | 'sectionDone' | 'finale' | 'idle';
 
 /** The skin's own copy for a kind, used whenever the character has none. */
 function themeLines(theme: ThemeMeta, kind: VoiceKind): string[] {
   if (kind === 'milestone') return theme.milestone;
+  if (kind === 'sectionDone') return theme.sectionDone;
+  if (kind === 'finale') return theme.finale;
   if (kind === 'idle') return [theme.tagline];
   return theme.cheers;
 }
@@ -34,8 +36,14 @@ export function pickCharacterLine(
   theme: ThemeMeta,
   n: number,
 ): string {
-  const own = character?.lines?.[kind];
+  const own = character?.lines?.[kind as 'cheer' | 'milestone' | 'idle'];
   if (own && own.length) return pickLine(own, n);
+  // A character that only ships `milestone` lines still uses them for the two
+  // bigger tiers, rather than dropping back to the skin mid-celebration.
+  if (kind === 'sectionDone' || kind === 'finale') {
+    const fallback = character?.lines?.milestone;
+    if (fallback && fallback.length) return pickLine(fallback, n);
+  }
   return pickLine(themeLines(theme, kind), n);
 }
 

@@ -2,6 +2,10 @@
 
 import { useSyncExternalStore } from 'react';
 import { CharacterFigure } from './character-figure';
+import { CountUp } from './count-up';
+import { StreakFlame } from './streak-flame';
+import { useActiveCharacter } from './character-provider';
+import { dailyLine } from '@/lib/character-voice';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
 import { THEMES } from '@/lib/themes';
 import { pct } from '@/lib/utils';
@@ -27,15 +31,22 @@ export function HeroProgress({
   streak,
   todayCount,
   greeting,
+  day,
 }: {
   done: number;
   total: number;
   streak: number;
   todayCount: number;
   greeting: string;
+  /** Today's key, so the character's line is stable for the whole day. */
+  day?: string;
 }) {
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
+  const character = useActiveCharacter();
   const theme = THEMES[skin];
+  // An installed character with its own idle lines speaks here; otherwise the
+  // skin's tagline stands, exactly as before.
+  const line = (day ? dailyLine(character, day) : null) ?? theme.tagline;
   const value = total ? done / total : 0;
 
   return (
@@ -77,7 +88,8 @@ export function HeroProgress({
           <div className="absolute inset-0 grid place-items-center">
             <div className="text-center">
               <div className="text-display font-semibold">
-                {pct(done, total)}%
+                {/* Tweens only when the number actually changes — see CountUp. */}
+                <CountUp value={pct(done, total)} format={(n) => `${Math.round(n * 10) / 10}%`} />
               </div>
               <div className="mt-0.5 text-micro text-ink-muted tnum">
                 {done}/{total}
@@ -88,11 +100,11 @@ export function HeroProgress({
 
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold sm:text-base">{greeting}</p>
-          <p className="mt-0.5 text-xs text-ink-muted">{theme.tagline}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">{line}</p>
 
           <dl className="mt-3 grid grid-cols-3 gap-x-2">
             <Stat label="today" value={todayCount} />
-            <Stat label="streak" value={streak} />
+            <Stat label="streak" value={streak} flame />
             <Stat label="to go" value={total - done} />
           </dl>
         </div>
@@ -113,10 +125,13 @@ export function HeroProgress({
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, flame = false }: { label: string; value: number; flame?: boolean }) {
   return (
     <div>
-      <dd className="text-base leading-none font-semibold tnum sm:text-lg">{value}</dd>
+      <dd className="flex items-center gap-1 text-base leading-none font-semibold tnum sm:text-lg">
+        {flame ? <StreakFlame days={value} size={15} /> : null}
+        <CountUp value={value} />
+      </dd>
       <dt className="mt-0.5 truncate text-micro tracking-wide text-ink-muted uppercase">
         {label}
       </dt>

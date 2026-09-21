@@ -138,3 +138,27 @@ export function setDensity(d: Density) {
 }
 
 export const serverDensity = (): Density => 'comfortable';
+
+// ------------------------------------------------------------- effects
+/**
+ * Sound and haptics on a tick. One preference for both, because they are the
+ * same idea in two channels, and OFF by default — an app that makes noise the
+ * first time you touch it reads as broken.
+ */
+export const EFFECTS_KEY = 'jst-effects';
+
+let cachedEffects: boolean | null = null;
+
+export function getEffects(): boolean {
+  if (cachedEffects !== null) return cachedEffects;
+  cachedEffects = read(EFFECTS_KEY) === 'on';
+  return cachedEffects;
+}
+
+export function setEffects(on: boolean) {
+  cachedEffects = on;
+  write(EFFECTS_KEY, on ? 'on' : 'off');
+  announce();
+}
+
+export const serverEffects = (): boolean => false;

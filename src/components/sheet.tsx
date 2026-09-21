@@ -72,7 +72,9 @@ export function Sheet({
     return applyFilter(searched, filter);
   }, [index, deferredQuery, filter]);
 
-  const visibleIds = useMemo(() => new Set(visible.map((t) => t.id)), [visible]);
+  // Drives the top celebration tier: ticking the last undone question in the
+  // whole area is the rarest moment in the app.
+  const undoneTotal = useMemo(() => tasks.filter((t) => !t.done).length, [tasks]);
 
   // Per-section groups, in sheet order. Sections with nothing left after
   // filtering drop out entirely rather than showing an empty shell.
@@ -332,7 +334,7 @@ export function Sheet({
       ) : (
         <div className="space-y-2.5">
           {sections.map(({ topic, rows, done, total }) => (
-            <Card key={topic.id} className="overflow-hidden" data-section-id={topic.id}>
+            <Card key={topic.id} className="js-lift overflow-hidden" data-section-id={topic.id}>
               <button
                 type="button"
                 onClick={() =>
@@ -386,15 +388,14 @@ export function Sheet({
                             index={t.order + 1}
                             compact={compact}
                             focused={activeTask?.id === t.id}
-                            // headingRemaining drives the bigger celebration,
-                            // and must be counted against the *whole* heading,
-                            // not the filtered slice — otherwise hiding done
-                            // rows would make every tick look like a milestone.
-                            headingRemaining={
-                              visibleIds.size
-                                ? countRemaining(tasks, topic.id, h.heading)
-                                : undefined
-                            }
+                            // Counted against the WHOLE list, never the filtered
+                            // slice — otherwise hiding done rows would make
+                            // every tick look like it finished something.
+                            remaining={{
+                              heading: countRemaining(tasks, topic.id, h.heading),
+                              section: countRemaining(tasks, topic.id),
+                              area: undoneTotal,
+                            }}
                           />
                         ))}
                       </ul>
@@ -429,13 +430,19 @@ const FILTER_LABEL: Record<Filter, string> = {
   revisit: 'Revisit',
 };
 
-/** Undone questions left in a heading, counted against the full list. */
-function countRemaining(all: Task[], topicId: string, heading: string): number {
+/**
+ * Undone questions left in a section, or in one heading of it.
+ *
+ * Always counted against the full task list rather than what is on screen, so
+ * the celebration tier reflects real progress and not the current filter.
+ */
+function countRemaining(all: Task[], topicId: string, heading?: string): number {
   let n = 0;
   for (const t of all) {
+    if (t.done) continue;
     if (!t.topicIds.includes(topicId)) continue;
-    if ((t.heading || '—') !== heading) continue;
-    if (!t.done) n++;
+    if (heading !== undefined && (t.heading || '—') !== heading) continue;
+    n++;
   }
   return n;
 }

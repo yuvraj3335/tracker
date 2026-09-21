@@ -30,6 +30,9 @@ const FILL = ['var(--seq-0)', 'var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'v
 
 type Hover = { day: DayKey; count: number; x: number; y: number } | null;
 
+/** Bucket labels, so the tooltip says what the shade means rather than only how many. */
+const BUCKET_LABEL = ['nothing', 'a little', 'steady', 'a good day', 'a big day'] as const;
+
 export function Heatmap({
   counts,
   weeks = 53,
@@ -129,8 +132,12 @@ export function Heatmap({
                         key={day}
                         href={`${href}?d=${day}`}
                         aria-label={`${count} on ${formatKey(day)}`}
-                        className="block rounded-[3px] outline-offset-1 focus-visible:outline-2 focus-visible:outline-accent"
+                        className="js-cell-in block rounded-[3px] outline-offset-1 transition-transform hover:scale-125 focus-visible:outline-2 focus-visible:outline-accent"
                         style={{
+                          // Washes across the grid on first paint only: these
+                          // cells are keyed by day, so React keeps them across
+                          // re-renders and the animation never re-runs on a tick.
+                          ['--d' as string]: `${Math.min(ci * 8, 420)}ms`,
                           width: CELL,
                           height: CELL,
                           background: future ? 'transparent' : FILL[b],
@@ -169,10 +176,15 @@ export function Heatmap({
           style={{ left: hover.x, top: hover.y - 6 }}
           role="tooltip"
         >
-          <span className="font-semibold tnum">
-            {hover.count === 0 ? 'Nothing' : `${hover.count} question${hover.count === 1 ? '' : 's'}`}
+          <span className="block">
+            <span className="font-semibold tnum">
+              {hover.count === 0 ? 'Nothing' : `${hover.count} question${hover.count === 1 ? '' : 's'}`}
+            </span>
+            <span className="text-ink-muted"> · {formatKey(hover.day, 'EEE d MMM yyyy')}</span>
           </span>
-          <span className="text-ink-muted"> · {formatKey(hover.day, 'd MMM yyyy')}</span>
+          <span className="mt-0.5 block text-micro text-ink-muted">
+            {hover.count > 0 ? `${BUCKET_LABEL[bucket(hover.count)]} — click to open` : 'click to open'}
+          </span>
         </div>
       ) : null}
 

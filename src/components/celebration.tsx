@@ -3,7 +3,9 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { CharacterFigure } from './character-figure';
 import { useActiveCharacter } from './character-provider';
-import { onCelebrate, type Celebration } from '@/lib/celebrate';
+import { onCelebrate, type Celebration, type CelebrationKind } from '@/lib/celebrate';
+import type { Pose } from '@/lib/characters';
+import type { VoiceKind } from '@/lib/character-voice';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
 import { pickCharacterLine } from '@/lib/character-voice';
 import { THEMES } from '@/lib/themes';
@@ -43,9 +45,8 @@ export function CelebrationLayer() {
     return <div className="pointer-events-none fixed inset-x-0 bottom-16 z-40 sm:bottom-6" aria-live="polite" aria-atomic="true" />;
   }
 
-  const message =
-    event.message ??
-    pickCharacterLine(character, event.kind === 'milestone' ? 'milestone' : 'cheer', theme, event.rotate);
+  const tier = TIERS[event.kind];
+  const message = event.message ?? pickCharacterLine(character, tier.voice, theme, event.rotate);
 
   // A figure exists when a character is installed and chosen, or when the skin
   // ships a mascot. Studio has neither, and then only the line is shown.
@@ -61,20 +62,20 @@ export function CelebrationLayer() {
         {hasFigure ? (
           <div className="relative">
             {/* impact ring on the bigger moments */}
-            {event.kind !== 'cheer' ? (
-              <span
-                className="js-ring absolute inset-0 rounded-full"
-                style={{ border: '2px solid var(--accent)' }}
-              />
-            ) : null}
+            {tier.rings > 0
+              ? Array.from({ length: tier.rings }, (_, i) => (
+                  <span
+                    key={`${event.id}-ring-${i}`}
+                    className="js-ring absolute inset-0 rounded-full"
+                    style={{ border: '2px solid var(--accent)', animationDelay: `${i * 160}ms` }}
+                  />
+                ))
+              : null}
 
-            <CharacterFigure
-              pose={event.kind === 'milestone' ? 'milestone' : 'celebrate'}
-              size={event.kind === 'cheer' ? 64 : 84}
-            />
+            <CharacterFigure pose={tier.pose} size={tier.size} />
 
             {/* sparkle burst — each shard gets its own vector via CSS vars */}
-            {SPARKS.map((s, i) => (
+            {SPARKS.slice(0, tier.sparks).map((s, i) => (
               <span
                 key={`${event.id}-${i}`}
                 className="js-spark absolute top-1/2 left-1/2 block rounded-full"
@@ -95,7 +96,8 @@ export function CelebrationLayer() {
 
         <span
           className={cn(
-            'js-rise skin-pill border px-3 py-1 text-xs font-semibold shadow-lift-3',
+            'js-rise skin-pill border px-3 py-1 font-semibold shadow-lift-3',
+            tier.big ? 'text-sm' : 'text-xs',
             event.kind === 'cheer' ? 'text-ink' : 'text-accent-ink',
           )}
           style={{
@@ -110,6 +112,23 @@ export function CelebrationLayer() {
   );
 }
 
+/**
+ * What each tier looks like.
+ *
+ * The escalation is deliberate and monotonic — every step up adds figure size,
+ * sparks and rings — so the size of the moment is legible without reading the
+ * words. A finished section should not land like one ticked question.
+ */
+const TIERS: Record<
+  CelebrationKind,
+  { voice: VoiceKind; pose: Pose; size: number; sparks: number; rings: number; big: boolean }
+> = {
+  cheer:     { voice: 'cheer',       pose: 'celebrate', size: 64, sparks: 0,  rings: 0, big: false },
+  milestone: { voice: 'milestone',   pose: 'milestone', size: 84, sparks: 6,  rings: 1, big: false },
+  section:   { voice: 'sectionDone', pose: 'milestone', size: 96, sparks: 10, rings: 2, big: true },
+  area:      { voice: 'finale',      pose: 'milestone', size: 112, sparks: 14, rings: 3, big: true },
+};
+
 /** Fixed offsets rather than random, so the burst looks designed and is stable. */
 const SPARKS = [
   { x: '-30px', y: '-30px', size: 6, delay: 0 },
@@ -118,4 +137,13 @@ const SPARKS = [
   { x: '38px', y: '-4px', size: 5, delay: 90 },
   { x: '-14px', y: '-46px', size: 4, delay: 120 },
   { x: '16px', y: '-48px', size: 6, delay: 45 },
+  // The extra shards only appear on the two biggest tiers.
+  { x: '-56px', y: '-28px', size: 5, delay: 150 },
+  { x: '54px', y: '-24px', size: 4, delay: 110 },
+  { x: '-24px', y: '-64px', size: 5, delay: 190 },
+  { x: '26px', y: '-66px', size: 4, delay: 170 },
+  { x: '-68px', y: '2px', size: 4, delay: 210 },
+  { x: '66px', y: '6px', size: 5, delay: 230 },
+  { x: '-6px', y: '-78px', size: 6, delay: 250 },
+  { x: '8px', y: '-80px', size: 4, delay: 270 },
 ];
