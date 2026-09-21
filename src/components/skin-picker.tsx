@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Check, Palette } from 'lucide-react';
-import { Mascot } from './mascot';
 import { getSkin, serverSkin, setSkin, subscribe } from '@/lib/appearance';
 import { SKINS, THEMES } from '@/lib/themes';
 import { celebrate } from '@/lib/celebrate';
@@ -92,12 +91,4 @@ export function SkinPicker() {
       ) : null}
     </div>
   );
-}
-
-/** A resting mascot for empty states and headers. */
-export function MascotBadge({ size = 40 }: { size?: number }) {
-  const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
-  const theme = THEMES[skin];
-  if (theme.mascot === 'none') return null;
-  return <Mascot id={theme.mascot} size={size} />;
 }

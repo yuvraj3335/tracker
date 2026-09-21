@@ -1,12 +1,10 @@
 'use client';
 
-import { useOptimistic, useSyncExternalStore, useTransition } from 'react';
+import { useOptimistic, useTransition } from 'react';
 import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
 import { toggleTaskAction, toggleFlagAction, setDifficultyAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
-import { bumpCompletions, celebrate } from '@/lib/celebrate';
-import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
-import { THEMES, pickLine } from '@/lib/themes';
+import { celebrate } from '@/lib/celebrate';
 import { DIFFICULTY, type Difficulty } from '@/lib/schema';
 import { formatKey } from '@/lib/date';
 import { Check } from './ui/check';
@@ -46,7 +44,6 @@ export function TaskRow({
   headingRemaining?: number;
 }) {
   const [pending, start] = useTransition();
-  const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
   const [done, setDone] = useOptimistic(task.done);
   const [marks, setMarks] = useOptimistic({
     bookmarked: task.bookmarked,
@@ -61,12 +58,11 @@ export function TaskRow({
   function toggle(next: boolean) {
     // Celebrate optimistically, before Notion replies — the reward has to land
     // with the tap, not a second later. Unticking is silent.
-    if (next) {
-      const theme = THEMES[skin];
-      const n = bumpCompletions();
-      if (headingRemaining === 1) celebrate('milestone', pickLine(theme.milestone, n));
-      else celebrate('cheer', pickLine(theme.cheers, n));
-    }
+    //
+    // The row does not resolve the line: picking copy needs the skin and the
+    // active character, and subscribing to those here would mean one store
+    // subscription per row across 456 of them. The overlay reads them once.
+    if (next) celebrate(headingRemaining === 1 ? 'milestone' : 'cheer');
     start(async () => {
       setDone(next);
       await toggleTaskAction(task.id, next);

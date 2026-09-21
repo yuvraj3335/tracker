@@ -17,8 +17,19 @@ import {
   uniqueHeadings,
   seedChunk,
 } from '../src/lib/provision';
-import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate } from '../src/lib/date';
-import { streaks, countsByDay, overallProgress, areaProgress } from '../src/lib/derive';
+import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey } from '../src/lib/date';
+import { streaks, countsByDay, overallProgress, areaProgress, streakMood } from '../src/lib/derive';
+import {
+  parseCharacterMeta,
+  parseAccent,
+  resolvePose,
+  resolveCharacter,
+  isRenderable,
+  type Character,
+} from '../src/lib/characters';
+import { discoverCharacters } from '../src/lib/characters.server';
+import { pickCharacterLine, dailyLine } from '../src/lib/character-voice';
+import { THEMES } from '../src/lib/themes';
 import type { Area, Task } from '../src/lib/notion';
 
 let pass = 0;
@@ -227,6 +238,145 @@ async function main() {
     } finally {
       globalThis.fetch = realFetch;
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Character system. All of this must hold with ZERO artwork installed, which
+  // is how the app ships — the SVG mascot fallback is the default path.
+  // -----------------------------------------------------------------------
+  section('Character meta parsing');
+  {
+    const ok = parseCharacterMeta(
+      { id: 'ignored', name: 'Amber', artist: 'Someone', source: 'https://x.test', license: 'fan kit' },
+      'amber',
+    );
+    check('accepts a complete meta', ok !== null);
+    check('folder id wins over the id in the file', ok?.id === 'amber', `got ${ok?.id}`);
+    check('name is carried through', ok?.name === 'Amber');
+    check(
+      'missing artist is refused (attribution is the point)',
+      parseCharacterMeta({ name: 'X', license: 'y' }, 'x') === null,
+    );
+    check(
+      'missing license is refused',
+      parseCharacterMeta({ name: 'X', artist: 'y' }, 'x') === null,
+    );
+    check('non-object meta is refused', parseCharacterMeta('nope', 'x') === null);
+    check('null meta is refused', parseCharacterMeta(null, 'x') === null);
+    check(
+      'a folder name that could escape the URL is refused',
+      parseCharacterMeta({ artist: 'a', license: 'b' }, '../etc') === null,
+    );
+    check(
+      'name falls back to the folder id',
+      parseCharacterMeta({ artist: 'a', license: 'b' }, 'solo')?.name === 'solo',
+    );
+    check('valid accent is kept', parseAccent('#7c4dcc') === '#7c4dcc');
+    check('short-form accent is kept', parseAccent('#abc') === '#abc');
+    check('non-hex accent is dropped', parseAccent('red') === undefined);
+    check('malformed accent is dropped', parseAccent('#12345') === undefined);
+    const lines = parseCharacterMeta(
+      { artist: 'a', license: 'b', lines: { cheer: ['one', '', '  '], milestone: [], idle: ['hi'] } },
+      'x',
+    );
+    check('blank lines are dropped', lines?.lines?.cheer?.length === 1, `got ${lines?.lines?.cheer?.length}`);
+    check('an empty list becomes undefined', lines?.lines?.milestone === undefined);
+    check('a populated list survives', lines?.lines?.idle?.[0] === 'hi');
+  }
+
+  section('Character pose fallback');
+  {
+    const full: Character = {
+      id: 'f', name: 'F', artist: 'a', license: 'l', source: '',
+      poses: { idle: '/i.webp', celebrate: '/c.webp', milestone: '/m.webp', sad: '/s.webp' },
+    };
+    const idleOnly: Character = { ...full, poses: { idle: '/i.webp' } };
+    const noMilestone: Character = { ...full, poses: { idle: '/i.webp', celebrate: '/c.webp' } };
+
+    check('full set resolves each pose directly', resolvePose(full, 'milestone') === '/m.webp');
+    check('sad resolves directly when present', resolvePose(full, 'sad') === '/s.webp');
+    check('milestone falls back to celebrate', resolvePose(noMilestone, 'milestone') === '/c.webp');
+    check('sad falls back to idle', resolvePose(noMilestone, 'sad') === '/i.webp');
+    check('celebrate falls back to idle', resolvePose(idleOnly, 'celebrate') === '/i.webp');
+    check('milestone falls all the way to idle', resolvePose(idleOnly, 'milestone') === '/i.webp');
+    check('a null character resolves to null (SVG mascot renders)', resolvePose(null, 'idle') === null);
+    check('a character with no art resolves to null',
+      resolvePose({ ...full, poses: {} }, 'idle') === null);
+    check('isRenderable tracks the idle pose', isRenderable(idleOnly) && !isRenderable({ ...full, poses: {} }));
+
+    const catalog = [full, idleOnly];
+    check('lookup finds by id', resolveCharacter(catalog, 'f')?.id === 'f');
+    check('an unknown id resolves to null, not a throw', resolveCharacter(catalog, 'gone') === null);
+    check('an empty id resolves to null', resolveCharacter(catalog, '') === null);
+  }
+
+  section('Character discovery (shipped state)');
+  {
+    const found = discoverCharacters();
+    check(
+      'a checkout with no artwork discovers nothing and does not throw',
+      Array.isArray(found) && found.length === 0,
+      `got ${found.length}`,
+    );
+  }
+
+  section('Character voice');
+  {
+    const theme = THEMES.blossom;
+    const withLines: Character = {
+      id: 'v', name: 'V', artist: 'a', license: 'l', source: '',
+      poses: { idle: '/i.webp' },
+      lines: { cheer: ['ka', 'kb'], idle: ['d1', 'd2', 'd3'] },
+    };
+    const without: Character = { ...withLines, lines: undefined };
+
+    check('character cheer lines win over the skin', pickCharacterLine(withLines, 'cheer', theme, 0) === 'ka');
+    check('lines rotate rather than repeat', pickCharacterLine(withLines, 'cheer', theme, 1) === 'kb');
+    check('rotation wraps', pickCharacterLine(withLines, 'cheer', theme, 2) === 'ka');
+    check(
+      'a kind the character does not define falls back to the skin',
+      pickCharacterLine(withLines, 'milestone', theme, 0) === theme.milestone[0],
+    );
+    check(
+      'a character with no lines uses the skin throughout',
+      pickCharacterLine(without, 'cheer', theme, 0) === theme.cheers[0],
+    );
+    check(
+      'no character at all uses the skin',
+      pickCharacterLine(null, 'cheer', theme, 0) === theme.cheers[0],
+    );
+    check('idle falls back to the skin tagline', pickCharacterLine(without, 'idle', theme, 0) === theme.tagline);
+
+    const d1 = dailyLine(withLines, '2026-09-21');
+    check('daily line is stable for the same day', d1 === dailyLine(withLines, '2026-09-21'));
+    check('daily line comes from the character list', withLines.lines!.idle!.includes(d1!));
+    check('a different day can pick a different line',
+      new Set(['2026-09-21', '2026-09-22', '2026-09-23'].map((d) => dailyLine(withLines, d))).size > 1);
+    check('no idle lines means no daily line', dailyLine(without, '2026-09-21') === null);
+    check('no character means no daily line', dailyLine(null, '2026-09-21') === null);
+  }
+
+  section('Streak mood (drives the sad pose)');
+  {
+    const T = todayKey();
+    check('an active streak is live', streakMood({ current: 3, longest: 5, lastActive: T }) === 'live');
+    check('never started is none', streakMood({ current: 0, longest: 0, lastActive: null }) === 'none');
+    check(
+      'a lapsed run is broken',
+      streakMood({ current: 0, longest: 4, lastActive: shiftKey(T, -5) }) === 'broken',
+    );
+    check(
+      'one active day then a gap is not worth commiserating over',
+      streakMood({ current: 0, longest: 1, lastActive: shiftKey(T, -5) }) === 'none',
+    );
+    check(
+      'yesterday is still live, not broken',
+      streakMood({ current: 2, longest: 2, lastActive: shiftKey(T, -1) }) === 'live',
+    );
+    check(
+      'a future-dated completion is not reported as broken',
+      streakMood({ current: 0, longest: 3, lastActive: shiftKey(T, 5) }) === 'none',
+    );
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

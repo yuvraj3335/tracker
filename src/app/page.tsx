@@ -3,11 +3,11 @@ import { Flame, CalendarCheck, Target, TrendingUp, ArrowRight } from 'lucide-rea
 import { getEverything } from '@/lib/notion';
 import { requireReady } from '@/lib/tenant';
 import { env } from '@/lib/env';
-import { activityByDay, areaProgress, countsByDay, summarize, topicProgress } from '@/lib/derive';
+import { activityByDay, areaProgress, countsByDay, streakMood, summarize, topicProgress } from '@/lib/derive';
 import { formatKey, greeting, todayKey } from '@/lib/date';
 import { pct } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { MascotBadge } from '@/components/skin-picker';
+import { CharacterFigure } from '@/components/character-figure';
 import { PageHeader } from '@/components/page-header';
 import { HeroProgress } from '@/components/hero-progress';
 import { ProgressBar } from '@/components/progress-bar';
@@ -26,6 +26,7 @@ export default async function Dashboard() {
   const byDay = activityByDay(tasks);
   const todayTasks = byDay.get(today) ?? [];
   const counts = Object.fromEntries(countsByDay(tasks));
+  const mood = streakMood(stats.streak);
 
   // Next up: the first unsolved questions in original sheet order.
   const nextUp = tasks.filter((t) => !t.done).slice(0, 5);
@@ -144,9 +145,17 @@ export default async function Dashboard() {
               ))}
             </ul>
           ) : (
+            // Coming back after a lapsed run gets the `sad` pose and softer
+            // copy. Deliberately not guilt-trippy: it names the gap once and
+            // points at the next action, and never mentions it again once the
+            // streak is live.
             <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
-              <MascotBadge size={48} />
-              <p className="text-sm text-ink-muted">Nothing yet today. Pick one up below.</p>
+              <CharacterFigure pose={mood === 'broken' ? 'sad' : 'idle'} size={48} />
+              <p className="text-sm text-ink-muted">
+                {mood === 'broken'
+                  ? 'Been a few days. One question is enough to start again.'
+                  : 'Nothing yet today. Pick one up below.'}
+              </p>
             </div>
           )}
         </CardContent>

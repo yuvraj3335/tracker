@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Nav } from '@/components/nav';
 import { CelebrationLayer } from '@/components/celebration';
+import { CharacterProvider } from '@/components/character-provider';
 import { currentUser } from '@/lib/tenant';
+import { discoverCharacters } from '@/lib/characters.server';
 
 export const metadata: Metadata = {
   title: 'Job Switch Tracker',
@@ -29,6 +31,9 @@ const APPEARANCE_SCRIPT = `try{var d=document.documentElement,m=localStorage.get
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Memoised, so the page's own lookup does not cost a second query.
   const user = await currentUser();
+  // Filesystem walk, cached for the process. Usually empty — the app ships with
+  // no artwork and falls back to the built-in SVG mascots.
+  const characters = discoverCharacters();
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -36,11 +41,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: APPEARANCE_SCRIPT }} />
       </head>
       <body className="min-h-dvh antialiased">
-        <Nav username={user?.username ?? null} />
-        {/* pb-20 keeps content clear of the mobile bottom bar */}
-        <main className="mx-auto max-w-5xl px-3 pt-4 pb-20 sm:px-4 sm:pb-10">{children}</main>
-        {/* Fixed, pointer-events-none: never blocks a tap or shifts the page. */}
-        <CelebrationLayer />
+        <CharacterProvider catalog={characters}>
+          <Nav username={user?.username ?? null} />
+          {/* pb-20 keeps content clear of the mobile bottom bar */}
+          <main className="mx-auto max-w-5xl px-3 pt-4 pb-20 sm:px-4 sm:pb-10">{children}</main>
+          {/* Fixed, pointer-events-none: never blocks a tap or shifts the page. */}
+          <CelebrationLayer />
+        </CharacterProvider>
       </body>
     </html>
   );

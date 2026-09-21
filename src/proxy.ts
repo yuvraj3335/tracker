@@ -22,6 +22,10 @@ const PUBLIC_PREFIXES = [
   '/manifest',
   '/robots',
   '/sitemap',
+  // Character artwork. Static files under public/, and they render on the
+  // signed-out setup and auth screens — gating them would 307 the image
+  // requests to /login and leave broken figures there.
+  '/characters/',
   // Dev-only design harness. The route itself 404s when NODE_ENV is
   // production, so allowing it here opens nothing in a real deployment.
   '/preview',

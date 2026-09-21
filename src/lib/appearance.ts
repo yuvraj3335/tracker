@@ -1,23 +1,27 @@
 'use client';
 
 /**
- * Two independent appearance axes, both per-viewer preferences:
+ * Independent appearance axes, all per-viewer preferences:
  *
- *   mode  — system | light | dark   -> data-theme on <html>
- *   skin  — studio | rampart | blossom -> data-skin on <html>
+ *   mode      — system | light | dark      -> data-theme on <html>
+ *   skin      — studio | rampart | blossom -> data-skin on <html>
+ *   character — an installed character id, or '' for the built-in SVG mascot
  *
  * Held in localStorage and read through useSyncExternalStore rather than
  * mirrored into state by an effect. localStorage can throw in a private window,
  * so every access is guarded; a failure just falls back to the defaults.
  *
- * The inline script in the root layout applies both attributes before first
- * paint, so there is no flash and nothing to synchronise on mount.
+ * The inline script in the root layout applies the attributes before first
+ * paint, so there is no flash and nothing to synchronise on mount. Character is
+ * not applied pre-paint because it is not a palette — it only selects which
+ * image a figure renders, and that is decided during render anyway.
  */
 import { DEFAULT_SKIN, isSkin, type Skin } from './themes';
 
 export type Mode = 'system' | 'light' | 'dark';
 export const MODE_KEY = 'jst-theme';
 export const SKIN_KEY = 'jst-skin';
+export const CHARACTER_KEY = 'jst-character';
 
 const listeners = new Set<() => void>();
 function announce() {
@@ -87,3 +91,25 @@ export function setSkin(skin: Skin) {
 }
 
 export const serverSkin = (): Skin => DEFAULT_SKIN;
+
+// ------------------------------------------------------------ character
+/**
+ * Which installed character to draw. Empty string means "none chosen", which is
+ * also the only correct pre-hydration answer: the server cannot know what this
+ * device picked, and guessing would flash the wrong art.
+ */
+let cachedCharacter: string | null = null;
+
+export function getCharacter(): string {
+  if (cachedCharacter !== null) return cachedCharacter;
+  cachedCharacter = read(CHARACTER_KEY) ?? '';
+  return cachedCharacter;
+}
+
+export function setCharacter(id: string) {
+  cachedCharacter = id;
+  write(CHARACTER_KEY, id);
+  announce();
+}
+
+export const serverCharacter = (): string => '';

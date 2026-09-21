@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { Mascot } from './mascot';
+import { CharacterFigure } from './character-figure';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
 import { THEMES } from '@/lib/themes';
 import { pct } from '@/lib/utils';
@@ -98,13 +98,16 @@ export function HeroProgress({
         </div>
 
         {/* Shown at both sizes — there is room beside the stats even on a
-            phone, and hiding it there was the one place the theme vanished. */}
-        {theme.mascot !== 'none' ? (
-          <>
-            <Mascot id={theme.mascot} size={52} className="sm:hidden" />
-            <Mascot id={theme.mascot} size={68} className="hidden sm:block" />
-          </>
-        ) : null}
+            phone, and hiding it there was the one place the theme vanished.
+            Renders the installed character when there is one, the skin's SVG
+            mascot otherwise, and nothing at all for Studio. This is the app's
+            resting figure, so it is the only one that preloads. */}
+        <span className="sm:hidden">
+          <CharacterFigure pose="idle" size={52} />
+        </span>
+        <span className="hidden sm:block">
+          <CharacterFigure pose="idle" size={68} priority />
+        </span>
       </div>
     </section>
   );

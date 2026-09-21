@@ -12,7 +12,7 @@ import { ProgressBar } from '@/components/progress-bar';
 import { Heatmap } from '@/components/heatmap';
 import { VelocityChart } from '@/components/velocity-chart';
 import { TaskRow } from '@/components/task-row';
-import { MascotBadge } from '@/components/skin-picker';
+import { CharacterBadge, CharacterFigure } from '@/components/character-figure';
 import { DashboardSkeleton, SheetSkeleton } from '@/components/skeletons';
 
 /**
@@ -165,11 +165,28 @@ export default function PreviewPage() {
         </div>
       </Section>
 
+      <Section title="Character poses (falls back to the skin's SVG mascot when no art is installed)">
+        <Card>
+          <CardContent className="flex flex-wrap items-end gap-6 pt-4">
+            {(['idle', 'celebrate', 'milestone', 'sad'] as const).map((pose) => (
+              <div key={pose} className="flex flex-col items-center gap-1.5">
+                <CharacterFigure pose={pose} size={64} />
+                <span className="text-micro tracking-wide text-ink-muted uppercase">{pose}</span>
+              </div>
+            ))}
+            <p className="max-w-xs text-meta text-ink-muted">
+              Drop a folder into <code className="rounded bg-surface-2 px-1">public/characters/</code>{' '}
+              and the picker appears in the nav. See that folder&apos;s README.
+            </p>
+          </CardContent>
+        </Card>
+      </Section>
+
       <Section title="Empty state + buttons">
         <Card>
           <CardContent className="space-y-4 pt-4">
             <div className="flex items-center gap-3">
-              <MascotBadge size={48} />
+              <CharacterBadge size={48} />
               <p className="text-sm text-ink-muted">Nothing yet today. Pick one up below.</p>
             </div>
             <div className="flex flex-wrap gap-2">

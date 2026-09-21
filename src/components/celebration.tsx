@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { Mascot } from './mascot';
+import { CharacterFigure } from './character-figure';
+import { useActiveCharacter } from './character-provider';
 import { onCelebrate, type Celebration } from '@/lib/celebrate';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
+import { pickCharacterLine } from '@/lib/character-voice';
 import { THEMES } from '@/lib/themes';
 import { cn } from '@/lib/utils';
 
@@ -15,11 +17,15 @@ import { cn } from '@/lib/utils';
  * politely to screen readers via the live region, so the feedback is not purely
  * visual. Respects prefers-reduced-motion through the global rule in
  * globals.css, which collapses every animation to near-zero duration.
+ *
+ * This is also the only place that resolves celebration copy: it reads the skin
+ * and the active character once, rather than every row reading them 456 times.
  */
 const HOLD_MS = 1900;
 
 export function CelebrationLayer() {
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
+  const character = useActiveCharacter();
   const theme = THEMES[skin];
   const [event, setEvent] = useState<Celebration | null>(null);
 
@@ -33,7 +39,17 @@ export function CelebrationLayer() {
     return () => clearTimeout(t);
   }, [event]);
 
-  const showMascot = theme.mascot !== 'none';
+  if (!event) {
+    return <div className="pointer-events-none fixed inset-x-0 bottom-16 z-40 sm:bottom-6" aria-live="polite" aria-atomic="true" />;
+  }
+
+  const message =
+    event.message ??
+    pickCharacterLine(character, event.kind === 'milestone' ? 'milestone' : 'cheer', theme, event.rotate);
+
+  // A figure exists when a character is installed and chosen, or when the skin
+  // ships a mascot. Studio has neither, and then only the line is shown.
+  const hasFigure = Boolean(character) || theme.mascot !== 'none';
 
   return (
     <div
@@ -41,54 +57,55 @@ export function CelebrationLayer() {
       aria-live="polite"
       aria-atomic="true"
     >
-      {event ? (
-        <div key={event.id} className="flex flex-col items-center gap-1">
-          {showMascot ? (
-            <div className="relative">
-              {/* impact ring on the bigger moments */}
-              {event.kind !== 'cheer' ? (
-                <span
-                  className="js-ring absolute inset-0 rounded-full"
-                  style={{ border: '2px solid var(--accent)' }}
-                />
-              ) : null}
+      <div key={event.id} className="flex flex-col items-center gap-1">
+        {hasFigure ? (
+          <div className="relative">
+            {/* impact ring on the bigger moments */}
+            {event.kind !== 'cheer' ? (
+              <span
+                className="js-ring absolute inset-0 rounded-full"
+                style={{ border: '2px solid var(--accent)' }}
+              />
+            ) : null}
 
-              <Mascot id={theme.mascot} state="jump" size={event.kind === 'cheer' ? 64 : 84} />
+            <CharacterFigure
+              pose={event.kind === 'milestone' ? 'milestone' : 'celebrate'}
+              size={event.kind === 'cheer' ? 64 : 84}
+            />
 
-              {/* sparkle burst — each shard gets its own vector via CSS vars */}
-              {SPARKS.map((s, i) => (
-                <span
-                  key={`${event.id}-${i}`}
-                  className="js-spark absolute top-1/2 left-1/2 block rounded-full"
-                  style={
-                    {
-                      width: s.size,
-                      height: s.size,
-                      background: i % 2 ? 'var(--seq-3)' : 'var(--accent)',
-                      animationDelay: `${s.delay}ms`,
-                      '--sx': s.x,
-                      '--sy': s.y,
-                    } as React.CSSProperties
-                  }
-                />
-              ))}
-            </div>
-          ) : null}
+            {/* sparkle burst — each shard gets its own vector via CSS vars */}
+            {SPARKS.map((s, i) => (
+              <span
+                key={`${event.id}-${i}`}
+                className="js-spark absolute top-1/2 left-1/2 block rounded-full"
+                style={
+                  {
+                    width: s.size,
+                    height: s.size,
+                    background: i % 2 ? 'var(--seq-3)' : 'var(--accent)',
+                    animationDelay: `${s.delay}ms`,
+                    '--sx': s.x,
+                    '--sy': s.y,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+          </div>
+        ) : null}
 
-          <span
-            className={cn(
-              'js-rise skin-pill border px-3 py-1 text-xs font-semibold shadow-lift-3',
-              event.kind === 'cheer' ? 'text-ink' : 'text-accent-ink',
-            )}
-            style={{
-              background: event.kind === 'cheer' ? 'var(--surface)' : 'var(--accent)',
-              borderColor: 'var(--border)',
-            }}
-          >
-            {event.message}
-          </span>
-        </div>
-      ) : null}
+        <span
+          className={cn(
+            'js-rise skin-pill border px-3 py-1 text-xs font-semibold shadow-lift-3',
+            event.kind === 'cheer' ? 'text-ink' : 'text-accent-ink',
+          )}
+          style={{
+            background: event.kind === 'cheer' ? 'var(--surface)' : 'var(--accent)',
+            borderColor: 'var(--border)',
+          }}
+        >
+          {message}
+        </span>
+      </div>
     </div>
   );
 }

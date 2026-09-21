@@ -62,6 +62,33 @@ export function streaks(tasks: Task[]): { current: number; longest: number; last
 }
 
 /**
+ * How the streak is doing, as a mood rather than a number.
+ *
+ *   none    never had one worth mentioning
+ *   live    active today or yesterday
+ *   broken  had a real run going, and it lapsed
+ *
+ * Only `broken` changes what the UI says, and only gently: it is what puts the
+ * character in its `sad` pose when you come back. A single missed day after one
+ * active day is not a lapse worth remarking on, so `longest` has to be at least
+ * two before this reports broken — otherwise the app would commiserate with
+ * someone who has barely started.
+ */
+export type StreakMood = 'none' | 'live' | 'broken';
+
+export function streakMood(s: {
+  current: number;
+  longest: number;
+  lastActive: DayKey | null;
+}): StreakMood {
+  if (s.current > 0) return 'live';
+  if (!s.lastActive || s.longest < 2) return 'none';
+  // A future-dated completion also lands here (current is 0). Treating that as
+  // "none" rather than "broken" avoids commiserating over a data-entry quirk.
+  return daysBetween(s.lastActive, todayKey()) > 1 ? 'broken' : 'none';
+}
+
+/**
  * Per-area counts, computed from the tasks themselves.
  *
  * Notion *does* expose rollups for this, but rollup values are eventually

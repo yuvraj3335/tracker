@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Check, ExternalLink, Loader2, TriangleAlert } from 'lucide-react';
 import { Button } from './ui/button';
 import { ProgressBar } from './progress-bar';
-import { Mascot } from './mascot';
+import { CharacterFigure } from './character-figure';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
+import { useActiveCharacter } from './character-provider';
 import { THEMES } from '@/lib/themes';
 import { cn } from '@/lib/utils';
 
@@ -34,7 +35,10 @@ export function SetupFlow({
 }) {
   const router = useRouter();
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
-  const mascot = THEMES[skin].mascot;
+  const character = useActiveCharacter();
+  // A figure exists when art is installed and chosen, or the skin ships a
+  // mascot. Studio with no character has neither, and keeps the plain tick.
+  const hasFigure = Boolean(character) || THEMES[skin].mascot !== 'none';
   const [step, setStep] = useState<Step>(initialStep);
   const [cursor, setCursor] = useState(initialCursor);
   const [total, setTotal] = useState(initialTotal);
@@ -266,13 +270,13 @@ export function SetupFlow({
       {/* ---------- 4. done ---------- */}
       {step === 'ready' ? (
         <section className="space-y-2 text-center">
-          {mascot === 'none' ? (
-            <div className="mx-auto grid size-10 place-items-center rounded-full bg-good/15">
-              <Check className="size-5 text-good" />
+          {hasFigure ? (
+            <div className="flex justify-center">
+              <CharacterFigure pose="celebrate" size={72} />
             </div>
           ) : (
-            <div className="flex justify-center">
-              <Mascot id={mascot} state="jump" size={72} />
+            <div className="mx-auto grid size-10 place-items-center rounded-full bg-good/15">
+              <Check className="size-5 text-good" />
             </div>
           )}
           <h2 className="text-sm font-semibold">All set</h2>
