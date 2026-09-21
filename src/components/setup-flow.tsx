@@ -181,7 +181,7 @@ export function SetupFlow({
               placeholder="ntn_..."
               className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 font-mono text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
-            <p className="text-[11px] text-ink-muted">
+            <p className="text-meta text-ink-muted">
               Stored encrypted. Only ever sent to Notion, never to anyone else.
             </p>
             <Err message={error} />
@@ -210,7 +210,7 @@ export function SetupFlow({
               Copy the page link with <strong>Share → Copy link</strong> and paste it below.
             </li>
           </ol>
-          <p className="rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-[11px] text-ink-2">
+          <p className="rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-meta text-ink-2">
             Step 2 is the one people miss. Without it Notion says the page does not exist.
           </p>
           <form onSubmit={submitPage} className="space-y-2.5">
@@ -226,7 +226,7 @@ export function SetupFlow({
               {busy ? 'Creating databases…' : 'Build my tracker'}
             </Button>
             {busy ? (
-              <p className="text-[11px] text-ink-muted">
+              <p className="text-meta text-ink-muted">
                 Creating four databases, the DSA area and 18 sections. Takes about 15 seconds.
               </p>
             ) : null}
@@ -247,7 +247,7 @@ export function SetupFlow({
               {cursor} / {total}
             </span>
           </div>
-          <p className="text-[11px] text-ink-muted">
+          <p className="text-meta text-ink-muted">
             Notion only accepts about three writes a second, so this takes a few minutes. Keep this
             tab open — if you close it, come back and it resumes from here.
           </p>
@@ -318,7 +318,7 @@ function Steps({ current }: { current: Step }) {
           />
           <span
             className={cn(
-              'text-[10px]',
+              'text-micro',
               i === idx ? 'font-medium text-ink' : 'text-ink-muted',
             )}
           >

@@ -15,7 +15,7 @@ export function PageHeader({
   return (
     <div className={cn('flex items-start justify-between gap-3 px-1', className)}>
       <div className="min-w-0">
-        <h1 className="text-2xl leading-tight font-semibold tracking-tight sm:text-[28px]">
+        <h1 className="text-display font-semibold">
           {title}
         </h1>
         {sub ? <p className="mt-1 text-xs text-ink-muted sm:text-sm">{sub}</p> : null}

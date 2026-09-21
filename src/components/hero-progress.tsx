@@ -76,10 +76,10 @@ export function HeroProgress({
           </svg>
           <div className="absolute inset-0 grid place-items-center">
             <div className="text-center">
-              <div className="text-lg leading-none font-semibold tracking-tight sm:text-2xl">
+              <div className="text-display font-semibold">
                 {pct(done, total)}%
               </div>
-              <div className="mt-0.5 text-[10px] text-ink-muted tnum">
+              <div className="mt-0.5 text-micro text-ink-muted tnum">
                 {done}/{total}
               </div>
             </div>
@@ -114,7 +114,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <dd className="text-base leading-none font-semibold tnum sm:text-lg">{value}</dd>
-      <dt className="mt-0.5 truncate text-[10px] tracking-wide text-ink-muted uppercase">
+      <dt className="mt-0.5 truncate text-micro tracking-wide text-ink-muted uppercase">
         {label}
       </dt>
     </div>

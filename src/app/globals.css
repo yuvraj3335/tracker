@@ -163,6 +163,42 @@
   --color-accent-ink: var(--accent-ink);
 
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* -------------------------------------------------------------------------
+     TYPE SCALE
+     Seven steps, and nothing between them. The app had grown twelve distinct
+     sizes (9/10/11/12/14/16/18/20/24/26/28/30), most of them one-off bracket
+     values, which is how a UI stops looking deliberate. `micro` and `meta` are
+     the two steps below Tailwind's `xs` that this density actually needs;
+     everything smaller than `meta` was rounded up rather than kept.
+     ------------------------------------------------------------------------- */
+  --text-micro: 0.625rem;          /* 10px — legends, axis labels, eyebrows */
+  --text-micro--line-height: 1.4;
+  --text-meta: 0.6875rem;          /* 11px — captions, secondary row detail */
+  --text-meta--line-height: 1.45;
+  --text-xs: 0.75rem;              /* 12px — dense UI text, labels */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem;             /* 14px — body, task names */
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;               /* 16px */
+  --text-base--line-height: 1.5;
+  --text-lg: 1.25rem;              /* 20px — section headings */
+  --text-lg--line-height: 1.3;
+  --text-lg--letter-spacing: -0.01em;
+  --text-display: 1.75rem;         /* 28px — page titles, the hero number */
+  --text-display--line-height: 1.15;
+  --text-display--letter-spacing: -0.02em;
+
+  /* -------------------------------------------------------------------------
+     ELEVATION
+     Three steps, defined per skin below. Shadows carry the skin's own shape
+     language: Rampart's are tight and hard so edges stay crisp, Blossom's are
+     wide and soft, Studio's sit between. A single drop-shadow reused everywhere
+     is what made the app read flat.
+     ------------------------------------------------------------------------- */
+  --shadow-lift-1: var(--lift-1);
+  --shadow-lift-2: var(--lift-2);
+  --shadow-lift-3: var(--lift-3);
 }
 
 * {
@@ -377,6 +413,74 @@ body {
 :root {
   --radius-card: 12px;
   --radius-pill: 999px;
+}
+
+/* ===========================================================================
+   ELEVATION SCALE
+   ---------------------------------------------------------------------------
+   Three steps per skin per mode, layered (a tight contact shadow plus a wider
+   ambient one) so cards read as lifted rather than as having a grey blur glued
+   underneath.
+
+   Dark mode is not the light values with a bigger alpha: shadows barely read on
+   a dark surface, so each dark step adds a hairline top highlight (inset) which
+   is what actually separates a raised surface from its background there.
+   =========================================================================== */
+:root {
+  --lift-1: 0 1px 2px rgba(11, 11, 11, 0.05), 0 1px 1px rgba(11, 11, 11, 0.04);
+  --lift-2: 0 2px 4px rgba(11, 11, 11, 0.06), 0 4px 12px rgba(11, 11, 11, 0.06);
+  --lift-3: 0 4px 8px rgba(11, 11, 11, 0.07), 0 12px 32px rgba(11, 11, 11, 0.10);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    --lift-1: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    --lift-2: 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --lift-3: 0 8px 28px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+}
+:root[data-theme='dark'] {
+  --lift-1: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --lift-2: 0 3px 8px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --lift-3: 0 8px 28px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Rampart: hard, tight, almost no blur — the shadow of a stamped metal plate. */
+:root[data-skin='rampart'] {
+  --lift-1: 0 1px 0 rgba(20, 24, 26, 0.10), 0 1px 2px rgba(20, 24, 26, 0.06);
+  --lift-2: 0 2px 0 rgba(20, 24, 26, 0.10), 0 3px 6px rgba(20, 24, 26, 0.10);
+  --lift-3: 0 3px 0 rgba(20, 24, 26, 0.12), 0 8px 18px rgba(20, 24, 26, 0.16);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-skin='rampart']:where(:not([data-theme='light'])) {
+    --lift-1: 0 1px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(143, 208, 196, 0.05);
+    --lift-2: 0 2px 0 rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.5);
+    --lift-3: 0 3px 0 rgba(0, 0, 0, 0.7), 0 10px 24px rgba(0, 0, 0, 0.6);
+  }
+}
+:root[data-skin='rampart'][data-theme='dark'] {
+  --lift-1: 0 1px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(143, 208, 196, 0.05);
+  --lift-2: 0 2px 0 rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.5);
+  --lift-3: 0 3px 0 rgba(0, 0, 0, 0.7), 0 10px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Blossom: wide, soft and violet-tinted, so it glows rather than weighs. */
+:root[data-skin='blossom'] {
+  --lift-1: 0 2px 6px rgba(78, 45, 133, 0.07);
+  --lift-2: 0 4px 14px rgba(78, 45, 133, 0.10), 0 1px 3px rgba(78, 45, 133, 0.05);
+  --lift-3: 0 10px 34px rgba(78, 45, 133, 0.16), 0 2px 8px rgba(78, 45, 133, 0.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-skin='blossom']:where(:not([data-theme='light'])) {
+    --lift-1: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(197, 174, 238, 0.06);
+    --lift-2: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(197, 174, 238, 0.07);
+    --lift-3: 0 12px 36px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(197, 174, 238, 0.09);
+  }
+}
+:root[data-skin='blossom'][data-theme='dark'] {
+  --lift-1: 0 2px 8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(197, 174, 238, 0.06);
+  --lift-2: 0 4px 16px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(197, 174, 238, 0.07);
+  --lift-3: 0 12px 36px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(197, 174, 238, 0.09);
 }
 
 .skin-card {

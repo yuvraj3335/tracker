@@ -34,7 +34,7 @@ export function HeadingBand({
       )}
     >
       <h3 className="truncate text-xs font-semibold text-ink-2">{label}</h3>
-      {count ? <span className="shrink-0 text-[11px] text-ink-muted tnum">{count}</span> : null}
+      {count ? <span className="shrink-0 text-meta text-ink-muted tnum">{count}</span> : null}
     </div>
   );
 }

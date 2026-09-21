@@ -55,7 +55,7 @@ export default function RouteError({
           </div>
 
           {error.digest ? (
-            <p className="text-[10px] text-ink-muted">Reference: {error.digest}</p>
+            <p className="text-micro text-ink-muted">Reference: {error.digest}</p>
           ) : null}
         </CardContent>
       </Card>

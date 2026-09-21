@@ -93,7 +93,7 @@ export function Heatmap({
         <div className="flex gap-2" style={{ minWidth: width + 28 }}>
           {/* Weekday rail — Mon/Wed/Fri only, matching GitHub's density */}
           <div
-            className="shrink-0 pt-4 text-[9px] leading-none text-ink-muted"
+            className="shrink-0 pt-4 text-micro leading-none text-ink-muted"
             style={{ width: 20 }}
             aria-hidden
           >
@@ -109,7 +109,7 @@ export function Heatmap({
               {monthLabels.map((m) => (
                 <span
                   key={m.x + m.label}
-                  className="absolute top-0 text-[9px] leading-none text-ink-muted"
+                  className="absolute top-0 text-micro leading-none text-ink-muted"
                   style={{ left: m.x }}
                 >
                   {m.label}
@@ -165,7 +165,7 @@ export function Heatmap({
 
       {hover ? (
         <div
-          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-hairline bg-surface px-2 py-1 text-[11px] whitespace-nowrap shadow-lg"
+          className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-hairline bg-surface px-2 py-1 text-meta whitespace-nowrap shadow-lift-2"
           style={{ left: hover.x, top: hover.y - 6 }}
           role="tooltip"
         >
@@ -176,7 +176,7 @@ export function Heatmap({
         </div>
       ) : null}
 
-      <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-ink-muted">
+      <div className="mt-2 flex items-center justify-between gap-3 text-micro text-ink-muted">
         <span className="tnum">{total} completed in the last {Math.round(weeks / 4.345)} months</span>
         <span className="flex items-center gap-1">
           Less

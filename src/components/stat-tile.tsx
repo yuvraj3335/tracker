@@ -28,14 +28,14 @@ export function StatTile({
         className,
       )}
     >
-      <div className="text-[10px] font-medium tracking-wide text-ink-muted uppercase">{label}</div>
+      <div className="text-micro font-medium tracking-wide text-ink-muted uppercase">{label}</div>
       <div
-        className="mt-1.5 text-[26px] leading-none font-semibold tracking-tight sm:text-[30px]"
+        className="mt-1.5 text-display font-semibold"
         style={accent ? { color: accent } : undefined}
       >
         {value}
       </div>
-      {sub ? <div className="mt-1.5 text-[11px] text-ink-muted">{sub}</div> : null}
+      {sub ? <div className="mt-1.5 text-meta text-ink-muted">{sub}</div> : null}
     </div>
   );
 }

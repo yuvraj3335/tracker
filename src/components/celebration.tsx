@@ -77,7 +77,7 @@ export function CelebrationLayer() {
 
           <span
             className={cn(
-              'js-rise skin-pill border px-3 py-1 text-xs font-semibold shadow-lg',
+              'js-rise skin-pill border px-3 py-1 text-xs font-semibold shadow-lift-3',
               event.kind === 'cheer' ? 'text-ink' : 'text-accent-ink',
             )}
             style={{

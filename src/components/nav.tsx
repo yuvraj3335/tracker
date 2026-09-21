@@ -34,7 +34,7 @@ export function Nav({ username }: { username: string | null }) {
       <header className="sticky top-0 z-30 border-b border-hairline bg-plane/85 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-1 px-4">
           <Link href="/" className="mr-2 flex items-center gap-2 font-semibold tracking-tight">
-            <span className="grid size-6 place-items-center rounded-md bg-accent text-[11px] text-accent-ink">
+            <span className="grid size-6 place-items-center rounded-md bg-accent text-meta text-accent-ink">
               JS
             </span>
             <span className="text-sm">Job Switch</span>
@@ -93,7 +93,7 @@ export function Nav({ username }: { username: string | null }) {
                 href={l.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
+                  'flex flex-col items-center gap-0.5 py-2.5 text-micro font-medium transition-colors',
                   active ? 'text-accent' : 'text-ink-muted',
                 )}
               >

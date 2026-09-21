@@ -27,7 +27,7 @@ export function AuthShell({
         </span>
       </div>
 
-      <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+      <h1 className="text-lg font-semibold">{title}</h1>
       {subtitle ? <p className="mt-1 text-sm text-ink-muted">{subtitle}</p> : null}
 
       <div className="mt-5">{children}</div>
@@ -69,7 +69,7 @@ export function Field({
         required
         className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       />
-      {hint ? <p className="mt-1 text-[11px] text-ink-muted">{hint}</p> : null}
+      {hint ? <p className="mt-1 text-meta text-ink-muted">{hint}</p> : null}
     </div>
   );
 }

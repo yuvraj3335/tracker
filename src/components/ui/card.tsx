@@ -1,12 +1,23 @@
 import { cn } from '@/lib/utils';
 
-export function Card({ className, ...props }: React.ComponentProps<'div'>) {
+export function Card({
+  lift = 1,
+  className,
+  ...props
+}: React.ComponentProps<'div'> & {
+  /** Elevation step. 0 keeps a card flat where it sits inside another surface. */
+  lift?: 0 | 1 | 2;
+}) {
   return (
     <div
       className={cn(
         // skin-card takes its radius from --radius-card, which each skin sets:
         // 4px for Rampart, 18px for Blossom.
         'skin-card border border-hairline bg-surface',
+        // Elevation comes from the skin too: Rampart's step is hard and tight,
+        // Blossom's is wide and violet-tinted. See the scale in globals.css.
+        lift === 1 && 'shadow-lift-1',
+        lift === 2 && 'shadow-lift-2',
         className,
       )}
       {...props}

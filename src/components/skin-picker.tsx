@@ -47,7 +47,7 @@ export function SkinPicker() {
         <div
           role="dialog"
           aria-label="Themes"
-          className="skin-card absolute right-0 z-50 mt-1.5 w-64 border border-hairline bg-surface p-1.5 shadow-xl"
+          className="skin-card absolute right-0 z-50 mt-1.5 w-64 border border-hairline bg-surface p-1.5 shadow-lift-3"
         >
           {SKINS.map((id) => {
             const t = THEMES[id];
@@ -78,14 +78,14 @@ export function SkinPicker() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs font-semibold text-ink">{t.name}</span>
-                  <span className="block truncate text-[11px] text-ink-muted">{t.tagline}</span>
+                  <span className="block truncate text-meta text-ink-muted">{t.tagline}</span>
                 </span>
                 {active ? <Check className="size-3.5 shrink-0 text-accent" /> : null}
               </button>
             );
           })}
 
-          <p className="px-2 pt-1.5 pb-1 text-[10px] leading-snug text-ink-muted">
+          <p className="px-2 pt-1.5 pb-1 text-micro leading-snug text-ink-muted">
             Original artwork. Saved on this device.
           </p>
         </div>

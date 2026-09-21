@@ -83,7 +83,7 @@ export default async function Dashboard() {
                       {a.emoji ? `${a.emoji} ` : ''}
                       {a.name}
                       {a.status !== 'Active' ? (
-                        <span className="ml-1.5 text-[10px] text-ink-muted">({a.status})</span>
+                        <span className="ml-1.5 text-micro text-ink-muted">({a.status})</span>
                       ) : null}
                     </Link>
                     {/* Direct label — also discharges the sub-3:1 contrast relief rule */}
@@ -116,7 +116,7 @@ export default async function Dashboard() {
             Activity
           </CardTitle>
           <CardDescription>
-            Built from <code className="text-[11px]">Completed On</code> in Notion. Tap any day to
+            Built from <code className="text-meta">Completed On</code> in Notion. Tap any day to
             see what you did.
           </CardDescription>
         </CardHeader>
@@ -191,7 +191,7 @@ export default async function Dashboard() {
         </CardContent>
       </Card>
 
-      <p className="px-1 pb-2 text-center text-[10px] text-ink-muted">
+      <p className="px-1 pb-2 text-center text-micro text-ink-muted">
         Days roll over at midnight {env.timezone.replace('_', ' ')}
       </p>
     </div>

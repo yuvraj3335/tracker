@@ -91,7 +91,7 @@ export function TaskRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="w-5 shrink-0 text-right text-[11px] text-ink-muted tnum">{index}</span>
+          <span className="w-5 shrink-0 text-right text-meta text-ink-muted tnum">{index}</span>
           <span
             className={cn(
               'text-sm leading-snug font-medium transition-colors',
@@ -121,18 +121,18 @@ export function TaskRow({
                 href={l.href}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-0.5 text-[11px] text-ink-muted underline-offset-2 transition-colors hover:text-accent hover:underline"
+                className="inline-flex items-center gap-0.5 text-meta text-ink-muted underline-offset-2 transition-colors hover:text-accent hover:underline"
               >
                 {l.label}
                 <ExternalLink className="size-2.5" />
               </a>
             ))
           ) : (
-            <span className="text-[11px] text-ink-muted/80 italic">no link on the source sheet</span>
+            <span className="text-meta text-ink-muted/80 italic">no link on the source sheet</span>
           )}
 
           {done && task.completedOn ? (
-            <span className="text-[10px] text-ink-muted tnum">
+            <span className="text-micro text-ink-muted tnum">
               · {formatKey(task.completedOn.slice(0, 10), 'd MMM')}
             </span>
           ) : null}
@@ -203,7 +203,7 @@ function DifficultyPicker({
         aria-label={`Difficulty${value ? `: ${value}` : ' not set'}`}
         onChange={(e) => onChange((e.target.value || null) as Difficulty | null)}
         className={cn(
-          'cursor-pointer appearance-none rounded px-1.5 py-0.5 text-[10px] font-semibold',
+          'cursor-pointer appearance-none rounded px-1.5 py-0.5 text-micro font-semibold',
           'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
           !chip &&
             // Unset stays quiet until the row is hovered, so a mostly-blank

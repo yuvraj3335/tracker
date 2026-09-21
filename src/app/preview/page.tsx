@@ -188,7 +188,7 @@ export default function PreviewPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="px-1 text-[11px] font-semibold tracking-widest text-ink-muted uppercase">
+      <h2 className="px-1 text-meta font-semibold tracking-widest text-ink-muted uppercase">
         {title}
       </h2>
       {children}

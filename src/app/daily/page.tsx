@@ -70,7 +70,7 @@ export default async function DailyPage({
           <div className="truncate text-sm font-semibold">
             {isToday(day) ? 'Today' : formatKey(day, 'EEEE')}
           </div>
-          <div className="text-[11px] text-ink-muted tnum">{formatKey(day, 'd MMMM yyyy')}</div>
+          <div className="text-meta text-ink-muted tnum">{formatKey(day, 'd MMMM yyyy')}</div>
         </div>
         <Link
           href={isFuture ? `/daily?d=${day}` : `/daily?d=${next}`}
@@ -165,7 +165,7 @@ export default async function DailyPage({
                       <span className={cn('tnum', k === day ? 'font-semibold' : 'text-ink-2')}>
                         {formatKey(k, 'EEE, d MMM')}
                         {isToday(k) ? (
-                          <span className="ml-1.5 text-[10px] text-accent">today</span>
+                          <span className="ml-1.5 text-micro text-accent">today</span>
                         ) : null}
                       </span>
                       <span className="shrink-0 text-xs text-ink-muted tnum">{n}</span>

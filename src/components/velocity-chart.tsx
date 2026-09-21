@@ -50,7 +50,7 @@ export function VelocityChart({
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-3 text-[10px] text-ink-muted">
+      <div className="mb-2 flex items-center gap-3 text-micro text-ink-muted">
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block rounded-sm"
@@ -75,7 +75,7 @@ export function VelocityChart({
             className="absolute inset-x-0 flex items-center"
             style={{ top: H - f * H }}
           >
-            <span className="w-5 shrink-0 text-right text-[9px] text-ink-muted tnum">
+            <span className="w-5 shrink-0 text-right text-micro text-ink-muted tnum">
               {Math.round(ceil * f)}
             </span>
             <div
@@ -128,7 +128,7 @@ export function VelocityChart({
         </div>
       </div>
 
-      <div className="mt-1.5 flex justify-between pl-6 text-[9px] text-ink-muted tnum">
+      <div className="mt-1.5 flex justify-between pl-6 text-micro text-ink-muted tnum">
         <span>{formatKey(series[0]?.day ?? '', 'd MMM')}</span>
         <span>{formatKey(series[series.length - 1]?.day ?? '', 'd MMM')}</span>
       </div>
