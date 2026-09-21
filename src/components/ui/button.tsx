@@ -1,3 +1,4 @@
+import { Slot } from '@radix-ui/react-slot';
 import { cn } from '@/lib/utils';
 
 type Variant = 'primary' | 'ghost' | 'outline';
@@ -18,10 +19,17 @@ export function Button({
   className,
   variant = 'primary',
   size = 'md',
+  asChild = false,
   ...props
-}: React.ComponentProps<'button'> & { variant?: Variant; size?: Size }) {
+}: React.ComponentProps<'button'> & {
+  variant?: Variant;
+  size?: Size;
+  /** Render the child element instead of a <button> — for links styled as buttons. */
+  asChild?: boolean;
+}) {
+  const Component = asChild ? Slot : 'button';
   return (
-    <button
+    <Component
       className={cn(
         'skin-pill inline-flex items-center justify-center gap-1.5 font-medium',
         'transition-colors disabled:pointer-events-none disabled:opacity-50',

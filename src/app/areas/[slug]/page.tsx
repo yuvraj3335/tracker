@@ -6,6 +6,8 @@ import { requireReady } from '@/lib/tenant';
 import { groupByHeading, topicProgress } from '@/lib/derive';
 import { pct } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/page-header';
+import { HeadingBand } from '@/components/heading-band';
 import { ProgressBar } from '@/components/progress-bar';
 import { TaskRow } from '@/components/task-row';
 import { cn } from '@/lib/utils';
@@ -60,15 +62,12 @@ export default async function AreaPage({
 
   return (
     <div className="space-y-4">
-      <div className="px-1">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-          {area.emoji ? `${area.emoji} ` : ''}
-          {area.name}
-        </h1>
-        <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">
-          {done} of {total} done · {pct(done, total)}% · {areaTopics.length} sections
-        </p>
-        <div className="mt-2.5">
+      <div className="space-y-2.5">
+        <PageHeader
+          title={`${area.emoji ? area.emoji + ' ' : ''}${area.name}`}
+          sub={`${done} of ${total} done · ${pct(done, total)}% · ${areaTopics.length} sections`}
+        />
+        <div className="px-1">
           <ProgressBar value={total ? (done / total) * 100 : 0} height={8} label="Area progress" />
         </div>
       </div>
@@ -125,7 +124,7 @@ export default async function AreaPage({
                           row.pct === 100
                             ? 'var(--good)'
                             : row.pct > 0
-                              ? 'var(--series-1)'
+                              ? 'var(--accent)'
                               : 'var(--axis)'
                         }
                         label={`${row.topic.name} progress`}
@@ -140,14 +139,11 @@ export default async function AreaPage({
                       <section key={h.heading}>
                         {/* Heading rows are categories, not questions — they are
                             never counted toward any total. */}
-                        <div className="flex items-baseline justify-between gap-2 bg-surface-2/60 px-4 py-1.5 sm:px-5">
-                          <h3 className="text-[11px] font-semibold tracking-wide text-ink-2 uppercase">
-                            {h.heading}
-                          </h3>
-                          <span className="shrink-0 text-[10px] text-ink-muted tnum">
-                            {h.done}/{h.total}
-                          </span>
-                        </div>
+                        <HeadingBand
+                          label={h.heading}
+                          count={`${h.done}/${h.total}`}
+                          sticky
+                        />
                         <ul>
                           {h.items.map((t) => (
                             <TaskRow

@@ -4,11 +4,12 @@ import { getEverything } from '@/lib/notion';
 import { requireReady } from '@/lib/tenant';
 import { env } from '@/lib/env';
 import { activityByDay, areaProgress, countsByDay, summarize, topicProgress } from '@/lib/derive';
-import { formatKey, todayKey } from '@/lib/date';
+import { formatKey, greeting, todayKey } from '@/lib/date';
 import { pct } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MascotBadge } from '@/components/skin-picker';
-import { StatTile } from '@/components/stat-tile';
+import { PageHeader } from '@/components/page-header';
+import { HeroProgress } from '@/components/hero-progress';
 import { ProgressBar } from '@/components/progress-bar';
 import { Heatmap } from '@/components/heatmap';
 import { TaskRow } from '@/components/task-row';
@@ -16,8 +17,6 @@ import { TaskRow } from '@/components/task-row';
 // Per-user data: must never be prerendered at build time or cached across
 // users. The Notion layer's own 60s cache is what keeps this fast.
 export const dynamic = 'force-dynamic';
-
-const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
 
 export default async function Dashboard() {
   const tenant = await requireReady();
@@ -36,28 +35,15 @@ export default async function Dashboard() {
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      <PageTitle title="Today" sub={formatKey(today, 'EEEE, d MMMM yyyy')} />
+      <PageHeader title="Today" sub={formatKey(today, 'EEEE, d MMMM yyyy')} />
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-        <StatTile
-          label="Done today"
-          value={stats.todayCount}
-          sub={stats.todayCount === 0 ? 'nothing yet' : 'questions'}
-          accent={stats.todayCount > 0 ? 'var(--good-text)' : undefined}
-        />
-        <StatTile
-          label="Streak"
-          value={stats.streak.current}
-          sub={`longest ${stats.streak.longest}`}
-          accent={stats.streak.current > 0 ? 'var(--series-2)' : undefined}
-        />
-        <StatTile
-          label="Overall"
-          value={`${pct(stats.overall.done, stats.overall.total)}%`}
-          sub={`${stats.overall.done} / ${stats.overall.total}`}
-        />
-        <StatTile label="Last 7 days" value={stats.last7Total} sub="questions" />
-      </div>
+      <HeroProgress
+        done={stats.overall.done}
+        total={stats.overall.total}
+        streak={stats.streak.current}
+        todayCount={stats.todayCount}
+        greeting={greeting()}
+      />
 
       {/* ---- Job Switch progress, with DSA folded in automatically ---- */}
       <Card>
@@ -86,7 +72,7 @@ export default async function Dashboard() {
           </div>
 
           <div className="space-y-2.5 border-t border-hairline pt-3">
-            {ap.map(({ area: a, total, done }, i) => {
+            {ap.map(({ area: a, total, done }) => {
               return (
                 <div key={a.id}>
                   <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -107,7 +93,9 @@ export default async function Dashboard() {
                   </div>
                   <ProgressBar
                     value={total ? (done / total) * 100 : 0}
-                    color={SERIES[i % SERIES.length]}
+                    color={
+                      total && done === total ? 'var(--good)' : 'var(--accent)'
+                    }
                     label={`${a.name} progress`}
                   />
                 </div>
@@ -206,15 +194,6 @@ export default async function Dashboard() {
       <p className="px-1 pb-2 text-center text-[10px] text-ink-muted">
         Days roll over at midnight {env.timezone.replace('_', ' ')}
       </p>
-    </div>
-  );
-}
-
-function PageTitle({ title, sub }: { title: string; sub?: string }) {
-  return (
-    <div className="px-1">
-      <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
-      {sub ? <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">{sub}</p> : null}
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { formatKey, isToday, shiftKey, todayKey, type DayKey } from '@/lib/date'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TaskRow } from '@/components/task-row';
 import { MascotBadge } from '@/components/skin-picker';
+import { PageHeader } from '@/components/page-header';
+import { HeadingBand } from '@/components/heading-band';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -50,12 +52,10 @@ export default async function DailyPage({
 
   return (
     <div className="space-y-4">
-      <div className="px-1">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Daily Tracker</h1>
-        <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">
-          Filled in automatically from when you tick each question.
-        </p>
-      </div>
+      <PageHeader
+        title="Daily Tracker"
+        sub="Filled in automatically from when you tick each question."
+      />
 
       {/* Day switcher */}
       <div className="flex items-center gap-2">
@@ -102,12 +102,7 @@ export default async function DailyPage({
           {dayTasks.length ? (
             [...bySection.entries()].map(([section, items]) => (
               <section key={section}>
-                <div className="flex items-baseline justify-between bg-surface-2/60 px-4 py-1.5 sm:px-5">
-                  <h3 className="text-[11px] font-semibold tracking-wide text-ink-2 uppercase">
-                    {section}
-                  </h3>
-                  <span className="text-[10px] text-ink-muted tnum">{items.length}</span>
-                </div>
+                <HeadingBand label={section} count={String(items.length)} />
                 <ul>
                   {items.map((t, i) => (
                     <TaskRow key={t.id} task={t} index={i + 1} />

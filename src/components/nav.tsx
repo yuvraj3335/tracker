@@ -37,7 +37,7 @@ export function Nav({ username }: { username: string | null }) {
             <span className="grid size-6 place-items-center rounded-md bg-accent text-[11px] text-accent-ink">
               JS
             </span>
-            <span className="hidden text-sm sm:inline">Job Switch</span>
+            <span className="text-sm">Job Switch</span>
           </Link>
 
           <nav className="ml-auto hidden items-center gap-0.5 sm:flex">
@@ -57,10 +57,10 @@ export function Nav({ username }: { username: string | null }) {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-1 sm:ml-2">
+          <div className="ml-auto flex items-center gap-0.5 sm:ml-2">
             <Link
               href="/setup"
-              className="max-w-[9rem] truncate rounded-lg px-2 py-1 text-xs text-ink-muted hover:bg-surface-2 hover:text-ink"
+              className="skin-pill hidden max-w-[8rem] truncate px-2.5 py-1 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink sm:block"
               title="Notion connection"
             >
               {username}

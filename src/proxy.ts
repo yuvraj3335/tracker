@@ -22,6 +22,9 @@ const PUBLIC_PREFIXES = [
   '/manifest',
   '/robots',
   '/sitemap',
+  // Dev-only design harness. The route itself 404s when NODE_ENV is
+  // production, so allowing it here opens nothing in a real deployment.
+  '/preview',
 ];
 
 export default async function proxy(req: NextRequest) {

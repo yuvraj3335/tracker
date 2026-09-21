@@ -84,6 +84,49 @@ losing the tokens beats keeping them readable.
 
 ---
 
+## Interface
+
+**Loading.** Reading a tracker takes five paginated Notion calls, so a first
+load is not instant. Every data route has a skeleton that mirrors its real
+layout, so nothing jumps when the data lands.
+
+**Failure.** Notion rate-limits and occasionally times out. A route-level error
+boundary catches that with a retry rather than the browser's raw server-error
+page. The root layout also treats a database outage as "signed out" instead of
+throwing — an unguarded throw there would have 500'd every page, including
+`/login`.
+
+**Touch.** Bookmark and revisit used to be revealed on hover, which meant they
+were invisible and unreachable on a phone. They are now visible by default, and
+only devices that actually report `hover: hover` fade them until the row is
+hovered.
+
+**Hierarchy.** The dashboard opens on a hero: a progress ring with the
+percentage stated in text at its centre (the ring reinforces, it never carries
+the value alone), a time-aware greeting, and today / streak / to-go beside it.
+
+**Colour roles.** Two different jobs, handled differently:
+
+| Encoding | Role | Themed? |
+| --- | --- | --- |
+| Heatmap, difficulty, progress bars | magnitude → sequential, one hue | yes, per skin |
+| Velocity chart series | identity → categorical slots | no, fixed |
+
+Colour in the velocity chart means *which series*, and that should not repaint
+when someone changes theme. Using a skin's accent there was tried and measured:
+accents are chosen for UI contrast, not as series slots, and both miss the
+categorical gates (Rampart's teal reads gray at chroma 0.091 against a 0.1
+floor; Blossom's violet sits above the dark lightness band at L 0.681 vs 0.67).
+
+### Dev harness
+
+`npm run dev` then open **`/preview`** — every component with sample data, in
+whichever skin and mode you pick. It is how the UI gets reviewed without a live
+Notion workspace. The route returns 404 when `NODE_ENV` is production, so it is
+not part of the shipped app.
+
+---
+
 ## Themes
 
 Three skins, switchable from the palette icon in the nav (and on the setup

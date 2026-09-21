@@ -9,6 +9,19 @@ import { formatKey } from '@/lib/date';
  * Both series are the same measure on the same scale, so there is one y-axis.
  * Bars are divs (percentage widths, so rounded ends never distort) and the
  * average is an SVG polyline with a non-scaling stroke over the top.
+ *
+ * These two keep the validated CATEGORICAL slots and deliberately do not follow
+ * the skin, unlike the heatmap. The distinction is what the colour is doing:
+ *
+ *   heatmap  -> magnitude  -> sequential, one hue -> themed per skin
+ *   this     -> identity   -> categorical slots   -> fixed
+ *
+ * Colour here means "which series", and that should not be repainted when
+ * someone changes theme. Substituting a skin's accent was tried and measured:
+ * the accents are picked for UI contrast, not as series slots, and both miss
+ * the categorical gates — Rampart's teal reads gray (chroma 0.091 against a 0.1
+ * floor) and Blossom's violet sits above the dark lightness band (L 0.681 vs
+ * 0.67). The validated pair stays.
  */
 export function VelocityChart({
   series,

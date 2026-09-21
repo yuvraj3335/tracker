@@ -70,3 +70,13 @@ export function heatmapGrid(end: DayKey = todayKey(), weeks = 53): DayKey[][] {
 export function nowInZone(tz: string = env.timezone): Date {
   return toZonedTime(new Date(), tz);
 }
+
+/** Time-of-day greeting in the app's configured timezone. */
+export function greeting(tz: string = env.timezone): string {
+  const hour = Number(formatInTimeZone(new Date(), tz, 'H'));
+  if (hour < 5) return 'Still up';
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  if (hour < 22) return 'Good evening';
+  return 'Late session';
+}

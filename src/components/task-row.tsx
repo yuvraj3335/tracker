@@ -7,21 +7,25 @@ import type { Task } from '@/lib/notion';
 import { bumpCompletions, celebrate } from '@/lib/celebrate';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
 import { THEMES, pickLine } from '@/lib/themes';
+import { formatKey } from '@/lib/date';
+import { Check } from './ui/check';
 import { cn } from '@/lib/utils';
 
 /**
  * The difficulty chip is a filled mark carrying a label, so the label has to
  * clear contrast against its own fill — not against the page. The light end of
- * the ordinal ramp therefore takes dark ink in both modes.
+ * each skin's ordinal ramp therefore takes dark ink in both modes.
  */
-const DIFF_CHIP: Record<string, { bg: string; fg: string }> = {
+const CHIP: Record<string, { bg: string; fg: string }> = {
   Easy: { bg: 'var(--diff-easy)', fg: '#0b0b0b' },
   Medium: { bg: 'var(--diff-medium)', fg: '#ffffff' },
   Hard: { bg: 'var(--diff-hard)', fg: '#ffffff' },
 };
 
+const LINK_LABEL = { tuf: 'Article', leetcode: 'LeetCode', gfg: 'GFG', youtube: 'Video' } as const;
+
 /**
- * One question. The checkbox is the single input for the whole system — it
+ * One question. The tick box is the single input for the whole system — it
  * writes `Done` plus `Completed On`, and everything else is derived.
  *
  * Optimistic so a tap feels instant even though Notion takes a moment.
@@ -36,7 +40,7 @@ export function TaskRow({
   /**
    * Undone questions left in this heading, including this one. When it is 1,
    * ticking this row finishes the heading and earns the bigger celebration.
-   * Only the sheet view groups by heading, so elsewhere this is simply omitted.
+   * Only the sheet view groups by heading, so elsewhere this is omitted.
    */
   headingRemaining?: number;
 }) {
@@ -48,64 +52,58 @@ export function TaskRow({
     revisit: task.revisit,
   });
 
-  const links = [
-    task.links.tuf && { label: 'Article', href: task.links.tuf },
-    task.links.leetcode && { label: 'LeetCode', href: task.links.leetcode },
-    task.links.gfg && { label: 'GFG', href: task.links.gfg },
-    task.links.youtube && { label: 'Video', href: task.links.youtube },
-  ].filter(Boolean) as { label: string; href: string }[];
+  const links = (Object.keys(LINK_LABEL) as (keyof typeof LINK_LABEL)[])
+    .map((k) => ({ label: LINK_LABEL[k], href: task.links[k] }))
+    .filter((l) => l.href);
+
+  function toggle(next: boolean) {
+    // Celebrate optimistically, before Notion replies — the reward has to land
+    // with the tap, not a second later. Unticking is silent.
+    if (next) {
+      const theme = THEMES[skin];
+      const n = bumpCompletions();
+      if (headingRemaining === 1) celebrate('milestone', pickLine(theme.milestone, n));
+      else celebrate('cheer', pickLine(theme.cheers, n));
+    }
+    start(async () => {
+      setDone(next);
+      await toggleTaskAction(task.id, next);
+    });
+  }
 
   return (
     <li
       className={cn(
-        'group flex items-start gap-3 border-b border-hairline px-3 py-2.5 last:border-0 sm:px-4',
-        'transition-opacity',
+        'group relative flex items-start gap-3 border-b border-hairline px-3 py-2.5 last:border-0 sm:px-4',
+        'transition-colors hover:bg-surface-2/40',
         pending && 'opacity-60',
       )}
     >
-      <label className="flex shrink-0 cursor-pointer items-center pt-0.5">
-        <input
-          type="checkbox"
+      <span className="pt-[3px]">
+        <Check
           checked={done}
-          aria-label={`Mark "${task.name}" as ${done ? 'not done' : 'done'}`}
-          className="size-[18px] cursor-pointer accent-[var(--accent)]"
-          onChange={(e) => {
-            const next = e.target.checked;
-            // Celebrate optimistically, before Notion replies — the reward has
-            // to land with the tap, not a second later. Unticking is silent.
-            if (next) {
-              const theme = THEMES[skin];
-              if (headingRemaining === 1) {
-                celebrate('milestone', pickLine(theme.milestone, bumpCompletions()));
-              } else {
-                celebrate('cheer', pickLine(theme.cheers, bumpCompletions()));
-              }
-            }
-            start(async () => {
-              setDone(next);
-              await toggleTaskAction(task.id, next);
-            });
-          }}
+          onCheckedChange={toggle}
+          label={`Mark "${task.name}" as ${done ? 'not done' : 'done'}`}
         />
-      </label>
+      </span>
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="shrink-0 text-[11px] text-ink-muted tnum">{index}</span>
+          <span className="w-5 shrink-0 text-right text-[11px] text-ink-muted tnum">{index}</span>
           <span
             className={cn(
-              'text-sm leading-snug',
-              done ? 'text-ink-muted line-through' : 'text-ink',
+              'text-sm leading-snug font-medium transition-colors',
+              done ? 'text-ink-muted line-through decoration-ink-muted/50' : 'text-ink',
             )}
           >
             {task.name}
           </span>
           {task.difficulty ? (
             <span
-              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
               style={{
-                background: DIFF_CHIP[task.difficulty].bg,
-                color: DIFF_CHIP[task.difficulty].fg,
+                background: CHIP[task.difficulty].bg,
+                color: CHIP[task.difficulty].fg,
               }}
             >
               {task.difficulty}
@@ -113,41 +111,41 @@ export function TaskRow({
           ) : null}
         </div>
 
-        {links.length ? (
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-            {links.map((l) => (
+        {/* Links and the completion stamp share one line, which keeps rows
+            short enough that a 456-question list stays scrollable. */}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-7">
+          {links.length ? (
+            links.map((l) => (
               <a
                 key={l.label}
                 href={l.href}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex items-center gap-0.5 text-[11px] text-ink-muted underline-offset-2 hover:text-accent hover:underline"
+                className="inline-flex items-center gap-0.5 text-[11px] text-ink-muted underline-offset-2 transition-colors hover:text-accent hover:underline"
               >
                 {l.label}
                 <ExternalLink className="size-2.5" />
               </a>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-1 text-[11px] text-ink-muted italic">no link on the source sheet</div>
-        )}
+            ))
+          ) : (
+            <span className="text-[11px] text-ink-muted/80 italic">no link on the source sheet</span>
+          )}
 
-        {task.completedOn && done ? (
-          <div className="mt-1 text-[10px] text-ink-muted tnum">
-            done {task.completedOn.slice(0, 10)}
-          </div>
-        ) : null}
+          {done && task.completedOn ? (
+            <span className="text-[10px] text-ink-muted tnum">
+              · {formatKey(task.completedOn.slice(0, 10), 'd MMM')}
+            </span>
+          ) : null}
+        </div>
       </div>
 
+      {/* Flags. Visible by default so they are reachable on touch, where there
+          is no hover at all; only pointer devices get the reveal-on-hover. */}
       <div className="flex shrink-0 items-center gap-0.5">
-        <button
-          type="button"
-          aria-label={marks.bookmarked ? 'Remove bookmark' : 'Bookmark'}
-          aria-pressed={marks.bookmarked}
-          className={cn(
-            'rounded p-1.5 transition-colors hover:bg-surface-2',
-            marks.bookmarked ? 'text-series-4' : 'text-ink-muted opacity-0 group-hover:opacity-100 focus:opacity-100',
-          )}
+        <FlagButton
+          active={marks.bookmarked}
+          label={marks.bookmarked ? 'Remove bookmark' : 'Bookmark'}
+          activeColor="var(--series-4)"
           onClick={() =>
             start(async () => {
               const next = !marks.bookmarked;
@@ -157,15 +155,12 @@ export function TaskRow({
           }
         >
           <Bookmark className="size-3.5" fill={marks.bookmarked ? 'currentColor' : 'none'} />
-        </button>
-        <button
-          type="button"
-          aria-label={marks.revisit ? 'Clear revisit flag' : 'Flag for revisit'}
-          aria-pressed={marks.revisit}
-          className={cn(
-            'rounded p-1.5 transition-colors hover:bg-surface-2',
-            marks.revisit ? 'text-series-2' : 'text-ink-muted opacity-0 group-hover:opacity-100 focus:opacity-100',
-          )}
+        </FlagButton>
+
+        <FlagButton
+          active={marks.revisit}
+          label={marks.revisit ? 'Clear revisit flag' : 'Flag for revisit'}
+          activeColor="var(--series-2)"
           onClick={() =>
             start(async () => {
               const next = !marks.revisit;
@@ -175,8 +170,44 @@ export function TaskRow({
           }
         >
           <RotateCcw className="size-3.5" />
-        </button>
+        </FlagButton>
       </div>
     </li>
+  );
+}
+
+function FlagButton({
+  active,
+  label,
+  activeColor,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  label: string;
+  activeColor: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      onClick={onClick}
+      style={active ? { color: activeColor } : undefined}
+      className={cn(
+        'rounded-md p-2 transition-all active:scale-90',
+        'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+        'hover:bg-surface-2',
+        active
+          ? 'opacity-100'
+          : // Touch devices (hover: none) always show these; only devices that
+            // actually support hover fade them until the row is hovered.
+            'text-ink-muted opacity-60 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100',
+      )}
+    >
+      {children}
+    </button>
   );
 }

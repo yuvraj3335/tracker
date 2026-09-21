@@ -12,6 +12,7 @@ import {
 import { pct } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { StatTile } from '@/components/stat-tile';
+import { PageHeader } from '@/components/page-header';
 import { ProgressBar } from '@/components/progress-bar';
 import { VelocityChart } from '@/components/velocity-chart';
 
@@ -42,12 +43,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="px-1">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Analytics</h1>
-        <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">
-          All derived from the Notion databases.
-        </p>
-      </div>
+      <PageHeader title="Analytics" sub="All derived from your Notion databases." />
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
         <StatTile
@@ -159,7 +155,7 @@ export default async function AnalyticsPage() {
               </div>
               <ProgressBar
                 value={r.pct}
-                color={r.pct === 100 ? 'var(--good)' : 'var(--series-1)'}
+                color={r.pct === 100 ? 'var(--good)' : 'var(--accent)'}
                 label={`${r.topic.name} progress`}
               />
             </div>

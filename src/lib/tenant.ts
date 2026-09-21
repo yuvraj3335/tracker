@@ -36,7 +36,16 @@ export const currentUser = cache(async (): Promise<User | null> => {
   const jar = await cookies();
   const userId = await readSessionCookie(jar.get(SESSION_COOKIE)?.value);
   if (!userId) return null;
-  return findUserById(userId);
+  try {
+    return await findUserById(userId);
+  } catch (e) {
+    // The root layout calls this on every request. An unguarded throw here
+    // would 500 the entire app — including /login — the moment the database
+    // hiccuped. Degrading to "signed out" keeps the app reachable; pages that
+    // genuinely need data raise their own error through error.tsx.
+    console.error('[currentUser] database unreachable:', (e as Error).message);
+    return null;
+  }
 });
 
 export type TenantStatus =
