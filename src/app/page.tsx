@@ -1,69 +1,226 @@
-import Image from "next/image";
+import Link from 'next/link';
+import { Flame, CalendarCheck, Target, TrendingUp, ArrowRight } from 'lucide-react';
+import { getAreas, getTasks, getTopics } from '@/lib/notion';
+import { isConfigured, missingEnv, env } from '@/lib/env';
+import { activityByDay, countsByDay, summarize, topicProgress } from '@/lib/derive';
+import { formatKey, todayKey } from '@/lib/date';
+import { pct } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { StatTile } from '@/components/stat-tile';
+import { ProgressBar } from '@/components/progress-bar';
+import { Heatmap } from '@/components/heatmap';
+import { TaskRow } from '@/components/task-row';
+import { SetupNotice } from '@/components/setup-notice';
 
-export default function Home() {
+// The Notion layer caches for 60s; let the page revalidate on the same beat.
+export const revalidate = 60;
+
+const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
+
+export default async function Dashboard() {
+  if (!isConfigured()) {
+    return (
+      <div className="space-y-4">
+        <PageTitle title="Today" sub="Set up Notion to get started" />
+        <SetupNotice missing={missingEnv()} />
+      </div>
+    );
+  }
+
+  const [areas, topics, tasks] = await Promise.all([getAreas(), getTopics(), getTasks()]);
+  const today = todayKey();
+  const stats = summarize(areas, tasks);
+  const byDay = activityByDay(tasks);
+  const todayTasks = byDay.get(today) ?? [];
+  const counts = Object.fromEntries(countsByDay(tasks));
+
+  // Next up: the first unsolved questions in original sheet order.
+  const nextUp = tasks.filter((t) => !t.done).slice(0, 5);
+  const tp = topicProgress(topics, tasks);
+  const currentTopic = tp.find((r) => r.done > 0 && r.done < r.total) ?? tp.find((r) => r.done === 0);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="space-y-4 sm:space-y-5">
+      <PageTitle title="Today" sub={formatKey(today, 'EEEE, d MMMM yyyy')} />
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+        <StatTile
+          label="Done today"
+          value={stats.todayCount}
+          sub={stats.todayCount === 0 ? 'nothing yet' : 'questions'}
+          accent={stats.todayCount > 0 ? 'var(--good-text)' : undefined}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+        <StatTile
+          label="Streak"
+          value={stats.streak.current}
+          sub={`longest ${stats.streak.longest}`}
+          accent={stats.streak.current > 0 ? 'var(--series-2)' : undefined}
+        />
+        <StatTile
+          label="Overall"
+          value={`${pct(stats.overall.done, stats.overall.total)}%`}
+          sub={`${stats.overall.done} / ${stats.overall.total}`}
+        />
+        <StatTile label="Last 7 days" value={stats.last7Total} sub="questions" />
+      </div>
+
+      {/* ---- Job Switch progress, with DSA folded in automatically ---- */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Target className="size-3.5 text-ink-muted" />
+            Job Switch progress
+          </CardTitle>
+          <CardDescription>
+            Weighted across every prep area. Add an area in Notion and it appears here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3.5">
+          <div>
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <span className="text-xs font-medium text-ink-2">All areas</span>
+              <span className="text-sm font-semibold tnum">
+                {pct(stats.overall.done, stats.overall.total)}%
+              </span>
+            </div>
+            <ProgressBar
+              value={stats.overall.pct}
+              height={8}
+              label="Overall Job Switch progress"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+          </div>
+
+          <div className="space-y-2.5 border-t border-hairline pt-3">
+            {areas.map((a, i) => {
+              const total = a.total ?? 0;
+              const done = a.done ?? 0;
+              return (
+                <div key={a.id}>
+                  <div className="mb-1 flex items-baseline justify-between gap-2">
+                    <Link
+                      href={`/areas/${a.slug || a.id}`}
+                      className="truncate text-xs font-medium text-ink-2 hover:text-accent"
+                    >
+                      {a.emoji ? `${a.emoji} ` : ''}
+                      {a.name}
+                      {a.status !== 'Active' ? (
+                        <span className="ml-1.5 text-[10px] text-ink-muted">({a.status})</span>
+                      ) : null}
+                    </Link>
+                    {/* Direct label — also discharges the sub-3:1 contrast relief rule */}
+                    <span className="shrink-0 text-xs text-ink-muted tnum">
+                      {done} / {total} · {pct(done, total)}%
+                    </span>
+                  </div>
+                  <ProgressBar
+                    value={total ? (done / total) * 100 : 0}
+                    color={SERIES[i % SERIES.length]}
+                    label={`${a.name} progress`}
+                  />
+                </div>
+              );
+            })}
+            {areas.length === 0 ? (
+              <p className="text-xs text-ink-muted">No areas yet — run the seed script.</p>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ---- Activity heatmap, from Notion activity ---- */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Flame className="size-3.5 text-ink-muted" />
+            Activity
+          </CardTitle>
+          <CardDescription>
+            Built from <code className="text-[11px]">Completed On</code> in Notion. Tap any day to
+            see what you did.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Heatmap counts={counts} />
+        </CardContent>
+      </Card>
+
+      {/* ---- Today's log: derived, never typed in twice ---- */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <CalendarCheck className="size-3.5 text-ink-muted" />
+            What you did today
+          </CardTitle>
+          <CardDescription>
+            Appears automatically when you tick a question. Nothing to log separately.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0 pb-0 sm:px-0 sm:pb-0">
+          {todayTasks.length ? (
+            <ul>
+              {todayTasks.map((t, i) => (
+                <TaskRow key={t.id} task={t} index={i + 1} />
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 pb-4 text-sm text-ink-muted sm:px-5 sm:pb-5">
+              Nothing yet today. Pick one up below.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ---- Next up ---- */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <TrendingUp className="size-3.5 text-ink-muted" />
+            Next up
+          </CardTitle>
+          <CardDescription>
+            {currentTopic
+              ? `Next in sheet order — you're in ${currentTopic.topic.name}.`
+              : 'Next in sheet order.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0 pb-0 sm:px-0 sm:pb-0">
+          {nextUp.length ? (
+            <>
+              <ul>
+                {nextUp.map((t, i) => (
+                  <TaskRow key={t.id} task={t} index={i + 1} />
+                ))}
+              </ul>
+              <div className="px-4 py-3 sm:px-5">
+                <Link
+                  href="/areas/dsa"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+                >
+                  Open the full sheet
+                  <ArrowRight className="size-3" />
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="px-4 pb-4 text-sm text-ink-muted sm:px-5 sm:pb-5">
+              Every question is done. That is the whole sheet. 🎉
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="px-1 pb-2 text-center text-[10px] text-ink-muted">
+        Days roll over at midnight {env.timezone.replace('_', ' ')}
+      </p>
+    </div>
+  );
+}
+
+function PageTitle({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div className="px-1">
+      <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
+      {sub ? <p className="mt-0.5 text-xs text-ink-muted sm:text-sm">{sub}</p> : null}
     </div>
   );
 }
