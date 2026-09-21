@@ -40,6 +40,7 @@ import {
   isFilter,
 } from '../src/lib/search';
 import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
+import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
 import type { Area, Task } from '../src/lib/notion';
 
 let pass = 0;
@@ -434,6 +435,54 @@ async function main() {
     check('filter revisit', applyFilter(mixed, 'revisit').map((t) => t.id).join() === 'f3');
     check('isFilter accepts a known key', isFilter('todo'));
     check('isFilter rejects junk from the URL', !isFilter('../etc') && !isFilter(null));
+  }
+
+  // -----------------------------------------------------------------------
+  // Redirect safety. `?next=` is attacker-supplied and ends up in a Location
+  // header, so every shape that a browser resolves to another origin has to
+  // come back as '/'. The sign-in page and the sign-in route used to check it
+  // separately, by different rules, and the weaker check decided where the
+  // browser actually went.
+  // -----------------------------------------------------------------------
+  section('Redirect safety (?next=)');
+  {
+    // Allowed: ordinary same-site destinations.
+    check('a plain path is kept', safeNextPath('/areas/dsa') === '/areas/dsa');
+    check('a path with a query is kept', safeNextPath('/daily?d=2026-09-21') === '/daily?d=2026-09-21');
+    check('root is kept', safeNextPath('/') === '/');
+
+    // Refused: everything that leaves the site.
+    check('protocol-relative is refused', safeNextPath('//evil.example') === '/');
+    check('protocol-relative with a path is refused', safeNextPath('//evil.example/x') === '/');
+    check('many leading slashes are refused', safeNextPath('////evil.example') === '/');
+    check('a backslash host is refused', safeNextPath('/\\evil.example') === '/');
+    check('backslash-slash is refused', safeNextPath('/\\/evil.example') === '/');
+    check('a double backslash is refused', safeNextPath('\\\\evil.example') === '/');
+    check('an absolute http url is refused', safeNextPath('https://evil.example') === '/');
+    check('a scheme-looking path is refused', safeNextPath('/javascript:alert(1)') === '/');
+    check('a tab-smuggled host is refused', safeNextPath('/\t/evil.example') === '/');
+    check('a newline-smuggled host is refused', safeNextPath('/\n/evil.example') === '/');
+    check('a CR-smuggled host is refused', safeNextPath('/\r/evil.example') === '/');
+    check('a relative path is refused', safeNextPath('areas/dsa') === '/');
+
+    // Nothing may throw: these arrive straight off the wire.
+    check('empty is root', safeNextPath('') === '/');
+    check('undefined is root', safeNextPath(undefined) === '/');
+    check('null is root', safeNextPath(null) === '/');
+    check('a non-string is root', safeNextPath({ toString: () => '//evil.example' }) === '/');
+  }
+
+  section('Account validation');
+  {
+    check('a good username passes', checkUsername('yuvraj_3335').ok);
+    check('too short is refused', !checkUsername('ab').ok);
+    check('a space is refused', !checkUsername('bad user').ok);
+    check('a slash is refused', !checkUsername('a/b').ok);
+    check('33 characters is refused', !checkUsername('a'.repeat(33)).ok);
+    check('32 characters is allowed', checkUsername('a'.repeat(32)).ok);
+    check('a short password is refused', !checkPassword('short').ok);
+    check('an 8-character password is allowed', checkPassword('12345678').ok);
+    check('a 513-character password is refused', !checkPassword('a'.repeat(513)).ok);
   }
 
   section('Keyboard mapping');

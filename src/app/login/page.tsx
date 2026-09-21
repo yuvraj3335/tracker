@@ -3,6 +3,7 @@ import { currentUser } from '@/lib/tenant';
 import { hasDatabase } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { AuthShell, AuthLink, Field, FormError } from '@/components/auth-shell';
+import { safeNextPath } from '@/lib/validate';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Sign in · Job Switch Tracker' };
@@ -12,10 +13,14 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string; next?: string; u?: string }>;
 }) {
-  const { error, next = '/', u } = await searchParams;
+  const { error, next: rawNext, u } = await searchParams;
+  // Sanitised once, here, so the value that reaches the redirect and the value
+  // carried in the form are the same one. They used to be checked separately
+  // and by different rules.
+  const next = safeNextPath(rawNext);
 
   // Already signed in? Nothing to do here.
-  if (await currentUser()) redirect(next.startsWith('/') ? next : '/');
+  if (await currentUser()) redirect(next);
 
   return (
     <AuthShell

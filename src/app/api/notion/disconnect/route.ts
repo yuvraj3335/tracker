@@ -13,5 +13,5 @@ export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   await deleteConnection(user.id);
-  return NextResponse.redirect(new URL('/setup', req.url));
+  return NextResponse.redirect(new URL('/setup', req.url), 303);
 }

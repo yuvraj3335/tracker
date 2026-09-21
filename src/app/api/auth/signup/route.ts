@@ -11,7 +11,8 @@ function back(req: Request, error: string, username = '') {
   const url = new URL('/signup', req.url);
   url.searchParams.set('error', error);
   if (username) url.searchParams.set('u', username);
-  return NextResponse.redirect(url);
+  // 303 so the browser GETs the destination instead of replaying this POST.
+  return NextResponse.redirect(url, 303);
 }
 
 export async function POST(req: Request) {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     if (!user) return back(req, 'That username is taken.', u.value);
 
     // Straight into setup — a new account has no Notion connection yet.
-    const res = NextResponse.redirect(new URL('/setup', req.url));
+    const res = NextResponse.redirect(new URL('/setup', req.url), 303);
     res.cookies.set(SESSION_COOKIE, await createSessionCookie(user.id), {
       httpOnly: true,
       sameSite: 'lax',

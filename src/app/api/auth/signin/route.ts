@@ -2,8 +2,21 @@ import { NextResponse } from 'next/server';
 import { ensureSchema, findUserByUsername, hasDatabase } from '@/lib/db';
 import { hashPassword, verifyPassword } from '@/lib/crypto';
 import { SESSION_COOKIE, SESSION_TTL_MS, createSessionCookie } from '@/lib/session';
+import { safeNextPath } from '@/lib/validate';
 
 export const runtime = 'nodejs';
+
+/**
+ * 303, not the 307 NextResponse.redirect sends by default.
+ *
+ * A 307 preserves the method AND the body, so the browser re-POSTs the sign-in
+ * form — username and password included — to wherever it is sent. After a form
+ * submission the destination must be fetched with GET, which is exactly what
+ * 303 means.
+ */
+function seeOther(url: URL): NextResponse {
+  return NextResponse.redirect(url, 303);
+}
 
 /**
  * A throwaway hash verified when the username does not exist, so a missing
@@ -19,18 +32,17 @@ async function decoy(password: string) {
 function back(req: Request, next: string, username = '') {
   const url = new URL('/login', req.url);
   url.searchParams.set('error', '1');
-  if (next) url.searchParams.set('next', next);
+  if (next && next !== '/') url.searchParams.set('next', next);
   if (username) url.searchParams.set('u', username);
-  return NextResponse.redirect(url);
+  return seeOther(url);
 }
 
 export async function POST(req: Request) {
   const form = await req.formData();
   const username = String(form.get('username') ?? '').trim();
   const password = String(form.get('password') ?? '');
-  const nextPath = String(form.get('next') ?? '/') || '/';
-  // Only allow same-site destinations, so `next` cannot be used as an open redirect.
-  const next = nextPath.startsWith('/') && !nextPath.startsWith('//') ? nextPath : '/';
+  // Only same-site destinations — see safeNextPath for what `next` can smuggle.
+  const next = safeNextPath(form.get('next'));
 
   if (!hasDatabase()) return back(req, next, username);
 
@@ -45,7 +57,7 @@ export async function POST(req: Request) {
       return back(req, next, username);
     }
 
-    const res = NextResponse.redirect(new URL(next, req.url));
+    const res = seeOther(new URL(next, req.url));
     res.cookies.set(SESSION_COOKIE, await createSessionCookie(user.id), {
       httpOnly: true,
       sameSite: 'lax',
