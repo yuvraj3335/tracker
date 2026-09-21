@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "scrape": "node scripts/scrape-a2z.mjs",
     "keygen": "node -e \"const c=require('crypto');console.log('SESSION_SECRET='+c.randomBytes(32).toString('hex'));console.log('ENCRYPTION_KEY='+c.randomBytes(32).toString('hex'))\"",
-    "test": "tsx scripts/selftest.ts"
+    "test": "tsx scripts/selftest.ts",
+    "check:schema": "tsx scripts/check-schema.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { currentUser, tokenOf } from '@/lib/tenant';
-import { getConnection, saveDatabaseShells, saveDatabases, setProvision } from '@/lib/db';
+import {
+  claimSeedingLease,
+  getConnection,
+  releaseSeedingLease,
+  saveDatabaseShells,
+  saveDatabases,
+  setProvision,
+} from '@/lib/db';
 import {
   CHUNK_SIZE,
   TOTAL_QUESTIONS,
@@ -67,8 +74,12 @@ export async function POST(req: Request) {
   // ---- start: build the databases -------------------------------------
   if (action === 'start') {
     if (!page) return NextResponse.json({ error: 'Paste your Notion page link.' }, { status: 400 });
+    // Read before anything is created: if a Tasks database is already there,
+    // the questions in it are already written and seeding must resume rather
+    // than start over. Rewinding would write all 456 a second time.
+    const startsFromScratch = !connection.tasksDs;
     try {
-      await setProvision(user.id, 'creating_databases', 0, null);
+      await setProvision(user.id, 'creating_databases', undefined, null);
       // Hand back whatever a previous attempt managed to create. Building
       // everything is ~25 sequential Notion calls, so a timeout partway
       // through is realistic; without this a retry would build a second full
@@ -88,17 +99,20 @@ export async function POST(req: Request) {
         },
         (shells) => saveDatabaseShells(user.id, shells),
       );
-      await saveDatabases(user.id, created);
+      await saveDatabases(user.id, created, startsFromScratch);
       invalidateTenant(user.id);
+      const resumed = startsFromScratch ? 0 : connection.provisionCursor;
       return NextResponse.json({
         state: 'seeding',
-        cursor: 0,
+        cursor: resumed,
         total: TOTAL_QUESTIONS,
         done: false,
       } satisfies Progress);
     } catch (e) {
       const error = friendlyNotionError(e);
-      await setProvision(user.id, 'error', 0, error);
+      // Keep the cursor where it truly is; zeroing it here would make the
+      // retry re-write everything already in their Notion.
+      await setProvision(user.id, 'error', undefined, error);
       return NextResponse.json({ error }, { status: 400 });
     }
   }
@@ -117,6 +131,20 @@ export async function POST(req: Request) {
       } satisfies Progress);
     }
 
+    // Only one chunk at a time, per user. Two tabs otherwise read the same
+    // cursor and write the same questions twice — measured at 30 rows for 15
+    // questions before this existed.
+    const cursor = await claimSeedingLease(user.id);
+    if (cursor === null) {
+      return NextResponse.json(
+        {
+          error: 'Setup is already running in another tab. Leave that one open and it will finish.',
+          cursor: connection.provisionCursor,
+        },
+        { status: 409 },
+      );
+    }
+
     try {
       const result = await seedChunk(
         token,
@@ -126,7 +154,9 @@ export async function POST(req: Request) {
           topicPageIds: connection.topicPageIds,
           headingIsSelect: connection.headingIsSelect,
         },
-        connection.provisionCursor,
+        // The cursor the lease handed back, not the one read before it: another
+        // request may have advanced it between the two.
+        cursor,
         CHUNK_SIZE,
       );
 
@@ -151,8 +181,12 @@ export async function POST(req: Request) {
       // seedChunk reports write failures in its return value, so reaching here
       // means something outside the write loop broke and no progress was made.
       const error = friendlyNotionError(e);
-      await setProvision(user.id, 'error', connection.provisionCursor, error);
-      return NextResponse.json({ error, cursor: connection.provisionCursor }, { status: 400 });
+      await setProvision(user.id, 'error', cursor, error);
+      return NextResponse.json({ error, cursor }, { status: 400 });
+    } finally {
+      // Released on every path: a lease left behind would block the next chunk
+      // until it expired, stalling setup for no reason.
+      await releaseSeedingLease(user.id);
     }
   }
 

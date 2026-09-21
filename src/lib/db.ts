@@ -160,6 +160,14 @@ export async function ensureSchema(): Promise<void> {
       add column if not exists heading_is_select boolean not null default true
   `;
 
+  // Held while one request is writing a chunk of questions. Without it two
+  // browser tabs both read the same cursor and both write the same rows — see
+  // claimSeedingLease.
+  await q`
+    alter table notion_connections
+      add column if not exists provision_lock timestamptz
+  `;
+
   migrated = true;
 }
 
@@ -320,6 +328,18 @@ export async function saveDatabaseShells(
   `;
 }
 
+/**
+ * `resetCursor` must be false whenever the Tasks database already existed.
+ *
+ * Rewinding the cursor to 0 against a Tasks database that already holds rows
+ * writes every one of those questions a second time. That is reachable without
+ * anything going wrong: rotating ENCRYPTION_KEY (which the README documents as
+ * a supported operation) or a revoked Notion token both send a user back
+ * through "paste your secret", and saveToken keeps the database ids while
+ * moving the state to needs_page. Pasting the page link then rebuilt nothing —
+ * correctly — but re-seeded from zero. Measured: 456 rows became 471 after a
+ * single chunk, and would have reached 912.
+ */
 export async function saveDatabases(
   userId: string,
   d: {
@@ -332,6 +352,7 @@ export async function saveDatabases(
     topicPageIds: Record<string, string>;
     headingIsSelect: boolean;
   },
+  resetCursor: boolean,
 ): Promise<void> {
   const q = sql();
   await q`
@@ -345,10 +366,56 @@ export async function saveDatabases(
       topic_page_ids   = ${JSON.stringify(d.topicPageIds)}::jsonb,
       heading_is_select = ${d.headingIsSelect},
       provision_state  = 'seeding',
-      provision_cursor = 0,
+      provision_cursor = case when ${resetCursor}::boolean then 0 else provision_cursor end,
       provision_error  = null,
       updated_at       = now()
     where user_id = ${userId}::uuid
+  `;
+}
+
+/**
+ * Claims the exclusive right to write the next chunk, and returns the cursor to
+ * start from. Returns null when another request already holds it.
+ *
+ * The cursor alone cannot make seeding safe: `read cursor -> write rows -> save
+ * cursor` is a read-modify-write, and two requests that read the same value
+ * both write the same questions. The browser drives this loop, and the setup
+ * screen tells people they can close the tab and come back — so two tabs
+ * running at once is ordinary use, not an edge case. Measured before this
+ * existed: two simultaneous steps produced 30 rows for 15 questions.
+ *
+ * A single conditional UPDATE is the whole mechanism. Postgres serialises the
+ * row update, so exactly one caller sees the lock as free and gets a row back.
+ *
+ * The lease expires so a request that died mid-chunk cannot wedge setup
+ * forever. `staleAfterSeconds` is comfortably longer than the route's
+ * maxDuration, so it can only expire on a request that is genuinely gone.
+ */
+export async function claimSeedingLease(
+  userId: string,
+  staleAfterSeconds = 90,
+): Promise<number | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return null;
+  const q = sql();
+  const rows = (await q`
+    update notion_connections
+       set provision_lock = now()
+     where user_id = ${userId}::uuid
+       and (
+         provision_lock is null
+         or provision_lock < now() - (${staleAfterSeconds}::int * interval '1 second')
+       )
+    returning provision_cursor
+  `) as any[];
+  return rows.length ? Number(rows[0].provision_cursor) : null;
+}
+
+/** Hands the lease back as soon as the chunk is done, successfully or not. */
+export async function releaseSeedingLease(userId: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return;
+  const q = sql();
+  await q`
+    update notion_connections set provision_lock = null where user_id = ${userId}::uuid
   `;
 }
 
@@ -367,6 +434,20 @@ export async function setProvision(
       updated_at       = now()
     where user_id = ${userId}::uuid
   `;
+}
+
+/**
+ * Closes the `pg` pool, so a script that touched the database can exit instead
+ * of hanging on an idle connection. A no-op on Neon's HTTP driver, which holds
+ * nothing open, and unused by the app itself — the server wants its pool.
+ */
+export async function closePool(): Promise<void> {
+  if (!_pool) return;
+  const pool = _pool;
+  _pool = null;
+  _sql = null;
+  migrated = false;
+  await pool.end();
 }
 
 /** Wipes the Notion link but keeps the account, so the user can reconnect. */
