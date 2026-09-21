@@ -178,7 +178,12 @@ to land with the tap, not a second later.
 
 ### 1. Database
 
-**On Vercel:** Storage → Neon → create. `DATABASE_URL` is injected automatically.
+**On Vercel:** Storage → Neon → create. The integration injects the connection
+string for you. Whatever env-var prefix you pick when connecting it, the app
+finds it: `DATABASE_URL` wins if set, then `POSTGRES_URL`, then any
+`<PREFIX>_DATABASE_URL` or `<PREFIX>_POSTGRES_URL` (see `resolveDatabaseUrl`).
+Connect the store to Preview as well as Production if preview deploys should
+be able to sign people in.
 
 **Locally:** any Postgres works — the driver switches on the URL (Neon's HTTP
 driver for `*.neon.tech`, standard `pg` over TCP otherwise).

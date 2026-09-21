@@ -11,6 +11,7 @@
  */
 import { neon } from '@neondatabase/serverless';
 import { Pool } from 'pg';
+import { env } from './env';
 
 // Database rows are untyped by nature; each mapper below narrows them into a
 // real domain type immediately.
@@ -45,7 +46,7 @@ export type Connection = {
 };
 
 export function hasDatabase(): boolean {
-  return Boolean(process.env.DATABASE_URL?.trim());
+  return Boolean(env.databaseUrl);
 }
 
 /**
@@ -75,7 +76,7 @@ function isNeonUrl(url: string): boolean {
 function sql(): SqlFn {
   if (_sql) return _sql;
 
-  const url = process.env.DATABASE_URL;
+  const url = env.databaseUrl;
   if (!url) throw new Error('DATABASE_URL is not set');
 
   if (isNeonUrl(url)) {

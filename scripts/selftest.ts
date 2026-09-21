@@ -42,6 +42,7 @@ import {
 import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
 import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
 import { usableAccent, contrastRatio, readableInk } from '../src/lib/contrast';
+import { resolveDatabaseUrl } from '../src/lib/env';
 import type { Area, Task } from '../src/lib/notion';
 
 let pass = 0;
@@ -129,6 +130,34 @@ async function main() {
   let threw = false;
   try { normalizeNotionId('not a notion link'); } catch { threw = true; }
   check('rejects junk with a clear error', threw);
+
+  section('Database URL resolution');
+  {
+    const pooled = 'postgresql://u:p@ep-x-pooler.neon.tech/db?sslmode=require';
+    const direct = 'postgresql://u:p@ep-x.neon.tech/db?sslmode=require';
+    check('plain DATABASE_URL is used', resolveDatabaseUrl({ DATABASE_URL: pooled }) === pooled);
+    check('DATABASE_URL beats every prefixed name',
+      resolveDatabaseUrl({ DATABASE_URL: pooled, STORAGE_DATABASE_URL: direct }) === pooled);
+    check('POSTGRES_URL is used when DATABASE_URL is absent', resolveDatabaseUrl({ POSTGRES_URL: pooled }) === pooled);
+    check('blank DATABASE_URL falls through', resolveDatabaseUrl({ DATABASE_URL: '  ', POSTGRES_URL: pooled }) === pooled);
+    // What Vercel's Neon integration injected when connected with prefix "DATABASE_URL".
+    check('prefix DATABASE_URL -> DATABASE_URL_DATABASE_URL', resolveDatabaseUrl({
+      DATABASE_URL_DATABASE_URL: pooled,
+      DATABASE_URL_UNPOOLED: direct,
+      DATABASE_URL_POSTGRES_URL: pooled,
+      DATABASE_URL_POSTGRES_URL_NON_POOLING: direct,
+      DATABASE_URL_POSTGRES_URL_NO_SSL: direct,
+      DATABASE_URL_POSTGRES_PRISMA_URL: direct,
+      DATABASE_URL_PGHOST: 'ep-x-pooler.neon.tech',
+    }) === pooled);
+    check('any other prefix is found', resolveDatabaseUrl({ STORAGE_DATABASE_URL: pooled }) === pooled);
+    check('prefixed POSTGRES_URL is a fallback', resolveDatabaseUrl({ STORAGE_POSTGRES_URL: pooled }) === pooled);
+    check('unpooled variants alone are not picked up',
+      resolveDatabaseUrl({ X_DATABASE_URL_UNPOOLED: direct, X_POSTGRES_URL_NON_POOLING: direct }) === undefined);
+    check('two stores -> stable choice',
+      resolveDatabaseUrl({ B_DATABASE_URL: direct, A_DATABASE_URL: pooled }) === pooled);
+    check('nothing set -> undefined', resolveDatabaseUrl({}) === undefined);
+  }
 
   section('Day maths');
   check('shiftKey forward', shiftKey('2026-09-21', 1) === '2026-09-22');
