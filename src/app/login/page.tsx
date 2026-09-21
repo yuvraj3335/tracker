@@ -20,7 +20,7 @@ export default async function LoginPage({
   return (
     <AuthShell
       title="Sign in"
-      subtitle="Your questions live in your own Notion. This just reads and writes them."
+      subtitle="Pick up where you left off."
       footer={
         <>
           No account yet? <AuthLink href="/signup">Create one</AuthLink>
@@ -28,7 +28,7 @@ export default async function LoginPage({
       }
     >
       {!hasDatabase() ? (
-        <FormError message="This server has no DATABASE_URL set, so accounts cannot work yet." />
+        <FormError message="Signing in is unavailable right now. Please try again shortly." />
       ) : null}
 
       <form action="/api/auth/signin" method="post" className="space-y-3">

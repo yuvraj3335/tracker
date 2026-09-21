@@ -54,7 +54,7 @@ export default async function DailyPage({
     <div className="js-content-in space-y-4">
       <PageHeader
         title="Daily Tracker"
-        sub="Filled in automatically from when you tick each question."
+        sub="Everything you have completed, day by day."
       />
 
       {/* Day switcher */}

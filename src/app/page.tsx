@@ -55,7 +55,7 @@ export default async function Dashboard() {
             Job Switch progress
           </CardTitle>
           <CardDescription>
-            Weighted across every prep area. Add an area in Notion and it appears here.
+            Your progress across every area.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3.5">
@@ -104,7 +104,7 @@ export default async function Dashboard() {
               );
             })}
             {ap.length === 0 ? (
-              <p className="text-xs text-ink-muted">No areas yet — run the seed script.</p>
+              <p className="text-xs text-ink-muted">Nothing here yet.</p>
             ) : null}
           </div>
         </CardContent>
@@ -118,8 +118,7 @@ export default async function Dashboard() {
             Activity
           </CardTitle>
           <CardDescription>
-            Built from <code className="text-meta">Completed On</code> in Notion. Tap any day to
-            see what you did.
+            Your last year at a glance. Select any day to see what you did.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,7 +134,7 @@ export default async function Dashboard() {
             What you did today
           </CardTitle>
           <CardDescription>
-            Appears automatically when you tick a question. Nothing to log separately.
+            Everything you have completed today.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0 sm:px-0 sm:pb-0">
@@ -181,8 +180,8 @@ export default async function Dashboard() {
           </CardTitle>
           <CardDescription>
             {currentTopic
-              ? `Next in sheet order — you're in ${currentTopic.topic.name}.`
-              : 'Next in sheet order.'}
+              ? `Pick up where you left off — you're in ${currentTopic.topic.name}.`
+              : 'Your next questions, in order.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0 sm:px-0 sm:pb-0">

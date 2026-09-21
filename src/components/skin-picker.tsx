@@ -100,7 +100,7 @@ export function SkinPicker() {
             <span className="min-w-0 flex-1">
               <span className="block font-medium text-ink">Sound &amp; haptics</span>
               <span className="block text-micro text-ink-muted">
-                {effects ? 'On for this device' : 'Off'}
+                {effects ? 'On' : 'Off'}
               </span>
             </span>
           </button>

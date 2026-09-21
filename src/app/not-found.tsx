@@ -10,7 +10,7 @@ export default function NotFound() {
           <div>
             <h1 className="text-sm font-semibold">Nothing here</h1>
             <p className="mt-1 text-xs text-ink-muted">
-              That page does not exist, or the prep area was renamed in Notion.
+              We could not find that page.
             </p>
           </div>
           <div className="flex gap-2">

@@ -102,9 +102,9 @@ export function CharacterPicker() {
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-semibold text-ink">Original mascot</span>
+                  <span className="block text-xs font-semibold text-ink">Default</span>
                   <span className="block truncate text-meta text-ink-muted">
-                    Built in. Follows the skin.
+                    Follows your theme.
                   </span>
                 </span>
                 {!active ? <Check className="size-3.5 shrink-0 text-accent" /> : null}
@@ -149,7 +149,7 @@ export function CharacterPicker() {
                 className="skin-pill mt-1 flex w-full items-center gap-1.5 px-2 py-1.5 text-meta text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
               >
                 <Info className="size-3" />
-                Artwork credits &amp; licences
+                Artwork credits
               </button>
             </>
           )}
@@ -217,8 +217,7 @@ function Credits({
       </ul>
 
       <p className="px-2 pt-1 pb-1 text-micro leading-snug text-ink-muted">
-        Artwork is supplied by whoever runs this instance. They are responsible for
-        holding the rights to it.
+        Artwork belongs to its creators and is used with their permission.
       </p>
     </div>
   );

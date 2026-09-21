@@ -33,7 +33,7 @@ export default async function SetupPage() {
     <AuthShell title="Set up your tracker" subtitle={`Signed in as ${status.user.username}`}>
       {!hasEncryptionKey() ? (
         <div className="mb-4">
-          <FormError message="This server has no ENCRYPTION_KEY set, so it cannot store Notion tokens safely. Set it and redeploy." />
+          <FormError message="Setup is unavailable right now. Please try again shortly." />
         </div>
       ) : null}
       <SetupFlow

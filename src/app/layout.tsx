@@ -11,7 +11,7 @@ import { discoverCharacters } from '@/lib/characters.server';
 export const metadata: Metadata = {
   title: 'Job Switch Tracker',
   description:
-    'DSA and interview-prep tracker backed by your own Notion, with a derived daily tracker and activity heatmap.',
+    'Track your DSA and interview preparation. Tick a question once and everything else keeps itself up to date.',
 };
 
 export const viewport: Viewport = {

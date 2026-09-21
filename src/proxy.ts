@@ -26,13 +26,30 @@ const PUBLIC_PREFIXES = [
   // signed-out setup and auth screens — gating them would 307 the image
   // requests to /login and leave broken figures there.
   '/characters/',
-  // Dev-only design harness. The route itself 404s when NODE_ENV is
-  // production, so allowing it here opens nothing in a real deployment.
+  // Dev-only component preview, and only in development — see below.
   '/preview',
 ];
 
+/**
+ * The component preview is a development tool and must not be reachable by
+ * anyone using the product.
+ *
+ * The page itself calls notFound(), but that renders the not-found *page* and
+ * still answers 200, which is not the same as the route being absent. Refusing
+ * it here returns a real 404 and never runs the harness at all.
+ */
+const DEV_ONLY_PREFIXES = ['/preview'];
+
 export default async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  if (
+    process.env.NODE_ENV === 'production' &&
+    DEV_ONLY_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
 
   const userId = await readSessionCookie(req.cookies.get(SESSION_COOKIE)?.value);

@@ -43,7 +43,7 @@ export default async function AnalyticsPage() {
 
   return (
     <div className="js-content-in space-y-4">
-      <PageHeader title="Analytics" sub="All derived from your Notion databases." />
+      <PageHeader title="Analytics" sub="How your preparation is going." />
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
         <StatTile

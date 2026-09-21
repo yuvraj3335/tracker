@@ -36,7 +36,7 @@ export default function RouteError({
             <div className="min-w-0">
               <h1 className="text-sm font-semibold">That did not load</h1>
               <p className="mt-1 text-xs text-ink-muted">
-                Usually this is Notion rate-limiting or timing out. Trying again normally works.
+                This usually clears up on its own. Try again in a moment.
               </p>
             </div>
           </div>
@@ -50,7 +50,7 @@ export default function RouteError({
               <Link href="/">Back to today</Link>
             </Button>
             <Button asChild variant="ghost" size="sm">
-              <Link href="/setup">Check Notion connection</Link>
+              <Link href="/setup">Check your connection</Link>
             </Button>
           </div>
 

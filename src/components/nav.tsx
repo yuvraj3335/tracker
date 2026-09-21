@@ -62,7 +62,7 @@ export function Nav({ username }: { username: string | null }) {
             <Link
               href="/setup"
               className="skin-pill hidden max-w-[8rem] truncate px-2.5 py-1 text-xs text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink sm:block"
-              title="Notion connection"
+              title="Your account"
             >
               {username}
             </Link>

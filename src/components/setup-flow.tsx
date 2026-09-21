@@ -186,12 +186,12 @@ export function SetupFlow({
               className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 font-mono text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             />
             <p className="text-meta text-ink-muted">
-              Stored encrypted. Only ever sent to Notion, never to anyone else.
+              Encrypted before it is stored, and only ever sent to Notion.
             </p>
             <Err message={error} />
             <Button type="submit" disabled={busy} className="w-full">
               {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              {busy ? 'Checking with Notion…' : 'Continue'}
+              {busy ? 'Checking…' : 'Continue'}
             </Button>
           </form>
         </section>
@@ -215,7 +215,7 @@ export function SetupFlow({
             </li>
           </ol>
           <p className="rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-meta text-ink-2">
-            Step 2 is the one people miss. Without it Notion says the page does not exist.
+            Don’t skip step 2 — without it, Notion won’t let us reach the page.
           </p>
           <form onSubmit={submitPage} className="space-y-2.5">
             <input
@@ -227,11 +227,11 @@ export function SetupFlow({
             <Err message={error} />
             <Button type="submit" disabled={busy} className="w-full">
               {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              {busy ? 'Creating databases…' : 'Build my tracker'}
+              {busy ? 'Setting up…' : 'Build my tracker'}
             </Button>
             {busy ? (
               <p className="text-meta text-ink-muted">
-                Creating four databases, the DSA area and 18 sections. Takes about 15 seconds.
+                Setting up your tracker. This takes a few seconds.
               </p>
             ) : null}
           </form>
@@ -242,25 +242,25 @@ export function SetupFlow({
       {step === 'seeding' ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">Adding your questions</h2>
-          <ProgressBar value={pct} height={8} label="Seeding progress" />
+          <ProgressBar value={pct} height={8} label="Setup progress" />
           <div className="flex items-baseline justify-between text-xs">
             <span className="text-ink-muted">
-              {error ? 'Paused' : 'Writing to your Notion…'}
+              {error ? 'Paused' : 'Adding your questions…'}
             </span>
             <span className="tnum font-medium">
               {cursor} / {total}
             </span>
           </div>
           <p className="text-meta text-ink-muted">
-            Notion only accepts about three writes a second, so this takes a few minutes. Keep this
-            tab open — if you close it, come back and it resumes from here.
+            This takes a few minutes. You can close this tab and come back — it picks up
+            where it left off.
           </p>
           {error ? (
             <>
               <Err message={error} />
               <Button onClick={retry} disabled={busy} variant="outline" className="w-full">
                 {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                Resume from {cursor}
+                Continue
               </Button>
             </>
           ) : null}
@@ -281,7 +281,7 @@ export function SetupFlow({
           )}
           <h2 className="text-sm font-semibold">All set</h2>
           <p className="text-xs text-ink-muted">
-            {total} questions are in your Notion. Taking you to your dashboard…
+            All {total} questions are ready. Taking you to your dashboard…
           </p>
         </section>
       ) : null}

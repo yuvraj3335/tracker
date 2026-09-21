@@ -142,7 +142,7 @@ export function VelocityChart({
             <span className="text-ink-muted"> avg · {formatKey(active.day, 'EEE d MMM')}</span>
           </div>
         ) : (
-          <span className="text-ink-muted">Hover a bar for that day&apos;s numbers.</span>
+          <span className="text-ink-muted">Last {series.length} days</span>
         )}
       </div>
     </div>

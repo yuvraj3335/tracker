@@ -19,7 +19,7 @@ export default async function SignupPage({
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Next you'll connect your own Notion, and we'll build the tracker inside it."
+      subtitle="Takes a minute. You will connect Notion next."
       footer={
         <>
           Already have one? <AuthLink href="/login">Sign in</AuthLink>
@@ -27,7 +27,7 @@ export default async function SignupPage({
       }
     >
       {!hasDatabase() ? (
-        <FormError message="This server has no DATABASE_URL set, so accounts cannot work yet." />
+        <FormError message="Creating an account is unavailable right now. Please try again shortly." />
       ) : null}
 
       <form action="/api/auth/signup" method="post" className="space-y-3">

@@ -44,11 +44,10 @@ export default function PreviewPage() {
   return (
     <div className="space-y-6">
       <div className="skin-card border border-hairline bg-surface-2 px-4 py-2.5 text-xs text-ink-2">
-        <strong>Dev harness.</strong> Sample data. Switch skin and light/dark from the nav to
-        review every combination.
+        <strong>Component preview.</strong> Sample data. Development only.
       </div>
 
-      <Section title="Page header + hero">
+      <Section title="Header and hero">
         <div className="space-y-4">
           <PageHeader title="Today" sub="Monday, 21 September 2026" />
           <HeroProgress
@@ -109,7 +108,7 @@ export default function PreviewPage() {
         </Card>
       </Section>
 
-      <Section title="Task rows — done, todo, no link, flagged">
+      <Section title="Task rows">
         <Card className="overflow-hidden">
           <ul>
             {today.slice(0, 3).map((t, i) => (
@@ -125,7 +124,7 @@ export default function PreviewPage() {
         </Card>
       </Section>
 
-      <Section title="Sheet: heading bands">
+      <Section title="Heading bands">
         <Card className="overflow-hidden">
           {headings.slice(0, 2).map((h) => (
             <section key={h.heading}>
@@ -159,18 +158,18 @@ export default function PreviewPage() {
         </Card>
       </Section>
 
-      <Section title="Sheet — live search, instant filters, j/k keyboard nav, density">
+      <Section title="Sheet">
         <Sheet topics={topics} tasks={tasks} areaName="DSA" />
       </Section>
 
-      <Section title="Loading skeletons (dashboard, then sheet)">
+      <Section title="Loading states">
         <div className="space-y-5">
           <DashboardSkeleton />
           <SheetSkeleton />
         </div>
       </Section>
 
-      <Section title="Character poses (falls back to the skin's SVG mascot when no art is installed)">
+      <Section title="Character poses">
         <Card>
           <CardContent className="flex flex-wrap items-end gap-6 pt-4">
             {(['idle', 'celebrate', 'milestone', 'sad'] as const).map((pose) => (
@@ -179,15 +178,12 @@ export default function PreviewPage() {
                 <span className="text-micro tracking-wide text-ink-muted uppercase">{pose}</span>
               </div>
             ))}
-            <p className="max-w-xs text-meta text-ink-muted">
-              Drop a folder into <code className="rounded bg-surface-2 px-1">public/characters/</code>{' '}
-              and the picker appears in the nav. See that folder&apos;s README.
-            </p>
+
           </CardContent>
         </Card>
       </Section>
 
-      <Section title="Empty state + buttons">
+      <Section title="Buttons">
         <Card>
           <CardContent className="space-y-4 pt-4">
             <div className="flex items-center gap-3">
