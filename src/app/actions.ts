@@ -12,19 +12,9 @@ import type { Difficulty } from '@/lib/schema';
  * a crafted request cannot act as somebody else.
  */
 
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 export async function toggleTaskAction(id: string, done: boolean) {
   const t = await requireTenant();
   await setTaskDone(t, id, done, done ? todayKey() : undefined);
-  revalidateAll();
-}
-
-/** Backdating, for when you log a session a day late. */
-export async function completeOnAction(id: string, day: string) {
-  if (!DAY_RE.test(day)) throw new Error('invalid date');
-  const t = await requireTenant();
-  await setTaskDone(t, id, true, day);
   revalidateAll();
 }
 

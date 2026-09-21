@@ -2,11 +2,12 @@
 
 import { useOptimistic, useSyncExternalStore, useTransition } from 'react';
 import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
-import { toggleTaskAction, toggleFlagAction } from '@/app/actions';
+import { toggleTaskAction, toggleFlagAction, setDifficultyAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
 import { bumpCompletions, celebrate } from '@/lib/celebrate';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
 import { THEMES, pickLine } from '@/lib/themes';
+import { DIFFICULTY, type Difficulty } from '@/lib/schema';
 import { formatKey } from '@/lib/date';
 import { Check } from './ui/check';
 import { cn } from '@/lib/utils';
@@ -51,6 +52,7 @@ export function TaskRow({
     bookmarked: task.bookmarked,
     revisit: task.revisit,
   });
+  const [difficulty, setDifficultyOptimistic] = useOptimistic(task.difficulty);
 
   const links = (Object.keys(LINK_LABEL) as (keyof typeof LINK_LABEL)[])
     .map((k) => ({ label: LINK_LABEL[k], href: task.links[k] }))
@@ -98,17 +100,15 @@ export function TaskRow({
           >
             {task.name}
           </span>
-          {task.difficulty ? (
-            <span
-              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
-              style={{
-                background: CHIP[task.difficulty].bg,
-                color: CHIP[task.difficulty].fg,
-              }}
-            >
-              {task.difficulty}
-            </span>
-          ) : null}
+          <DifficultyPicker
+            value={difficulty}
+            onChange={(next) =>
+              start(async () => {
+                setDifficultyOptimistic(next);
+                await setDifficultyAction(task.id, next);
+              })
+            }
+          />
         </div>
 
         {/* Links and the completion stamp share one line, which keeps rows
@@ -173,6 +173,53 @@ export function TaskRow({
         </FlagButton>
       </div>
     </li>
+  );
+}
+
+/**
+ * Sets a question's difficulty.
+ *
+ * The source sheet carries no difficulty, so every row is seeded blank and the
+ * analytics page's breakdown stays empty until these are filled in. There was
+ * previously no way to do that anywhere in the app — `setDifficultyAction`
+ * existed but nothing called it — so the feature was unreachable.
+ *
+ * A native <select> rather than a custom menu: it is one element, it is
+ * keyboard and screen-reader correct for free, and on a phone it opens the
+ * platform picker.
+ */
+function DifficultyPicker({
+  value,
+  onChange,
+}: {
+  value: Difficulty | null;
+  onChange: (next: Difficulty | null) => void;
+}) {
+  const chip = value ? CHIP[value] : null;
+  return (
+    <span className="relative shrink-0">
+      <select
+        value={value ?? ''}
+        aria-label={`Difficulty${value ? `: ${value}` : ' not set'}`}
+        onChange={(e) => onChange((e.target.value || null) as Difficulty | null)}
+        className={cn(
+          'cursor-pointer appearance-none rounded px-1.5 py-0.5 text-[10px] font-semibold',
+          'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+          !chip &&
+            // Unset stays quiet until the row is hovered, so a mostly-blank
+            // sheet is not a wall of placeholders. Always visible on touch.
+            'border border-dashed border-axis text-ink-muted opacity-70 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100',
+        )}
+        style={chip ? { background: chip.bg, color: chip.fg } : undefined}
+      >
+        <option value="">Difficulty</option>
+        {DIFFICULTY.map((d) => (
+          <option key={d} value={d}>
+            {d}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 

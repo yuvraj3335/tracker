@@ -46,7 +46,6 @@ const SEED = seedJson as unknown as {
 /** One flat list in sheet order. The provisioning cursor indexes into this. */
 export type FlatQuestion = SeedQuestion & {
   sectionPath: string;
-  sectionOrder: number;
   headingName: string;
   headingOrder: number;
 };
@@ -61,7 +60,6 @@ export function flatQuestions(): FlatQuestion[] {
         out.push({
           ...q,
           sectionPath: s.path,
-          sectionOrder: s.order,
           headingName: h.name,
           headingOrder: h.order,
         });
@@ -98,27 +96,78 @@ export function normalizeNotionId(raw: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-/** Throttle so a burst of writes stays inside Notion's ~3 req/s budget. */
+/**
+ * Throttle so a burst of writes stays inside Notion's ~3 req/s budget.
+ *
+ * Keyed per token, because Notion rate-limits per integration. A single shared
+ * timestamp made one user's seeding slow down every other user's on the same
+ * server instance, for no benefit — their quotas are separate.
+ *
+ * The queue is a promise chain rather than a bare timestamp: two concurrent
+ * calls reading the same timestamp would both wait the same interval and then
+ * fire together, which is not a throttle at all.
+ */
 const GAP_MS = 340;
-let lastCall = 0;
-async function throttle() {
-  const wait = GAP_MS - (Date.now() - lastCall);
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastCall = Date.now();
+const queues = new Map<string, Promise<void>>();
+
+function throttle(key: string): Promise<void> {
+  const previous = queues.get(key) ?? Promise.resolve();
+  const next = previous.then(() => new Promise<void>((r) => setTimeout(r, GAP_MS)));
+  // Never let a rejection poison the chain for later calls.
+  queues.set(
+    key,
+    next.catch(() => undefined),
+  );
+  if (queues.size > 200) {
+    const oldest = queues.keys().next().value;
+    if (oldest !== undefined && oldest !== key) queues.delete(oldest);
+  }
+  return previous;
 }
 
-async function call<T>(label: string, fn: () => Promise<T>, attempt = 1): Promise<T> {
-  await throttle();
+/** A short, non-secret fingerprint so tokens are not used as map keys. */
+function tokenKey(token: string): string {
+  let h = 0;
+  for (let i = 0; i < token.length; i++) h = (Math.imul(31, h) + token.charCodeAt(i)) | 0;
+  return String(h);
+}
+
+type Caller = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
+
+/** Binds the throttle queue for one integration token. */
+function callerFor(token: string): Caller {
+  const key = tokenKey(token);
+  return (label, fn) => call(label, fn, 1, key);
+}
+
+async function call<T>(
+  label: string,
+  fn: () => Promise<T>,
+  attempt = 1,
+  key = 'default',
+): Promise<T> {
+  await throttle(key);
   try {
     return await fn();
   } catch (e) {
     const status = (e as any)?.status;
     if ((status === 429 || status === 502 || status === 503 || status === 504) && attempt <= 4) {
       await new Promise((r) => setTimeout(r, (status === 429 ? 1200 : 600) * attempt));
-      return call(label, fn, attempt + 1);
+      return call(label, fn, attempt + 1, key);
     }
     throw new Error(`${label}: ${friendlyNotionError(e)}`);
   }
+}
+
+/**
+ * True only for Notion rejecting a select option — the one failure the
+ * rich_text fallback is meant to handle. Notion has historically refused
+ * commas in option names, and one heading in the sheet contains them.
+ */
+function isSelectOptionRejection(e: unknown): boolean {
+  const err = e as any;
+  if (err?.code !== 'validation_error' && err?.status !== 400) return false;
+  return /select|option|comma/i.test(String(err?.message ?? ''));
 }
 
 /** Turns Notion's API errors into something a user can act on. */
@@ -167,13 +216,14 @@ export type CreatedDatabases = {
 };
 
 async function createDb(
+  run: Caller,
   client: Client,
   parentPageId: string,
   name: string,
   emoji: string,
   properties: Record<string, any>,
 ): Promise<string> {
-  const res: any = await call(`create "${name}"`, () =>
+  const res: any = await run(`create "${name}"`, () =>
     client.databases.create({
       parent: { type: 'page_id', page_id: parentPageId },
       title: rtv(name),
@@ -186,8 +236,12 @@ async function createDb(
   return ds;
 }
 
-async function propertyIds(client: Client, ds: string): Promise<Record<string, string>> {
-  const res: any = await call('read schema', () =>
+async function propertyIds(
+  run: Caller,
+  client: Client,
+  ds: string,
+): Promise<Record<string, string>> {
+  const res: any = await run('read schema', () =>
     client.dataSources.retrieve({ data_source_id: ds } as any),
   );
   const out: Record<string, string> = {};
@@ -195,81 +249,134 @@ async function propertyIds(client: Client, ds: string): Promise<Record<string, s
   return out;
 }
 
+/**
+ * Anything already created on a previous attempt, so a retry can skip it.
+ * Every field is optional because a run can fail at any point.
+ */
+export type ExistingDatabases = {
+  parentPageId?: string | null;
+  areasDs?: string | null;
+  topicsDs?: string | null;
+  tasksDs?: string | null;
+  dailyDs?: string | null;
+  headingIsSelect?: boolean;
+  areaPageId?: string | null;
+  topicPageIds?: Record<string, string> | null;
+};
+
 export async function createDatabases(
   token: string,
   parentPageRaw: string,
+  /** Reuse whatever a previous attempt managed to create. */
+  existing: ExistingDatabases = {},
+  /** Called as soon as the four databases exist, so they survive a timeout. */
+  onShells?: (d: {
+    parentPageId: string;
+    areasDs: string;
+    topicsDs: string;
+    tasksDs: string;
+    dailyDs: string;
+    headingIsSelect: boolean;
+  }) => Promise<void>,
 ): Promise<CreatedDatabases> {
   const client = new Client({ auth: token });
-  const parentPageId = normalizeNotionId(parentPageRaw);
+  const run = callerFor(token);
+  const parentPageId = existing.parentPageId || normalizeNotionId(parentPageRaw);
 
   // Fail early with a clear message if the integration cannot see the page,
   // rather than half-creating databases.
-  await call('open parent page', () => client.pages.retrieve({ page_id: parentPageId }));
+  await run('open parent page', () => client.pages.retrieve({ page_id: parentPageId }));
 
-  const areasDs = await createDb(client, parentPageId, 'Areas', '🎯', areasProperties());
-  const topicsDs = await createDb(
-    client,
-    parentPageId,
-    'Topics',
-    '📚',
-    topicsProperties(areasDs),
-  );
+  const areasDs =
+    existing.areasDs || (await createDb(run, client, parentPageId, 'Areas', '🎯', areasProperties()));
+  const topicsDs =
+    existing.topicsDs ||
+    (await createDb(run, client, parentPageId, 'Topics', '📚', topicsProperties(areasDs)));
 
   // Heading is a select so Notion can group by it. Notion has historically
   // rejected commas in option names, so fall back to rich_text rather than
   // ever altering a heading from the source sheet.
   const headings = uniqueHeadings();
   let tasksDs: string;
-  let headingSelect = true;
-  try {
-    tasksDs = await createDb(
-      client,
-      parentPageId,
-      'Tasks',
-      '✅',
-      tasksProperties(areasDs, topicsDs, headings, true),
-    );
-  } catch {
-    headingSelect = false;
-    tasksDs = await createDb(
-      client,
-      parentPageId,
-      'Tasks',
-      '✅',
-      tasksProperties(areasDs, topicsDs, headings, false),
-    );
+  let headingSelect = existing.headingIsSelect ?? true;
+
+  if (existing.tasksDs) {
+    tasksDs = existing.tasksDs;
+  } else {
+    try {
+      tasksDs = await createDb(
+        run,
+        client,
+        parentPageId,
+        'Tasks',
+        '✅',
+        tasksProperties(areasDs, topicsDs, headings, true),
+      );
+    } catch (e) {
+      // Only the comma-in-select case justifies a second attempt. Retrying
+      // after an auth failure or a timeout would create a duplicate Tasks
+      // database and bury the error that actually mattered.
+      if (!isSelectOptionRejection(e)) throw e;
+      headingSelect = false;
+      tasksDs = await createDb(
+        run,
+        client,
+        parentPageId,
+        'Tasks',
+        '✅',
+        tasksProperties(areasDs, topicsDs, headings, false),
+      );
+    }
   }
 
-  const dailyDs = await createDb(client, parentPageId, 'Daily Notes', '📝', dailyProperties());
+  const dailyDs =
+    existing.dailyDs ||
+    (await createDb(run, client, parentPageId, 'Daily Notes', '📝', dailyProperties()));
+
+  // Persist the four ids now. Everything after this point is another ~20
+  // sequential calls, which is long enough to hit a serverless timeout — and
+  // without this save those databases would be orphaned and rebuilt on retry.
+  await onShells?.({
+    parentPageId,
+    areasDs,
+    topicsDs,
+    tasksDs,
+    dailyDs,
+    headingIsSelect: headingSelect,
+  });
 
   // Rollups can only be added once the dual relations exist on Areas/Topics.
-  await call('add Areas rollups', () =>
+  await run('add Areas rollups', () =>
     client.dataSources.update({ data_source_id: areasDs, properties: areaRollups() } as any),
   );
-  await call('add Topics rollups', () =>
+  await run('add Topics rollups', () =>
     client.dataSources.update({ data_source_id: topicsDs, properties: topicRollups() } as any),
   );
 
   // Area + topics are few enough to create in this same step.
-  const areaRes: any = await call('create DSA area', () =>
-    client.pages.create({
-      parent: { type: 'data_source_id', data_source_id: areasDs },
-      icon: { type: 'emoji', emoji: '🧩' } as any,
-      properties: {
-        [P.area.name]: { title: rtv('DSA') },
-        [P.area.slug]: { rich_text: rtv('dsa') },
-        [P.area.emoji]: { rich_text: rtv('🧩') },
-        [P.area.weight]: { number: 1 },
-        [P.area.status]: { select: { name: 'Active' } },
-        [P.area.order]: { number: 0 },
-      } as any,
-    } as any),
-  );
-  const areaPageId: string = areaRes.id;
+  let areaPageId = existing.areaPageId ?? '';
+  if (!areaPageId) {
+    const areaRes: any = await run('create DSA area', () =>
+      client.pages.create({
+        parent: { type: 'data_source_id', data_source_id: areasDs },
+        icon: { type: 'emoji', emoji: '🧩' } as any,
+        properties: {
+          [P.area.name]: { title: rtv('DSA') },
+          [P.area.slug]: { rich_text: rtv('dsa') },
+          [P.area.emoji]: { rich_text: rtv('🧩') },
+          [P.area.weight]: { number: 1 },
+          [P.area.status]: { select: { name: 'Active' } },
+          [P.area.order]: { number: 0 },
+        } as any,
+      } as any),
+    );
+    areaPageId = areaRes.id;
+  }
 
-  const topicPageIds: Record<string, string> = {};
+  const topicPageIds: Record<string, string> = { ...(existing.topicPageIds ?? {}) };
   for (const s of SEED.sections) {
-    const res: any = await call(`create topic ${s.name}`, () =>
+    if (topicPageIds[s.path]) continue;
+    const res: any = await run(`create topic ${s.name}`, () =>
       client.pages.create({
         parent: { type: 'data_source_id', data_source_id: topicsDs },
         properties: {
@@ -283,7 +390,7 @@ export async function createDatabases(
     topicPageIds[s.path] = res.id;
   }
 
-  await buildViews(client, { areasDs, topicsDs, tasksDs, dailyDs });
+  await buildViews(run, client, { areasDs, topicsDs, tasksDs, dailyDs });
 
   return {
     parentPageId,
@@ -299,19 +406,20 @@ export async function createDatabases(
 
 /** Ready-made Notion views. A failure here is cosmetic and never fatal. */
 async function buildViews(
+  run: Caller,
   client: Client,
   ds: { areasDs: string; topicsDs: string; tasksDs: string; dailyDs: string },
 ) {
   const safe = async (label: string, body: Record<string, any>) => {
     try {
-      await call(`view ${label}`, () => (client as any).views.create(body));
+      await run(`view ${label}`, () => (client as any).views.create(body));
     } catch {
       /* views are a nicety; never block provisioning on one */
     }
   };
 
-  const taskP = await propertyIds(client, ds.tasksDs).catch(() => ({}) as Record<string, string>);
-  const dailyP = await propertyIds(client, ds.dailyDs).catch(() => ({}) as Record<string, string>);
+  const taskP = await propertyIds(run, client, ds.tasksDs).catch(() => ({}) as Record<string, string>);
+  const dailyP = await propertyIds(run, client, ds.dailyDs).catch(() => ({}) as Record<string, string>);
 
   // The Daily Tracker: a calendar keyed on Completed On. Ticking a question
   // places it on that day automatically — this IS the look-back view.
@@ -378,6 +486,14 @@ async function buildViews(
  */
 export const CHUNK_SIZE = 15;
 
+/**
+ * Writes the next `size` questions and reports how far it actually got.
+ *
+ * It deliberately does NOT throw partway through. An earlier version did, and
+ * the caller then saved the cursor it started with — so every row the chunk had
+ * already written was created a second time on retry. Returning the real cursor
+ * alongside the error is what makes the resume guarantee true.
+ */
 export async function seedChunk(
   token: string,
   d: {
@@ -388,74 +504,70 @@ export async function seedChunk(
   },
   cursor: number,
   size: number = CHUNK_SIZE,
-): Promise<{ cursor: number; total: number; done: boolean }> {
+): Promise<{ cursor: number; total: number; done: boolean; error?: string }> {
   const client = new Client({ auth: token });
+  const run = callerFor(token);
   const all = flatQuestions();
-  const end = Math.min(cursor + size, all.length);
+  const start = Math.max(0, Math.min(cursor, all.length));
+  const end = Math.min(start + size, all.length);
 
-  for (let i = cursor; i < end; i++) {
+  // Advances only after a write lands, so it always reflects reality.
+  let written = start;
+
+  for (let i = start; i < end; i++) {
     const q = all[i];
     const topicId = d.topicPageIds[q.sectionPath];
-    if (!topicId) throw new Error(`no Notion topic for section "${q.sectionPath}"`);
+    if (!topicId) {
+      return {
+        cursor: written,
+        total: all.length,
+        done: false,
+        error: `No Notion topic for section "${q.sectionPath}". Reconnect Notion to rebuild it.`,
+      };
+    }
 
-    await call(`create "${q.name.slice(0, 40)}"`, () =>
-      client.pages.create({
-        parent: { type: 'data_source_id', data_source_id: d.tasksDs },
-        properties: {
-          [P.task.name]: { title: rtv(q.name) },
-          [P.task.done]: { checkbox: false },
-          [P.task.area]: { relation: [{ id: d.areaPageId }] },
-          [P.task.topic]: { relation: [{ id: topicId }] },
-          [P.task.heading]: d.headingIsSelect
-            ? { select: { name: q.headingName } }
-            : { rich_text: rtv(q.headingName) },
-          // Difficulty is intentionally omitted — the source sheet has none.
-          [P.task.order]: { number: q.globalOrder },
-          [P.task.headingOrder]: { number: q.headingOrder },
-          [P.task.taskOrder]: { number: q.order },
-          [P.task.tuf]: urlOrNull(q.tufLink),
-          [P.task.leetcode]: urlOrNull(q.leetCodeLink),
-          [P.task.gfg]: urlOrNull(q.gfgLink),
-          [P.task.youtube]: urlOrNull(q.youTubeLink),
-          [P.task.bookmarked]: { checkbox: false },
-          [P.task.revisit]: { checkbox: false },
-          [P.task.sourceId]: {
-            rich_text: rtv(`${q.sectionPath}|${q.headingOrder}|${q.order}|${q.sourceId}`),
-          },
-        } as any,
-      } as any),
-    );
+    try {
+      await run(`create "${q.name.slice(0, 40)}"`, () =>
+        client.pages.create({
+          parent: { type: 'data_source_id', data_source_id: d.tasksDs },
+          properties: {
+            [P.task.name]: { title: rtv(q.name) },
+            [P.task.done]: { checkbox: false },
+            [P.task.area]: { relation: [{ id: d.areaPageId }] },
+            [P.task.topic]: { relation: [{ id: topicId }] },
+            [P.task.heading]: d.headingIsSelect
+              ? { select: { name: q.headingName } }
+              : { rich_text: rtv(q.headingName) },
+            // Difficulty is intentionally omitted — the source sheet has none.
+            [P.task.order]: { number: q.globalOrder },
+            [P.task.headingOrder]: { number: q.headingOrder },
+            [P.task.taskOrder]: { number: q.order },
+            [P.task.tuf]: urlOrNull(q.tufLink),
+            [P.task.leetcode]: urlOrNull(q.leetCodeLink),
+            [P.task.gfg]: urlOrNull(q.gfgLink),
+            [P.task.youtube]: urlOrNull(q.youTubeLink),
+            [P.task.bookmarked]: { checkbox: false },
+            [P.task.revisit]: { checkbox: false },
+            [P.task.sourceId]: {
+              rich_text: rtv(`${q.sectionPath}|${q.headingOrder}|${q.order}|${q.sourceId}`),
+            },
+          } as any,
+        } as any),
+      );
+    } catch (e) {
+      // Stop here and hand back the cursor as it truly stands, so the next
+      // attempt starts on the row that failed rather than repeating the batch.
+      return {
+        cursor: written,
+        total: all.length,
+        done: false,
+        error: friendlyNotionError(e),
+      };
+    }
+    written = i + 1;
   }
 
-  return { cursor: end, total: all.length, done: end >= all.length };
+  return { cursor: written, total: all.length, done: written >= all.length };
 }
 
-/** Reads back whether Heading ended up a select or rich_text. */
-export async function headingIsSelect(token: string, tasksDs: string): Promise<boolean> {
-  const client = new Client({ auth: token });
-  const res: any = await call('read Tasks schema', () =>
-    client.dataSources.retrieve({ data_source_id: tasksDs } as any),
-  );
-  return (res.properties?.[P.task.heading]?.type ?? 'select') === 'select';
-}
 
-/** Counts rows actually present, for verifying a finished seed. */
-export async function countTasks(token: string, tasksDs: string): Promise<number> {
-  const client = new Client({ auth: token });
-  let total = 0;
-  let cursor: string | undefined;
-  let guard = 0;
-  do {
-    const res: any = await call('count tasks', () =>
-      client.dataSources.query({
-        data_source_id: tasksDs,
-        page_size: 100,
-        start_cursor: cursor,
-      } as any),
-    );
-    total += res.results.length;
-    cursor = res.has_more ? res.next_cursor : undefined;
-    if (++guard > 100) break;
-  } while (cursor);
-  return total;
-}

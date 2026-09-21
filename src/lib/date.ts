@@ -1,4 +1,4 @@
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
 import { addDays, differenceInCalendarDays, parseISO } from 'date-fns';
 import { env } from './env';
 
@@ -67,9 +67,6 @@ export function heatmapGrid(end: DayKey = todayKey(), weeks = 53): DayKey[][] {
   return cols;
 }
 
-export function nowInZone(tz: string = env.timezone): Date {
-  return toZonedTime(new Date(), tz);
-}
 
 /** Time-of-day greeting in the app's configured timezone. */
 export function greeting(tz: string = env.timezone): string {

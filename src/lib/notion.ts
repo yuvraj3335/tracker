@@ -242,25 +242,23 @@ export async function getEverything(t: Tenant) {
 // Writes
 // ---------------------------------------------------------------------------
 
-/**
- * Confirms a task really belongs to this tenant's Tasks table before writing.
+/*
+ * Note on authorisation for the writes below.
  *
- * Page ids arrive from the browser, so without this check a crafted request
- * could try to write to some other page the user's token can reach. Notion
- * scopes the token to that user's workspace, which limits the blast radius, but
- * this keeps writes inside the tracker.
+ * Page ids arrive from the browser, so it is worth being explicit about what
+ * stops one tenant writing to another's data: the token. Every write goes
+ * through `notionFor(t.token)`, and that token is resolved server-side from
+ * the session cookie and is scoped to that user's own Notion workspace. A
+ * forged page id therefore cannot reach anyone else's rows — Notion answers
+ * 404 — and at worst a user could target another page in a workspace they
+ * already control.
+ *
+ * An earlier version also fetched each page first to confirm its parent. That
+ * added a full round trip to every tick, the hottest interaction in the app,
+ * while its fallback ("does the page have a Source Id property?") passed for
+ * almost anything. It bought no isolation the token does not already provide,
+ * so it was removed.
  */
-async function assertOwnedTask(t: Tenant, taskId: string): Promise<void> {
-  const page: any = await notionFor(t.token).pages.retrieve({ page_id: taskId });
-  const parent = page?.parent ?? {};
-  const owner = parent.data_source_id ?? parent.database_id;
-  const ok =
-    owner === t.tasksDs ||
-    // The parent can come back as the database id rather than the data source
-    // id, so fall back to confirming the row carries our Source Id property.
-    Boolean(page?.properties?.[P.task.sourceId]);
-  if (!ok) throw new Error('task does not belong to this workspace');
-}
 
 /**
  * Ticking a question is the system's single input. Setting `Done` also stamps
@@ -268,7 +266,6 @@ async function assertOwnedTask(t: Tenant, taskId: string): Promise<void> {
  * there is never a second thing to log. Clearing it removes the stamp.
  */
 export async function setTaskDone(t: Tenant, taskId: string, done: boolean, day?: DayKey) {
-  await assertOwnedTask(t, taskId);
   await notionFor(t.token).pages.update({
     page_id: taskId,
     properties: {
@@ -287,7 +284,6 @@ export async function setTaskFlag(
   flag: 'bookmarked' | 'revisit',
   value: boolean,
 ) {
-  await assertOwnedTask(t, taskId);
   const key = flag === 'bookmarked' ? P.task.bookmarked : P.task.revisit;
   await notionFor(t.token).pages.update({
     page_id: taskId,
@@ -301,7 +297,6 @@ export async function setTaskDifficulty(
   taskId: string,
   difficulty: Difficulty | null,
 ) {
-  await assertOwnedTask(t, taskId);
   await notionFor(t.token).pages.update({
     page_id: taskId,
     properties: {

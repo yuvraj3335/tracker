@@ -16,13 +16,3 @@ export const env = {
     return opt('APP_TIMEZONE') ?? 'Asia/Kolkata';
   },
 };
-
-/** Everything the server needs before it can host accounts. */
-export function missingServerConfig(): string[] {
-  const needed: Array<[string, string | undefined]> = [
-    ['DATABASE_URL', opt('DATABASE_URL')],
-    ['SESSION_SECRET', opt('SESSION_SECRET')],
-    ['ENCRYPTION_KEY', opt('ENCRYPTION_KEY')],
-  ];
-  return needed.filter(([, v]) => !v).map(([k]) => k);
-}

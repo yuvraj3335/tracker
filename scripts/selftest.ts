@@ -10,7 +10,13 @@ import { config } from 'dotenv';
 config({ path: '.env.local', quiet: true });
 import { hashPassword, verifyPassword, sealToken, openToken } from '../src/lib/crypto';
 import { createSessionCookie, readSessionCookie } from '../src/lib/session';
-import { flatQuestions, TOTAL_QUESTIONS, normalizeNotionId, uniqueHeadings } from '../src/lib/provision';
+import {
+  flatQuestions,
+  TOTAL_QUESTIONS,
+  normalizeNotionId,
+  uniqueHeadings,
+  seedChunk,
+} from '../src/lib/provision';
 import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate } from '../src/lib/date';
 import { streaks, countsByDay, overallProgress, areaProgress } from '../src/lib/derive';
 import type { Area, Task } from '../src/lib/notion';
@@ -149,6 +155,79 @@ async function main() {
   );
   check('weights change the percentage', Math.round(w.pct) === 91, `got ${Math.round(w.pct)}`);
   check('empty areas give 0%, not NaN', overallProgress([], []).pct === 0);
+
+  // -----------------------------------------------------------------------
+  // Regression: a chunk that fails partway must report how far it really got.
+  // Returning the cursor it started with made the next attempt re-create every
+  // row already written, duplicating them in the user's Notion.
+  // -----------------------------------------------------------------------
+  section('seedChunk resume contract');
+  {
+    const realFetch = globalThis.fetch;
+    let created = 0;
+    const FAIL_ON = 6;
+
+    globalThis.fetch = (async () => {
+      created++;
+      if (created === FAIL_ON) {
+        return new Response(
+          JSON.stringify({ object: 'error', status: 500, code: 'internal_server_error', message: 'boom' }),
+          { status: 500, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ object: 'page', id: `pg-${created}` }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch;
+
+    try {
+      const topicPageIds = Object.fromEntries(
+        [...new Set(flatQuestions().map((q) => q.sectionPath))].map((p) => [p, 'topic-id']),
+      );
+      const r = await seedChunk(
+        'ntn_fake',
+        { tasksDs: 'ds', areaPageId: 'area', topicPageIds, headingIsSelect: true },
+        0,
+        10,
+      );
+      check('stops on the failing write', Boolean(r.error), `error=${r.error}`);
+      check(
+        `cursor equals rows actually written (${FAIL_ON - 1})`,
+        r.cursor === FAIL_ON - 1,
+        `got ${r.cursor}`,
+      );
+      check('does not claim completion', r.done === false);
+      check('reports the real total', r.total === TOTAL_QUESTIONS);
+      // The critical property: resuming from the reported cursor skips exactly
+      // the rows that landed, and retries the one that failed.
+      check('next attempt resumes on the failed row, not before', r.cursor === FAIL_ON - 1);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+
+  section('seedChunk bounds');
+  {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ object: 'page', id: 'pg' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    try {
+      const topicPageIds = Object.fromEntries(
+        [...new Set(flatQuestions().map((q) => q.sectionPath))].map((p) => [p, 'topic-id']),
+      );
+      const d = { tasksDs: 'ds', areaPageId: 'area', topicPageIds, headingIsSelect: true };
+      const past = await seedChunk('ntn_fake', d, TOTAL_QUESTIONS, 5);
+      check('a cursor at the end reports done with no writes', past.done && past.cursor === TOTAL_QUESTIONS);
+      const negative = await seedChunk('ntn_fake', d, -5, 2);
+      check('a negative cursor is clamped to 0', negative.cursor === 2, `got ${negative.cursor}`);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) process.exit(1);

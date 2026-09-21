@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { currentUser, tokenOf } from '@/lib/tenant';
-import { getConnection, saveDatabases, setProvision } from '@/lib/db';
+import { getConnection, saveDatabaseShells, saveDatabases, setProvision } from '@/lib/db';
 import {
   CHUNK_SIZE,
   TOTAL_QUESTIONS,
@@ -69,7 +69,25 @@ export async function POST(req: Request) {
     if (!page) return NextResponse.json({ error: 'Paste your Notion page link.' }, { status: 400 });
     try {
       await setProvision(user.id, 'creating_databases', 0, null);
-      const created = await createDatabases(token, page);
+      // Hand back whatever a previous attempt managed to create. Building
+      // everything is ~25 sequential Notion calls, so a timeout partway
+      // through is realistic; without this a retry would build a second full
+      // set of databases in the user's Notion.
+      const created = await createDatabases(
+        token,
+        page,
+        {
+          parentPageId: connection.parentPageId,
+          areasDs: connection.areasDs,
+          topicsDs: connection.topicsDs,
+          tasksDs: connection.tasksDs,
+          dailyDs: connection.dailyDs,
+          headingIsSelect: connection.headingIsSelect,
+          areaPageId: connection.areaPageId,
+          topicPageIds: connection.topicPageIds,
+        },
+        (shells) => saveDatabaseShells(user.id, shells),
+      );
       await saveDatabases(user.id, created);
       invalidateTenant(user.id);
       return NextResponse.json({
@@ -112,6 +130,14 @@ export async function POST(req: Request) {
         CHUNK_SIZE,
       );
 
+      // Always persist the cursor the chunk actually reached, including when
+      // it stopped early. Saving the cursor we started with would re-create
+      // every row the chunk had already written.
+      if (result.error) {
+        await setProvision(user.id, 'error', result.cursor, result.error);
+        return NextResponse.json({ error: result.error, cursor: result.cursor }, { status: 400 });
+      }
+
       await setProvision(user.id, result.done ? 'ready' : 'seeding', result.cursor, null);
       if (result.done) invalidateTenant(user.id);
 
@@ -122,8 +148,9 @@ export async function POST(req: Request) {
         done: result.done,
       } satisfies Progress);
     } catch (e) {
+      // seedChunk reports write failures in its return value, so reaching here
+      // means something outside the write loop broke and no progress was made.
       const error = friendlyNotionError(e);
-      // Keep the cursor: the user can retry and carry on from here.
       await setProvision(user.id, 'error', connection.provisionCursor, error);
       return NextResponse.json({ error, cursor: connection.provisionCursor }, { status: 400 });
     }

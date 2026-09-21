@@ -149,6 +149,17 @@ export async function ensureSchema(): Promise<void> {
       updated_at        timestamptz not null default now()
     )
   `;
+
+  // CREATE TABLE IF NOT EXISTS is a no-op when the table already exists, so it
+  // cannot introduce a column added in a later release. Deployments created
+  // before `heading_is_select` existed would otherwise fail every write to
+  // this table with "column does not exist". ADD COLUMN IF NOT EXISTS is
+  // idempotent, so this is safe to run on every cold start.
+  await q`
+    alter table notion_connections
+      add column if not exists heading_is_select boolean not null default true
+  `;
+
   migrated = true;
 }
 
@@ -272,6 +283,40 @@ export async function saveToken(
       provision_state  = 'needs_page',
       provision_error  = null,
       updated_at       = now()
+  `;
+}
+
+/**
+ * Records the four databases the moment they exist.
+ *
+ * Creating everything takes ~25 sequential Notion calls, which is long enough
+ * to hit a serverless timeout. Without an early save, a failure after the
+ * databases were created left them orphaned in the user's Notion and a retry
+ * built a second full set. Saving here lets `createDatabases` skip what is
+ * already there.
+ */
+export async function saveDatabaseShells(
+  userId: string,
+  d: {
+    parentPageId: string;
+    areasDs: string;
+    topicsDs: string;
+    tasksDs: string;
+    dailyDs: string;
+    headingIsSelect: boolean;
+  },
+): Promise<void> {
+  const q = sql();
+  await q`
+    update notion_connections set
+      parent_page_id    = ${d.parentPageId},
+      areas_ds          = ${d.areasDs},
+      topics_ds         = ${d.topicsDs},
+      tasks_ds          = ${d.tasksDs},
+      daily_ds          = ${d.dailyDs},
+      heading_is_select = ${d.headingIsSelect},
+      updated_at        = now()
+    where user_id = ${userId}::uuid
   `;
 }
 
