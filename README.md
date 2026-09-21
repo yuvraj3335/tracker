@@ -74,7 +74,7 @@ another's data.
 | Notion tokens | AES-256-GCM encrypted at rest, decrypted only to call Notion |
 | Sessions | HMAC-SHA256 signed cookie, `httpOnly`, 30-day expiry |
 | User enumeration | A missing username verifies a decoy hash, so timing matches |
-| Open redirects | `?next=` only accepts same-site paths |
+| Open redirects | one `safeNextPath` for every caller; `//host`, `/\host` and tab/newline-smuggled variants all collapse to `/`, and POST redirects are 303 so a form body is never replayed |
 | Write scope | Task writes verify the page belongs to that tenant's Tasks table |
 | Fail closed | A missing `SESSION_SECRET` rejects every session rather than allowing all |
 
@@ -164,10 +164,12 @@ to land with the tap, not a second later.
   `aria-live` region so it is announced rather than purely visual. All animation
   is transform/opacity only and is switched off wholesale by
   `prefers-reduced-motion`.
-- **Validated colour.** Each skin's heatmap ramp was checked for lightness
-  monotonicity, step gaps and single hue; each difficulty ramp additionally
-  clears the 2:1 ordinal contrast floor — against that skin's own surface, in
-  both modes. Eight validator runs, all passing.
+- **Validated colour.** `npm run check:color` reads `globals.css` and checks all
+  six skin x mode combinations: text floors (4.5:1), control boundaries and
+  focus rings (3:1), difficulty chip ink against its own chip, heatmap ramp
+  lightness monotonicity and step size, and the 2:1 ordinal floor against that
+  skin's own surface. 150 checks. It is a script rather than a claim because
+  the claim had drifted — see the commit that added it.
 - Skin choice is per-device (localStorage), like light/dark.
 
 ---
@@ -233,6 +235,14 @@ chunk at a time and draws a progress bar.
 closing the tab and returning **resumes** rather than restarting or
 double-inserting.
 
+The cursor alone is not enough, because reading it, writing rows and saving it
+back is a read-modify-write. Two tabs both read the same value and both write
+the same questions, and re-running setup against a Tasks database that already
+exists would rewind to zero. So a chunk is claimed with a conditional update
+(`provision_lock`) — one request at a time, per user — and the cursor only
+rewinds when the Tasks database is genuinely new. Both were measured, and both
+used to duplicate rows.
+
 ---
 
 ## How it fits together
@@ -272,13 +282,18 @@ API. Any cell links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 53 self-tests: crypto, sessions, cursor maths, timezones, derived stats |
+| `npm run test` | 218 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, search, keyboard, characters |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | eslint |
+| `npm run check:color` | 150 contrast/ramp checks, read out of `globals.css` |
+| `npm run check:schema` | upgrades a database built from the original schema and checks writes still land |
+| `npm run fixtures:characters` | placeholder characters for exercising the character pipeline (`clean` removes them) |
 
 `npm run test` is timezone-sensitive by design — it passes from UTC−11 to UTC+14.
+`check:schema` needs a `DATABASE_URL` it may create a scratch database on; it
+creates and drops its own and never touches yours.
 
 ## Stack
 
