@@ -76,6 +76,30 @@ export function Sheet({
   // whole area is the rarest moment in the app.
   const undoneTotal = useMemo(() => tasks.filter((t) => !t.done).length, [tasks]);
 
+  /*
+   * Undone counts per section and per heading, computed in ONE pass over the
+   * task list and looked up by key afterwards.
+   *
+   * These feed the celebration tier, so every rendered row needs both. Deriving
+   * them per row meant scanning all 456 tasks 456 times — 208k iterations on
+   * every keystroke, which measured at 1-2s per filter cycle. One pass and two
+   * map lookups is the same answer for a fraction of the work.
+   */
+  const undoneCounts = useMemo(() => {
+    const bySection = new Map<string, number>();
+    const byHeading = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.done) continue;
+      const heading = t.heading || '—';
+      for (const id of t.topicIds) {
+        bySection.set(id, (bySection.get(id) ?? 0) + 1);
+        const key = `${id}\u0000${heading}`;
+        byHeading.set(key, (byHeading.get(key) ?? 0) + 1);
+      }
+    }
+    return { bySection, byHeading };
+  }, [tasks]);
+
   // Per-section groups, in sheet order. Sections with nothing left after
   // filtering drop out entirely rather than showing an empty shell.
   const sections = useMemo(() => {
@@ -391,11 +415,11 @@ export function Sheet({
                             // Counted against the WHOLE list, never the filtered
                             // slice — otherwise hiding done rows would make
                             // every tick look like it finished something.
-                            remaining={{
-                              heading: countRemaining(tasks, topic.id, h.heading),
-                              section: countRemaining(tasks, topic.id),
-                              area: undoneTotal,
-                            }}
+                            remainingHeading={
+                              undoneCounts.byHeading.get(`${topic.id}\u0000${h.heading}`) ?? 0
+                            }
+                            remainingSection={undoneCounts.bySection.get(topic.id) ?? 0}
+                            remainingArea={undoneTotal}
                           />
                         ))}
                       </ul>
@@ -429,23 +453,6 @@ const FILTER_LABEL: Record<Filter, string> = {
   bookmarked: 'Saved',
   revisit: 'Revisit',
 };
-
-/**
- * Undone questions left in a section, or in one heading of it.
- *
- * Always counted against the full task list rather than what is on screen, so
- * the celebration tier reflects real progress and not the current filter.
- */
-function countRemaining(all: Task[], topicId: string, heading?: string): number {
-  let n = 0;
-  for (const t of all) {
-    if (t.done) continue;
-    if (!t.topicIds.includes(topicId)) continue;
-    if (heading !== undefined && (t.heading || '—') !== heading) continue;
-    n++;
-  }
-  return n;
-}
 
 function sectionCommands(topics: Topic[], go: (id: string) => void) {
   return topics.map((t) => ({

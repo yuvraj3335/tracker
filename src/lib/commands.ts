@@ -28,7 +28,20 @@ const scopes = new Map<number, Command[]>();
 const listeners = new Set<Listener>();
 let nextScope = 0;
 
+/**
+ * Snapshot cache.
+ *
+ * useSyncExternalStore calls getSnapshot on every render and bails only if the
+ * result is referentially equal, so returning a fresh array each time is an
+ * infinite render loop. The snapshot is rebuilt only when a scope actually
+ * changes — and `dirty` is set inside announce() rather than by a listener, so
+ * it cannot depend on listener ordering.
+ */
+let snapshot: Command[] = [];
+let dirty = true;
+
 function announce() {
+  dirty = true;
   listeners.forEach((l) => l());
 }
 
@@ -49,19 +62,6 @@ export function onCommandsChange(listener: Listener) {
   };
 }
 
-/**
- * Snapshot of every published command.
- *
- * Cached and only rebuilt when a scope changes, because useSyncExternalStore
- * calls getSnapshot on every render and returning a fresh array each time would
- * loop forever.
- */
-let snapshot: Command[] = [];
-let dirty = true;
-listeners.add(() => {
-  dirty = true;
-});
-
 export function getCommands(): Command[] {
   if (dirty) {
     snapshot = [...scopes.values()].flat();
@@ -70,4 +70,10 @@ export function getCommands(): Command[] {
   return snapshot;
 }
 
-export const serverCommands = (): Command[] => [];
+/**
+ * One frozen empty array, not a fresh one per call — same referential-equality
+ * requirement as getSnapshot, and it is the reason the previous version warned
+ * about an infinite loop.
+ */
+const EMPTY: Command[] = [];
+export const serverCommands = (): Command[] => EMPTY;

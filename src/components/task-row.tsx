@@ -1,6 +1,6 @@
 'use client';
 
-import { useOptimistic, useTransition } from 'react';
+import { memo, useOptimistic, useTransition } from 'react';
 import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
 import { toggleTaskAction, toggleFlagAction, setDifficultyAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
@@ -31,10 +31,12 @@ const LINK_LABEL = { tuf: 'Article', leetcode: 'LeetCode', gfg: 'GFG', youtube: 
  *
  * Optimistic so a tap feels instant even though Notion takes a moment.
  */
-export function TaskRow({
+function TaskRowImpl({
   task,
   index,
-  remaining,
+  remainingHeading,
+  remainingSection,
+  remainingArea,
   compact = false,
   focused = false,
 }: {
@@ -43,10 +45,16 @@ export function TaskRow({
   /**
    * Undone questions left at each level, including this one. When a count is 1,
    * ticking this row finishes that level and earns the matching celebration
-   * tier. Only the sheet knows these, so elsewhere it is omitted and every tick
-   * is a plain cheer.
+   * tier. Only the sheet knows these, so elsewhere they are omitted and every
+   * tick is a plain cheer.
+   *
+   * Passed as three numbers rather than one object on purpose: React.memo
+   * compares props shallowly, and a fresh object literal per render would miss
+   * on every row every time.
    */
-  remaining?: { heading: number; section: number; area: number };
+  remainingHeading?: number;
+  remainingSection?: number;
+  remainingArea?: number;
   /** Tighter rows. 456 of them is a lot of scrolling; the choice is the user's. */
   compact?: boolean;
   /** Carries the sheet's j/k cursor. Drawn, not inferred from :focus-visible. */
@@ -74,7 +82,7 @@ export function TaskRow({
     // Biggest completed level wins, so finishing the last question of a
     // section reads as a section finish rather than just another heading.
     if (next) {
-      const tier = tierFor(remaining);
+      const tier = tierFor(remainingHeading, remainingSection, remainingArea);
       celebrate(tier);
       // Reads the preference at call time rather than subscribing — a store
       // subscription here would cost one per row across 456 of them.
@@ -204,13 +212,20 @@ export function TaskRow({
 }
 
 /** The largest level this tick completes. */
-function tierFor(remaining?: { heading: number; section: number; area: number }): CelebrationKind {
-  if (!remaining) return 'cheer';
-  if (remaining.area === 1) return 'area';
-  if (remaining.section === 1) return 'section';
-  if (remaining.heading === 1) return 'milestone';
+function tierFor(heading?: number, section?: number, area?: number): CelebrationKind {
+  if (area === 1) return 'area';
+  if (section === 1) return 'section';
+  if (heading === 1) return 'milestone';
   return 'cheer';
 }
+
+/**
+ * Memoised because the sheet renders up to 456 of these and re-renders the
+ * whole list on every keystroke. Props are the task object (stable identity
+ * from the server payload) plus primitives, so a row only re-renders when
+ * something about that row actually changed.
+ */
+export const TaskRow = memo(TaskRowImpl);
 
 /**
  * Sets a question's difficulty.
