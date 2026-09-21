@@ -266,6 +266,13 @@ API. Any cell links to that day's list.
 
 ---
 
+## Reviewing this codebase
+
+`docs/E2E_REVIEW_PROMPT.md` holds a self-contained prompt for an independent
+end-to-end review: how to boot a throwaway Postgres, what can and cannot be
+exercised without a real Notion token, the traps that reliably produce false
+positives here, and the report format. Reports land in `docs/reviews/`.
+
 ## Scripts
 
 | Command | What it does |
