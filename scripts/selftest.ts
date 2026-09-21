@@ -41,6 +41,7 @@ import {
 } from '../src/lib/search';
 import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
 import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
+import { usableAccent, contrastRatio, readableInk } from '../src/lib/contrast';
 import type { Area, Task } from '../src/lib/notion';
 
 let pass = 0;
@@ -338,14 +339,32 @@ async function main() {
     check('an empty id resolves to null', resolveCharacter(catalog, '') === null);
   }
 
-  section('Character discovery (shipped state)');
+  section('Character discovery');
   {
+    // The repo ships no artwork, so this is usually empty — but the suite also
+    // has to pass with `npm run fixtures:characters` installed, and asserting a
+    // count only held in one of those states. These hold in both, and they are
+    // the properties that actually matter: anything discovery admits must be
+    // renderable, credited, and safe to build a URL from.
     const found = discoverCharacters();
+    console.log(`  note ${found.length} character(s) installed`);
+    check('discovery returns an array and never throws', Array.isArray(found));
+    check('every discovered character can be drawn', found.every(isRenderable));
     check(
-      'a checkout with no artwork discovers nothing and does not throw',
-      Array.isArray(found) && found.length === 0,
-      `got ${found.length}`,
+      'every discovered character carries attribution',
+      found.every((c) => Boolean(c.artist) && Boolean(c.license)),
     );
+    check(
+      'every discovered id is a safe URL segment',
+      found.every((c) => /^[a-z0-9][a-z0-9_-]*$/i.test(c.id)),
+    );
+    check(
+      'every pose url stays inside that character folder',
+      found.every((c) =>
+        Object.values(c.poses).every((u) => u.startsWith(`/characters/${c.id}/`)),
+      ),
+    );
+    check('the catalogue is sorted by name', found.every((c, i) => i === 0 || found[i - 1].name.localeCompare(c.name) <= 0));
   }
 
   section('Character voice');
@@ -382,6 +401,55 @@ async function main() {
       new Set(['2026-09-21', '2026-09-22', '2026-09-23'].map((d) => dailyLine(withLines, d))).size > 1);
     check('no idle lines means no daily line', dailyLine(without, '2026-09-21') === null);
     check('no character means no daily line', dailyLine(null, '2026-09-21') === null);
+  }
+
+  // -----------------------------------------------------------------------
+  // A character's accent comes from a meta.json the owner wrote, and it
+  // replaces link text, a button fill and the focus ring. It is only allowed
+  // to do that if it clears the same floors every shipped token is held to —
+  // otherwise one character could quietly undo the palette.
+  // -----------------------------------------------------------------------
+  section('Character accent gate');
+  {
+    // Text surfaces, then the mark-only surface — the same split the palette
+    // validator holds the shipped accents to.
+    const LIGHT = ['#fcfcfb', '#f9f9f7'];
+    const LIGHT_MARK = ['#f2f1ed'];
+    const DARK = ['#1a1a19', '#0d0d0d'];
+
+    check('the shipped accent passes its own gate', usableAccent('#2472d0', LIGHT, LIGHT_MARK) !== null);
+    check('its ink is chosen, not assumed', usableAccent('#2472d0', LIGHT, LIGHT_MARK)?.ink === '#ffffff');
+    check(
+      'a light accent takes dark ink',
+      usableAccent('#86b6ef', DARK)?.ink === '#0b0b0b',
+    );
+    check(
+      'an accent too pale for a light surface is refused',
+      usableAccent('#cfe3ff', LIGHT) === null,
+    );
+    check(
+      'an accent too dark for a dark surface is refused',
+      usableAccent('#101010', DARK) === null,
+    );
+    check('an unparseable accent is refused', usableAccent('rebeccapurple', LIGHT) === null);
+    check('a missing accent is refused', usableAccent(undefined, LIGHT) === null);
+    check('an empty accent is refused', usableAccent('', LIGHT) === null);
+    check(
+      'an accent must clear EVERY text surface, not just one',
+      usableAccent('#767676', ['#ffffff', '#767676']) === null,
+    );
+    check(
+      'an accent that reads as text but not as a mark is refused',
+      // 4.5:1 on the card, under 3:1 on the surface it also draws a ring on.
+      usableAccent('#6c7a12', ['#ffffff'], ['#7d8a2a']) === null,
+    );
+    check('short hex is accepted', usableAccent('#06c', LIGHT) !== null);
+    check('contrastRatio is symmetric', contrastRatio('#000000', '#ffffff') === contrastRatio('#ffffff', '#000000'));
+    check('black on white is 21:1', Math.round(contrastRatio('#000000', '#ffffff')!) === 21);
+    check('a colour against itself is 1:1', contrastRatio('#2472d0', '#2472d0') === 1);
+    check('garbage contrast is null, not NaN', contrastRatio('nope', '#fff') === null);
+    check('readableInk picks dark on a pale colour', readableInk('#e6dcf7') === '#0b0b0b');
+    check('readableInk picks light on a deep colour', readableInk('#104281') === '#ffffff');
   }
 
   section('Streak mood (drives the sad pose)');

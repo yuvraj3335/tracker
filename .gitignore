@@ -43,3 +43,10 @@ next-env.d.ts
 # local env
 .env.local
 .env*.local
+
+# Installed character artwork. Whoever runs this instance holds the rights to
+# whatever they put here, so nothing under it is committed — the folder ships
+# with only its README, and the app falls back to the built-in SVG mascots.
+# `npm run fixtures:characters` writes placeholders here for testing.
+/public/characters/*
+!/public/characters/README.md

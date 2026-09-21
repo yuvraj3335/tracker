@@ -16,6 +16,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+// The same maths the app uses to vet a character's accent at runtime, so the
+// shipped tokens and an incoming one are judged by one implementation.
+import { contrastRatio, parseHex } from '../src/lib/contrast';
 
 const CSS = readFileSync(join(process.cwd(), 'src', 'app', 'globals.css'), 'utf8');
 
@@ -30,9 +33,9 @@ function check(name: string, cond: boolean, detail = '') {
 // sRGB -> OKLCH, and WCAG contrast.
 // ---------------------------------------------------------------------------
 function rgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '');
-  const f = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
-  return [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const v = parseHex(hex);
+  if (!v) throw new Error(`not a hex colour: ${hex}`);
+  return v;
 }
 const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 
@@ -45,12 +48,9 @@ function lightness(hex: string): number {
 }
 
 function contrast(a: string, b: string): number {
-  const lum = (hex: string) => {
-    const [r, g, bl] = rgb(hex).map(toLinear);
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
-  };
-  const [x, y] = [lum(a), lum(b)];
-  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  const r = contrastRatio(a, b);
+  if (r === null) throw new Error(`not a hex colour: ${a} / ${b}`);
+  return r;
 }
 
 /** Composite a translucent foreground over an opaque background. */

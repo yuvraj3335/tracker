@@ -12,7 +12,8 @@
     "keygen": "node -e \"const c=require('crypto');console.log('SESSION_SECRET='+c.randomBytes(32).toString('hex'));console.log('ENCRYPTION_KEY='+c.randomBytes(32).toString('hex'))\"",
     "test": "tsx scripts/selftest.ts",
     "check:schema": "tsx scripts/check-schema.ts",
-    "check:color": "tsx scripts/check-color.ts"
+    "check:color": "tsx scripts/check-color.ts",
+    "fixtures:characters": "node scripts/make-character-fixtures.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
