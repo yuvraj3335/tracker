@@ -4,7 +4,9 @@ export function Card({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       className={cn(
-        'rounded-xl border border-hairline bg-surface',
+        // skin-card takes its radius from --radius-card, which each skin sets:
+        // 4px for Rampart, 18px for Blossom.
+        'skin-card border border-hairline bg-surface',
         className,
       )}
       {...props}

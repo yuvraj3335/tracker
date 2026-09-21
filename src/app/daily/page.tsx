@@ -6,6 +6,7 @@ import { activityByDay, noteFor } from '@/lib/derive';
 import { formatKey, isToday, shiftKey, todayKey, type DayKey } from '@/lib/date';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TaskRow } from '@/components/task-row';
+import { MascotBadge } from '@/components/skin-picker';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -115,11 +116,14 @@ export default async function DailyPage({
               </section>
             ))
           ) : (
-            <p className="px-4 pb-4 text-sm text-ink-muted sm:px-5 sm:pb-5">
-              {isToday(day)
-                ? 'Nothing yet today.'
-                : 'No questions were marked done on this day.'}
-            </p>
+            <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
+              <MascotBadge size={44} />
+              <p className="text-sm text-ink-muted">
+                {isToday(day)
+                  ? 'Nothing yet today.'
+                  : 'No questions were marked done on this day.'}
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>

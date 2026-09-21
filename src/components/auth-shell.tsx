@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SkinPicker } from './skin-picker';
 
 /** Shared frame for the sign-in and sign-up screens. */
 export function AuthShell({
@@ -19,6 +20,11 @@ export function AuthShell({
           JS
         </span>
         <span className="text-sm font-semibold tracking-tight">Job Switch Tracker</span>
+        {/* The nav is hidden on these screens, and setup takes a few minutes —
+            so the theme picker has to be reachable here too. */}
+        <span className="ml-auto">
+          <SkinPicker />
+        </span>
       </div>
 
       <h1 className="text-xl font-semibold tracking-tight">{title}</h1>

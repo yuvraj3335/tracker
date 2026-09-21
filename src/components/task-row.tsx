@@ -1,9 +1,12 @@
 'use client';
 
-import { useOptimistic, useTransition } from 'react';
+import { useOptimistic, useSyncExternalStore, useTransition } from 'react';
 import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
 import { toggleTaskAction, toggleFlagAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
+import { bumpCompletions, celebrate } from '@/lib/celebrate';
+import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
+import { THEMES, pickLine } from '@/lib/themes';
 import { cn } from '@/lib/utils';
 
 /**
@@ -23,8 +26,22 @@ const DIFF_CHIP: Record<string, { bg: string; fg: string }> = {
  *
  * Optimistic so a tap feels instant even though Notion takes a moment.
  */
-export function TaskRow({ task, index }: { task: Task; index: number }) {
+export function TaskRow({
+  task,
+  index,
+  headingRemaining,
+}: {
+  task: Task;
+  index: number;
+  /**
+   * Undone questions left in this heading, including this one. When it is 1,
+   * ticking this row finishes the heading and earns the bigger celebration.
+   * Only the sheet view groups by heading, so elsewhere this is simply omitted.
+   */
+  headingRemaining?: number;
+}) {
   const [pending, start] = useTransition();
+  const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
   const [done, setDone] = useOptimistic(task.done);
   const [marks, setMarks] = useOptimistic({
     bookmarked: task.bookmarked,
@@ -54,6 +71,16 @@ export function TaskRow({ task, index }: { task: Task; index: number }) {
           className="size-[18px] cursor-pointer accent-[var(--accent)]"
           onChange={(e) => {
             const next = e.target.checked;
+            // Celebrate optimistically, before Notion replies — the reward has
+            // to land with the tap, not a second later. Unticking is silent.
+            if (next) {
+              const theme = THEMES[skin];
+              if (headingRemaining === 1) {
+                celebrate('milestone', pickLine(theme.milestone, bumpCompletions()));
+              } else {
+                celebrate('cheer', pickLine(theme.cheers, bumpCompletions()));
+              }
+            }
             start(async () => {
               setDone(next);
               await toggleTaskAction(task.id, next);

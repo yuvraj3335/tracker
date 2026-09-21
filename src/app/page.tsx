@@ -7,6 +7,7 @@ import { activityByDay, areaProgress, countsByDay, summarize, topicProgress } fr
 import { formatKey, todayKey } from '@/lib/date';
 import { pct } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { MascotBadge } from '@/components/skin-picker';
 import { StatTile } from '@/components/stat-tile';
 import { ProgressBar } from '@/components/progress-bar';
 import { Heatmap } from '@/components/heatmap';
@@ -155,9 +156,10 @@ export default async function Dashboard() {
               ))}
             </ul>
           ) : (
-            <p className="px-4 pb-4 text-sm text-ink-muted sm:px-5 sm:pb-5">
-              Nothing yet today. Pick one up below.
-            </p>
+            <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
+              <MascotBadge size={48} />
+              <p className="text-sm text-ink-muted">Nothing yet today. Pick one up below.</p>
+            </div>
           )}
         </CardContent>
       </Card>

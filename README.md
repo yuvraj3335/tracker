@@ -84,6 +84,51 @@ losing the tokens beats keeping them readable.
 
 ---
 
+## Themes
+
+Three skins, switchable from the palette icon in the nav (and on the setup
+screens, since setup takes a few minutes). A skin is a **second axis** alongside
+light/dark — `data-skin` × `data-theme` — so each of the three works in both
+modes.
+
+| Skin | Feel | Mascot |
+| --- | --- | --- |
+| **Studio** | Clean and quiet. The default. | none |
+| **Rampart** | Stark and military. Teal on charcoal, 4px corners. | a hooded scout |
+| **Blossom** | Soft and sparkly. Violet pastels, 18px corners, blush and stars. | a floating sprite |
+
+A skin changes more than colour: surfaces, ink, accent, the heatmap ramp, the
+difficulty ramp **and the corner radius**, so Rampart reads sharp and Blossom
+reads round.
+
+**Tick a question and the mascot jumps** — a squash-and-stretch hop with a
+sparkle burst and a line in that theme's voice ("Advance." vs "Yay! ✨"). Finish
+every question under a heading and you get the bigger milestone version with an
+impact ring. Lines rotate rather than shuffle, so the same one never lands twice
+running. Unticking is silent.
+
+The celebration fires **optimistically**, before Notion replies — the reward has
+to land with the tap, not a second later.
+
+### Notes
+
+- **The artwork is original.** Both mascots are drawn from scratch as SVG and
+  painted entirely with theme tokens, so they restyle themselves and there is no
+  per-theme artwork to maintain. They evoke a genre rather than copying any
+  studio's characters — which is what makes this safe to deploy publicly.
+- **Accessible.** The overlay is `position: fixed` and `pointer-events: none`, so
+  it can never block a tap or shift the page, and every message goes through an
+  `aria-live` region so it is announced rather than purely visual. All animation
+  is transform/opacity only and is switched off wholesale by
+  `prefers-reduced-motion`.
+- **Validated colour.** Each skin's heatmap ramp was checked for lightness
+  monotonicity, step gaps and single hue; each difficulty ramp additionally
+  clears the 2:1 ordinal contrast floor — against that skin's own surface, in
+  both modes. Eight validator runs, all passing.
+- Skin choice is per-device (localStorage), like light/dark.
+
+---
+
 ## Setup
 
 ### 1. Database

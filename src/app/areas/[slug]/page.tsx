@@ -150,7 +150,12 @@ export default async function AreaPage({
                         </div>
                         <ul>
                           {h.items.map((t) => (
-                            <TaskRow key={t.id} task={t} index={t.order + 1} />
+                            <TaskRow
+                              key={t.id}
+                              task={t}
+                              index={t.order + 1}
+                              headingRemaining={h.total - h.done}
+                            />
                           ))}
                         </ul>
                       </section>

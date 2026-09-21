@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
+import { SkinPicker } from './skin-picker';
 import { cn } from '@/lib/utils';
 
 const LINKS = [
@@ -64,6 +65,7 @@ export function Nav({ username }: { username: string | null }) {
             >
               {username}
             </Link>
+            <SkinPicker />
             <ThemeToggle />
             <form action="/api/auth/signout" method="post">
               <button
