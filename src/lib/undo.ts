@@ -19,8 +19,16 @@ export type UndoOffer = {
   id: number;
   /** Shown in the toast, e.g. 'Marked "Two Sum" done'. */
   label: string;
-  /** Reverses it. Awaited so the toast can show a pending state. */
-  run: () => Promise<void> | void;
+  /**
+   * What happened. `undo` is the ordinary confirmation-with-a-way-back;
+   * `problem` is a write that did not land, which has to look different and be
+   * announced assertively rather than politely.
+   */
+  tone: 'undo' | 'problem';
+  /** Button text. Absent when there is nothing useful to offer. */
+  actionLabel?: string;
+  /** Runs the action. Awaited so the toast can show a pending state. */
+  run?: () => Promise<void> | void;
 };
 
 type Listener = (o: UndoOffer | null) => void;
@@ -35,9 +43,32 @@ export function onUndoOffer(listener: Listener) {
   };
 }
 
-export function offerUndo(label: string, run: UndoOffer['run']) {
-  const offer: UndoOffer = { id: ++counter, label, run };
+function emit(offer: UndoOffer) {
   listeners.forEach((l) => l(offer));
+}
+
+export function offerUndo(label: string, run: NonNullable<UndoOffer['run']>) {
+  emit({ id: ++counter, label, tone: 'undo', actionLabel: 'Undo', run });
+}
+
+/**
+ * A write did not land, and the person needs to know the thing they just did
+ * did not happen.
+ *
+ * Writing to Notion is the app's single input and Notion rate-limits, so this
+ * is a normal Tuesday rather than an exceptional path. It previously had no
+ * handling at all: the rejected action reached the route error boundary and
+ * replaced the whole 456-row sheet with "That did not load", losing scroll
+ * position, open sections, the search and the filter — because one checkbox
+ * failed. The optimistic tick reverts on its own; this says why.
+ */
+export function reportProblem(label: string, retry?: NonNullable<UndoOffer['run']>) {
+  emit({
+    id: ++counter,
+    label,
+    tone: 'problem',
+    ...(retry ? { actionLabel: 'Try again', run: retry } : {}),
+  });
 }
 
 /** Withdraws the current offer — used once it has been taken or has expired. */

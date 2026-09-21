@@ -28,6 +28,25 @@ export function keyToDate(key: DayKey): Date {
   return parseISO(key + 'T12:00:00Z');
 }
 
+/**
+ * True only for a day key that names a real calendar day.
+ *
+ * Shape alone is not enough. `2026-13-45` and `2026-02-30` both match
+ * /^\d{4}-\d{2}-\d{2}$/, and every helper here then builds an Invalid Date from
+ * them — `formatInTimeZone` throws RangeError on the first one it meets. The
+ * heatmap links to `/daily?d=<key>`, so this value is part of the app's URL
+ * contract and arrives from wherever a link has been shared.
+ *
+ * Round-tripping through the formatter is the check: a date that does not
+ * format back to the string it came from was not that date.
+ */
+export function isDayKey(v: unknown): v is DayKey {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = keyToDate(v);
+  if (Number.isNaN(d.getTime())) return false;
+  return formatInTimeZone(d, 'UTC', 'yyyy-MM-dd') === v;
+}
+
 export function shiftKey(key: DayKey, days: number): DayKey {
   return formatInTimeZone(addDays(keyToDate(key), days), 'UTC', 'yyyy-MM-dd');
 }

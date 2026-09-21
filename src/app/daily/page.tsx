@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, NotebookPen } from 'lucide-react';
 import { getDailyNotes, getTasks, getTopics } from '@/lib/notion';
 import { requireReady } from '@/lib/tenant';
 import { activityByDay, noteFor } from '@/lib/derive';
-import { formatKey, isToday, shiftKey, todayKey, type DayKey } from '@/lib/date';
+import { formatKey, isDayKey, isToday, shiftKey, todayKey, type DayKey } from '@/lib/date';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TaskRow } from '@/components/task-row';
 import { CharacterBadge } from '@/components/character-figure';
@@ -13,8 +13,6 @@ import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 export default async function DailyPage({
   searchParams,
 }: {
@@ -22,7 +20,9 @@ export default async function DailyPage({
 }) {
   const tenant = await requireReady();
   const { d } = await searchParams;
-  const day: DayKey = d && KEY_RE.test(d) ? d : todayKey();
+  // isDayKey, not a shape test: `2026-13-45` matches the shape and then makes
+  // every date helper throw on an Invalid Date.
+  const day: DayKey = isDayKey(d) ? d : todayKey();
 
   const [tasks, topics, notes] = await Promise.all([
     getTasks(tenant),

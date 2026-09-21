@@ -5,7 +5,7 @@ import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
 import { toggleTaskAction, toggleFlagAction, setDifficultyAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
 import { celebrate, type CelebrationKind } from '@/lib/celebrate';
-import { offerUndo } from '@/lib/undo';
+import { offerUndo, reportProblem } from '@/lib/undo';
 import { feedbackForTick } from '@/lib/effects';
 import { DIFFICULTY, type Difficulty } from '@/lib/schema';
 import { formatKey } from '@/lib/date';
@@ -95,7 +95,11 @@ function TaskRowImpl({
     );
     start(async () => {
       setDone(next);
-      await toggleTaskAction(task.id, next);
+      await write(
+        () => toggleTaskAction(task.id, next),
+        `Could not save “${task.name}”.`,
+        () => toggle(next),
+      );
     });
   }
 
@@ -138,7 +142,10 @@ function TaskRowImpl({
             onChange={(next) =>
               start(async () => {
                 setDifficultyOptimistic(next);
-                await setDifficultyAction(task.id, next);
+                await write(
+                  () => setDifficultyAction(task.id, next),
+                  `Could not set the difficulty for “${task.name}”.`,
+                );
               })
             }
           />
@@ -183,8 +190,13 @@ function TaskRowImpl({
           onClick={() =>
             start(async () => {
               const next = !marks.bookmarked;
-              setMarks({ ...marks, bookmarked: next });
-              await toggleFlagAction(task.id, 'bookmarked', next);
+              // Spread the current optimistic value, not the render-time one:
+              // flipping two flags quickly would otherwise revert the first.
+              setMarks((m) => ({ ...m, bookmarked: next }));
+              await write(
+                () => toggleFlagAction(task.id, 'bookmarked', next),
+                `Could not ${next ? 'bookmark' : 'remove the bookmark from'} “${task.name}”.`,
+              );
             })
           }
         >
@@ -199,8 +211,11 @@ function TaskRowImpl({
           onClick={() =>
             start(async () => {
               const next = !marks.revisit;
-              setMarks({ ...marks, revisit: next });
-              await toggleFlagAction(task.id, 'revisit', next);
+              setMarks((m) => ({ ...m, revisit: next }));
+              await write(
+                () => toggleFlagAction(task.id, 'revisit', next),
+                `Could not ${next ? 'flag' : 'unflag'} “${task.name}” for revisit.`,
+              );
             })
           }
         >
@@ -209,6 +224,29 @@ function TaskRowImpl({
       </div>
     </li>
   );
+}
+
+/**
+ * Runs a write and keeps a failure inside this row.
+ *
+ * Server actions reject on the client, and an uncaught rejection inside a
+ * transition reaches the route error boundary — which replaced the entire
+ * 456-row sheet with "That did not load" because one checkbox could not be
+ * saved, losing scroll position, open sections, search and filter. Notion
+ * rate-limits, so this is a normal outcome rather than an exceptional one.
+ *
+ * Swallowing it here also lets useOptimistic do its job: the optimistic value
+ * is discarded when the transition settles, so the control snaps back to the
+ * truth on its own and the toast explains why.
+ */
+async function write(action: () => Promise<void>, message: string, retry?: () => void) {
+  try {
+    await action();
+  } catch (e) {
+    // The detail belongs in the console, not on a checkbox.
+    console.error('[task write]', e);
+    reportProblem(message, retry);
+  }
 }
 
 /** The largest level this tick completes. */

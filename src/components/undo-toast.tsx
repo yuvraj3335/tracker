@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { Undo2 } from 'lucide-react';
+import { RotateCw, TriangleAlert, Undo2 } from 'lucide-react';
 import { clearUndo, onUndoOffer, type UndoOffer } from '@/lib/undo';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils';
  * furniture: it is either useful in the next few seconds or it is gone.
  */
 const WINDOW_MS = 6000;
+/** A failure has to outlast a confirmation — it is asking to be read, not just noticed. */
+const PROBLEM_WINDOW_MS = 10000;
 
 export function UndoToast() {
   const [offer, setOffer] = useState<UndoOffer | null>(null);
@@ -26,11 +28,16 @@ export function UndoToast() {
 
   useEffect(() => {
     if (!offer) return;
-    const t = setTimeout(() => setOffer(null), WINDOW_MS);
+    const t = setTimeout(
+      () => setOffer(null),
+      offer.tone === 'problem' ? PROBLEM_WINDOW_MS : WINDOW_MS,
+    );
     return () => clearTimeout(t);
   }, [offer]);
 
   if (!offer) return null;
+
+  const problem = offer.tone === 'problem';
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-28 z-40 flex justify-center px-3 sm:bottom-20">
@@ -38,36 +45,54 @@ export function UndoToast() {
         // key restarts the countdown animation when a second toggle supersedes
         // the first, rather than letting the bar continue from where it was.
         key={offer.id}
+        // A failed write is announced assertively: it contradicts what the
+        // person was just told, so waiting for a pause would be too late.
+        role={problem ? 'alert' : 'status'}
+        aria-live={problem ? 'assertive' : 'polite'}
         className={cn(
           'pointer-events-auto js-rise-in relative flex max-w-full items-center gap-3 overflow-hidden',
-          'skin-pill border border-hairline bg-surface py-1.5 pr-1.5 pl-3 shadow-lift-3',
+          'skin-pill border py-1.5 pl-3 shadow-lift-3',
+          offer.actionLabel ? 'pr-1.5' : 'pr-3',
+          problem ? 'border-critical/40 bg-surface' : 'border-hairline bg-surface',
         )}
       >
-        <span className="truncate text-xs text-ink-2">{offer.label}</span>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            start(async () => {
-              await offer.run();
-              clearUndo();
-            })
-          }
-          className={cn(
-            'skin-pill inline-flex shrink-0 items-center gap-1 px-2.5 py-1 text-xs font-semibold',
-            'bg-accent text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-60',
-            'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-          )}
-        >
-          <Undo2 className="size-3" />
-          Undo
-        </button>
+        {problem ? (
+          <TriangleAlert className="size-3.5 shrink-0 text-critical" aria-hidden />
+        ) : null}
+        <span className={cn('min-w-0 flex-1 truncate text-xs', problem ? 'text-ink' : 'text-ink-2')}>
+          {offer.label}
+        </span>
+        {offer.actionLabel && offer.run ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                await offer.run!();
+                clearUndo();
+              })
+            }
+            className={cn(
+              'skin-pill inline-flex shrink-0 items-center gap-1 px-2.5 py-1 text-xs font-semibold',
+              'transition-opacity hover:opacity-90 disabled:opacity-60',
+              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+              problem ? 'bg-surface-2 text-ink' : 'bg-accent text-accent-ink',
+            )}
+          >
+            {problem ? <RotateCw className="size-3" /> : <Undo2 className="size-3" />}
+            {offer.actionLabel}
+          </button>
+        ) : null}
 
         {/* Time remaining, drawn rather than counted down in text. Transform
             only, and the global reduced-motion rule collapses it to a static
             bar — the toast still works, it just does not animate out. */}
         <span
-          className="js-countdown absolute inset-x-0 bottom-0 h-0.5 origin-left bg-accent/40"
+          className={cn(
+            'js-countdown absolute inset-x-0 bottom-0 h-0.5 origin-left',
+            problem ? 'bg-critical/40' : 'bg-accent/40',
+          )}
+          style={problem ? { animationDuration: `${PROBLEM_WINDOW_MS}ms` } : undefined}
           aria-hidden
         />
       </div>

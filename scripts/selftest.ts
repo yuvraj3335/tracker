@@ -17,7 +17,7 @@ import {
   uniqueHeadings,
   seedChunk,
 } from '../src/lib/provision';
-import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey } from '../src/lib/date';
+import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey, isDayKey } from '../src/lib/date';
 import { streaks, countsByDay, overallProgress, areaProgress, streakMood } from '../src/lib/derive';
 import {
   parseCharacterMeta,
@@ -146,6 +146,23 @@ async function main() {
   check('heatmap days are contiguous', grid.flat().every((d, i, a) => i === 0 || daysBetween(a[i - 1], d) === 1));
   check('every column starts on a Sunday (UTC)', grid.every((c) => keyToDate(c[0]).getUTCDay() === 0));
   check('today is in the last column', grid[52].includes('2026-09-21'));
+
+  // `?d=` is read straight off the URL and the heatmap links to it, so the
+  // shape test that used to guard it let `2026-13-45` through — and every
+  // helper here then threw RangeError on an Invalid Date, leaving the page
+  // stuck on its loading skeleton.
+  check('a real day key is accepted', isDayKey('2026-09-21'));
+  check('a leap day in a leap year is accepted', isDayKey('2028-02-29'));
+  check('month 13 is refused', !isDayKey('2026-13-45'));
+  check('day 99 is refused', !isDayKey('9999-99-99'));
+  check('30 February is refused', !isDayKey('2026-02-30'));
+  check('29 February in a common year is refused', !isDayKey('2027-02-29'));
+  check('a wrong shape is refused', !isDayKey('2026-9-1'));
+  check('a datetime is refused', !isDayKey('2026-09-21T00:00:00Z'));
+  check('an empty string is refused', !isDayKey(''));
+  check('a non-string is refused', !isDayKey(20260921 as unknown as string));
+  check('null is refused', !isDayKey(null));
+  check('every heatmap cell is a valid day key', grid.flat().every(isDayKey));
 
   section('Derived stats');
   const t3 = [
