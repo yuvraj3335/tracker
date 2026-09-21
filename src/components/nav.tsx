@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import { cn } from '@/lib/utils';
 
@@ -13,14 +13,20 @@ const LINKS = [
   { href: '/analytics', label: 'Stats', icon: ChartNoAxesColumn },
 ];
 
+/** Screens that own the whole viewport and should not show app chrome. */
+const BARE = ['/login', '/signup', '/setup'];
+
 function isActive(pathname: string, href: string) {
   if (href === '/') return pathname === '/';
   return pathname.startsWith(href);
 }
 
 /** Top bar on laptop, thumb-reachable bottom bar on phone. */
-export function Nav() {
+export function Nav({ username }: { username: string | null }) {
   const pathname = usePathname();
+
+  // Signed out, or on a full-screen auth page: no chrome at all.
+  if (!username || BARE.some((p) => pathname.startsWith(p))) return null;
 
   return (
     <>
@@ -30,7 +36,7 @@ export function Nav() {
             <span className="grid size-6 place-items-center rounded-md bg-accent text-[11px] text-accent-ink">
               JS
             </span>
-            <span className="text-sm">Job Switch</span>
+            <span className="hidden text-sm sm:inline">Job Switch</span>
           </Link>
 
           <nav className="ml-auto hidden items-center gap-0.5 sm:flex">
@@ -50,8 +56,24 @@ export function Nav() {
             ))}
           </nav>
 
-          <div className="ml-auto sm:ml-1">
+          <div className="ml-auto flex items-center gap-1 sm:ml-2">
+            <Link
+              href="/setup"
+              className="max-w-[9rem] truncate rounded-lg px-2 py-1 text-xs text-ink-muted hover:bg-surface-2 hover:text-ink"
+              title="Notion connection"
+            >
+              {username}
+            </Link>
             <ThemeToggle />
+            <form action="/api/auth/signout" method="post">
+              <button
+                type="submit"
+                aria-label="Sign out"
+                className="rounded-lg p-2 text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
+              >
+                <LogOut className="size-4" />
+              </button>
+            </form>
           </div>
         </div>
       </header>

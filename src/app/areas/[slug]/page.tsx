@@ -1,17 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
-import { getAreas, getTasks, getTopics, type Task } from '@/lib/notion';
-import { isConfigured, missingEnv } from '@/lib/env';
+import { getEverything, type Task } from '@/lib/notion';
+import { requireReady } from '@/lib/tenant';
 import { groupByHeading, topicProgress } from '@/lib/derive';
 import { pct } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { ProgressBar } from '@/components/progress-bar';
 import { TaskRow } from '@/components/task-row';
-import { SetupNotice } from '@/components/setup-notice';
 import { cn } from '@/lib/utils';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 type Filter = 'all' | 'todo' | 'done' | 'bookmarked' | 'revisit';
 const FILTERS: { key: Filter; label: string }[] = [
@@ -43,11 +42,8 @@ export default async function AreaPage({
   const { f = 'all', open } = await searchParams;
   const filter = (FILTERS.some((x) => x.key === f) ? f : 'all') as Filter;
 
-  if (!isConfigured()) {
-    return <SetupNotice missing={missingEnv()} />;
-  }
-
-  const [areas, topics, tasks] = await Promise.all([getAreas(), getTopics(), getTasks()]);
+  const tenant = await requireReady();
+  const { areas, topics, tasks } = await getEverything(tenant);
   const area = areas.find((a) => a.slug === slug || a.id === slug);
   if (!area) notFound();
 

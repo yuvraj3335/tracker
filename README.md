@@ -1,19 +1,19 @@
 # Job Switch Tracker
 
-A DSA + interview-prep tracker. **Notion is the database, this app is the UI.**
-Tick a question in either place and both agree.
+A multi-tenant DSA + interview-prep tracker. Each person signs up, connects
+**their own Notion**, and the app builds the tracker inside it.
 
 Built around one principle: **you log one thing, and everything else is derived.**
-Marking a question done stamps `Completed On`, and that single date produces the
-Daily Tracker entry, the activity heatmap cell, the streak, and the rollup into
-overall Job Switch progress. There is never a second place to log.
+Ticking a question stamps `Completed On`, and that single date produces the Daily
+Tracker entry, the activity heatmap cell, the streak, and the rollup into overall
+Job Switch progress. There is never a second place to log.
 
 ---
 
-## ⚠️ Read this first: the question count is 456, not 474
+## ⚠️ The question count is 456, not 474
 
 The source at [a2zdsa.pages.dev](https://a2zdsa.pages.dev/) contains **456
-questions**, not the 474 that was originally specified.
+questions**, not the 474 originally specified.
 
 This is not a scraping shortfall:
 
@@ -21,7 +21,7 @@ This is not a scraping shortfall:
 - All **18** sections' declared subtotals match their actual contents exactly.
 - `npm run scrape` asserts both and **exits non-zero** if either disagrees.
 
-For reference, three different numbers are in circulation:
+Three different numbers are in circulation:
 
 | Source | Count |
 | --- | --- |
@@ -30,92 +30,120 @@ For reference, three different numbers are in circulation:
 | Originally specified | 474 |
 
 474 could not be substantiated against any live source, so nothing was padded to
-reach it. If you find the list that has 474, drop it in and re-seed.
+reach it. If you find the list that has 474, drop it in and re-scrape.
 
-### There is also no difficulty data
+**There is also no difficulty data.** The source carries none — the only
+`difficulty` strings in its bundle are query parameters inside GeeksforGeeks
+URLs. So `Difficulty` exists as an `Easy / Medium / Hard` select on every
+question but is **seeded blank** rather than guessed at. Fill it in as you go and
+the analytics light up on their own.
 
-The source carries **no difficulty field at all** — the only `difficulty` strings
-in its bundle are query parameters inside GeeksforGeeks URLs. So `Difficulty`
-exists as an `Easy / Medium / Hard` select on every question but is **seeded
-blank**, rather than guessed at. Fill it in as you go and the analytics light up
-on their own. (The official takeUforward sheet does have real difficulty, but
-it is behind a login.)
+**What the source does give, faithfully:** 18 sections → 61 headings → 456
+questions in original order; headings stored as **categories, never counted as
+questions**; the **33 questions with no URL** all retained and labelled; original
+names and all four link types preserved verbatim; pure A2Z, with Striver's
+separate pattern-based sheet not mixed in.
 
-### What the source *does* give you, faithfully
+---
 
-- **18 sections → 61 headings → 456 questions**, in the original order
-- Headings ("Arrays Basic to Medium", etc.) are stored as **categories and are
-  never counted as questions**
-- **33 questions have no URL of any kind** — all retained, and shown as
-  *"no link on the source sheet"*
-- Original names, ordering, sections, headings and all four link types
-  (takeUforward / LeetCode / GFG / YouTube) preserved verbatim
-- Pure A2Z content — Striver's separate pattern-based sheet is not mixed in
+## Architecture
+
+```
+  browser ──► Next.js on Vercel ──┬──► Postgres   accounts + encrypted tokens
+                                  └──► Notion     ALL tracker content (per user)
+```
+
+**Postgres holds only what Notion cannot:** usernames, password hashes, and each
+user's encrypted Notion token. It never stores a question, a completion or a
+date. Delete the database and every user's actual progress still sits safely in
+their own Notion.
+
+**Why the server talks to Notion, never the browser:** a Notion token grants
+read/write to that user's whole workspace. It never reaches the client.
+
+**Tenant isolation.** Every Notion read and write takes an explicit `Tenant`
+(`src/lib/tenant.ts`). There is no ambient "current token" anywhere, and the
+Notion response cache is keyed by user id, so one account cannot be served
+another's data.
+
+### Security
+
+| Concern | How it's handled |
+| --- | --- |
+| Passwords | `scrypt` with a per-user random salt; constant-time comparison |
+| Notion tokens | AES-256-GCM encrypted at rest, decrypted only to call Notion |
+| Sessions | HMAC-SHA256 signed cookie, `httpOnly`, 30-day expiry |
+| User enumeration | A missing username verifies a decoy hash, so timing matches |
+| Open redirects | `?next=` only accepts same-site paths |
+| Write scope | Task writes verify the page belongs to that tenant's Tasks table |
+| Fail closed | A missing `SESSION_SECRET` rejects every session rather than allowing all |
+
+Rotating `SESSION_SECRET` signs everybody out. Rotating `ENCRYPTION_KEY` makes
+stored Notion tokens unreadable and users must reconnect — deliberately, because
+losing the tokens beats keeping them readable.
 
 ---
 
 ## Setup
 
-### 1. Notion integration
+### 1. Database
 
-1. Create an **internal integration** at
-   [notion.so/my-integrations](https://www.notion.so/my-integrations) and copy its
-   secret.
-2. Create a **blank Notion page** to hold the databases.
-3. On that page: **`…` menu → Connections → add your integration.**
-   Skipping this is the single most common cause of a `404` from the API.
+**On Vercel:** Storage → Neon → create. `DATABASE_URL` is injected automatically.
+
+**Locally:** any Postgres works — the driver switches on the URL (Neon's HTTP
+driver for `*.neon.tech`, standard `pg` over TCP otherwise).
+
+The schema creates itself on first signup; there is no migration step.
+
+### 2. Secrets
+
+```bash
+npm run keygen   # prints SESSION_SECRET and ENCRYPTION_KEY
+```
 
 ```bash
 cp .env.example .env.local
-# put NOTION_TOKEN=ntn_... in .env.local
 ```
 
-### 2. Seed
-
-```bash
-npm install
-npm run scrape   # optional; data/a2z-seed.json is already committed
-npm run seed -- --parent "<your-notion-page-url>"
-```
-
-This creates four databases, adds the rollups, builds a set of Notion views, and
-inserts 1 area + 18 topics + 456 questions. It takes **~4 minutes** — Notion's API
-allows roughly 3 requests/second and there is no bulk insert.
-
-It is **safe to re-run.** Rows are matched on a composite `Source Id`, so an
-interrupted seed resumes instead of duplicating. Database ids are written
-straight into `.env.local`.
+Fill in `DATABASE_URL`, both generated secrets, and `APP_TIMEZONE`.
 
 ### 3. Run
 
 ```bash
-npm run dev
+npm install && npm run dev
 ```
 
-Set `DEMO_MODE=1` in `.env.local` to browse the whole app with plausible fake
-progress and **no Notion connection at all** — useful for previewing a deploy
-before the databases exist.
+Then sign up and follow the four-step setup. **No CLI seeding** — connecting
+Notion and inserting all 456 questions happens in the browser.
 
-### 4. Deploy to Vercel
+### 4. Deploy
 
-Import the repo, then set these environment variables:
+Import the repo into Vercel and set: `DATABASE_URL`, `SESSION_SECRET`,
+`ENCRYPTION_KEY`, `APP_TIMEZONE`.
 
-| Variable | Value |
-| --- | --- |
-| `NOTION_TOKEN` | your integration secret |
-| `NOTION_AREAS_DS` | from `.env.local` after seeding |
-| `NOTION_TOPICS_DS` | ” |
-| `NOTION_TASKS_DS` | ” |
-| `NOTION_DAILY_DS` | ” |
-| `APP_PASSWORD` | pick one — see below |
-| `APP_TIMEZONE` | `Asia/Kolkata` |
+---
 
-**Set `APP_PASSWORD`.** The deployment can write to your Notion, so leaving it
-blank leaves that open to anyone who finds the URL. The cookie stores a SHA-256
-derivation, never the password itself.
+## What each user does once
 
-`APP_TIMEZONE` decides when a day rolls over for streaks, the heatmap and the
-Daily Tracker. Get it wrong and late-night sessions land on the wrong day.
+1. **Sign up** — username + password.
+2. **Paste a Notion integration secret** — from
+   [notion.so/my-integrations](https://www.notion.so/my-integrations). Checked
+   against Notion before it is stored, so typos surface immediately.
+3. **Paste a Notion page link** — after adding the integration under that page's
+   **••• → Connections**. (This is the step people miss; without it Notion
+   reports the page does not exist.)
+4. **Wait a few minutes** while 456 questions are written.
+
+### Why seeding is chunked
+
+456 questions means 456 individual page creations — Notion has no bulk insert
+and allows roughly 3 requests/second, so the job takes minutes. That is far
+longer than a serverless function may run, so the browser requests one small
+chunk at a time and draws a progress bar.
+
+`provisionCursor` indexes one flat, deterministically ordered question list, so
+closing the tab and returning **resumes** rather than restarting or
+double-inserting.
 
 ---
 
@@ -134,26 +162,19 @@ Areas          Topics              Tasks
 Daily Tracker   Heatmap        Streaks      Job Switch %
 ```
 
-### Adding a prep area later
-
-No schema change, no rebuild. In the **Areas** database add a row — name, a
-slug, `Status = Active` — then add its Topics and Tasks. It appears on the
+**Adding a prep area later** needs no schema change and no rebuild. Add a row to
+the **Areas** database in Notion, then its Topics and Tasks. It appears on the
 dashboard and folds into overall progress automatically.
 
 Overall progress is `Σ(weight × done) / Σ(weight × total)`. With every weight at
 `1` that is just "everything done / everything", so a new area contributes
 proportionally to its size. Bump an area's `Weight` to make it count for more.
 
-### The Daily Tracker
+**The Daily Tracker** is derived, not entered — a Notion calendar view keyed on
+`Completed On`, and in the app a per-day view with a prev/next switcher.
 
-Derived, not entered. In Notion it is a **calendar view keyed on `Completed On`**;
-in the app, `/daily` groups a day's questions by section and gives you a
-prev/next day switcher plus a list of every active day.
-
-### The heatmap
-
-53 weeks × 7 days, built from Notion activity — **not** GitHub's API. Any cell
-links to that day's list.
+**The heatmap** is 53 weeks × 7 days built from Notion activity, **not** GitHub's
+API. Any cell links to that day's list.
 
 ---
 
@@ -163,15 +184,18 @@ links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
+| `npm run test` | 53 self-tests: crypto, sessions, cursor maths, timezones, derived stats |
+| `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
-| `npm run seed` | create + seed the Notion databases (resumable) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | eslint |
+
+`npm run test` is timezone-sensitive by design — it passes from UTC−11 to UTC+14.
 
 ## Stack
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Notion API
-(`@notionhq/client` v5, data-source model) · `date-fns` / `date-fns-tz`.
+(`@notionhq/client` v5, data-source model) · Neon / Postgres · `date-fns`.
 
 No chart library — the heatmap and velocity chart are hand-rolled, so the client
 bundle stays small. Colors come from a palette validated for lightness band,

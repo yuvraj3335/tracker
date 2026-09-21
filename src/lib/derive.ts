@@ -62,6 +62,37 @@ export function streaks(tasks: Task[]): { current: number; longest: number; last
 }
 
 /**
+ * Per-area counts, computed from the tasks themselves.
+ *
+ * Notion *does* expose rollups for this, but rollup values are eventually
+ * consistent — right after a write they can still report the old number. The
+ * dashboard and the analytics page would then disagree with each other. Both
+ * now count the same in-memory task list, so they always agree.
+ */
+export function areaProgress(areas: Area[], tasks: Task[]) {
+  const byArea = new Map<string, Task[]>();
+  for (const t of tasks) {
+    for (const id of t.areaIds) {
+      const l = byArea.get(id);
+      if (l) l.push(t);
+      else byArea.set(id, [t]);
+    }
+  }
+  return areas
+    .map((area) => {
+      const list = byArea.get(area.id) ?? [];
+      const done = list.filter((t) => t.done).length;
+      return {
+        area,
+        total: list.length,
+        done,
+        pct: list.length ? (done / list.length) * 100 : 0,
+      };
+    })
+    .sort((a, b) => a.area.order - b.area.order);
+}
+
+/**
  * Weighted overall Job Switch progress.
  *
  *   overall = Σ(weight × done) / Σ(weight × total)
@@ -70,21 +101,22 @@ export function streaks(tasks: Task[]): { current: number; longest: number; last
  * DSA contributes automatically and proportionally. Bumping an area's Weight
  * makes it count for more without any code change.
  */
-export function overallProgress(areas: Area[]): { done: number; total: number; pct: number } {
+export function overallProgress(
+  areas: Area[],
+  tasks: Task[],
+): { done: number; total: number; pct: number } {
   let wDone = 0;
   let wTotal = 0;
   let done = 0;
   let total = 0;
-  for (const a of areas) {
-    if (a.status === 'Paused') continue;
-    const t = a.total ?? 0;
-    const d = a.done ?? 0;
-    if (!t) continue;
-    const w = a.weight || 1;
-    wDone += w * d;
-    wTotal += w * t;
-    done += d;
-    total += t;
+  for (const row of areaProgress(areas, tasks)) {
+    if (row.area.status === 'Paused') continue;
+    if (!row.total) continue;
+    const w = row.area.weight || 1;
+    wDone += w * row.done;
+    wTotal += w * row.total;
+    done += row.done;
+    total += row.total;
   }
   return { done, total, pct: wTotal ? (wDone / wTotal) * 100 : 0 };
 }
@@ -161,7 +193,7 @@ export function noteFor(notes: DailyNote[], day: DayKey): DailyNote | undefined 
 
 /** Summary stats for the dashboard hero row. */
 export function summarize(areas: Area[], tasks: Task[]) {
-  const overall = overallProgress(areas);
+  const overall = overallProgress(areas, tasks);
   const s = streaks(tasks);
   const today = todayKey();
   const counts = countsByDay(tasks);

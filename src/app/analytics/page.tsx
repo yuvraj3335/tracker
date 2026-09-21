@@ -1,5 +1,5 @@
-import { getAreas, getTasks, getTopics } from '@/lib/notion';
-import { isConfigured, missingEnv } from '@/lib/env';
+import { getEverything } from '@/lib/notion';
+import { requireReady } from '@/lib/tenant';
 import {
   difficultyBreakdown,
   rollingAverage,
@@ -14,9 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { StatTile } from '@/components/stat-tile';
 import { ProgressBar } from '@/components/progress-bar';
 import { VelocityChart } from '@/components/velocity-chart';
-import { SetupNotice } from '@/components/setup-notice';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 const DIFF_COLOR: Record<string, string> = {
   Easy: 'var(--diff-easy)',
@@ -25,9 +24,8 @@ const DIFF_COLOR: Record<string, string> = {
 };
 
 export default async function AnalyticsPage() {
-  if (!isConfigured()) return <SetupNotice missing={missingEnv()} />;
-
-  const [areas, topics, tasks] = await Promise.all([getAreas(), getTopics(), getTasks()]);
+  const tenant = await requireReady();
+  const { areas, topics, tasks } = await getEverything(tenant);
 
   const stats = summarize(areas, tasks);
   const s = streaks(tasks);

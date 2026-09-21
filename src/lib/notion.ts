@@ -1,16 +1,27 @@
 import { Client } from '@notionhq/client';
-import { env, isConfigured } from './env';
-import { demoData, isDemo } from './demo';
 import { P, type Difficulty } from './schema';
 import { dayKeyOf, type DayKey } from './date';
+import type { Tenant } from './tenant';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-let _client: Client | null = null;
-export function notion(): Client {
-  if (!env.notionToken) throw new Error('NOTION_TOKEN is not set');
-  if (!_client) _client = new Client({ auth: env.notionToken });
-  return _client;
+/**
+ * One client per token, cached by token so repeated requests for the same user
+ * reuse it. Deliberately NOT a single module-level client: that would bind the
+ * first caller's token for the lifetime of the server process and serve their
+ * Notion data to everyone else.
+ */
+const clients = new Map<string, Client>();
+export function notionFor(token: string): Client {
+  let c = clients.get(token);
+  if (!c) {
+    c = new Client({ auth: token });
+    clients.set(token, c);
+    // Unbounded growth would be a slow leak with many users; a few hundred
+    // clients is harmless, so trim oldest-first past that.
+    if (clients.size > 200) clients.delete(clients.keys().next().value!);
+  }
+  return c;
 }
 
 // ---------------------------------------------------------------------------
@@ -27,12 +38,6 @@ const sel = (p: any): string | null => p?.select?.name ?? null;
 const dt = (p: any): string | null => p?.date?.start ?? null;
 const ur = (p: any): string => (typeof p?.url === 'string' ? p.url : '');
 const rel = (p: any): string[] => (p?.relation ?? []).map((r: any) => r.id);
-const roll = (p: any): number | null => {
-  const r = p?.rollup;
-  if (!r) return null;
-  if (typeof r.number === 'number') return r.number;
-  return null;
-};
 
 // ---------------------------------------------------------------------------
 // Domain types
@@ -45,9 +50,6 @@ export type Area = {
   weight: number;
   status: string;
   order: number;
-  total: number | null;
-  done: number | null;
-  progress: number | null;
 };
 
 export type Topic = {
@@ -56,9 +58,6 @@ export type Topic = {
   order: number;
   path: string;
   areaIds: string[];
-  total: number | null;
-  done: number | null;
-  progress: number | null;
 };
 
 export type Task = {
@@ -89,33 +88,43 @@ export type DailyNote = {
 };
 
 // ---------------------------------------------------------------------------
-// A tiny TTL cache. Notion is rate-limited (~3 req/s) and the task table needs
-// 5 paginated calls, so re-fetching per request would make the dashboard crawl.
-// Mutations call invalidate() so a toggle shows up immediately.
+// Per-tenant TTL cache.
+//
+// Notion allows roughly 3 requests/second and a full task table needs 5
+// paginated calls, so re-fetching on every request would make the dashboard
+// crawl. Keys are prefixed with the user id: a cache shared across tenants
+// would hand one user another's questions.
 // ---------------------------------------------------------------------------
 type Entry = { value: unknown; at: number };
 const store = new Map<string, Entry>();
 const TTL_MS = 60_000;
+const MAX_ENTRIES = 400;
 
-export function invalidate(prefix?: string) {
-  if (!prefix) return store.clear();
-  for (const k of store.keys()) if (k.startsWith(prefix)) store.delete(k);
+export function invalidateTenant(userId: string) {
+  for (const k of [...store.keys()]) if (k.startsWith(`${userId}:`)) store.delete(k);
 }
 
 async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const hit = store.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
   const value = await fn();
+  if (store.size >= MAX_ENTRIES) {
+    // Drop anything already stale before falling back to oldest-first.
+    const now = Date.now();
+    for (const [k, v] of store) if (now - v.at >= TTL_MS) store.delete(k);
+    if (store.size >= MAX_ENTRIES) store.delete(store.keys().next().value!);
+  }
   store.set(key, { value, at: Date.now() });
   return value;
 }
 
-/** Walk every page of a data source query. */
-async function queryAll(dataSourceId: string, body: Record<string, unknown> = {}) {
+/** Walks every page of a data source query. */
+async function queryAll(client: Client, dataSourceId: string, body: Record<string, unknown> = {}) {
   const out: any[] = [];
   let cursor: string | undefined;
+  let guard = 0;
   do {
-    const res: any = await notion().dataSources.query({
+    const res: any = await client.dataSources.query({
       data_source_id: dataSourceId,
       page_size: 100,
       start_cursor: cursor,
@@ -123,6 +132,9 @@ async function queryAll(dataSourceId: string, body: Record<string, unknown> = {}
     } as any);
     out.push(...res.results);
     cursor = res.has_more ? res.next_cursor : undefined;
+    // A malformed cursor loop would otherwise spin forever; 100 pages is
+    // 10,000 rows, far beyond any realistic sheet.
+    if (++guard > 100) break;
   } while (cursor);
   return out;
 }
@@ -130,11 +142,9 @@ async function queryAll(dataSourceId: string, body: Record<string, unknown> = {}
 // ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
-export async function getAreas(): Promise<Area[]> {
-  if (isDemo()) return demoData().areas;
-  if (!isConfigured()) return [];
-  return cached('areas', async () => {
-    const rows = await queryAll(env.areasDs!, {
+export async function getAreas(t: Tenant): Promise<Area[]> {
+  return cached(`${t.userId}:areas`, async () => {
+    const rows = await queryAll(notionFor(t.token), t.areasDs, {
       sorts: [{ property: P.area.order, direction: 'ascending' }],
     });
     return rows.map((r) => {
@@ -147,19 +157,14 @@ export async function getAreas(): Promise<Area[]> {
         weight: nm(p[P.area.weight]) ?? 1,
         status: sel(p[P.area.status]) ?? 'Active',
         order: nm(p[P.area.order]) ?? 0,
-        total: roll(p[P.area.totalTasks]),
-        done: roll(p[P.area.doneTasks]),
-        progress: roll(p[P.area.progress]),
       } satisfies Area;
     });
   });
 }
 
-export async function getTopics(): Promise<Topic[]> {
-  if (isDemo()) return demoData().topics;
-  if (!isConfigured()) return [];
-  return cached('topics', async () => {
-    const rows = await queryAll(env.topicsDs!, {
+export async function getTopics(t: Tenant): Promise<Topic[]> {
+  return cached(`${t.userId}:topics`, async () => {
+    const rows = await queryAll(notionFor(t.token), t.topicsDs, {
       sorts: [{ property: P.topic.order, direction: 'ascending' }],
     });
     return rows.map((r) => {
@@ -170,19 +175,14 @@ export async function getTopics(): Promise<Topic[]> {
         order: nm(p[P.topic.order]) ?? 0,
         path: rt(p[P.topic.path]),
         areaIds: rel(p[P.topic.area]),
-        total: roll(p[P.topic.totalTasks]),
-        done: roll(p[P.topic.doneTasks]),
-        progress: roll(p[P.topic.progress]),
       } satisfies Topic;
     });
   });
 }
 
-export async function getTasks(): Promise<Task[]> {
-  if (isDemo()) return demoData().tasks;
-  if (!isConfigured()) return [];
-  return cached('tasks', async () => {
-    const rows = await queryAll(env.tasksDs!, {
+export async function getTasks(t: Tenant): Promise<Task[]> {
+  return cached(`${t.userId}:tasks`, async () => {
+    const rows = await queryAll(notionFor(t.token), t.tasksDs, {
       sorts: [{ property: P.task.order, direction: 'ascending' }],
     });
     return rows.map((r) => {
@@ -194,7 +194,8 @@ export async function getTasks(): Promise<Task[]> {
         completedOn: dt(p[P.task.completedOn]),
         areaIds: rel(p[P.task.area]),
         topicIds: rel(p[P.task.topic]),
-        heading: sel(p[P.task.heading]) ?? '',
+        // Heading is a select normally, rich_text when the comma fallback fired.
+        heading: sel(p[P.task.heading]) ?? rt(p[P.task.heading]),
         difficulty: (sel(p[P.task.difficulty]) as Difficulty | null) ?? null,
         order: nm(p[P.task.order]) ?? 0,
         headingOrder: nm(p[P.task.headingOrder]) ?? 0,
@@ -214,11 +215,10 @@ export async function getTasks(): Promise<Task[]> {
   });
 }
 
-export async function getDailyNotes(): Promise<DailyNote[]> {
-  if (isDemo()) return [];
-  if (!env.dailyDs || !env.notionToken) return [];
-  return cached('daily', async () => {
-    const rows = await queryAll(env.dailyDs!);
+export async function getDailyNotes(t: Tenant): Promise<DailyNote[]> {
+  if (!t.dailyDs) return [];
+  return cached(`${t.userId}:daily`, async () => {
+    const rows = await queryAll(notionFor(t.token), t.dailyDs!);
     return rows.map((r) => {
       const p = r.properties;
       return {
@@ -232,46 +232,81 @@ export async function getDailyNotes(): Promise<DailyNote[]> {
   });
 }
 
+/** Fetches the three tables a page needs, in parallel. */
+export async function getEverything(t: Tenant) {
+  const [areas, topics, tasks] = await Promise.all([getAreas(t), getTopics(t), getTasks(t)]);
+  return { areas, topics, tasks };
+}
+
 // ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------
 
 /**
- * Toggling `Done` is the system's single input. Setting it also stamps
- * `Completed On`, which is what feeds the Daily Tracker and the heatmap —
- * so there is never a second thing to log. Clearing it removes the stamp.
+ * Confirms a task really belongs to this tenant's Tasks table before writing.
+ *
+ * Page ids arrive from the browser, so without this check a crafted request
+ * could try to write to some other page the user's token can reach. Notion
+ * scopes the token to that user's workspace, which limits the blast radius, but
+ * this keeps writes inside the tracker.
  */
-export async function setTaskDone(taskId: string, done: boolean, day?: DayKey) {
-  if (isDemo()) return;
-  const properties: any = {
-    [P.task.done]: { checkbox: done },
-    [P.task.completedOn]: done ? { date: { start: day ?? dayKeyOf(new Date()) } } : { date: null },
-  };
-  await notion().pages.update({ page_id: taskId, properties });
-  invalidate();
+async function assertOwnedTask(t: Tenant, taskId: string): Promise<void> {
+  const page: any = await notionFor(t.token).pages.retrieve({ page_id: taskId });
+  const parent = page?.parent ?? {};
+  const owner = parent.data_source_id ?? parent.database_id;
+  const ok =
+    owner === t.tasksDs ||
+    // The parent can come back as the database id rather than the data source
+    // id, so fall back to confirming the row carries our Source Id property.
+    Boolean(page?.properties?.[P.task.sourceId]);
+  if (!ok) throw new Error('task does not belong to this workspace');
+}
+
+/**
+ * Ticking a question is the system's single input. Setting `Done` also stamps
+ * `Completed On`, which is what feeds the Daily Tracker and the heatmap — so
+ * there is never a second thing to log. Clearing it removes the stamp.
+ */
+export async function setTaskDone(t: Tenant, taskId: string, done: boolean, day?: DayKey) {
+  await assertOwnedTask(t, taskId);
+  await notionFor(t.token).pages.update({
+    page_id: taskId,
+    properties: {
+      [P.task.done]: { checkbox: done },
+      [P.task.completedOn]: done
+        ? { date: { start: day ?? dayKeyOf(new Date()) } }
+        : { date: null },
+    } as any,
+  });
+  invalidateTenant(t.userId);
 }
 
 export async function setTaskFlag(
+  t: Tenant,
   taskId: string,
   flag: 'bookmarked' | 'revisit',
   value: boolean,
 ) {
-  if (isDemo()) return;
+  await assertOwnedTask(t, taskId);
   const key = flag === 'bookmarked' ? P.task.bookmarked : P.task.revisit;
-  await notion().pages.update({
+  await notionFor(t.token).pages.update({
     page_id: taskId,
     properties: { [key]: { checkbox: value } } as any,
   });
-  invalidate();
+  invalidateTenant(t.userId);
 }
 
-export async function setTaskDifficulty(taskId: string, difficulty: Difficulty | null) {
-  if (isDemo()) return;
-  await notion().pages.update({
+export async function setTaskDifficulty(
+  t: Tenant,
+  taskId: string,
+  difficulty: Difficulty | null,
+) {
+  await assertOwnedTask(t, taskId);
+  await notionFor(t.token).pages.update({
     page_id: taskId,
     properties: {
       [P.task.difficulty]: difficulty ? { select: { name: difficulty } } : { select: null },
     } as any,
   });
-  invalidate();
+  invalidateTenant(t.userId);
 }

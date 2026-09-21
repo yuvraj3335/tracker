@@ -1,15 +1,14 @@
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, NotebookPen } from 'lucide-react';
 import { getDailyNotes, getTasks, getTopics } from '@/lib/notion';
-import { isConfigured, missingEnv } from '@/lib/env';
+import { requireReady } from '@/lib/tenant';
 import { activityByDay, noteFor } from '@/lib/derive';
 import { formatKey, isToday, shiftKey, todayKey, type DayKey } from '@/lib/date';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { TaskRow } from '@/components/task-row';
-import { SetupNotice } from '@/components/setup-notice';
 import { cn } from '@/lib/utils';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 const KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -18,12 +17,15 @@ export default async function DailyPage({
 }: {
   searchParams: Promise<{ d?: string }>;
 }) {
-  if (!isConfigured()) return <SetupNotice missing={missingEnv()} />;
-
+  const tenant = await requireReady();
   const { d } = await searchParams;
   const day: DayKey = d && KEY_RE.test(d) ? d : todayKey();
 
-  const [tasks, topics, notes] = await Promise.all([getTasks(), getTopics(), getDailyNotes()]);
+  const [tasks, topics, notes] = await Promise.all([
+    getTasks(tenant),
+    getTopics(tenant),
+    getDailyNotes(tenant),
+  ]);
   const byDay = activityByDay(tasks);
   const dayTasks = byDay.get(day) ?? [];
   const note = noteFor(notes, day);

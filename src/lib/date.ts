@@ -1,5 +1,5 @@
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
-import { addDays, differenceInCalendarDays, parseISO, startOfWeek } from 'date-fns';
+import { addDays, differenceInCalendarDays, parseISO } from 'date-fns';
 import { env } from './env';
 
 /** A calendar day key, `yyyy-MM-dd`, in the app's configured timezone. */
@@ -14,9 +14,18 @@ export function dayKeyOf(d: Date | string, tz: string = env.timezone): DayKey {
   return formatInTimeZone(date, tz, 'yyyy-MM-dd');
 }
 
-/** Parse a `yyyy-MM-dd` key as a local noon Date — noon avoids DST edge flips. */
+/**
+ * Parse a `yyyy-MM-dd` key as **noon UTC**.
+ *
+ * The trailing Z matters. Without it, parseISO builds noon in the *server's*
+ * local zone, while every formatter below reads the result back as UTC. In
+ * IST or UTC that happens to land on the same calendar day, but in a UTC+13/+14
+ * zone noon local is the previous day in UTC — so every date silently shifted
+ * by one. Anchoring at noon UTC makes the whole module zone-independent, and
+ * noon keeps it clear of DST transitions at either end of the day.
+ */
 export function keyToDate(key: DayKey): Date {
-  return parseISO(key + 'T12:00:00');
+  return parseISO(key + 'T12:00:00Z');
 }
 
 export function shiftKey(key: DayKey, days: number): DayKey {
@@ -41,7 +50,11 @@ export function isToday(key: DayKey): boolean {
  */
 export function heatmapGrid(end: DayKey = todayKey(), weeks = 53): DayKey[][] {
   const endDate = keyToDate(end);
-  const lastWeekStart = startOfWeek(endDate, { weekStartsOn: 0 });
+  // Week start is computed from the UTC weekday, not date-fns' startOfWeek,
+  // which works in the server's local zone and would pick a different day in
+  // far-eastern timezones. addDays on a noon-UTC date shifts by exact 24h
+  // multiples, so the anchor stays noon UTC throughout.
+  const lastWeekStart = addDays(endDate, -endDate.getUTCDay());
   const firstWeekStart = addDays(lastWeekStart, -7 * (weeks - 1));
   const cols: DayKey[][] = [];
   for (let w = 0; w < weeks; w++) {

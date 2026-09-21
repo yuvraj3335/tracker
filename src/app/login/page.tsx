@@ -1,48 +1,45 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { redirect } from 'next/navigation';
+import { currentUser } from '@/lib/tenant';
+import { hasDatabase } from '@/lib/db';
 import { Button } from '@/components/ui/button';
+import { AuthShell, AuthLink, Field, FormError } from '@/components/auth-shell';
 
+export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Sign in · Job Switch Tracker' };
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ error?: string; next?: string; u?: string }>;
 }) {
-  const { error, next = '/' } = await searchParams;
+  const { error, next = '/', u } = await searchParams;
+
+  // Already signed in? Nothing to do here.
+  if (await currentUser()) redirect(next.startsWith('/') ? next : '/');
 
   return (
-    <div className="mx-auto mt-12 max-w-sm sm:mt-24">
-      <Card>
-        <CardHeader>
-          <CardTitle>Job Switch Tracker</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action="/api/auth" method="post" className="space-y-3">
-            <input type="hidden" name="next" value={next} />
-            <div>
-              <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-ink-2">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoFocus
-                autoComplete="current-password"
-                className="w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              />
-            </div>
-            {error ? (
-              <p className="text-xs text-critical" role="alert">
-                Wrong password.
-              </p>
-            ) : null}
-            <Button type="submit" className="w-full">
-              Sign in
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <AuthShell
+      title="Sign in"
+      subtitle="Your questions live in your own Notion. This just reads and writes them."
+      footer={
+        <>
+          No account yet? <AuthLink href="/signup">Create one</AuthLink>
+        </>
+      }
+    >
+      {!hasDatabase() ? (
+        <FormError message="This server has no DATABASE_URL set, so accounts cannot work yet." />
+      ) : null}
+
+      <form action="/api/auth/signin" method="post" className="space-y-3">
+        <input type="hidden" name="next" value={next} />
+        <Field label="Username" name="username" defaultValue={u} autoComplete="username" autoFocus />
+        <Field label="Password" name="password" type="password" autoComplete="current-password" />
+        <FormError message={error ? 'Wrong username or password.' : undefined} />
+        <Button type="submit" className="w-full">
+          Sign in
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

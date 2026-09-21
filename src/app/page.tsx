@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Flame, CalendarCheck, Target, TrendingUp, ArrowRight } from 'lucide-react';
-import { getAreas, getTasks, getTopics } from '@/lib/notion';
-import { isConfigured, missingEnv, env } from '@/lib/env';
-import { activityByDay, countsByDay, summarize, topicProgress } from '@/lib/derive';
+import { getEverything } from '@/lib/notion';
+import { requireReady } from '@/lib/tenant';
+import { env } from '@/lib/env';
+import { activityByDay, areaProgress, countsByDay, summarize, topicProgress } from '@/lib/derive';
 import { formatKey, todayKey } from '@/lib/date';
 import { pct } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,24 +11,16 @@ import { StatTile } from '@/components/stat-tile';
 import { ProgressBar } from '@/components/progress-bar';
 import { Heatmap } from '@/components/heatmap';
 import { TaskRow } from '@/components/task-row';
-import { SetupNotice } from '@/components/setup-notice';
 
-// The Notion layer caches for 60s; let the page revalidate on the same beat.
-export const revalidate = 60;
+// Per-user data: must never be prerendered at build time or cached across
+// users. The Notion layer's own 60s cache is what keeps this fast.
+export const dynamic = 'force-dynamic';
 
 const SERIES = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
 
 export default async function Dashboard() {
-  if (!isConfigured()) {
-    return (
-      <div className="space-y-4">
-        <PageTitle title="Today" sub="Set up Notion to get started" />
-        <SetupNotice missing={missingEnv()} />
-      </div>
-    );
-  }
-
-  const [areas, topics, tasks] = await Promise.all([getAreas(), getTopics(), getTasks()]);
+  const tenant = await requireReady();
+  const { areas, topics, tasks } = await getEverything(tenant);
   const today = todayKey();
   const stats = summarize(areas, tasks);
   const byDay = activityByDay(tasks);
@@ -37,6 +30,7 @@ export default async function Dashboard() {
   // Next up: the first unsolved questions in original sheet order.
   const nextUp = tasks.filter((t) => !t.done).slice(0, 5);
   const tp = topicProgress(topics, tasks);
+  const ap = areaProgress(areas, tasks);
   const currentTopic = tp.find((r) => r.done > 0 && r.done < r.total) ?? tp.find((r) => r.done === 0);
 
   return (
@@ -91,9 +85,7 @@ export default async function Dashboard() {
           </div>
 
           <div className="space-y-2.5 border-t border-hairline pt-3">
-            {areas.map((a, i) => {
-              const total = a.total ?? 0;
-              const done = a.done ?? 0;
+            {ap.map(({ area: a, total, done }, i) => {
               return (
                 <div key={a.id}>
                   <div className="mb-1 flex items-baseline justify-between gap-2">
@@ -120,7 +112,7 @@ export default async function Dashboard() {
                 </div>
               );
             })}
-            {areas.length === 0 ? (
+            {ap.length === 0 ? (
               <p className="text-xs text-ink-muted">No areas yet — run the seed script.</p>
             ) : null}
           </div>
