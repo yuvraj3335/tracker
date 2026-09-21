@@ -296,34 +296,36 @@ export async function saveToken(
 }
 
 /**
- * Records the four databases the moment they exist.
+ * Records each database the moment it exists.
  *
  * Creating everything takes ~25 sequential Notion calls, which is long enough
- * to hit a serverless timeout. Without an early save, a failure after the
- * databases were created left them orphaned in the user's Notion and a retry
- * built a second full set. Saving here lets `createDatabases` skip what is
- * already there.
+ * to hit a serverless timeout, and any one of them can fail. A database that
+ * exists in the user's Notion but not here is orphaned: the retry cannot see
+ * it and builds another. So every id is saved as soon as Notion returns it, and
+ * `createDatabases` skips whatever is already recorded.
+ *
+ * Only the fields passed are written; the rest keep their stored value.
  */
 export async function saveDatabaseShells(
   userId: string,
   d: {
     parentPageId: string;
-    areasDs: string;
-    topicsDs: string;
-    tasksDs: string;
-    dailyDs: string;
-    headingIsSelect: boolean;
+    areasDs?: string;
+    topicsDs?: string;
+    tasksDs?: string;
+    dailyDs?: string;
+    headingIsSelect?: boolean;
   },
 ): Promise<void> {
   const q = sql();
   await q`
     update notion_connections set
       parent_page_id    = ${d.parentPageId},
-      areas_ds          = ${d.areasDs},
-      topics_ds         = ${d.topicsDs},
-      tasks_ds          = ${d.tasksDs},
-      daily_ds          = ${d.dailyDs},
-      heading_is_select = ${d.headingIsSelect},
+      areas_ds          = coalesce(${d.areasDs ?? null}::text, areas_ds),
+      topics_ds         = coalesce(${d.topicsDs ?? null}::text, topics_ds),
+      tasks_ds          = coalesce(${d.tasksDs ?? null}::text, tasks_ds),
+      daily_ds          = coalesce(${d.dailyDs ?? null}::text, daily_ds),
+      heading_is_select = coalesce(${d.headingIsSelect ?? null}::boolean, heading_is_select),
       updated_at        = now()
     where user_id = ${userId}::uuid
   `;

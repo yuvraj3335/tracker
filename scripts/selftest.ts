@@ -16,6 +16,9 @@ import {
   normalizeNotionId,
   uniqueHeadings,
   seedChunk,
+  wrapNotionError,
+  isSelectOptionRejection,
+  friendlyNotionError,
 } from '../src/lib/provision';
 import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey, isDayKey } from '../src/lib/date';
 import { streaks, countsByDay, overallProgress, areaProgress, streakMood } from '../src/lib/derive';
@@ -157,6 +160,34 @@ async function main() {
     check('two stores -> stable choice',
       resolveDatabaseUrl({ B_DATABASE_URL: direct, A_DATABASE_URL: pooled }) === pooled);
     check('nothing set -> undefined', resolveDatabaseUrl({}) === undefined);
+  }
+
+  section('Notion errors');
+  {
+    // Shaped like @notionhq/client's APIResponseError. The first is the exact
+    // rejection production hit when creating "Tasks".
+    const notionError = (code: string, status: number, message: string) =>
+      Object.assign(new Error(message), { code, status });
+    const commas = notionError('validation_error', 400,
+      'Invalid select option, commas not allowed: Prefix, Infix, Postfix Conversion Problems');
+    const missing = notionError('object_not_found', 404, 'Could not find page with ID: x.');
+    const otherInvalid = notionError('validation_error', 400, 'body.parent.page_id should be defined');
+
+    const wrapped = wrapNotionError(commas);
+    check('comma rejection is recognised unwrapped', isSelectOptionRejection(commas));
+    check('comma rejection is still recognised once wrapped', isSelectOptionRejection(wrapped));
+    check('wrapper message is the friendly copy, not Notion\'s text',
+      !/commas|Prefix/.test(wrapped.message) && wrapped.message === friendlyNotionError(commas));
+    check('wrapper keeps the original as cause', wrapped.cause === commas);
+    check('wrapper keeps code and status for classification',
+      wrapped.code === 'validation_error' && wrapped.status === 400);
+    check('re-translating a wrapper returns the same copy', friendlyNotionError(wrapped) === wrapped.message);
+    check('a missing page is not a select rejection', !isSelectOptionRejection(wrapNotionError(missing)));
+    check('other validation errors are not select rejections', !isSelectOptionRejection(wrapNotionError(otherInvalid)));
+    check('a wrapped 404 still reads as "cannot reach that page"',
+      /cannot reach that page/.test(friendlyNotionError(wrapNotionError(missing))));
+    check('a wrapped 429 still reads as "busy"',
+      /busy/.test(friendlyNotionError(wrapNotionError(notionError('rate_limited', 429, 'slow down')))));
   }
 
   section('Day maths');

@@ -155,18 +155,9 @@ async function call<T>(
       await new Promise((r) => setTimeout(r, (status === 429 ? 1200 : 600) * attempt));
       return call(label, fn, attempt + 1, key);
     }
-    // Keep the original code/status on the wrapper so friendlyNotionError can
-    // still classify it upstream — without this, a rate-limited write reached
-    // the user as the generic fallback instead of "Notion is busy".
-    // `label` stays out of the message: it names an internal step.
-    const wrapped = new Error(friendlyNotionError(e)) as Error & {
-      code?: unknown;
-      status?: unknown;
-    };
-    wrapped.code = (e as any)?.code;
-    wrapped.status = status;
     console.error(`[notion] ${label} failed:`, (e as any)?.message ?? e);
-    throw wrapped;
+    // `label` stays out of the message: it names an internal step.
+    throw wrapNotionError(e);
   }
 }
 
@@ -175,10 +166,33 @@ async function call<T>(
  * rich_text fallback is meant to handle. Notion has historically refused
  * commas in option names, and one heading in the sheet contains them.
  */
-function isSelectOptionRejection(e: unknown): boolean {
-  const err = e as any;
+export function isSelectOptionRejection(e: unknown): boolean {
+  // Judge Notion's own error, not our wrapper: the wrapper's message is the
+  // friendly copy, which never mentions select options. Reading the wrapper is
+  // exactly how this fallback stopped firing and setup died on "Tasks".
+  const err = (e as any)?.cause ?? e;
   if (err?.code !== 'validation_error' && err?.status !== 400) return false;
   return /select|option|comma/i.test(String(err?.message ?? ''));
+}
+
+type WrappedNotionError = Error & { code?: unknown; status?: unknown; friendly: true };
+
+/**
+ * The error `call` throws: friendly copy as the message, Notion's original
+ * error as `cause`.
+ *
+ * The code and status are copied up so friendlyNotionError can still classify
+ * it — without them a rate-limited write reached the user as the generic
+ * fallback instead of "Notion is busy". The original stays on `cause` because
+ * some callers must decide from what Notion actually said (see
+ * isSelectOptionRejection), and the friendly copy has thrown that away.
+ */
+export function wrapNotionError(e: unknown): WrappedNotionError {
+  const wrapped = new Error(friendlyNotionError(e), { cause: e }) as WrappedNotionError;
+  wrapped.code = (e as any)?.code;
+  wrapped.status = (e as any)?.status;
+  wrapped.friendly = true;
+  return wrapped;
 }
 
 /**
@@ -192,6 +206,8 @@ function isSelectOptionRejection(e: unknown): boolean {
  */
 export function friendlyNotionError(e: unknown): string {
   const err = e as any;
+  // Already translated (and already logged) by wrapNotionError.
+  if (err?.friendly === true && typeof err.message === 'string') return err.message;
   const code = err?.code;
   const status = err?.status;
   const raw = String(err?.message ?? err ?? 'unknown error');
@@ -290,20 +306,23 @@ export type ExistingDatabases = {
   topicPageIds?: Record<string, string> | null;
 };
 
+/** The ids saved as databases appear; only the one just created is set. */
+export type DatabaseShells = {
+  parentPageId: string;
+  areasDs?: string;
+  topicsDs?: string;
+  tasksDs?: string;
+  dailyDs?: string;
+  headingIsSelect?: boolean;
+};
+
 export async function createDatabases(
   token: string,
   parentPageRaw: string,
   /** Reuse whatever a previous attempt managed to create. */
   existing: ExistingDatabases = {},
-  /** Called as soon as the four databases exist, so they survive a timeout. */
-  onShells?: (d: {
-    parentPageId: string;
-    areasDs: string;
-    topicsDs: string;
-    tasksDs: string;
-    dailyDs: string;
-    headingIsSelect: boolean;
-  }) => Promise<void>,
+  /** Called as each database is created, so none is orphaned by a failure. */
+  onCreated?: (d: DatabaseShells) => Promise<void>,
 ): Promise<CreatedDatabases> {
   const client = new Client({ auth: token });
   const run = callerFor(token);
@@ -313,15 +332,27 @@ export async function createDatabases(
   // rather than half-creating databases.
   await run('open parent page', () => client.pages.retrieve({ page_id: parentPageId }));
 
-  const areasDs =
-    existing.areasDs || (await createDb(run, client, parentPageId, 'Areas', '🎯', areasProperties()));
-  const topicsDs =
-    existing.topicsDs ||
-    (await createDb(run, client, parentPageId, 'Topics', '📚', topicsProperties(areasDs)));
+  // Each id is saved the moment its database exists. Saving all four at the
+  // end was not enough: when "Tasks" failed, the Areas and Topics databases
+  // already made were never recorded, and every retry added another pair to
+  // the user's page.
+  const keep = (d: Omit<DatabaseShells, 'parentPageId'>) =>
+    onCreated?.({ parentPageId, ...d }) ?? Promise.resolve();
 
-  // Heading is a select so Notion can group by it. Notion has historically
-  // rejected commas in option names, so fall back to rich_text rather than
-  // ever altering a heading from the source sheet.
+  let areasDs = existing.areasDs;
+  if (!areasDs) {
+    areasDs = await createDb(run, client, parentPageId, 'Areas', '🎯', areasProperties());
+    await keep({ areasDs });
+  }
+  let topicsDs = existing.topicsDs;
+  if (!topicsDs) {
+    topicsDs = await createDb(run, client, parentPageId, 'Topics', '📚', topicsProperties(areasDs));
+    await keep({ topicsDs });
+  }
+
+  // Heading is a select so Notion can group by it. Notion rejects commas in
+  // option names, and one heading has them, so fall back to rich_text rather
+  // than ever altering a heading from the source sheet.
   const headings = uniqueHeadings();
   let tasksDs: string;
   let headingSelect = existing.headingIsSelect ?? true;
@@ -353,23 +384,14 @@ export async function createDatabases(
         tasksProperties(areasDs, topicsDs, headings, false),
       );
     }
+    await keep({ tasksDs, headingIsSelect: headingSelect });
   }
 
-  const dailyDs =
-    existing.dailyDs ||
-    (await createDb(run, client, parentPageId, 'Daily Notes', '📝', dailyProperties()));
-
-  // Persist the four ids now. Everything after this point is another ~20
-  // sequential calls, which is long enough to hit a serverless timeout — and
-  // without this save those databases would be orphaned and rebuilt on retry.
-  await onShells?.({
-    parentPageId,
-    areasDs,
-    topicsDs,
-    tasksDs,
-    dailyDs,
-    headingIsSelect: headingSelect,
-  });
+  let dailyDs = existing.dailyDs;
+  if (!dailyDs) {
+    dailyDs = await createDb(run, client, parentPageId, 'Daily Notes', '📝', dailyProperties());
+    await keep({ dailyDs });
+  }
 
   // Rollups can only be added once the dual relations exist on Areas/Topics.
   await run('add Areas rollups', () =>
