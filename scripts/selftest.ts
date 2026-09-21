@@ -30,6 +30,16 @@ import {
 import { discoverCharacters } from '../src/lib/characters.server';
 import { pickCharacterLine, dailyLine } from '../src/lib/character-voice';
 import { THEMES } from '../src/lib/themes';
+import {
+  normalize,
+  tokenize,
+  matchesTokens,
+  indexTasks,
+  searchIndexed,
+  applyFilter,
+  isFilter,
+} from '../src/lib/search';
+import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
 import type { Area, Task } from '../src/lib/notion';
 
 let pass = 0;
@@ -377,6 +387,87 @@ async function main() {
       'a future-dated completion is not reported as broken',
       streakMood({ current: 0, longest: 3, lastActive: shiftKey(T, 5) }) === 'none',
     );
+  }
+
+  section('Search matching');
+  {
+    check('normalize folds case and punctuation', normalize('User Input/ Output') === 'user input output');
+    check('normalize folds diacritics', normalize('Créer') === 'creer');
+    check('normalize collapses runs', normalize('a---b   c') === 'a b c');
+    check('normalize of punctuation only is empty', normalize('--/--') === '');
+    check('tokenize splits on the normalized form', JSON.stringify(tokenize('Binary  Search!')) === '["binary","search"]');
+    check('an empty query tokenizes to nothing', tokenize('   ').length === 0);
+
+    check('every token must match (AND, not OR)', matchesTokens('binary search tree', ['binary', 'tree']));
+    check('a missing token rejects the row', !matchesTokens('binary search tree', ['binary', 'graph']));
+    check('tokens match mid-word, not just at the start', matchesTokens('binary search', ['sear']));
+    check('token order does not matter', matchesTokens('two sum arrays', ['sum', 'two']));
+    check('an empty query matches everything', matchesTokens('anything', []));
+
+    const searchTasks = [
+      task({ id: 's1', name: 'Two Sum', heading: 'Hashing', topicIds: ['t1'] }),
+      task({ id: 's2', name: 'Binary Search on Answers', heading: 'BS on 1D', topicIds: ['t2'] }),
+      task({ id: 's3', name: 'Reverse a Linked List', heading: 'Basics', topicIds: ['t3'] }),
+    ];
+    const names = new Map([['t1', 'Arrays'], ['t2', 'Binary Search'], ['t3', 'Linked List']]);
+    const idx = indexTasks(searchTasks, (id) => names.get(id));
+
+    check('name match', searchIndexed(idx, 'two sum').map((t) => t.id).join() === 's1');
+    check('partial, out-of-order words match', searchIndexed(idx, 'sum two').map((t) => t.id).join() === 's1');
+    check('abbreviated words match', searchIndexed(idx, 'bin sear').map((t) => t.id).join() === 's2');
+    check('section name is searchable', searchIndexed(idx, 'arrays').map((t) => t.id).join() === 's1');
+    check('heading is searchable', searchIndexed(idx, 'hashing').map((t) => t.id).join() === 's1');
+    check('punctuation in the source need not be typed', searchIndexed(idx, 'bs on 1d').map((t) => t.id).join() === 's2');
+    check('an empty query returns everything', searchIndexed(idx, '').length === 3);
+    check('no match returns nothing', searchIndexed(idx, 'zzzz').length === 0);
+    check('search is case-insensitive', searchIndexed(idx, 'TWO SUM').map((t) => t.id).join() === 's1');
+
+    const mixed = [
+      task({ id: 'f1', done: true }),
+      task({ id: 'f2', done: false, bookmarked: true }),
+      task({ id: 'f3', done: false, revisit: true }),
+    ];
+    check('filter all', applyFilter(mixed, 'all').length === 3);
+    check('filter todo', applyFilter(mixed, 'todo').map((t) => t.id).join() === 'f2,f3');
+    check('filter done', applyFilter(mixed, 'done').map((t) => t.id).join() === 'f1');
+    check('filter bookmarked', applyFilter(mixed, 'bookmarked').map((t) => t.id).join() === 'f2');
+    check('filter revisit', applyFilter(mixed, 'revisit').map((t) => t.id).join() === 'f3');
+    check('isFilter accepts a known key', isFilter('todo'));
+    check('isFilter rejects junk from the URL', !isFilter('../etc') && !isFilter(null));
+  }
+
+  section('Keyboard mapping');
+  {
+    const k = (key: string, mods: Record<string, boolean> = {}) => ({ key, ...mods });
+
+    check('j moves down', mapSheetKey(k('j'), false) === 'next');
+    check('arrow down moves down', mapSheetKey(k('ArrowDown'), false) === 'next');
+    check('k moves up', mapSheetKey(k('k'), false) === 'prev');
+    check('enter toggles', mapSheetKey(k('Enter'), false) === 'toggle');
+    check('b bookmarks', mapSheetKey(k('b'), false) === 'bookmark');
+    check('r flags revisit', mapSheetKey(k('r'), false) === 'revisit');
+    check('slash focuses search', mapSheetKey(k('/'), false) === 'focusSearch');
+    check('question mark opens help', mapSheetKey(k('?'), false) === 'help');
+    check('an unbound key does nothing', mapSheetKey(k('z'), false) === null);
+
+    // Space is left to the focused checkbox; claiming it would double-toggle.
+    check('space is not claimed', mapSheetKey(k(' '), false) === null);
+
+    check('letters do nothing while typing', mapSheetKey(k('b'), true) === null);
+    check('j does nothing while typing', mapSheetKey(k('j'), true) === null);
+    check('escape still works while typing', mapSheetKey(k('Escape'), true) === 'dismiss');
+    check('escape works outside typing too', mapSheetKey(k('Escape'), false) === 'dismiss');
+
+    check('ctrl+key is left to the browser', mapSheetKey(k('b', { ctrlKey: true }), false) === null);
+    check('cmd+key is left to the OS', mapSheetKey(k('j', { metaKey: true }), false) === null);
+    check('alt+key is left alone', mapSheetKey(k('r', { altKey: true }), false) === null);
+
+    check('cmd-k opens the palette', isPaletteShortcut(k('k', { metaKey: true })));
+    check('ctrl-k opens the palette', isPaletteShortcut(k('K', { ctrlKey: true })));
+    check('a bare k does not open the palette', !isPaletteShortcut(k('k')));
+    check('cmd-j does not open the palette', !isPaletteShortcut(k('j', { metaKey: true })));
+
+    check('every shortcut in the overlay has a label', SHORTCUTS.every((s) => s.label && s.keys.length));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

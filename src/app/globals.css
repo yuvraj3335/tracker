@@ -533,6 +533,51 @@ body {
   96%           { transform: scaleY(0.1); }
 }
 
+/* Toast entry: rises into place and stays. Distinct from jsRiseFade, which
+   also fades back out on a timer. */
+@keyframes jsRiseIn {
+  0%   { transform: translateY(8px) scale(0.98); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* The undo window, drawn as a shrinking bar. scaleX only, so it never
+   triggers layout. */
+@keyframes jsCountdown {
+  0%   { transform: scaleX(1); }
+  100% { transform: scaleX(0); }
+}
+
+/* Heatmap cells on first paint only — a quick wash across the grid. Each
+   column carries its own --d delay. */
+@keyframes jsCellIn {
+  0%   { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Skeleton -> content. The real content fades up as the skeleton is replaced,
+   rather than snapping in. */
+@keyframes jsContentIn {
+  0%   { transform: translateY(4px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.js-rise-in   { animation: jsRiseIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.js-countdown { animation: jsCountdown 6000ms linear both; }
+.js-cell-in   { animation: jsCellIn 320ms ease-out both; animation-delay: var(--d, 0ms); }
+.js-content-in{ animation: jsContentIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Elevation on hover, pointer devices only. A touch device has no hover state
+   to leave, so the lift would stick after a tap. */
+@media (hover: hover) and (pointer: fine) {
+  .js-lift {
+    transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 160ms ease;
+  }
+  .js-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--lift-2);
+  }
+}
+
 .js-bob    { animation: jsBob 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
 .js-jump   { animation: jsJump 720ms cubic-bezier(0.34, 1.56, 0.64, 1) both; transform-origin: 50% 100%; }
 .js-spark  { animation: jsSparkPop 760ms ease-out both; }

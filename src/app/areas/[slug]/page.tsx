@@ -1,38 +1,22 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
-import { getEverything, type Task } from '@/lib/notion';
+import { getEverything } from '@/lib/notion';
 import { requireReady } from '@/lib/tenant';
-import { groupByHeading, topicProgress } from '@/lib/derive';
+import { topicProgress } from '@/lib/derive';
 import { pct } from '@/lib/utils';
-import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
-import { HeadingBand } from '@/components/heading-band';
 import { ProgressBar } from '@/components/progress-bar';
-import { TaskRow } from '@/components/task-row';
-import { cn } from '@/lib/utils';
+import { Sheet } from '@/components/sheet';
 
 export const dynamic = 'force-dynamic';
 
-type Filter = 'all' | 'todo' | 'done' | 'bookmarked' | 'revisit';
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'todo', label: 'To do' },
-  { key: 'done', label: 'Done' },
-  { key: 'bookmarked', label: 'Saved' },
-  { key: 'revisit', label: 'Revisit' },
-];
-
-function applyFilter(tasks: Task[], f: Filter) {
-  switch (f) {
-    case 'todo': return tasks.filter((t) => !t.done);
-    case 'done': return tasks.filter((t) => t.done);
-    case 'bookmarked': return tasks.filter((t) => t.bookmarked);
-    case 'revisit': return tasks.filter((t) => t.revisit);
-    default: return tasks;
-  }
-}
-
+/**
+ * One prep area's full sheet.
+ *
+ * The server fetches and scopes the data; the list itself is a client component
+ * so search, filtering and keyboard navigation are instant over rows that are
+ * already loaded. Filtering used to be a `?f=` link, which meant a full round
+ * trip — and five paginated Notion calls — to hide rows already on screen.
+ */
 export default async function AreaPage({
   params,
   searchParams,
@@ -41,8 +25,7 @@ export default async function AreaPage({
   searchParams: Promise<{ f?: string; open?: string }>;
 }) {
   const { slug } = await params;
-  const { f = 'all', open } = await searchParams;
-  const filter = (FILTERS.some((x) => x.key === f) ? f : 'all') as Filter;
+  const { f, open } = await searchParams;
 
   const tenant = await requireReady();
   const { areas, topics, tasks } = await getEverything(tenant);
@@ -56,7 +39,7 @@ export default async function AreaPage({
   const done = areaTasks.filter((t) => t.done).length;
   const total = areaTasks.length;
 
-  // Default to the topic in progress so the page opens where you left off.
+  // Open the topic in progress by default, so the page resumes where you were.
   const inProgress = rows.find((r) => r.done > 0 && r.done < r.total);
   const openId = open ?? inProgress?.topic.id ?? rows[0]?.topic.id;
 
@@ -72,101 +55,13 @@ export default async function AreaPage({
         </div>
       </div>
 
-      {/* Filters sit in one row above the content */}
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
-        {FILTERS.map((x) => {
-          const count = applyFilter(areaTasks, x.key).length;
-          return (
-            <Link
-              key={x.key}
-              href={`?f=${x.key}${open ? `&open=${open}` : ''}`}
-              scroll={false}
-              className={cn(
-                'shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                filter === x.key
-                  ? 'border-transparent bg-accent text-accent-ink'
-                  : 'border-hairline text-ink-muted hover:bg-surface-2 hover:text-ink',
-              )}
-            >
-              {x.label}
-              <span className="ml-1 opacity-70 tnum">{count}</span>
-            </Link>
-          );
-        })}
-      </div>
-
-      <div className="space-y-2.5">
-        {rows.map((row) => {
-          const topicTasks = applyFilter(
-            areaTasks.filter((t) => t.topicIds.includes(row.topic.id)),
-            filter,
-          );
-          const headings = groupByHeading(topicTasks);
-          const isOpen = row.topic.id === openId;
-
-          return (
-            <Card key={row.topic.id} className="overflow-hidden">
-              <details open={isOpen} className="group">
-                <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-surface-2 sm:px-5 [&::-webkit-details-marker]:hidden">
-                  <ChevronRight className="size-4 shrink-0 text-ink-muted transition-transform group-open:rotate-90" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{row.topic.name}</span>
-                      <span className="shrink-0 text-xs text-ink-muted tnum">
-                        {row.done}/{row.total}
-                      </span>
-                    </div>
-                    <div className="mt-1.5">
-                      <ProgressBar
-                        value={row.pct}
-                        height={4}
-                        color={
-                          row.pct === 100
-                            ? 'var(--good)'
-                            : row.pct > 0
-                              ? 'var(--accent)'
-                              : 'var(--axis)'
-                        }
-                        label={`${row.topic.name} progress`}
-                      />
-                    </div>
-                  </div>
-                </summary>
-
-                <div className="border-t border-hairline">
-                  {headings.length ? (
-                    headings.map((h) => (
-                      <section key={h.heading}>
-                        {/* Heading rows are categories, not questions — they are
-                            never counted toward any total. */}
-                        <HeadingBand
-                          label={h.heading}
-                          count={`${h.done}/${h.total}`}
-                          sticky
-                        />
-                        <ul>
-                          {h.items.map((t) => (
-                            <TaskRow
-                              key={t.id}
-                              task={t}
-                              index={t.order + 1}
-                              headingRemaining={h.total - h.done}
-                            />
-                          ))}
-                        </ul>
-                      </section>
-                    ))
-                  ) : (
-                    <p className="px-4 py-3 text-xs text-ink-muted sm:px-5">
-                      Nothing here with this filter.
-                    </p>
-                  )}
-                </div>
-              </details>
-            </Card>
-          );
-        })}
-      </div>
+      <Sheet
+        topics={areaTopics}
+        tasks={areaTasks}
+        areaName={area.name}
+        initialFilter={f}
+        initialOpen={openId}
+      />
     </div>
   );
 }

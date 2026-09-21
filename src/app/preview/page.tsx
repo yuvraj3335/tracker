@@ -14,6 +14,7 @@ import { VelocityChart } from '@/components/velocity-chart';
 import { TaskRow } from '@/components/task-row';
 import { CharacterBadge, CharacterFigure } from '@/components/character-figure';
 import { DashboardSkeleton, SheetSkeleton } from '@/components/skeletons';
+import { Sheet } from '@/components/sheet';
 
 /**
  * Dev-only design harness. Renders the real components with sample data so the
@@ -156,6 +157,10 @@ export default function PreviewPage() {
             ))}
           </CardContent>
         </Card>
+      </Section>
+
+      <Section title="Sheet — live search, instant filters, j/k keyboard nav, density">
+        <Sheet topics={topics} tasks={tasks} areaName="DSA" />
       </Section>
 
       <Section title="Loading skeletons (dashboard, then sheet)">

@@ -3,6 +3,8 @@ import './globals.css';
 import { Nav } from '@/components/nav';
 import { CelebrationLayer } from '@/components/celebration';
 import { CharacterProvider } from '@/components/character-provider';
+import { CommandPalette } from '@/components/command-palette';
+import { UndoToast } from '@/components/undo-toast';
 import { currentUser } from '@/lib/tenant';
 import { discoverCharacters } from '@/lib/characters.server';
 
@@ -47,6 +49,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main className="mx-auto max-w-5xl px-3 pt-4 pb-20 sm:px-4 sm:pb-10">{children}</main>
           {/* Fixed, pointer-events-none: never blocks a tap or shifts the page. */}
           <CelebrationLayer />
+          {/* Separate from the celebration because it has to be clickable. */}
+          <UndoToast />
+          {/* Cmd-K anywhere. Renders nothing until first opened. */}
+          <CommandPalette />
         </CharacterProvider>
       </body>
     </html>

@@ -113,3 +113,28 @@ export function setCharacter(id: string) {
 }
 
 export const serverCharacter = (): string => '';
+
+// ------------------------------------------------------------- density
+/**
+ * Row density for the sheet. 456 rows is a lot of scrolling, and how much
+ * breathing room each one wants is genuinely a matter of taste rather than
+ * something to decide for everyone.
+ */
+export type Density = 'comfortable' | 'compact';
+export const DENSITY_KEY = 'jst-density';
+
+let cachedDensity: Density | null = null;
+
+export function getDensity(): Density {
+  if (cachedDensity) return cachedDensity;
+  cachedDensity = read(DENSITY_KEY) === 'compact' ? 'compact' : 'comfortable';
+  return cachedDensity;
+}
+
+export function setDensity(d: Density) {
+  cachedDensity = d;
+  write(DENSITY_KEY, d);
+  announce();
+}
+
+export const serverDensity = (): Density => 'comfortable';

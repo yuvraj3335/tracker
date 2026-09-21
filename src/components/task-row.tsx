@@ -5,6 +5,7 @@ import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
 import { toggleTaskAction, toggleFlagAction, setDifficultyAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
 import { celebrate } from '@/lib/celebrate';
+import { offerUndo } from '@/lib/undo';
 import { DIFFICULTY, type Difficulty } from '@/lib/schema';
 import { formatKey } from '@/lib/date';
 import { Check } from './ui/check';
@@ -33,6 +34,8 @@ export function TaskRow({
   task,
   index,
   headingRemaining,
+  compact = false,
+  focused = false,
 }: {
   task: Task;
   index: number;
@@ -42,6 +45,10 @@ export function TaskRow({
    * Only the sheet view groups by heading, so elsewhere this is omitted.
    */
   headingRemaining?: number;
+  /** Tighter rows. 456 of them is a lot of scrolling; the choice is the user's. */
+  compact?: boolean;
+  /** Carries the sheet's j/k cursor. Drawn, not inferred from :focus-visible. */
+  focused?: boolean;
 }) {
   const [pending, start] = useTransition();
   const [done, setDone] = useOptimistic(task.done);
@@ -63,6 +70,11 @@ export function TaskRow({
     // active character, and subscribing to those here would mean one store
     // subscription per row across 456 of them. The overlay reads them once.
     if (next) celebrate(headingRemaining === 1 ? 'milestone' : 'cheer');
+    // A mis-tap on a 456-row list is easy and, on a filtered view, the row
+    // vanishes the moment it is ticked — so the correction has to come to you.
+    offerUndo(`${next ? 'Marked' : 'Cleared'} “${task.name}”`, () =>
+      toggleTaskAction(task.id, !next),
+    );
     start(async () => {
       setDone(next);
       await toggleTaskAction(task.id, next);
@@ -71,10 +83,17 @@ export function TaskRow({
 
   return (
     <li
+      data-row-id={task.id}
       className={cn(
-        'group relative flex items-start gap-3 border-b border-hairline px-3 py-2.5 last:border-0 sm:px-4',
+        'group relative flex items-start gap-3 border-b border-hairline px-3 last:border-0 sm:px-4',
+        compact ? 'py-1.5' : 'py-2.5',
+        // Sticky heading bands are 28px; keep a keyboard-scrolled row clear of them.
+        'scroll-mt-12',
         'transition-colors hover:bg-surface-2/40',
         pending && 'opacity-60',
+        // The j/k cursor. An inset ring rather than an outline so it never
+        // widens the row or shifts anything below it.
+        focused && 'bg-surface-2/60 ring-2 ring-accent/70 ring-inset',
       )}
     >
       <span className="pt-[3px]">
@@ -139,6 +158,7 @@ export function TaskRow({
           is no hover at all; only pointer devices get the reveal-on-hover. */}
       <div className="flex shrink-0 items-center gap-0.5">
         <FlagButton
+          flag="bookmarked"
           active={marks.bookmarked}
           label={marks.bookmarked ? 'Remove bookmark' : 'Bookmark'}
           activeColor="var(--series-4)"
@@ -154,6 +174,7 @@ export function TaskRow({
         </FlagButton>
 
         <FlagButton
+          flag="revisit"
           active={marks.revisit}
           label={marks.revisit ? 'Clear revisit flag' : 'Flag for revisit'}
           activeColor="var(--series-2)"
@@ -220,12 +241,15 @@ function DifficultyPicker({
 }
 
 function FlagButton({
+  flag,
   active,
   label,
   activeColor,
   onClick,
   children,
 }: {
+  /** Lets the sheet's `b` / `r` keys find and click this exact control. */
+  flag: 'bookmarked' | 'revisit';
   active: boolean;
   label: string;
   activeColor: string;
@@ -235,6 +259,7 @@ function FlagButton({
   return (
     <button
       type="button"
+      data-flag={flag}
       aria-label={label}
       aria-pressed={active}
       onClick={onClick}
