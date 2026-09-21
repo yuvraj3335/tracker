@@ -155,7 +155,18 @@ async function call<T>(
       await new Promise((r) => setTimeout(r, (status === 429 ? 1200 : 600) * attempt));
       return call(label, fn, attempt + 1, key);
     }
-    throw new Error(`${label}: ${friendlyNotionError(e)}`);
+    // Keep the original code/status on the wrapper so friendlyNotionError can
+    // still classify it upstream — without this, a rate-limited write reached
+    // the user as the generic fallback instead of "Notion is busy".
+    // `label` stays out of the message: it names an internal step.
+    const wrapped = new Error(friendlyNotionError(e)) as Error & {
+      code?: unknown;
+      status?: unknown;
+    };
+    wrapped.code = (e as any)?.code;
+    wrapped.status = status;
+    console.error(`[notion] ${label} failed:`, (e as any)?.message ?? e);
+    throw wrapped;
   }
 }
 
@@ -170,25 +181,40 @@ function isSelectOptionRejection(e: unknown): boolean {
   return /select|option|comma/i.test(String(err?.message ?? ''));
 }
 
-/** Turns Notion's API errors into something a user can act on. */
+/**
+ * Turns a Notion API error into something the person can act on.
+ *
+ * Every branch returns copy written for the person who has to fix it. The raw
+ * API text is deliberately never returned: it names internal mechanics, it is
+ * written for whoever is integrating rather than whoever is signing up, and the
+ * two fallbacks here used to hand it straight to the screen. It is logged
+ * instead, where it is actually useful.
+ */
 export function friendlyNotionError(e: unknown): string {
   const err = e as any;
   const code = err?.code;
   const status = err?.status;
-  const msg = String(err?.message ?? err ?? 'unknown error');
+  const raw = String(err?.message ?? err ?? 'unknown error');
 
   if (code === 'unauthorized' || status === 401) {
-    return 'Notion rejected that token. Check you copied the full secret from your integration.';
+    return 'Notion did not accept that secret. Check you copied the whole thing, then try again.';
   }
   if (code === 'object_not_found' || status === 404) {
-    return 'Notion cannot see that page. Open it, click the ••• menu → Connections, and add your integration.';
+    return 'Notion cannot reach that page. Open it, choose ••• → Connections, and add your integration.';
   }
   if (code === 'restricted_resource' || status === 403) {
-    return 'That integration does not have permission for this page. Add it under the page’s Connections menu.';
+    return 'Your integration does not have access to that page. Add it under the page’s Connections menu.';
   }
-  if (code === 'validation_error') return `Notion rejected the request: ${msg}`;
-  if (status === 429) return 'Notion is rate-limiting the request. Wait a moment and retry.';
-  return msg;
+  if (status === 429) {
+    return 'Notion is busy right now. Wait a few seconds, then continue.';
+  }
+
+  // Anything else is ours to diagnose, not theirs to read.
+  console.error('[notion]', code ?? status ?? 'error', raw);
+  if (code === 'validation_error') {
+    return 'Notion turned that request down. Reconnect your workspace and try again.';
+  }
+  return 'Something went wrong talking to Notion. Try again in a moment.';
 }
 
 // ---------------------------------------------------------------------------

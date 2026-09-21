@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
   if (!hasEncryptionKey()) {
     return NextResponse.json(
-      { error: 'The server has no ENCRYPTION_KEY configured, so it cannot store your token safely.' },
+      { error: 'Connecting Notion is unavailable right now. Please try again shortly.' },
       { status: 500 },
     );
   }

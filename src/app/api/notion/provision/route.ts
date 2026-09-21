@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 
   const connection = await getConnection(user.id);
   if (!connection) {
-    return NextResponse.json({ error: 'Connect your Notion token first.' }, { status: 400 });
+    return NextResponse.json({ error: 'Connect your Notion workspace first.' }, { status: 400 });
   }
 
   let token: string;
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     token = tokenOf(connection);
   } catch {
     return NextResponse.json(
-      { error: 'Your stored token could not be read. Please reconnect Notion.' },
+      { error: 'We could not read your saved connection. Please reconnect Notion.' },
       { status: 400 },
     );
   }
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
   // ---- step: seed the next chunk --------------------------------------
   if (action === 'step') {
     if (!connection.tasksDs || !connection.areaPageId || !connection.topicPageIds) {
-      return NextResponse.json({ error: 'Databases are not created yet.' }, { status: 400 });
+      return NextResponse.json({ error: 'Your tracker is not set up yet. Start again from the page step.' }, { status: 400 });
     }
     if (connection.provisionState === 'ready') {
       return NextResponse.json({
