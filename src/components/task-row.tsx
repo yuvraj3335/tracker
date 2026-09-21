@@ -113,8 +113,11 @@ function TaskRowImpl({
       className={cn(
         'group relative flex items-start gap-3 border-b border-hairline px-3 last:border-0 sm:px-4',
         compact ? 'py-1.5' : 'py-2.5',
-        // Sticky heading bands are 28px; keep a keyboard-scrolled row clear of them.
-        'scroll-mt-12',
+        // Keyboard navigation scrolls rows into view, so they have to clear all
+        // the sticky chrome above them — nav, search bar and heading band.
+        // scroll-mt-12 (48px) was short of the measured 146px, and a row walked
+        // to with `k` sat 33px underneath the bar.
+        'scroll-mt-[calc(var(--sheet-chrome,3.5rem)+2.25rem)]',
         'transition-colors hover:bg-surface-2/40',
         pending && 'opacity-60',
         // The j/k cursor. An inset ring rather than an outline so it never

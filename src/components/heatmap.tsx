@@ -62,10 +62,14 @@ export function Heatmap({
     // yank the grid back to the right edge every time a checkbox is ticked.
   }, []);
 
-  const total = useMemo(
-    () => Object.values(counts).reduce((a, b) => a + b, 0),
-    [counts],
-  );
+  // Only what the grid actually shows. Summing every count ever recorded under
+  // a label that says "the last 12 months" overstates it for anyone with more
+  // than a year of history.
+  const total = useMemo(() => {
+    let n = 0;
+    for (const col of grid) for (const day of col) n += counts[day] ?? 0;
+    return n;
+  }, [grid, counts]);
 
   // Month labels sit above the first column whose week introduces a new month.
   const monthLabels = useMemo(() => {
@@ -131,7 +135,11 @@ export function Heatmap({
                       <Link
                         key={day}
                         href={`${href}?d=${day}`}
-                        aria-label={`${count} on ${formatKey(day)}`}
+                        aria-label={
+                          count === 0
+                            ? `Nothing on ${formatKey(day)}`
+                            : `${count} question${count === 1 ? '' : 's'} on ${formatKey(day)}`
+                        }
                         className="js-cell-in block rounded-[3px] outline-offset-1 transition-transform hover:scale-125 focus-visible:outline-2 focus-visible:outline-accent"
                         style={{
                           // Washes across the grid on first paint only: these

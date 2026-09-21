@@ -10,6 +10,7 @@ import {
   countsByDay,
 } from '@/lib/derive';
 import { pct } from '@/lib/utils';
+import { formatKey } from '@/lib/date';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { StatTile } from '@/components/stat-tile';
 import { PageHeader } from '@/components/page-header';
@@ -38,7 +39,10 @@ export default async function AnalyticsPage() {
 
   const remaining = stats.overall.total - stats.overall.done;
   const perDay = stats.perActiveDay;
-  const etaDays = perDay > 0 ? Math.ceil(remaining / perDay) : null;
+  // `remaining === 0` gives an ETA of 0, which is falsy — finishing the whole
+  // sheet used to report "need more data" instead of saying you were done.
+  const finished = stats.overall.total > 0 && remaining === 0;
+  const etaDays = !finished && perDay > 0 ? Math.ceil(remaining / perDay) : null;
   const best = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
 
   return (
@@ -59,8 +63,8 @@ export default async function AnalyticsPage() {
         />
         <StatTile
           label="At this pace"
-          value={etaDays ? `${etaDays}d` : '—'}
-          sub={etaDays ? 'to finish' : 'need more data'}
+          value={finished ? 'Done' : etaDays ? `${etaDays}d` : '—'}
+          sub={finished ? 'every question' : etaDays ? 'to finish' : 'keep going to see this'}
         />
       </div>
 
@@ -85,9 +89,12 @@ export default async function AnalyticsPage() {
             <Row label="Active days" value={String(stats.activeDays)} />
             <Row
               label="Best day"
-              value={best ? `${best[1]} on ${best[0]}` : '—'}
+              value={best ? `${best[1]} on ${formatKey(best[0], 'd MMM yyyy')}` : '—'}
             />
-            <Row label="Last active" value={s.lastActive ?? '—'} />
+            <Row
+              label="Last active"
+              value={s.lastActive ? formatKey(s.lastActive, 'd MMM yyyy') : '—'}
+            />
           </CardContent>
         </Card>
 
@@ -96,7 +103,7 @@ export default async function AnalyticsPage() {
             <CardTitle>By difficulty</CardTitle>
             <CardDescription>
               {diff.unset.total > 0
-                ? `${diff.unset.total} questions have no difficulty set — the source sheet does not carry it.`
+                ? `${diff.unset.total} questions have no difficulty yet. Set one on any row and it shows up here.`
                 : 'Every question has a difficulty.'}
             </CardDescription>
           </CardHeader>

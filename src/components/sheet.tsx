@@ -65,10 +65,23 @@ export function Sheet({
   const index = useMemo(() => indexTasks(tasks, topicName), [tasks, topicName]);
 
   // Status filter first, then text. Both are cheap passes over the same array.
-  const visible = useMemo(() => {
-    const searched = searchIndexed(index, deferredQuery);
-    return applyFilter(searched, filter);
-  }, [index, deferredQuery, filter]);
+  // `searched` is kept because the filter chips need the same set to count
+  // against; recomputing it per chip meant five extra scans of 456 rows on
+  // every render, on the path that is already the expensive one.
+  const searched = useMemo(() => searchIndexed(index, deferredQuery), [index, deferredQuery]);
+  const visible = useMemo(() => applyFilter(searched, filter), [searched, filter]);
+
+  // One pass for all five chip counts, instead of five filters over the list.
+  const filterCounts = useMemo(() => {
+    const n = { all: searched.length, todo: 0, done: 0, bookmarked: 0, revisit: 0 };
+    for (const t of searched) {
+      if (t.done) n.done++;
+      else n.todo++;
+      if (t.bookmarked) n.bookmarked++;
+      if (t.revisit) n.revisit++;
+    }
+    return n;
+  }, [searched]);
 
   // Drives the top celebration tier: ticking the last undone question in the
   // whole area is the rarest moment in the app.
@@ -98,18 +111,49 @@ export function Sheet({
     return { bySection, byHeading };
   }, [tasks]);
 
+  /*
+   * Per-section done/total, from ONE pass over the task list.
+   *
+   * These come from every task in the section, never the filtered slice, so
+   * the numbers on a collapsed section do not change when you search. Derived
+   * separately from `sections` because they depend only on `tasks` — rebuilding
+   * them per keystroke was 18 x 456 wasted comparisons.
+   */
+  const sectionTotals = useMemo(() => {
+    const m = new Map<string, { done: number; total: number }>();
+    for (const t of tasks) {
+      for (const id of t.topicIds) {
+        const row = m.get(id) ?? { done: 0, total: 0 };
+        row.total++;
+        if (t.done) row.done++;
+        m.set(id, row);
+      }
+    }
+    return m;
+  }, [tasks]);
+
   // Per-section groups, in sheet order. Sections with nothing left after
   // filtering drop out entirely rather than showing an empty shell.
+  // Bucketed in one pass rather than filtering the whole list once per topic,
+  // which was 18 x 456 comparisons on every keystroke.
   const sections = useMemo(() => {
+    const byTopic = new Map<string, Task[]>();
+    for (const t of visible) {
+      for (const id of t.topicIds) {
+        const list = byTopic.get(id);
+        if (list) list.push(t);
+        else byTopic.set(id, [t]);
+      }
+    }
     const out: { topic: Topic; rows: Task[]; done: number; total: number }[] = [];
     for (const topic of topics) {
-      const rows = visible.filter((t) => t.topicIds.includes(topic.id));
-      if (!rows.length) continue;
-      const all = tasks.filter((t) => t.topicIds.includes(topic.id));
-      out.push({ topic, rows, done: all.filter((t) => t.done).length, total: all.length });
+      const rows = byTopic.get(topic.id);
+      if (!rows?.length) continue;
+      const totals = sectionTotals.get(topic.id) ?? { done: 0, total: 0 };
+      out.push({ topic, rows, done: totals.done, total: totals.total });
     }
     return out;
-  }, [topics, visible, tasks]);
+  }, [topics, visible, sectionTotals]);
 
   // The flat keyboard order: exactly what is on screen, top to bottom.
   const flat = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
@@ -228,15 +272,33 @@ export function Sheet({
     return () => window.removeEventListener('keydown', onKey);
   }, [flat, active, activeTask, help, query]);
 
-  // Move real focus to the cursor row so screen readers follow, Space toggles
-  // natively, and the browser scrolls it into view.
+  // Move real focus to the cursor row so screen readers follow and Space
+  // toggles natively, then put the row somewhere it can actually be seen.
+  //
+  // scrollIntoView({block:'nearest'}) is not enough on its own: it does nothing
+  // when the row is already inside the viewport, and "inside the viewport"
+  // includes the strip covered by the sticky search bar and heading band. A row
+  // walked to with `k` therefore sat underneath them — measured at 90px hidden
+  // — and scroll-margin never applied, because no scroll ever happened. So the
+  // occluded case is handled explicitly, and the offset is read from the same
+  // custom property the sticky elements use rather than repeated here.
   useEffect(() => {
     if (!activeTask) return;
     const el = root.current?.querySelector<HTMLElement>(
       `[data-row-id="${cssEscape(activeTask.id)}"] input[type="checkbox"]`,
     );
     el?.focus({ preventScroll: true });
-    el?.closest('li')?.scrollIntoView({ block: 'nearest' });
+    const row = el?.closest('li');
+    if (!row) return;
+
+    const chrome = stickyChrome(root.current);
+    const box = row.getBoundingClientRect();
+    if (box.top < chrome) {
+      // Behind the sticky chrome: nothing else will move it.
+      window.scrollBy({ top: box.top - chrome, behavior: 'auto' });
+    } else if (box.bottom > window.innerHeight) {
+      row.scrollIntoView({ block: 'nearest' });
+    }
   }, [activeTask]);
 
   // ---- command palette entries -----------------------------------------
@@ -277,10 +339,21 @@ export function Sheet({
   const compact = density === 'compact';
 
   return (
-    <div ref={root} className="space-y-3">
+    <div
+      ref={root}
+      className="space-y-3"
+      // Declared on the root because custom properties inherit downwards and
+      // the bands and rows are siblings of the bar, not its children.
+      style={{ ['--sheet-chrome' as string]: '146px' }}
+    >
       {/* Search and filters stay put while the list scrolls — on a page this
           long, having to scroll back to the top to search is the whole
-          problem. `top-14` clears the sticky nav bar. */}
+          problem. `top-14` clears the sticky nav bar.
+
+          --sheet-chrome is how far down the page is covered by sticky chrome:
+          the 56px nav plus this bar. Heading bands stick below it and keyboard
+          navigation scrolls rows clear of it, so the three cannot drift apart.
+          Measured at 146px; the bar is 90px tall. */}
       <div className="sticky top-14 z-20 -mx-3 space-y-2 border-b border-hairline bg-plane/90 px-3 pt-2 pb-2 backdrop-blur-md sm:-mx-4 sm:px-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1">
@@ -336,8 +409,7 @@ export function Sheet({
         {(['all', 'todo', 'done', 'bookmarked', 'revisit'] as const).map((key) => {
           // Counts reflect the current search, so the chips describe what
           // switching to them would actually show.
-          const base = searchIndexed(index, deferredQuery);
-          const count = applyFilter(base, key).length;
+          const count = filterCounts[key];
           return (
             <button
               key={key}
@@ -374,14 +446,18 @@ export function Sheet({
       </div>
       </div>
 
-      {/* ---- results ---- */}
-      {searching ? (
-        <p className="px-1 text-xs text-ink-muted" role="status" aria-live="polite">
-          {visible.length === 0
+      {/* ---- results ----
+          The live region is always mounted, and only its text changes. A region
+          inserted at the same moment as its content is not reliably announced —
+          screen readers watch regions that were already there, so the first
+          search result was the one most likely to be missed. */}
+      <p className="px-1 text-xs text-ink-muted empty:hidden" role="status" aria-live="polite">
+        {searching
+          ? visible.length === 0
             ? 'No matches'
-            : `${visible.length} match${visible.length === 1 ? '' : 'es'} across ${sections.length} section${sections.length === 1 ? '' : 's'}`}
-        </p>
-      ) : null}
+            : `${visible.length} match${visible.length === 1 ? '' : 'es'} across ${sections.length} section${sections.length === 1 ? '' : 's'}`
+          : ''}
+      </p>
 
       {sections.length === 0 ? (
         <Card>
@@ -526,6 +602,19 @@ function Chevron({ open }: { open: boolean }) {
       <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+}
+
+/**
+ * How much of the top of the page is covered by sticky chrome: the nav plus the
+ * sheet's search bar, plus a heading band's height. Read from the same custom
+ * property the sticky elements position against, so there is one number.
+ */
+const BAND_HEIGHT = 36;
+function stickyChrome(el: HTMLElement | null): number {
+  if (!el) return 56 + BAND_HEIGHT;
+  const raw = getComputedStyle(el).getPropertyValue('--sheet-chrome').trim();
+  const px = Number.parseFloat(raw);
+  return (Number.isFinite(px) ? px : 56) + BAND_HEIGHT;
 }
 
 /**
