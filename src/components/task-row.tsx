@@ -14,13 +14,17 @@ import { cn } from '@/lib/utils';
 
 /**
  * The difficulty chip is a filled mark carrying a label, so the label has to
- * clear contrast against its own fill — not against the page. The light end of
- * each skin's ordinal ramp therefore takes dark ink in both modes.
+ * clear contrast against its own fill, not against the page.
+ *
+ * The ink cannot be hardcoded here: each skin's ordinal ramp inverts between
+ * light and dark, so the step that is dark in one mode is light in the other.
+ * White on Rampart's dark-mode Medium measured 2.53:1. Each step now carries
+ * its own ink token, chosen beside the colour it has to sit on.
  */
 const CHIP: Record<string, { bg: string; fg: string }> = {
-  Easy: { bg: 'var(--diff-easy)', fg: '#0b0b0b' },
-  Medium: { bg: 'var(--diff-medium)', fg: '#ffffff' },
-  Hard: { bg: 'var(--diff-hard)', fg: '#ffffff' },
+  Easy: { bg: 'var(--diff-easy)', fg: 'var(--diff-easy-ink)' },
+  Medium: { bg: 'var(--diff-medium)', fg: 'var(--diff-medium-ink)' },
+  Hard: { bg: 'var(--diff-hard)', fg: 'var(--diff-hard-ink)' },
 };
 
 const LINK_LABEL = { tuf: 'Article', leetcode: 'LeetCode', gfg: 'GFG', youtube: 'Video' } as const;
@@ -297,7 +301,7 @@ function DifficultyPicker({
           !chip &&
             // Unset stays quiet until the row is hovered, so a mostly-blank
             // sheet is not a wall of placeholders. Always visible on touch.
-            'border border-dashed border-axis text-ink-muted opacity-70 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100',
+            'border border-dashed border-control text-ink-muted opacity-70 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100',
         )}
         style={chip ? { background: chip.bg, color: chip.fg } : undefined}
       >

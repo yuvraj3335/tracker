@@ -19,9 +19,12 @@
   --surface-2: #f2f1ed;
   --ink: #0b0b0b;
   --ink-2: #52514e;
-  --ink-muted: #898781;
+  --ink-muted: #706e69;
   --grid: #e1e0d9;
   --axis: #c3c2b7;
+  /* Boundary of an interactive control (the tick box). Must clear 3:1 on
+     surface AND surface-2; --axis is a chart hairline and is far too faint. */
+  --control: #8c8b81;
   --border: rgba(11, 11, 11, 0.10);
 
   /* categorical — fixed slot order, never cycled */
@@ -39,15 +42,20 @@
 
   /* ordinal difficulty — one hue, monotone lightness */
   --diff-easy: #86b6ef;
-  --diff-medium: #2a78d6;
+  --diff-medium: #2472d0;
   --diff-hard: #104281;
+  /* Ink for a filled difficulty chip: the label sits on the chip, not the
+     page, and the ramp inverts between modes — so this is chosen per step. */
+  --diff-easy-ink: #0b0b0b;
+  --diff-medium-ink: #ffffff;
+  --diff-hard-ink: #ffffff;
 
   --good: #0ca30c;
   --good-text: #006300;
   --warning: #fab219;
-  --critical: #d03b3b;
+  --critical: #c22c2f;
 
-  --accent: #2a78d6;
+  --accent: #2472d0;
   --accent-ink: #ffffff;
 }
 
@@ -60,9 +68,10 @@
     --surface-2: #232322;
     --ink: #ffffff;
     --ink-2: #c3c2b7;
-    --ink-muted: #898781;
+    --ink-muted: #8c8a84;
     --grid: #2c2c2a;
     --axis: #383835;
+    --control: #6d6d69;
     --border: rgba(255, 255, 255, 0.10);
 
     --series-1: #3987e5;
@@ -80,11 +89,14 @@
     --diff-easy: #9ec5f4;
     --diff-medium: #3987e5;
     --diff-hard: #184f95;
+    --diff-easy-ink: #0b0b0b;
+    --diff-medium-ink: #0b0b0b;
+    --diff-hard-ink: #ffffff;
 
     --good: #0ca30c;
     --good-text: #0ca30c;
     --warning: #fab219;
-    --critical: #d03b3b;
+    --critical: #f65f5a;
 
     --accent: #3987e5;
     --accent-ink: #0b0b0b;
@@ -99,9 +111,10 @@
   --surface-2: #232322;
   --ink: #ffffff;
   --ink-2: #c3c2b7;
-  --ink-muted: #898781;
+  --ink-muted: #8c8a84;
   --grid: #2c2c2a;
   --axis: #383835;
+  --control: #6d6d69;
   --border: rgba(255, 255, 255, 0.10);
 
   --series-1: #3987e5;
@@ -118,11 +131,14 @@
   --diff-easy: #9ec5f4;
   --diff-medium: #3987e5;
   --diff-hard: #184f95;
+  --diff-easy-ink: #0b0b0b;
+  --diff-medium-ink: #0b0b0b;
+  --diff-hard-ink: #ffffff;
 
   --good: #0ca30c;
   --good-text: #0ca30c;
   --warning: #fab219;
-  --critical: #d03b3b;
+  --critical: #f65f5a;
 
   --accent: #3987e5;
   --accent-ink: #0b0b0b;
@@ -137,6 +153,7 @@
   --color-ink-muted: var(--ink-muted);
   --color-grid: var(--grid);
   --color-axis: var(--axis);
+  --color-control: var(--control);
   --color-hairline: var(--border);
 
   --color-series-1: var(--series-1);
@@ -153,6 +170,9 @@
   --color-diff-easy: var(--diff-easy);
   --color-diff-medium: var(--diff-medium);
   --color-diff-hard: var(--diff-hard);
+  --color-diff-easy-ink: var(--diff-easy-ink);
+  --color-diff-medium-ink: var(--diff-medium-ink);
+  --color-diff-hard-ink: var(--diff-hard-ink);
 
   --color-good: var(--good);
   --color-good-text: var(--good-text);
@@ -254,13 +274,14 @@ body {
   --surface-2: #e8e5d9;
   --ink: #14181a;
   --ink-2: #4a524f;
-  --ink-muted: #7d857f;
+  --ink-muted: #616863;
   --grid: #dcd8c9;
   --axis: #b9b5a4;
+  --control: #878373;
   --border: rgba(20, 24, 26, 0.12);
 
   --seq-0: #e3e0d2;
-  --seq-1: #cce9e3;
+  --seq-1: #bbd8d2;
   --seq-2: #8fd0c4;
   --seq-3: #0f7a6b;
   --seq-4: #0a4f45;
@@ -268,6 +289,9 @@ body {
   --diff-easy: #4fb3a1;
   --diff-medium: #0f7a6b;
   --diff-hard: #0a4f45;
+  --diff-easy-ink: #0b0b0b;
+  --diff-medium-ink: #ffffff;
+  --diff-hard-ink: #ffffff;
 
   --accent: #0f7a6b;
   --accent-ink: #ffffff;
@@ -283,9 +307,10 @@ body {
     --surface-2: #262c30;
     --ink: #f4f2ea;
     --ink-2: #b9c0bc;
-    --ink-muted: #828b87;
+    --ink-muted: #8b9490;
     --grid: #2e353a;
     --axis: #3d454a;
+    --control: #6c757a;
     --border: rgba(244, 242, 234, 0.12);
 
     --seq-0: #242a2e;
@@ -297,6 +322,9 @@ body {
     --diff-easy: #8fd0c4;
     --diff-medium: #4fb3a1;
     --diff-hard: #0f7a6b;
+    --diff-easy-ink: #0b0b0b;
+    --diff-medium-ink: #0b0b0b;
+    --diff-hard-ink: #ffffff;
 
     --accent: #14a08c;
     --accent-ink: #08110f;
@@ -309,9 +337,10 @@ body {
   --surface-2: #262c30;
   --ink: #f4f2ea;
   --ink-2: #b9c0bc;
-  --ink-muted: #828b87;
+  --ink-muted: #8b9490;
   --grid: #2e353a;
   --axis: #3d454a;
+  --control: #6c757a;
   --border: rgba(244, 242, 234, 0.12);
 
   --seq-0: #242a2e;
@@ -323,6 +352,9 @@ body {
   --diff-easy: #8fd0c4;
   --diff-medium: #4fb3a1;
   --diff-hard: #0f7a6b;
+  --diff-easy-ink: #0b0b0b;
+  --diff-medium-ink: #0b0b0b;
+  --diff-hard-ink: #ffffff;
 
   --accent: #14a08c;
   --accent-ink: #08110f;
@@ -335,13 +367,14 @@ body {
   --surface-2: #f6ecf7;
   --ink: #241b2e;
   --ink-2: #5c4f68;
-  --ink-muted: #8d8197;
+  --ink-muted: #74687e;
   --grid: #ece0f0;
   --axis: #cfc0d8;
+  --control: #93859c;
   --border: rgba(36, 27, 46, 0.10);
 
   --seq-0: #f0e7f3;
-  --seq-1: #e6dcf7;
+  --seq-1: #d8cee9;
   --seq-2: #c5aeee;
   --seq-3: #7c4dcc;
   --seq-4: #4e2d85;
@@ -349,6 +382,9 @@ body {
   --diff-easy: #9d7ee0;
   --diff-medium: #7c4dcc;
   --diff-hard: #4e2d85;
+  --diff-easy-ink: #0b0b0b;
+  --diff-medium-ink: #ffffff;
+  --diff-hard-ink: #ffffff;
 
   --accent: #7c4dcc;
   --accent-ink: #ffffff;
@@ -364,9 +400,10 @@ body {
     --surface-2: #2a2338;
     --ink: #f7f2fb;
     --ink-2: #c8bcd6;
-    --ink-muted: #8f84a0;
+    --ink-muted: #9388a4;
     --grid: #322a42;
     --axis: #44394f;
+    --control: #776b83;
     --border: rgba(247, 242, 251, 0.12);
 
     --seq-0: #261f33;
@@ -378,6 +415,9 @@ body {
     --diff-easy: #c5aeee;
     --diff-medium: #9d7ee0;
     --diff-hard: #7c4dcc;
+    --diff-easy-ink: #0b0b0b;
+    --diff-medium-ink: #0b0b0b;
+    --diff-hard-ink: #ffffff;
 
     --accent: #a084e8;
     --accent-ink: #14101b;
@@ -390,9 +430,10 @@ body {
   --surface-2: #2a2338;
   --ink: #f7f2fb;
   --ink-2: #c8bcd6;
-  --ink-muted: #8f84a0;
+  --ink-muted: #9388a4;
   --grid: #322a42;
   --axis: #44394f;
+  --control: #776b83;
   --border: rgba(247, 242, 251, 0.12);
 
   --seq-0: #261f33;
@@ -404,6 +445,9 @@ body {
   --diff-easy: #c5aeee;
   --diff-medium: #9d7ee0;
   --diff-hard: #7c4dcc;
+  --diff-easy-ink: #0b0b0b;
+  --diff-medium-ink: #0b0b0b;
+  --diff-hard-ink: #ffffff;
 
   --accent: #a084e8;
   --accent-ink: #14101b;

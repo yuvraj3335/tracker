@@ -11,8 +11,13 @@ import { cn } from '@/lib/utils';
  * overshoot curve, which reads as a small pop without needing an animation that
  * has to be re-triggered on every change.
  *
- * 44px of tappable padding around an 20px box — comfortably above the
- * minimum touch target, without making the row taller.
+ * The box is 20px with 12px of padding on every side, so the tappable area is
+ * 44x44 — the WCAG 2.5.8 enhanced target — without making the row any taller,
+ * because the padding is cancelled by an equal negative margin.
+ *
+ * The border uses --control, not --axis: an unchecked box is a control whose
+ * state is carried entirely by that outline, so it has to clear 3:1 against the
+ * surface. --axis is a chart hairline and measured 1.48:1 in dark mode.
  */
 export function Check({
   checked,
@@ -26,7 +31,7 @@ export function Check({
   className?: string;
 }) {
   return (
-    <label className={cn('group/check -m-2.5 inline-flex cursor-pointer p-2.5', className)}>
+    <label className={cn('group/check -m-3 inline-flex cursor-pointer p-3', className)}>
       <input
         type="checkbox"
         checked={checked}
@@ -36,7 +41,7 @@ export function Check({
       />
       <span
         className={cn(
-          'grid size-5 shrink-0 place-items-center rounded-[6px] border-2 border-axis bg-surface',
+          'grid size-5 shrink-0 place-items-center rounded-[6px] border-2 border-control bg-surface',
           'transition-colors duration-150',
           'group-hover/check:border-accent',
           'peer-checked:border-accent peer-checked:bg-accent',

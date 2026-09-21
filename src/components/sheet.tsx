@@ -422,7 +422,7 @@ export function Sheet({
                       {/* The one section worth opening first, named rather than
                           left for you to hunt for. */}
                       {!searching && topic.id === resumeId ? (
-                        <span className="skin-pill shrink-0 bg-accent/12 px-1.5 py-0.5 text-micro font-semibold text-accent">
+                        <span className="skin-pill shrink-0 bg-accent px-1.5 py-0.5 text-micro font-semibold text-accent-ink">
                           Continue
                         </span>
                       ) : null}
