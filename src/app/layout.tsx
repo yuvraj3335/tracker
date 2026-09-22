@@ -4,6 +4,7 @@ import { Nav } from '@/components/nav';
 import { CelebrationLayer } from '@/components/celebration';
 import { CharacterProvider } from '@/components/character-provider';
 import { CommandPalette } from '@/components/command-palette';
+import { CompanionLayer } from '@/components/companion-layer';
 import { UndoToast } from '@/components/undo-toast';
 import { currentUser } from '@/lib/tenant';
 import { discoverCharacters } from '@/lib/characters.server';
@@ -61,6 +62,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <UndoToast />
           {/* Cmd-K anywhere. Renders nothing until first opened. */}
           <CommandPalette />
+          {/* The character, loose on the page. Renders nothing at all until a
+              character has been chosen, so a fresh checkout is unchanged. */}
+          <CompanionLayer />
         </CharacterProvider>
       </body>
     </html>

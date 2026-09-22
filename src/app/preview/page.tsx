@@ -193,6 +193,12 @@ export default function PreviewPage() {
         <FocusTimer />
       </Section>
 
+      {/* Every figure on this page is a live WebGL canvas, and browsers cap
+          those at about sixteen per document — this harness renders roughly
+          nineteen, so the last few come up blank with "Too many active WebGL
+          contexts" in the console. That is this page showing everything at
+          once, not a bug in the figures: the real routes peak at four (the
+          hero, a mood figure, the celebration overlay and the companion). */}
       <Section title="Character poses">
         <Card>
           <CardContent className="flex flex-wrap items-end gap-6 pt-4">

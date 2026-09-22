@@ -45,7 +45,14 @@ const SIZE = 104;
 const SAFE_DESKTOP: Safe = { top: 68, right: 16, bottom: 20, left: 16 };
 const SAFE_PHONE: Safe = { top: 68, right: 12, bottom: 96, left: 12 };
 
-export function Companion({ onOpen }: { onOpen?: () => void }) {
+export function Companion({
+  onOpen,
+  overridePose,
+}: {
+  onOpen?: () => void;
+  /** Wins over every reaction — it is a state, not a moment. */
+  overridePose?: Pose | null;
+}) {
   const pathname = usePathname();
   const character = useActiveCharacter();
   const stored = useSyncExternalStore(subscribeCompanion, getCompanionPosition, serverCompanionPosition);
@@ -59,7 +66,6 @@ export function Companion({ onOpen }: { onOpen?: () => void }) {
   const [dragging, setDragging] = useState(false);
   const [reaction, setReaction] = useState<Pose | null>(null);
 
-  const node = useRef<HTMLDivElement>(null);
   const grab = useRef<{ dx: number; dy: number; x: number; y: number; moved: boolean } | null>(null);
   const pokes = useRef<number[]>([]);
   const lastTap = useRef(0);
@@ -112,13 +118,16 @@ export function Companion({ onOpen }: { onOpen?: () => void }) {
   }
 
   // ---- pointer -----------------------------------------------------------
-  function onPointerDown(e: React.PointerEvent) {
+  function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     if (!position) return;
-    node.current?.setPointerCapture(e.pointerId);
+    // Captured on the element the handlers are actually on. Capturing on the
+    // wrapper instead redirects every subsequent pointermove to an element
+    // with no listener, and the drag silently does nothing.
+    e.currentTarget.setPointerCapture(e.pointerId);
     grab.current = { dx: e.clientX - position.x, dy: e.clientY - position.y, x: e.clientX, y: e.clientY, moved: false };
   }
 
-  function onPointerMove(e: React.PointerEvent) {
+  function onPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
     const held = grab.current;
     if (!held) return;
     if (!held.moved && Math.hypot(e.clientX - held.x, e.clientY - held.y) < TAP_SLOP) return;
@@ -131,10 +140,12 @@ export function Companion({ onOpen }: { onOpen?: () => void }) {
     move({ x: e.clientX - held.dx, y: e.clientY - held.dy });
   }
 
-  function onPointerUp(e: React.PointerEvent) {
+  function onPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
     const held = grab.current;
     grab.current = null;
-    node.current?.releasePointerCapture?.(e.pointerId);
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     if (!held) return;
 
     if (held.moved) {
@@ -184,11 +195,12 @@ export function Companion({ onOpen }: { onOpen?: () => void }) {
   if (!character || dismissed || !position) return null;
   if (BARE_ROUTES.some((p) => pathname.startsWith(p))) return null;
 
-  const pose: Pose = dragging ? 'floating' : (reaction ?? 'idle');
+  // Being carried beats everything; working out a reply beats a reaction that
+  // has already happened; otherwise it is whatever it was last poked into.
+  const pose: Pose = dragging ? 'floating' : (overridePose ?? reaction ?? 'idle');
 
   return (
     <div
-      ref={node}
       // Below the nav (z-30) and the celebration overlay (z-40) on purpose, so
       // it can never take a click meant for a tab or sit over a celebration.
       className="fixed z-20 touch-none select-none"
@@ -204,7 +216,7 @@ export function Companion({ onOpen }: { onOpen?: () => void }) {
         onPointerCancel={onPointerUp}
         onKeyDown={onKeyDown}
         className={cn(
-          'skin-pill grid size-full place-items-center rounded-full transition-[transform,background-color]',
+          'skin-pill grid size-full touch-none place-items-center rounded-full transition-[transform,background-color]',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
           'hover:bg-accent/10 active:scale-95',
           dragging ? 'cursor-grabbing bg-accent/10' : 'cursor-grab',
