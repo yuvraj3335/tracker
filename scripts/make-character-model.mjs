@@ -493,6 +493,10 @@ const MESHES = {
     geometry: tube([[-0.039, -0.01], [-0.02, 0.004], [0, 0.009], [0.02, 0.004], [0.039, -0.01]], 0.01),
     material: MAT.mouth,
   },
+  // Scaled away at rest. Only `talking` opens it, and it opens on an uneven
+  // rhythm rather than a metronome — evenly spaced is what makes a talking
+  // mouth read as a machine.
+  mouthOpen: { geometry: sphere(0.03, 16, 12), material: MAT.mouth },
 
   brim: { geometry: lathe(BRIM, 36), material: MAT.hat },
   cone: { geometry: lathe(HAT_CONE, 36), material: MAT.hat, tint: below(0.275, 0.52, 0.14) },
@@ -639,7 +643,7 @@ const NODES = [
       'bang1', 'bang2', 'bang3', 'bang4', 'bang5', 'bang6', 'bang7',
       'earL', 'earR', 'nose',
       'eyeL', 'eyeR', 'browL', 'browR', 'blushL', 'blushR', 'tearL', 'tearR',
-      'mouthSmile', 'mouthFrown', 'hat',
+      'mouthSmile', 'mouthFrown', 'mouthOpen', 'hat',
     ],
   },
   { name: 'hairBack', mesh: 'hairBack', translation: [0, -0.04, -0.115], scale: [1.12, 1.05, 1] },
@@ -673,6 +677,7 @@ const NODES = [
   // into a frown by scaling it, and node transforms are all a clip can drive.
   { name: 'mouthSmile', mesh: 'mouthSmile', translation: [0, -0.165, 0.218] },
   { name: 'mouthFrown', mesh: 'mouthFrown', translation: [0, -0.165, 0.218], scale: [0.001, 0.001, 0.001] },
+  { name: 'mouthOpen', mesh: 'mouthOpen', translation: [0, -0.172, 0.208], scale: [0.001, 0.001, 0.001] },
 
   { name: 'hat', children: ['brim', 'cone', 'hatBand', 'star', 'hatTip'] },
   { name: 'brim', mesh: 'brim' },
@@ -1063,6 +1068,64 @@ const CLIPS = [
         [SHOWN, [1.7, 1.7, 1.7], SHOWN, [1.6, 1.6, 1.6], SHOWN]),
       size('sparkB', [0, 0.45, 0.9, 1.2], [SHOWN, [1.6, 1.6, 1.6], [1.3, 1.3, 1.3], SHOWN]),
       size('sparkC', [0, 0.2, 0.75, 1.2], [SHOWN, [1.8, 1.8, 1.8], [1.2, 1.2, 1.2], SHOWN]),
+    ],
+  },
+  {
+    // Speaking. The mouth opens and closes on an uneven rhythm — evenly spaced
+    // is what makes a talking mouth read as a machine — and the head and one
+    // hand move with it, because people gesture when they talk and a figure
+    // that only moves its mouth looks like a puppet.
+    name: 'talking',
+    tracks: [
+      move('root', [0, 0.35, 0.7, 1.05, 1.4], [[0, 0, 0], [0, 0.012, 0], [0, 0, 0], [0, 0.014, 0], [0, 0, 0]]),
+      turn('neck', [0, 0.22, 0.48, 0.74, 1.02, 1.28, 1.4],
+        [[0, 0, 0], [-4, 2, 1.5], [2, -2, -1], [-3, 3, 2], [1, -1, -1.5], [-2, 1, 0.5], [0, 0, 0]]),
+      turn('hatTip', [0, 0.35, 0.7, 1.05, 1.4],
+        [[10, 0, -38], [13, 0, -44], [9, 0, -34], [12, 0, -42], [10, 0, -38]]),
+      // One hand does the talking, the other stays with the staff.
+      turn('upperArmL', [0, 0.3, 0.6, 0.9, 1.4],
+        [[-6, 0, -34], [-14, 0, -46], [-8, 0, -30], [-16, 0, -44], [-6, 0, -34]]),
+      turn('foreArmL', [0, 0.3, 0.6, 0.9, 1.4],
+        [[-38, 0, -16], [-54, 0, -26], [-34, 0, -12], [-50, 0, -24], [-38, 0, -16]]),
+      turn('upperArmR', [0, 0.7, 1.4], [[0, 0, 21], [0, 0, 24], [0, 0, 21]]),
+      turn('foreArmR', [0, 0.7, 1.4], [[-8, 0, 8], [-10, 0, 10], [-8, 0, 8]]),
+      size('mouthSmile', [0, 1.4], [HIDDEN, HIDDEN]),
+      // Syllables. The gaps are deliberately unequal.
+      size('mouthOpen', [0, 0.1, 0.19, 0.26, 0.4, 0.52, 0.6, 0.74, 0.86, 0.95, 1.1, 1.22, 1.31, 1.4],
+        [[1, 0.35, 1], [1, 1.15, 1], [1, 0.4, 1], [1, 0.95, 1], [1, 0.3, 1], [1, 1.2, 1],
+         [1, 0.45, 1], [1, 1, 1], [1, 0.3, 1], [1, 1.1, 1], [1, 0.4, 1], [1, 0.9, 1],
+         [1, 0.35, 1], [1, 0.35, 1]]),
+      ...eyes([0, 0.9, 0.97, 1.04, 1.4], [SHOWN, SHOWN, [1, 0.08, 1], SHOWN, SHOWN]),
+      ...brows([0, 0.35, 0.7, 1.05, 1.4], [0, -5, 1, -4, 0]),
+      size('orb', [0, 0.7, 1.4], [SHOWN, [1.12, 1.12, 1.12], SHOWN]),
+    ],
+  },
+  {
+    // Listening. Head tilted and leaning in, eyes a touch wider, a hand
+    // cupped up toward the ear, and the orb breathing slowly so there is
+    // something alive on screen while it waits for you.
+    name: 'listening',
+    tracks: [
+      move('root', [0, 1.3, 2.6], [[0, 0.006, 0], [0, 0.026, 0], [0, 0.006, 0]]),
+      turn('body', [0, 1.3, 2.6], [[-3, 0, 0], [-4.5, 0, 0], [-3, 0, 0]]),
+      turn('neck', [0, 0.65, 1.3, 1.95, 2.6],
+        [[-5, -4, 11], [-6, -5, 13], [-5, -3, 10], [-6, -5, 12], [-5, -4, 11]]),
+      turn('hatTip', [0, 0.65, 1.3, 1.95, 2.6],
+        [[14, 0, -30], [17, 0, -24], [14, 0, -32], [17, 0, -26], [14, 0, -30]]),
+      // A hand up by the ear. The single clearest way to draw "go on".
+      turn('upperArmL', [0, 1.3, 2.6], [[0, 0, -58], [0, 0, -61], [0, 0, -58]]),
+      turn('foreArmL', [0, 1.3, 2.6], [[-16, 0, -74], [-18, 0, -77], [-16, 0, -74]]),
+      turn('upperArmR', [0, 1.3, 2.6], [[0, 0, 20], [0, 0, 22], [0, 0, 20]]),
+      turn('foreArmR', [0, 1.3, 2.6], [[-8, 0, 8], [-9, 0, 9], [-8, 0, 8]]),
+      ...eyes([0, 1.05, 1.12, 1.19, 2.6],
+        [[1.06, 1.06, 1], [1.06, 1.06, 1], [1.06, 0.08, 1], [1.06, 1.06, 1], [1.06, 1.06, 1]]),
+      ...brows([0, 1.3, 2.6], [-3, -5, -3]),
+      size('mouthSmile', [0, 1.3, 2.6], [[0.72, 0.8, 1], [0.66, 0.75, 1], [0.72, 0.8, 1]]),
+      size('orb', [0, 0.65, 1.3, 1.95, 2.6],
+        [SHOWN, [1.3, 1.3, 1.3], SHOWN, [1.28, 1.28, 1.28], SHOWN]),
+      move('sparkA', [0, 1.3, 2.6], [[0.1, 0.74, 0.02], [0.08, 0.78, 0.06], [0.1, 0.74, 0.02]]),
+      move('sparkB', [0, 1.3, 2.6], [[-0.095, 0.725, -0.03], [-0.07, 0.765, -0.06], [-0.095, 0.725, -0.03]]),
+      move('sparkC', [0, 1.3, 2.6], [[0.01, 0.8, 0.01], [0.0, 0.845, 0.02], [0.01, 0.8, 0.01]]),
     ],
   },
 ];

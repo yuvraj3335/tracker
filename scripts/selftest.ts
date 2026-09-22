@@ -458,7 +458,9 @@ async function main() {
     check('casting degrades through focused', poseChain('casting').join('>') === 'casting>focused>idle');
     check('angry never borrows a mood', poseChain('angry').join('>') === 'angry>idle');
     check('floating never borrows a mood', poseChain('floating').join('>') === 'floating>idle');
-    check('there are twelve poses', POSES.length === 12, String(POSES.length));
+    check('talking degrades straight to idle', poseChain('talking').join('>') === 'talking>idle');
+    check('listening degrades straight to idle', poseChain('listening').join('>') === 'listening>idle');
+    check('there are fourteen poses', POSES.length === 14, String(POSES.length));
 
     // A character that ships a rendered model has no pose images at all, and
     // must still count as renderable — otherwise the picker hides it and the

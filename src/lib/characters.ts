@@ -21,6 +21,7 @@ import type { PerformanceMood } from './derive';
 export const POSES = [
   'idle', 'celebrate', 'milestone', 'sad', 'concerned', 'focused',
   'crying', 'laughing', 'angry', 'floating', 'jumping', 'casting',
+  'talking', 'listening',
 ] as const;
 export type Pose = (typeof POSES)[number];
 
@@ -97,6 +98,12 @@ const FALLBACK: Record<Pose, Pose[]> = {
   floating: ['floating', 'idle'],
   jumping: ['jumping', 'celebrate', 'idle'],
   casting: ['casting', 'focused', 'idle'],
+  // The two conversation states. Both drop straight to idle: a character that
+  // cannot show you it is talking or listening should stand still rather than
+  // borrow a mood, because either stand-in would be actively misleading about
+  // whose turn it is.
+  talking: ['talking', 'idle'],
+  listening: ['listening', 'idle'],
 };
 
 /**

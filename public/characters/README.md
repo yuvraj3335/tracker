@@ -53,6 +53,8 @@ public/characters/
     floating.webp     optional — falls back to idle
     jumping.webp      optional — falls back to celebrate, then idle
     casting.webp      optional — falls back to focused, then idle
+    talking.webp      optional — falls back to idle
+    listening.webp    optional — falls back to idle
 ```
 
 The **folder name is the character id**. It must be letters, digits, `-` and `_`
@@ -79,13 +81,14 @@ breaks the page; the mascot fallback covers it.
 | `floating` | The companion is picked up and being dragged. |
 | `jumping` | The companion is put back down, or nudged with the keyboard. |
 | `casting` | The companion is working out a reply. |
+| `talking` | The companion is saying something out loud. |
+| `listening` | The companion has the microphone open, waiting for you. |
 
 Only `idle` is required. A character with just `idle.webp` works everywhere;
 every other pose resolves through the fallback chain above, so a missing file is
-never a 404. Drawing `idle`, `celebrate` and `sad` covers all twelve sensibly:
+never a 404. Drawing `idle`, `celebrate` and `sad` covers all fourteen sensibly:
 `milestone`, `laughing` and `jumping` borrow `celebrate`, `concerned` and
-`crying` borrow `sad`, and `focused`, `casting`, `angry` and `floating` fall
-back to `idle`.
+`crying` borrow `sad`, and the rest fall back to `idle`.
 
 ## A rendered model instead of images
 
