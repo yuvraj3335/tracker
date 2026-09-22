@@ -513,9 +513,9 @@ async function main() {
   // dropped a pose, broke the container, or started claiming a licence would
   // otherwise only show up in a browser.
   // -----------------------------------------------------------------------
-  section('Shipped character (pip)');
+  section('Shipped character (miso)');
   {
-    const dir = join(process.cwd(), 'public', 'characters', 'pip');
+    const dir = join(process.cwd(), 'public', 'characters', 'miso');
     const glb = readFileSync(join(dir, 'model.glb'));
     check('the model is a glTF binary', glb.readUInt32LE(0) === 0x46546c67);
     check('it is glTF 2.0', glb.readUInt32LE(4) === 2);
@@ -551,18 +551,18 @@ async function main() {
     // cached after one fetch.
     check(`the model is under 550 KB (${(glb.length / 1024).toFixed(0)} KB)`, glb.length < 550 * 1024);
 
-    const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'pip');
+    const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'miso');
     check('its meta passes the same validation every character does', meta !== null);
     check('it credits the generator, not a person', /generated for this project/i.test(meta?.artist ?? ''));
     check('it claims only the licence it has', /original work/i.test(meta?.license ?? ''));
     check('it claims no source it does not have', !meta?.source);
     check('it ships its own voice lines', Boolean(meta?.lines?.cheer?.length && meta?.lines?.idle?.length));
 
-    const pip = discoverCharacters().find((c) => c.id === 'pip');
-    check('discovery finds it', Boolean(pip));
-    check('discovery exposes the model, not pose images', pip?.model === '/characters/pip/model.glb');
-    check('it has no pose images to fall back to', Object.keys(pip?.poses ?? {}).length === 0);
-    check('and is renderable anyway', isRenderable(pip));
+    const miso = discoverCharacters().find((c) => c.id === 'miso');
+    check('discovery finds it', Boolean(miso));
+    check('discovery exposes the model, not pose images', miso?.model === '/characters/miso/model.glb');
+    check('it has no pose images to fall back to', Object.keys(miso?.poses ?? {}).length === 0);
+    check('and is renderable anyway', isRenderable(miso));
   }
 
   section('Character voice');
@@ -1172,13 +1172,13 @@ async function main() {
   section('Companion prompt');
   {
     const wizard: Character = {
-      id: 'w', name: 'Pipsqueak', artist: 'a', license: 'l', source: '',
+      id: 'w', name: 'Thistle', artist: 'a', license: 'l', source: '',
       poses: { idle: '/i.webp' },
       lines: { cheer: ['One down.', 'Neat.'], idle: ['Ready when you are.'] },
     };
 
     const prompt = systemPrompt(wizard);
-    check('the character is named to the model', prompt.includes('Pipsqueak'));
+    check('the character is named to the model', prompt.includes('Thistle'));
     check('its own lines set the tone', prompt.includes('One down.') && prompt.includes('Ready when you are.'));
     // The one unacceptable failure: a companion that invents a streak.
     check('the model is told it cannot see their progress', /cannot see their progress/i.test(prompt));

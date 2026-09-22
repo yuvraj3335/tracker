@@ -95,14 +95,21 @@ export function useCharacterCatalog(): readonly Character[] {
 }
 
 /**
- * The character this device has selected, or null.
+ * The character in use.
  *
- * Null covers three cases that all render identically: nothing installed,
- * nothing chosen, and a stored id whose folder has since been removed. The last
- * one matters — a stale localStorage value must not blank the figure out.
+ * Falls back to the first installed one rather than to nothing. The app ships
+ * a character now, so "none chosen" is not a state worth having — it only ever
+ * meant a blank corner where the figure should be. A stored id whose folder
+ * has since been removed lands here too, which is what makes renaming the
+ * shipped character self-healing rather than something that blanks it out for
+ * everyone who had already picked it.
+ *
+ * Null survives for exactly one case: no characters installed at all, which is
+ * what a checkout with the folder deleted looks like, and which still falls
+ * back to the built-in SVG mascots.
  */
 export function useActiveCharacter(): Character | null {
   const catalog = useCharacterCatalog();
   const id = useSyncExternalStore(subscribe, getCharacter, serverCharacter);
-  return useMemo(() => resolveCharacter(catalog, id), [catalog, id]);
+  return useMemo(() => resolveCharacter(catalog, id) ?? catalog[0] ?? null, [catalog, id]);
 }

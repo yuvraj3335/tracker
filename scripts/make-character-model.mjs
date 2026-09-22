@@ -1,5 +1,5 @@
 /**
- * Builds the shipped character, "Pip", as an original glTF 2.0 binary.
+ * Builds the shipped character, "Miso", as an original glTF 2.0 binary.
  *
  *   npm run make:character
  *
@@ -8,10 +8,10 @@
  * from anywhere: the geometry is revolved, swept and extruded from the profiles
  * in this file, the palette is chosen here, and the six pose clips are
  * keyframed here. That is the whole provenance of
- * `public/characters/pip/model.glb`, and it is why that one folder is the only
+ * `public/characters/miso/model.glb`, and it is why that one folder is the only
  * exception to the blanket ignore rule on public/characters.
  *
- * WHO PIP IS
+ * WHO MISO IS
  * A small apprentice wizard, drawn in chibi proportions — a head nearly half
  * the total height, very large eyes, a floppy pointed hat and a staff almost
  * too big to hold. Chibi is not a shortcut here, it is the right answer to the
@@ -31,7 +31,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'characters', 'pip');
+const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'characters', 'miso');
 
 // ---------------------------------------------------------------------------
 // Colour. glTF factors are LINEAR, not sRGB — handing it a hex triple directly
@@ -363,7 +363,7 @@ const torus = (R, r, segments = 20, rings = 10) =>
   );
 
 // ---------------------------------------------------------------------------
-// Pip.
+// Miso.
 //
 // Proportions are stylised-anime rather than super-deformed: roughly two and
 // three quarter heads tall, with a neck, a waist, jointed arms and visible
@@ -1238,8 +1238,8 @@ function toGlb({ json, binary }) {
  * so applying it would repaint half the themes and not the other half.
  */
 const META = {
-  id: 'pip',
-  name: 'Pip',
+  id: 'miso',
+  name: 'Miso',
   artist: 'Generated for this project by scripts/make-character-model.mjs',
   license: 'Original work, generated for this project',
   lines: {
@@ -1253,5 +1253,5 @@ const glb = toGlb(buildGltf());
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(join(OUT_DIR, 'model.glb'), glb);
 writeFileSync(join(OUT_DIR, 'meta.json'), JSON.stringify(META, null, 2) + '\n');
-console.log(`pip/model.glb  ${(glb.length / 1024).toFixed(1)} KB`);
-console.log(`pip/meta.json  ${CLIPS.length} poses: ${CLIPS.map((c) => c.name).join(', ')}`);
+console.log(`miso/model.glb  ${(glb.length / 1024).toFixed(1)} KB`);
+console.log(`miso/meta.json  ${CLIPS.length} poses: ${CLIPS.map((c) => c.name).join(', ')}`);

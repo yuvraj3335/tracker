@@ -160,7 +160,7 @@ to land with the tap, not a second later.
   painted entirely with theme tokens, so they restyle themselves and there is no
   per-theme artwork to maintain. They evoke a genre rather than copying any
   studio's characters — which is what makes this safe to deploy publicly.
-- **So is the third one.** `Pip` is a rendered character rather than an SVG —
+- **So is the third one.** `Miso` is a rendered character rather than an SVG —
   a small apprentice wizard with a floppy pointed hat, a staff with a lit orb,
   and a hat point that droops further the worse things are going. The
   proportions are stylised rather than super-deformed: about two and three
@@ -173,7 +173,7 @@ to land with the tap, not a second later.
   one rig, which is what makes them the same character in six states by
   construction rather than by six drawings agreeing with each other. Pick it
   from the sparkle icon in the nav.
-**The companion.** Once a character is chosen it comes loose onto the page:
+**The companion.** `Miso` comes loose onto the page:
 drag it anywhere, poke it, or click it to talk. Position is per device and is
 clamped on every read, so a spot saved on a wide window cannot strand it
 off-screen. Arrow keys nudge it, Shift+arrow moves it further and Home sends it

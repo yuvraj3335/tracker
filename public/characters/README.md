@@ -4,15 +4,16 @@ Drop a folder in here and the app picks it up. Nothing in `src/` lists
 characters — discovery is a filesystem walk, so adding art never means editing
 code.
 
-**This folder ships one character, and it is not installed artwork.** `pip/`
+**This folder ships one character, and it is not installed artwork.** `miso/`
 is generated in full by `scripts/make-character-model.mjs` — every vertex,
 material and animation clip — which is why it is the single, narrowly-scoped
 exception to the ignore rule on this directory. Everything else you drop in here
 stays ignored.
 
-With no character *selected*, the app falls back to the original SVG mascots in
-`src/components/mascot.tsx`, which are drawn from scratch and themed from design
-tokens. That is still the default look, not a degraded one.
+With nothing installed at all — the folder emptied — the app falls back to the
+original SVG mascots in `src/components/mascot.tsx`, which are drawn from scratch
+and themed from design tokens. There is no "no character" option any more: the
+app ships one, so the first installed character is simply the one in use.
 
 ---
 

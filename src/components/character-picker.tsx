@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Check, Info, Sparkles, ArrowLeft, ExternalLink } from 'lucide-react';
-import { Mascot } from './mascot';
 import { CharacterThumb } from './character-figure';
-import { useCharacterCatalog } from './character-provider';
-import { getCharacter, getSkin, serverCharacter, serverSkin, setCharacter, subscribe } from '@/lib/appearance';
+import { useActiveCharacter, useCharacterCatalog } from './character-provider';
+import { getSkin, serverSkin, setCharacter, subscribe } from '@/lib/appearance';
 import { THEMES } from '@/lib/themes';
 import { celebrate } from '@/lib/celebrate';
 import { pickCharacterLine } from '@/lib/character-voice';
@@ -15,10 +14,11 @@ import { cn } from '@/lib/utils';
 /**
  * Character switcher, alongside the skin picker.
  *
- * Renders nothing when no characters are installed. That is the common case for
- * a fresh checkout, and a picker whose only entry is "the default" is clutter —
- * the app in that state should look exactly as it did before this existed.
- * `public/characters/README.md` is how an owner learns the folder exists.
+ * Renders nothing when no characters are installed — a checkout with the folder
+ * deleted falls back to the built-in SVG mascots and needs no picker at all.
+ * There is no longer a "default" entry: the app ships a character, so having no
+ * character is not a state worth offering. With one installed this is mostly
+ * the attribution surface.
  *
  * The second panel is the attribution surface. Every installed character's
  * artist, source and licence is reachable in two clicks from the nav, because
@@ -27,7 +27,9 @@ import { cn } from '@/lib/utils';
  */
 export function CharacterPicker() {
   const catalog = useCharacterCatalog();
-  const active = useSyncExternalStore(subscribe, getCharacter, serverCharacter);
+  // The effective character, not the raw stored id — with one installed and
+  // nothing chosen, that one is still what is on screen and should be ticked.
+  const active = useActiveCharacter()?.id ?? '';
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
   const [open, setOpen] = useState(false);
   const [credits, setCredits] = useState(false);
@@ -59,8 +61,6 @@ export function CharacterPicker() {
 
   if (!catalog.length) return null;
 
-  const mascot = THEMES[skin].mascot;
-
   return (
     <div className="relative" ref={box}>
       <button
@@ -83,33 +83,6 @@ export function CharacterPicker() {
             <Credits catalog={catalog} onBack={() => setCredits(false)} />
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => {
-                  setCharacter('');
-                  close();
-                }}
-                className={cn(
-                  'skin-pill flex w-full items-center gap-2.5 px-2 py-2 text-left transition-colors',
-                  !active ? 'bg-surface-2' : 'hover:bg-surface-2',
-                )}
-              >
-                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-2">
-                  {mascot === 'none' ? (
-                    <span className="text-micro font-semibold text-ink-muted">—</span>
-                  ) : (
-                    <Mascot id={mascot} size={28} />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-xs font-semibold text-ink">Default</span>
-                  <span className="block truncate text-meta text-ink-muted">
-                    Follows your theme.
-                  </span>
-                </span>
-                {!active ? <Check className="size-3.5 shrink-0 text-accent" /> : null}
-              </button>
-
               {catalog.map((c) => (
                 <button
                   key={c.id}
