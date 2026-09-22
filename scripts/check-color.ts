@@ -120,10 +120,23 @@ const NON_TEXT: [string, string, string][] = [
   ['focus ring on surface-2', '--accent', '--surface-2'],
 ];
 
+/**
+ * Filled marks that carry their own label: the label sits on the fill, not on
+ * the page, so it is measured against the fill.
+ *
+ * The two status pills are here rather than in TEXT because --warning cannot be
+ * a text colour in any theme — it is 1.79:1 on a light surface and does not
+ * even clear the 3:1 non-text floor. A filled pill with its own ink is the only
+ * way to use it without dropping below what every other token holds to, which
+ * is why the focus timer escalates with a pill rather than by recolouring its
+ * digits. (--critical does clear 4.5:1 as text, and TEXT below checks that.)
+ */
 const CHIPS: [string, string, string][] = [
   ['Easy chip label', '--diff-easy-ink', '--diff-easy'],
   ['Medium chip label', '--diff-medium-ink', '--diff-medium'],
   ['Hard chip label', '--diff-hard-ink', '--diff-hard'],
+  ['warning pill label', '--warning-ink', '--warning'],
+  ['critical pill label', '--critical-ink', '--critical'],
 ];
 
 function main() {

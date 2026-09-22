@@ -54,6 +54,13 @@
   --good-text: #006300;
   --warning: #fab219;
   --critical: #c22c2f;
+  /* Ink for a filled warning/critical pill. Same reasoning as the difficulty
+     chips: the label sits on the pill, not on the page, so it is chosen beside
+     the colour it has to sit on. --warning in particular cannot be a text
+     colour anywhere — it measures 1.79:1 on a light surface — so the only
+     honest way to use it is as a fill carrying its own ink. */
+  --warning-ink: #0b0b0b;
+  --critical-ink: #ffffff;
 
   --accent: #2472d0;
   --accent-ink: #ffffff;
@@ -97,6 +104,9 @@
     --good-text: #0ca30c;
     --warning: #fab219;
     --critical: #f65f5a;
+    /* Dark mode's --critical is the pale one, so its ink flips too. */
+    --warning-ink: #0b0b0b;
+    --critical-ink: #0b0b0b;
 
     --accent: #3987e5;
     --accent-ink: #0b0b0b;
@@ -139,6 +149,8 @@
   --good-text: #0ca30c;
   --warning: #fab219;
   --critical: #f65f5a;
+  --warning-ink: #0b0b0b;
+  --critical-ink: #0b0b0b;
 
   --accent: #3987e5;
   --accent-ink: #0b0b0b;
@@ -178,6 +190,8 @@
   --color-good-text: var(--good-text);
   --color-warning: var(--warning);
   --color-critical: var(--critical);
+  --color-warning-ink: var(--warning-ink);
+  --color-critical-ink: var(--critical-ink);
 
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
@@ -614,6 +628,16 @@ body {
   78%      { transform: scaleY(1.05) scaleX(0.98); }
 }
 
+/* The countdown's warning pill. Opacity only, so it stays off the layout path
+   — and it is applied from JS rather than CSS, because the reduced-motion rule
+   above can shorten an animation but cannot tell a JS-driven countdown to stop
+   asking for one. See focus-timer.tsx. */
+@keyframes jsPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+.js-pulse     { animation: jsPulse 1.6s ease-in-out infinite; }
 .js-flicker   { animation: jsFlicker 2.4s ease-in-out infinite; }
 .js-rise-in   { animation: jsRiseIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .js-countdown { animation: jsCountdown 6000ms linear both; }

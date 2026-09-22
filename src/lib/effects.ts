@@ -74,3 +74,54 @@ export function feedbackForTick(big = false) {
   playTick(big);
   vibrate(big);
 }
+
+/**
+ * Opens the audio context from inside a user gesture.
+ *
+ * Every browser starts an AudioContext suspended and will only resume it in
+ * response to a real interaction. The focus timer's warning is not one — it
+ * arrives twenty minutes later, on a timer — so the context has to be woken
+ * when the session is *started*, which is a click.
+ *
+ * Does nothing at all when the preference is off, so it can never be the thing
+ * that creates an audio context for someone who never asked for sound.
+ */
+export function primeAudio() {
+  if (!getEffects()) return;
+  const ac = audio();
+  if (ac && ac.state === 'suspended') void ac.resume();
+}
+
+/**
+ * A two-note chime for the focus timer.
+ *
+ * Deliberately not `playTick`: a tick means "that question is logged" and this
+ * means "look up". Two notes rather than one, falling for the five-minute
+ * warning and rising at the end, so the two are distinguishable without
+ * looking — and still synthesised, so there is no audio file in the repo.
+ */
+export function playChime(kind: 'warning' | 'done') {
+  if (!getEffects()) return;
+  const ac = audio();
+  if (!ac) return;
+  try {
+    if (ac.state === 'suspended') void ac.resume();
+    const now = ac.currentTime;
+    const notes = kind === 'warning' ? [784, 587] : [587, 880];
+    notes.forEach((hz, i) => {
+      const at = now + i * 0.18;
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(hz, at);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(0.07, at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.34);
+      osc.connect(gain).connect(ac.destination);
+      osc.start(at);
+      osc.stop(at + 0.36);
+    });
+  } catch {
+    /* the countdown itself is the signal; sound is a bonus */
+  }
+}

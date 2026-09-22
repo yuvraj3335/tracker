@@ -46,6 +46,11 @@ import {
 } from '../src/lib/search';
 import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
 import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
+import {
+  CRITICAL_MS, HOUR, MAX_DURATION_MS, MINUTE, SECOND, WARNING_MS,
+  crossedBelow, describeRemaining, elapsedFraction, formatRemaining,
+  parseDuration, phaseFor, remainingMs,
+} from '../src/lib/timer';
 import { usableAccent, contrastRatio, readableInk } from '../src/lib/contrast';
 import { resolveDatabaseUrl } from '../src/lib/env';
 import type { Area, Task } from '../src/lib/notion';
@@ -755,6 +760,110 @@ async function main() {
     check('a short password is refused', !checkPassword('short').ok);
     check('an 8-character password is allowed', checkPassword('12345678').ok);
     check('a 513-character password is refused', !checkPassword('a'.repeat(513)).ok);
+  }
+
+  section('Focus timer');
+  {
+    // The boundary the brief actually names, asserted rather than assumed.
+    check('the warning lands at five minutes', WARNING_MS === 5 * MINUTE);
+    check('the last stretch is the final minute', CRITICAL_MS === MINUTE);
+
+    // ---- parsing: this reads off an input event on every keystroke, so
+    // nothing here may throw and everything unusable must answer null.
+    check('a bare number is minutes', parseDuration('25') === 25 * MINUTE);
+    check('surrounding space is ignored', parseDuration('  25  ') === 25 * MINUTE);
+    check('minutes with a unit', parseDuration('25m') === 25 * MINUTE);
+    check('spelled-out minutes', parseDuration('45 minutes') === 45 * MINUTE);
+    check('hours', parseDuration('1h') === HOUR);
+    check('hours and minutes', parseDuration('1h30m') === 90 * MINUTE);
+    check('hours and minutes with a space', parseDuration('1h 30m') === 90 * MINUTE);
+    check('seconds', parseDuration('90s') === 90 * SECOND);
+    check('all three units', parseDuration('1h2m3s') === HOUR + 2 * MINUTE + 3 * SECOND);
+    check('case is ignored', parseDuration('1H30M') === 90 * MINUTE);
+    check('mm:ss', parseDuration('25:00') === 25 * MINUTE);
+    check('mm:ss with seconds', parseDuration('0:30') === 30 * SECOND);
+    check('hh:mm:ss', parseDuration('1:30:00') === 90 * MINUTE);
+
+    // A timer that is already over is not a timer.
+    check('zero is refused', parseDuration('0') === null);
+    check('a zero clock is refused', parseDuration('00:00') === null);
+    check('an empty string is refused', parseDuration('') === null);
+    check('only whitespace is refused', parseDuration('   ') === null);
+    check('a negative number is refused', parseDuration('-5') === null);
+    check('words are refused', parseDuration('soon') === null);
+    check('a bare unit with no number is refused', parseDuration('m') === null);
+    check('a stray separator is refused', parseDuration(':') === null);
+    check('an impossible seconds field is refused', parseDuration('25:60') === null);
+    check('a decimal is refused', parseDuration('2.5m') === null);
+    check('the maximum is allowed', parseDuration('12:00:00') === MAX_DURATION_MS);
+    check('over the maximum is refused', parseDuration('13:00:00') === null);
+    check('an absurd bare number is refused', parseDuration('99999') === null);
+    check('null is refused', parseDuration(null) === null);
+    check('undefined is refused', parseDuration(undefined) === null);
+    check('a number is refused', parseDuration(25 as unknown as string) === null);
+
+    // ---- the display. Rounded UP, so 0:01 still has a second to run and
+    // 0:00 means over — rounding down shows 0:00 for the whole last second.
+    check('a round duration', formatRemaining(25 * MINUTE) === '25:00');
+    check('one millisecond still reads as a second', formatRemaining(1) === '0:01');
+    check('just under a second', formatRemaining(999) === '0:01');
+    check('exactly a second', formatRemaining(SECOND) === '0:01');
+    check('just over a second', formatRemaining(SECOND + 1) === '0:02');
+    check('zero is zero', formatRemaining(0) === '0:00');
+    check('negative never counts upward', formatRemaining(-5000) === '0:00');
+    check('minutes are unpadded below an hour', formatRemaining(61 * SECOND) === '1:01');
+    check('the last second before an hour', formatRemaining(3599 * SECOND) === '59:59');
+    check('an hour gains a field', formatRemaining(HOUR) === '1:00:00');
+    check('minutes pad once there is an hour', formatRemaining(HOUR + 5 * MINUTE) === '1:05:00');
+
+    // ---- the spoken version.
+    check('nothing left reads as such', describeRemaining(0) === 'no time left');
+    check('minutes and seconds', describeRemaining(90 * SECOND) === '1 minute 30 seconds left');
+    check('seconds alone', describeRemaining(45 * SECOND) === '45 seconds left');
+    check('a whole hour', describeRemaining(HOUR) === '1 hour left');
+    check(
+      'seconds are dropped once there is an hour to read out',
+      describeRemaining(HOUR + 90 * SECOND) === '1 hour 1 minute left',
+    );
+
+    // ---- tiers. Inclusive going down: "when 5 minutes remain" is the moment
+    // the clock reads 5:00, not the moment it drops below it.
+    check('above the warning is just running', phaseFor(WARNING_MS + 1) === 'running');
+    check('five minutes exactly is the warning', phaseFor(WARNING_MS) === 'warning');
+    check('just above a minute is still the warning', phaseFor(CRITICAL_MS + 1) === 'warning');
+    check('a minute exactly is critical', phaseFor(CRITICAL_MS) === 'critical');
+    check('one millisecond is still critical', phaseFor(1) === 'critical');
+    check('zero is done', phaseFor(0) === 'done');
+    check('past zero is done, not running again', phaseFor(-1) === 'done');
+
+    // ---- remaining time, and the clock going backwards under it.
+    check('remaining counts down', remainingMs(1000, 400) === 600);
+    check('an overdue timer is zero, never negative', remainingMs(1000, 5000) === 0);
+    check('a clock that jumped backwards cannot exceed its own deadline',
+      remainingMs(1000, -50_000) === 51_000);
+
+    // ---- progress.
+    check('a fresh timer has made no progress', elapsedFraction(1000, 1000) === 0);
+    check('halfway', elapsedFraction(500, 1000) === 0.5);
+    check('a finished timer is complete', elapsedFraction(0, 1000) === 1);
+    check('a zero-length duration never divides by zero', elapsedFraction(0, 0) === 1);
+    check('over-run is clamped', elapsedFraction(-100, 1000) === 1);
+    check('more remaining than total is clamped', elapsedFraction(2000, 1000) === 0);
+
+    // ---- threshold crossing. This is what makes the warning survive a
+    // backgrounded tab, where timers are throttled to once a minute or worse.
+    check('a sample that skipped over the mark still counts',
+      crossedBelow(8 * MINUTE, 2 * MINUTE, WARNING_MS));
+    check('landing exactly on the mark counts',
+      crossedBelow(WARNING_MS + 1, WARNING_MS, WARNING_MS));
+    check('staying above the mark does not',
+      !crossedBelow(8 * MINUTE, 6 * MINUTE, WARNING_MS));
+    check('being already below the mark does not fire again',
+      !crossedBelow(WARNING_MS, WARNING_MS - 250, WARNING_MS));
+    check('a timer started under five minutes never chimes on start',
+      !crossedBelow(3 * MINUTE, 3 * MINUTE - 250, WARNING_MS));
+    check('reaching zero crosses zero', crossedBelow(1, 0, 0));
+    check('sitting at zero does not cross it twice', !crossedBelow(0, 0, 0));
   }
 
   section('Keyboard mapping');

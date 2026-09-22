@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { StatTile } from '@/components/stat-tile';
 import { HeroProgress } from '@/components/hero-progress';
 import { MoodBanner } from '@/components/mood-banner';
+import { FocusTimer } from '@/components/focus-timer';
 import { PageHeader } from '@/components/page-header';
 import { HeadingBand } from '@/components/heading-band';
 import { ProgressBar } from '@/components/progress-bar';
@@ -186,6 +187,10 @@ export default function PreviewPage() {
           <DashboardSkeleton />
           <SheetSkeleton />
         </div>
+      </Section>
+
+      <Section title="Focus timer">
+        <FocusTimer />
       </Section>
 
       <Section title="Character poses">

@@ -168,7 +168,7 @@ to land with the tap, not a second later.
   six skin x mode combinations: text floors (4.5:1), control boundaries and
   focus rings (3:1), difficulty chip ink against its own chip, heatmap ramp
   lightness monotonicity and step size, and the 2:1 ordinal floor against that
-  skin's own surface. 150 checks. It is a script rather than a claim because
+  skin's own surface. 162 checks. It is a script rather than a claim because
   the claim had drifted — see the commit that added it.
 - Skin choice is per-device (localStorage), like light/dark.
 
@@ -287,12 +287,12 @@ API. Any cell links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 218 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, search, keyboard, characters |
+| `npm run test` | 341 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | eslint |
-| `npm run check:color` | 150 contrast/ramp checks, read out of `globals.css` |
+| `npm run check:color` | 162 contrast/ramp checks, read out of `globals.css` |
 | `npm run check:schema` | upgrades a database built from the original schema and checks writes still land |
 | `npm run fixtures:characters` | placeholder characters for exercising the character pipeline (`clean` removes them) |
 

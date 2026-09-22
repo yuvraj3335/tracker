@@ -2,17 +2,23 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut, Timer } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import { SkinPicker } from './skin-picker';
 import { CharacterPicker } from './character-picker';
 import { cn } from '@/lib/utils';
 
+/**
+ * Focus goes last, on purpose. It is a tool you reach for once you are already
+ * working, not the thing a new account should land on — but it is one tap from
+ * anywhere, which is what a timer has to be.
+ */
 const LINKS = [
   { href: '/', label: 'Today', icon: LayoutDashboard },
   { href: '/areas/dsa', label: 'DSA', icon: ListChecks },
   { href: '/daily', label: 'Daily', icon: CalendarDays },
   { href: '/analytics', label: 'Stats', icon: ChartNoAxesColumn },
+  { href: '/focus', label: 'Focus', icon: Timer },
 ];
 
 /** Screens that own the whole viewport and should not show app chrome. */
@@ -86,7 +92,7 @@ export function Nav({ username }: { username: string | null }) {
         className="fixed inset-x-0 bottom-0 z-30 border-t border-hairline bg-plane/95 backdrop-blur-md sm:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="grid grid-cols-4">
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${LINKS.length}, minmax(0, 1fr))` }}>
           {LINKS.map((l) => {
             const active = isActive(pathname, l.href);
             return (
