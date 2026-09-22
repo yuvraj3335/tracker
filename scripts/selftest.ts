@@ -60,7 +60,8 @@ import {
 } from '../src/lib/companion';
 import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate-limit';
 import { buildSnapshot } from '../src/lib/companion-context';
-import { pickVoice, splitForSpeech, voiceScore, type VoiceLike } from '../src/lib/speech';
+import { pickVoice, prosody, sayable, splitForSpeech, voiceScore, type VoiceLike } from '../src/lib/speech';
+import { KOKORO_PREFIX, KOKORO_VOICES, kokoroVoice, pickBackend } from '../src/lib/kokoro';
 import { fixtures } from '../src/lib/fixtures';
 import {
   MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_REPLY_CHARS,
@@ -1286,7 +1287,9 @@ async function main() {
     check('resting starts listening on request', nextTurn('resting', 'listen', BOTH) === 'listening');
     check('resting cannot listen without a microphone', nextTurn('resting', 'listen', DEAF) === 'resting');
     check('a typed message works from rest', nextTurn('resting', 'heard', DEAF) === 'thinking');
-    check('silence rests rather than looping forever', nextTurn('listening', 'silence', BOTH) === 'resting');
+    // Quiet used to end the loop, which meant every pause cost a button press.
+    check('a pause keeps listening rather than ending the conversation',
+      nextTurn('listening', 'silence', BOTH) === 'listening');
 
     // Events that do not apply must be inert, not throw the loop somewhere odd.
     check('a stray reply while listening changes nothing', nextTurn('listening', 'reply', BOTH) === 'listening');
@@ -1305,8 +1308,11 @@ async function main() {
       poseForTurn('closed') === 'idle' && poseForTurn('resting') === 'idle');
 
     check('every active turn says what it is doing',
-      (['greeting', 'listening', 'thinking', 'speaking', 'resting'] as Turn[])
+      (['greeting', 'listening', 'speaking', 'resting'] as Turn[])
         .every((t) => captionFor(t, 'Miso').length > 0));
+    // Thinking is covered out loud by a filler. A "Thinking…" label under a
+    // talking character reads as machinery, which is the thing being removed.
+    check('thinking is never labelled on screen', captionFor('thinking', 'Miso') === '');
     check('the caption names the character', captionFor('speaking', 'Miso').includes('Miso'));
     check('a closed conversation says nothing', captionFor('closed', 'Miso') === '');
     check('no caption leaks a state name',
@@ -1395,6 +1401,76 @@ async function main() {
     check('no chunk is empty', splitForSpeech('Hi... ok. Sure!').every((c) => c.trim().length > 0));
     check('nothing is lost in the split',
       splitForSpeech('Alpha. Beta. Gamma.').join(' ').replace(/\s+/g, '') === 'Alpha.Beta.Gamma.');
+
+    // ---- what actually reaches the synthesiser
+    // A model writes for a screen unless stopped, and every one of these is
+    // read out literally by at least one engine.
+    check('bold markers are not read out', sayable('That is **really** good.') === 'That is really good.');
+    check('code fences are dropped', sayable('Try ```const x = 1;``` ok.') === 'Try ok.');
+    check('inline code keeps its words', sayable('Use `map` here.') === 'Use map here.');
+    check('a link is read as its text', sayable('See [the list](https://x.test/y).') === 'See the list.');
+    check('bullets lose their bullet', sayable('- one\n- two') === 'one two');
+    check('a dash becomes a comma, which is a pause an engine understands',
+      sayable('It went well\u2014really well.') === 'It went well, really well.');
+    check('emoji are not read aloud', sayable('Nice work \u{1f389} today.') === 'Nice work today.');
+    check('smart quotes are flattened', sayable('\u201chi\u201d') === '"hi"');
+    check('nothing survives an empty reply', sayable('   \n  ') === '');
+    check('sayable is applied before splitting',
+      splitForSpeech('**Nice.**')[0] === 'Nice.');
+
+    // ---- prosody, the other half of not sounding like a robot
+    check('a question lifts at the end',
+      prosody('Did it go well?', 0).pitch > prosody('It went well.', 0).pitch);
+    check('a question is said a little slower',
+      prosody('Did it go well?', 0).rate < prosody('It went well.', 0).rate);
+    check('an exclamation quickens',
+      prosody('Nice one!', 0).rate > prosody('Nice one.', 0).rate);
+    check('a long sentence settles',
+      prosody('x'.repeat(120) + '.', 0).rate < prosody('Short.', 0).rate);
+    check('two sentences in a row are never identical',
+      prosody('Same words here.', 0).rate !== prosody('Same words here.', 1).rate);
+    check('the same sentence is said the same way twice',
+      prosody('Hello there.', 2).pitch === prosody('Hello there.', 2).pitch);
+    check('it never wanders outside a human range',
+      Array.from({ length: 24 }, (_, i) => prosody(i % 2 ? 'Wow!' : 'Really?', i)).every(
+        (p) => p.rate >= 0.85 && p.rate <= 1.2 && p.pitch >= 0.9 && p.pitch <= 1.25));
+
+    // ---- the rest of the robot list
+    check('an enhanced voice beats the plain one of the same name',
+      voiceScore(v('Karen (Enhanced)')) > voiceScore(v('Karen')));
+    check('novelty voices are never chosen',
+      pickVoice([v('Zarvox'), v('Bubbles'), v('Trinoids')], 'en-GB') === null);
+  }
+
+  // -----------------------------------------------------------------------
+  // The natural voice. Ranking can only reach the best voice *installed*, and
+  // on most machines that is still a formant synthesiser. Kokoro is a real
+  // neural model, Apache-licensed, small enough to run in the browser — so it
+  // costs nothing to serve and nothing said out loud leaves the device.
+  // -----------------------------------------------------------------------
+  section('Natural voice');
+  {
+    check('a natural voice is recognised', kokoroVoice(`${KOKORO_PREFIX}af_heart`) === 'af_heart');
+    check('a browser voice is left alone', kokoroVoice('Google UK English Female') === null);
+    check('no preference is not a natural voice', kokoroVoice('') === null);
+    // localStorage outlives a rename, so a stale id must not be handed to the
+    // model as a voice it has never heard of.
+    check('an unknown natural voice is rejected', kokoroVoice(`${KOKORO_PREFIX}af_nobody`) === null);
+    check('a prefix with nothing after it is rejected', kokoroVoice(KOKORO_PREFIX) === null);
+    check('every offered voice round-trips',
+      KOKORO_VOICES.every((voice) => kokoroVoice(`${KOKORO_PREFIX}${voice.id}`) === voice.id));
+    check('every offered voice says what it sounds like',
+      KOKORO_VOICES.every((voice) => voice.label.includes('—') && voice.label.length > 8));
+    check('no voice is offered twice',
+      new Set(KOKORO_VOICES.map((voice) => voice.id)).size === KOKORO_VOICES.length);
+
+    // The download is the whole cost of this, so the size quoted in the
+    // picker has to be the size of the build that machine will actually get.
+    check('a GPU gets the full-precision model', pickBackend(true).device === 'webgpu');
+    check('everything else gets the quantised one', pickBackend(false).dtype === 'q8');
+    check('the quantised build is the smaller download',
+      pickBackend(false).megabytes < pickBackend(true).megabytes);
+    check('both builds quote a size', pickBackend(true).megabytes > 0 && pickBackend(false).megabytes > 0);
   }
 
   section('Keyboard mapping');

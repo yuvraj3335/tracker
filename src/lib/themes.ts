@@ -36,6 +36,9 @@ export type ThemeMeta = {
   finale: string[];
   /** Shown when a completion is taken back. Never scolding — it just notices. */
   undo: string[];
+  /** Said out loud while a reply is being worked out, instead of a spinner.
+   *  Short — it only has to cover about a second. */
+  filler: string[];
   /** Shown when a streak ticks over. */
   streak: (days: number) => string;
 };
@@ -52,6 +55,7 @@ export const THEMES: Record<Skin, ThemeMeta> = {
     sectionDone: ['Section complete.', 'Whole section done.'],
     finale: ['Every question. Done.'],
     undo: ['Put back.', 'Cleared.'],
+    filler: ['Hm, one sec.', 'Let me see.', 'Right, hang on.', 'Okay, so.'],
     streak: (d) => `${d}-day streak.`,
   },
 
@@ -73,6 +77,7 @@ export const THEMES: Record<Skin, ThemeMeta> = {
     sectionDone: ['Front secured.', 'The whole line is yours.'],
     finale: ['Campaign complete. Stand down.'],
     undo: ['Ground given up.', 'Position released.'],
+    filler: ['Stand by.', 'Checking.', 'One moment.', 'Right.'],
     streak: (d) => `${d} days on the wall.`,
   },
 
@@ -95,6 +100,7 @@ export const THEMES: Record<Skin, ThemeMeta> = {
     sectionDone: ['A whole section! 🌸✨', 'Look at you go — section cleared!'],
     finale: ['Every. Single. Question. 🌸✨'],
     undo: ['Oh! Taken back.', 'That is okay.'],
+    filler: ['Ooh, one sec!', 'Hmm, let me look!', 'Okay okay…', 'Right, so.'],
     streak: (d) => `${d} days in a row! ✨`,
   },
 };

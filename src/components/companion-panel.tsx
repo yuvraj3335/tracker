@@ -1,19 +1,36 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Keyboard, Mic, Send, Square, Volume2, VolumeX, X } from 'lucide-react';
+import { Keyboard, Mic, Send, Volume2, VolumeX, X } from 'lucide-react';
 import { useActiveCharacter } from './character-provider';
 import { Button } from './ui/button';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
 import { pickCharacterLine } from '@/lib/character-voice';
 import { THEMES } from '@/lib/themes';
 import {
+  KOKORO_PREFIX,
+  KOKORO_VOICES,
+  backend,
+  engineProgress,
+  engineState,
+  kokoroVoice,
+  probeGPU,
+  serverEngineProgress,
+  serverEngineState,
+  warm,
+} from '@/lib/kokoro';
+import {
   canListen,
   canSpeak,
   getVoice,
+  getVoiceName,
+  listVoices,
   listen,
   serverVoice,
+  serverVoiceList,
+  serverVoiceName,
   setVoice,
+  setVoiceName,
   speak,
   stopSpeaking,
 } from '@/lib/speech';
@@ -45,6 +62,9 @@ export function CompanionPanel({
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
   const voice = useSyncExternalStore(subscribe, getVoice, serverVoice);
 
+  const natural = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
+  const engine = useSyncExternalStore(subscribe, engineState, serverEngineState);
+
   const [canHear] = useState(canListen);
   const [canTalk] = useState(canSpeak);
   // Mounted only while open, so the opening turn and the greeting are the
@@ -60,6 +80,7 @@ export function CompanionPanel({
   const box = useRef<HTMLDivElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const stopHearing = useRef<(() => void) | null>(null);
+  const fillers = useRef(0);
 
   const name = character?.name ?? 'Your companion';
 
@@ -97,6 +118,11 @@ export function CompanionPanel({
       setProblem('');
       advance('heard');
 
+      // Cover the wait the way a person does. By the time this is out of its
+      // mouth the reply has usually landed, so the reply queues behind it
+      // rather than cutting it off — and there is no spinner anywhere.
+      speak(pickCharacterLine(character, 'filler', THEMES[skin], fillers.current++));
+
       const next: ChatMessage[] = [...messages, { role: 'user', content: trimmed }];
       setMessages(next);
       try {
@@ -112,7 +138,8 @@ export function CompanionPanel({
         if (data?.ok && data.reply) {
           setMessages((m) => [...m, { role: 'assistant', content: data.reply as string }]);
           advance('reply');
-          say(data.reply);
+          // Queued, so it waits behind the filler instead of talking over it.
+          speak(data.reply, () => advance('spoke'), true);
           return;
         }
         setProblem(
@@ -125,33 +152,24 @@ export function CompanionPanel({
       }
       advance('error');
     },
-    [messages, character, advance, say],
+    [messages, character, skin, advance],
   );
 
-  // ---- the microphone, opened only while the loop says to ----------------
+  // ---- the microphone, open the whole time the loop says to ---------------
+  // It closes only while something is being said aloud, so it never hears the
+  // companion and answers itself.
   useEffect(() => {
     if (!isHearing(turn)) {
       stopHearing.current?.();
       stopHearing.current = null;
       return;
     }
-    let got = false;
     const stop = listen({
-      onTranscript: (text, final) => {
-        setHeard(text);
-        if (final && text) {
-          got = true;
-          void send(text);
-        }
-      },
+      onPartial: setHeard,
+      onUtterance: (text) => void send(text),
       onError: (message) => {
         if (message) setProblem(message);
         advance('error');
-      },
-      // Closing with nothing heard is silence, not a failure — it rests and
-      // waits to be asked again rather than reopening the microphone forever.
-      onEnd: () => {
-        if (!got) advance('silence');
       },
     });
     stopHearing.current = stop;
@@ -176,6 +194,15 @@ export function CompanionPanel({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The filler exists to cover the couple of seconds a natural voice needs to
+  // generate a reply — so a filler that had to be generated first would cover
+  // nothing. These are made during the greeting, when it has nothing else to
+  // do, and then they are instant for the rest of the conversation.
+  useEffect(() => {
+    const voice = kokoroVoice(natural);
+    if (voice && engine === 'ready') void warm(THEMES[skin].filler, voice);
+  }, [natural, engine, skin]);
 
   /** Keeps the figure outside in step. */
   useEffect(() => {
@@ -213,6 +240,7 @@ export function CompanionPanel({
     >
       <div className="flex items-center gap-1 border-b border-hairline px-3 py-2">
         <p className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">{name}</p>
+        {canTalk && voice ? <VoicePicker name={name} /> : null}
         {canTalk ? (
           <button
             type="button"
@@ -304,7 +332,11 @@ export function CompanionPanel({
                 type="button"
                 variant="ghost"
                 className="min-h-11 min-w-11 px-2"
-                onClick={() => setTyping(false)}
+                onClick={() => {
+                  setTyping(false);
+                  setProblem('');
+                  advance('listen');
+                }}
               >
                 <Mic className="size-4" />
                 <span className="sr-only">Talk instead</span>
@@ -316,31 +348,29 @@ export function CompanionPanel({
             </Button>
           </form>
         ) : (
-          <div className="flex items-center gap-1.5">
-            {/* One big control that always does the obvious thing: stop it if
-                it is doing something, start it listening if it is not. */}
-            <Button
-              type="button"
-              variant={isHearing(turn) ? 'outline' : 'primary'}
-              className="min-h-11 flex-1"
-              disabled={busy}
-              onClick={() => {
-                if (turn === 'resting') {
+          <div className="flex items-center gap-2">
+            {/* No Talk button and no Stop button. The microphone is open for
+                as long as the conversation is, and the cross in the corner is
+                how it ends — which is what "just talk to it" has to mean.
+                What is left is the live level and a way out to the keyboard. */}
+            <Listening active={isHearing(turn)} />
+            {turn === 'resting' ? (
+              <Button
+                type="button"
+                className="min-h-11"
+                onClick={() => {
                   setProblem('');
                   advance('listen');
-                  return;
-                }
-                stopSpeaking();
-                advance('stop');
-              }}
-            >
-              {isHearing(turn) ? <Square className="size-4" /> : <Mic className="size-4" />}
-              {isHearing(turn) ? 'Stop' : turn === 'resting' ? 'Talk' : 'Stop'}
-            </Button>
+                }}
+              >
+                <Mic className="size-4" />
+                Listen again
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
-              className="min-h-11 min-w-11 px-2"
+              className="ml-auto min-h-11 min-w-11 px-2"
               onClick={() => {
                 stopSpeaking();
                 advance('stop');
@@ -354,5 +384,101 @@ export function CompanionPanel({
         )}
       </div>
     </div>
+  );
+}
+
+
+/**
+ * That the microphone is open, shown rather than stated.
+ *
+ * Three bars breathing is read at a glance and does not need reading at all,
+ * which is what a status line asks of you. Decorative only — the caption
+ * beside it carries the same thing for a screen reader, and the animation
+ * collapses under the reduced-motion rule in globals.css.
+ */
+function Listening({ active }: { active: boolean }) {
+  return (
+    <span className="flex items-center gap-2 px-1" aria-hidden>
+      <span className="flex h-5 items-end gap-[3px]">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className={cn('w-[3px] rounded-full transition-all', active ? 'js-level' : 'h-1 bg-control')}
+            style={active ? { background: 'var(--accent)', animationDelay: `${i * 140}ms` } : undefined}
+          />
+        ))}
+      </span>
+      <span className="text-xs text-ink-muted">{active ? 'Just talk' : 'Paused'}</span>
+    </span>
+  );
+}
+
+/**
+ * Which of the installed voices to use.
+ *
+ * Every browser ships a pile of them and picks the worst one by default, and
+ * the ranking in speech.ts can only get to the best one *installed* — which on
+ * some machines is still a formant synthesiser from 1998. The honest fix is to
+ * hand over the list, best first, and say the name out loud on change so the
+ * choice is made by ear in one click rather than by reading voice names.
+ */
+function VoicePicker({ name }: { name: string }) {
+  const voices = useSyncExternalStore(subscribe, listVoices, serverVoiceList);
+  const chosen = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
+  const state = useSyncExternalStore(subscribe, engineState, serverEngineState);
+  const percent = useSyncExternalStore(subscribe, engineProgress, serverEngineProgress);
+  // Asking for a GPU adapter is the only honest way to know whether there is
+  // one, and it is async — so the label starts at the modest build and
+  // corrects itself once the answer arrives. Quoting the wrong download size
+  // is the one thing this label must not do.
+  useEffect(() => {
+    void probeGPU();
+  }, []);
+  const size = backend().megabytes;
+
+  return (
+    <span className="flex min-w-0 items-center gap-1">
+      {state === 'loading' ? (
+        <span className="text-micro tabular-nums text-ink-muted" role="status" aria-live="polite">
+          {percent}%
+        </span>
+      ) : null}
+      <select
+        value={chosen}
+        aria-label="Voice"
+        onChange={(e) => {
+          setVoiceName(e.target.value);
+          // Heard immediately, in the voice just picked. Choosing by ear is
+          // the entire point of the control — and for a natural voice this is
+          // also what the download is for, so it plays the moment it lands.
+          speak(`Hi, I'm ${name}.`);
+        }}
+        className={cn(
+          'skin-pill max-w-[7.5rem] cursor-pointer appearance-none border border-control bg-surface-2 px-2 py-1 text-micro text-ink-muted',
+          'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+        )}
+      >
+        <option value="">Best available</option>
+        {/* The real answer to "it sounds like a robot". These run on this
+            machine, so the only cost is the one-off download, and saying so
+            in the label is the difference between a choice and a surprise. */}
+        <optgroup label={state === 'ready' ? 'Natural' : `Natural — ${size} MB once`}>
+          {KOKORO_VOICES.map((v) => (
+            <option key={v.id} value={`${KOKORO_PREFIX}${v.id}`}>
+              {v.label}
+            </option>
+          ))}
+        </optgroup>
+        {voices.length ? (
+          <optgroup label="This browser">
+            {voices.map((v) => (
+              <option key={v.name} value={v.name}>
+                {v.name}
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
+      </select>
+    </span>
   );
 }

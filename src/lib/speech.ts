@@ -16,6 +16,7 @@
  * because you once said yes is not something to ship.
  */
 import { announce } from './appearance';
+import { kokoroReady, kokoroVoice, loadEngine, speakKokoro, stopKokoro } from './kokoro';
 
 // --------------------------------------------------------------- preference
 export const VOICE_KEY = 'jst-voice';
@@ -82,13 +83,22 @@ export function voiceScore(voice: VoiceLike, lang = 'en'): number {
   if (want && language && !language.startsWith(want)) return -1;
 
   let score = 0;
-  // The engines that actually sound like people announce it.
+  // The engines that actually sound like people say so in their own name.
   if (/natural|neural/.test(name)) score += 60;
+  if (/siri/.test(name)) score += 50;
+  // Apple ships a plain and a good version of the same voice under one name,
+  // distinguished only by this suffix. The plain one is the robot.
+  if (/\(enhanced\)|\(premium\)/.test(name)) score += 45;
   if (/google/.test(name)) score += 30;
   // Cloud voices are the newer generation; local ones are the OS synthesiser.
   if (voice.localService === false) score += 25;
   // The ones people mean by "robotic".
-  if (/espeak|compact|eloquence/.test(name)) score -= 60;
+  if (/espeak|festival|pico|flite|mbrola|compact|eloquence/.test(name)) score -= 80;
+  // Apple's novelty voices are in the same list as the real ones and are not
+  // voices anyone wants to be spoken to by.
+  if (/zarvox|trinoids|bubbles|bahh|boing|deranged|hysterical|wobble|whisper|bells|cellos|organ|good news|bad news|jester|superstar|albert|junior|ralph|bruce|kathy|fred/.test(name)) {
+    score -= 70;
+  }
   if (/\bdavid\b|\bzira\b|\bmark\b/.test(name) && /desktop/.test(name)) score -= 30;
   // An exact regional match beats a generic one, gently.
   if (language === lang.toLowerCase()) score += 6;
@@ -118,8 +128,59 @@ export function pickVoice<T extends VoiceLike>(voices: readonly T[], lang = 'en'
  * and speaking sentence by sentence puts a real pause at each full stop —
  * which is most of the difference between reading a paragraph and talking.
  */
+export function sayable(text: string): string {
+  return (
+    text
+      // Nothing inside a code fence is worth reading out.
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/`([^`]*)`/g, '$1')
+      .replace(/\*\*?([^*]+)\*\*?/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/^[ \t]*[#>*-]+[ \t]+/gm, '')
+      .replace(/[_~]/g, ' ')
+      // A dash is a beat in writing and a stumble in synthesis; a comma is the
+      // same beat and every engine knows what to do with it.
+      .replace(/[\u2014\u2013]/g, ', ')
+      .replace(/\u2026/g, '...')
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      // Emoji read aloud as their own names, which is worse than silence.
+      .replace(/[\u{1f300}-\u{1faff}\u{2190}-\u{27bf}\u{fe0f}]/gu, '')
+      .replace(/\s+/g, ' ')
+      .replace(/ ([,.!?])/g, '$1')
+      .trim()
+  );
+}
+
+/**
+ * How a sentence should be said, as opposed to merely read.
+ *
+ * A voice that says every sentence at exactly one rate and one pitch is the
+ * other half of sounding robotic — the half a better voice does not fix. This
+ * is tiny and deliberate: a question lifts, an exclamation quickens, a long
+ * sentence settles, and a repeating drift keeps two sentences in a row from
+ * being acoustically identical. Deterministic, so it is testable and so the
+ * same reply is said the same way twice.
+ */
+export function prosody(sentence: string, index: number): { rate: number; pitch: number } {
+  const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+  const drift = [0, 0.035, -0.025, 0.015][index % 4];
+  let rate = 1.02 + drift;
+  let pitch = 1.03 + drift * 0.8;
+  if (/\?["')]*\s*$/.test(sentence)) {
+    pitch += 0.07;
+    rate -= 0.03;
+  }
+  if (/!["')]*\s*$/.test(sentence)) {
+    pitch += 0.04;
+    rate += 0.04;
+  }
+  if (sentence.length > 90) rate -= 0.02;
+  return { rate: clamp(rate, 0.85, 1.2), pitch: clamp(pitch, 0.9, 1.25) };
+}
+
 export function splitForSpeech(text: string, max = 180): string[] {
-  const clean = text.replace(/\s+/g, ' ').trim();
+  const clean = sayable(text);
   if (!clean) return [];
   const sentences = clean.match(/[^.!?]+[.!?]*/g) ?? [clean];
   const out: string[] = [];
@@ -136,15 +197,86 @@ export function splitForSpeech(text: string, max = 180): string[] {
 }
 
 let chosenVoice: SpeechSynthesisVoice | null = null;
+let voiceList: { name: string; lang: string }[] = [];
+
+/**
+ * Which voice to use, by name, when the person has chosen one.
+ *
+ * Scoring gets the best voice *installed*, and on some machines the best one
+ * installed is still not good. Rather than keep guessing at that from here,
+ * the panel offers the list and this remembers the answer.
+ */
+export const VOICE_NAME_KEY = 'jst-voice-name';
+
+let preferredName: string | null | undefined;
+
+export function getVoiceName(): string {
+  if (preferredName === undefined) {
+    try {
+      preferredName = localStorage.getItem(VOICE_NAME_KEY);
+    } catch {
+      preferredName = null;
+    }
+  }
+  return preferredName ?? '';
+}
+
+export function setVoiceName(name: string) {
+  preferredName = name || null;
+  try {
+    if (name) localStorage.setItem(VOICE_NAME_KEY, name);
+    else localStorage.removeItem(VOICE_NAME_KEY);
+  } catch {
+    /* ignore — it still applies for this session */
+  }
+  refreshVoice();
+  // Chosen is chosen: start fetching it now rather than at the first reply,
+  // so the download overlaps with whatever is said next.
+  const natural = kokoroVoice(preferredName ?? '');
+  if (natural) void loadEngine(natural);
+  announce();
+}
+
+export const serverVoiceName = (): string => '';
+
+/**
+ * The installed voices, best first.
+ *
+ * A stable array reference, rebuilt only when the browser's list actually
+ * changes, because this is read through `useSyncExternalStore` and a fresh
+ * array every call is an infinite render.
+ */
+export function listVoices(): { name: string; lang: string }[] {
+  return voiceList;
+}
+
+export const serverVoiceList = (): { name: string; lang: string }[] => [];
 
 /** Re-reads the installed voices. They arrive asynchronously in most browsers. */
 function refreshVoice() {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
     const voices = window.speechSynthesis.getVoices();
-    if (voices.length) {
-      chosenVoice = pickVoice(voices, navigator?.language || 'en-GB');
-    }
+    if (!voices.length) return;
+    const lang = navigator?.language || 'en-GB';
+
+    const ranked = voices
+      .map((v) => ({ name: v.name, lang: v.lang, score: voiceScore(v, lang) }))
+      .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    // Voices in another language are not candidates, and a list of ninety of
+    // them is not a menu. They are only worth offering if there is nothing in
+    // the right language at all.
+    const usable = ranked.filter((v) => v.score >= 0);
+    const next = (usable.length ? usable : ranked).map(({ name, lang: l }) => ({ name, lang: l }));
+    // Only a new array when it is genuinely a new list. `listVoices` is read
+    // through `useSyncExternalStore`, which compares by reference.
+    const same =
+      next.length === voiceList.length && next.every((v, i) => v.name === voiceList[i].name);
+    if (!same) voiceList = next;
+
+    const wanted = getVoiceName();
+    chosenVoice =
+      (wanted ? (voices.find((v) => v.name === wanted) ?? null) : null) ?? pickVoice(voices, lang);
   } catch {
     chosenVoice = null;
   }
@@ -155,7 +287,11 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   try {
     // Chrome populates the list after a tick and fires this; without it the
     // first reply of a session gets the default robotic voice.
-    window.speechSynthesis.addEventListener('voiceschanged', refreshVoice);
+    window.speechSynthesis.addEventListener('voiceschanged', () => {
+      refreshVoice();
+      // The picker is rendered from this list, so it has to hear about it.
+      announce();
+    });
   } catch {
     /* older engines expose no event; the eager read above is all there is */
   }
@@ -168,9 +304,26 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
  * muted or unsupported, because the conversation loop hands the turn on from
  * there and would otherwise stop dead the first time someone hit mute.
  */
-export function speak(text: string, onDone?: () => void) {
+export function speak(text: string, onDone?: () => void, queue = false) {
   const finish = () => onDone?.();
-  if (!getVoice() || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  if (!getVoice() || typeof window === 'undefined') {
+    finish();
+    return;
+  }
+
+  // A chosen natural voice wins, and asks for itself to be downloaded the
+  // first time. Until it is ready the browser's own voice still answers, so
+  // choosing it never costs anyone a silent conversation.
+  const natural = kokoroVoice(getVoiceName());
+  if (natural) {
+    if (kokoroReady()) {
+      speakKokoro(sayable(text), natural, splitForSpeech, finish, queue);
+      return;
+    }
+    void loadEngine(natural);
+  }
+
+  if (!('speechSynthesis' in window)) {
     finish();
     return;
   }
@@ -182,17 +335,19 @@ export function speak(text: string, onDone?: () => void) {
   }
 
   try {
-    window.speechSynthesis.cancel();
+    // A queued line waits its turn. That is what lets a reply land behind the
+    // filler that covered the wait for it, rather than cutting it off.
+    if (!queue) window.speechSynthesis.cancel();
     if (!chosenVoice) refreshVoice();
 
     parts.forEach((part, i) => {
       const utterance = new SpeechSynthesisUtterance(part);
       if (chosenVoice) utterance.voice = chosenVoice;
-      // Close to a speaking voice rather than a reading one. The pitch used to
-      // be 1.18, which is most of the way to sounding like a cartoon and was
-      // making the flat default voice worse rather than better.
-      utterance.rate = 1.0;
-      utterance.pitch = 1.04;
+      // Close to a speaking voice rather than a reading one, and varied
+      // sentence by sentence — see `prosody`.
+      const { rate, pitch } = prosody(part, i);
+      utterance.rate = rate;
+      utterance.pitch = pitch;
       if (i === parts.length - 1) {
         utterance.onend = finish;
         // A synthesis error must not strand the conversation mid-turn either.
@@ -207,6 +362,7 @@ export function speak(text: string, onDone?: () => void) {
 
 /** Cuts off whatever is being said, including everything still queued. */
 export function stopSpeaking() {
+  stopKokoro();
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {
     window.speechSynthesis.cancel();
@@ -215,7 +371,8 @@ export function stopSpeaking() {
   }
 }
 
-export const canSpeak = (): boolean => typeof window !== 'undefined' && 'speechSynthesis' in window;
+export const canSpeak = (): boolean =>
+  typeof window !== 'undefined' && ('speechSynthesis' in window || 'AudioContext' in window);
 
 // -------------------------------------------------------------- listening
 type RecognitionAlternative = { transcript: string };
@@ -248,76 +405,121 @@ function recognitionConstructor(): (new () => RecognitionLike) | null {
 
 export const canListen = (): boolean => recognitionConstructor() !== null;
 
-/** What the caller needs to know while a dictation is running. */
+/**
+ * How long a pause has to be before it counts as "they have finished".
+ *
+ * Long enough to think mid-sentence without being cut off, short enough that
+ * a finished sentence does not sit there. Chrome's own endpointing fires at
+ * every natural pause, which is far too eager for a conversation — "so, um" on
+ * its own is not a question.
+ */
+export const END_OF_THOUGHT_MS = 1100;
+
 export type ListenHandlers = {
-  /** Fires as they speak. `final` marks the last version of a phrase. */
-  onTranscript: (text: string, final: boolean) => void;
+  /** Fires as they speak, for the live caption. Never final. */
+  onPartial: (text: string) => void;
+  /** A finished thought, after they have stopped for a moment. */
+  onUtterance: (text: string) => void;
   /** Already translated — never a raw API error string. */
   onError: (message: string) => void;
-  onEnd: () => void;
 };
 
 /**
- * Starts one dictation. Always returns a stop function.
+ * Opens the microphone and keeps it open.
  *
- * Every outcome — including "this browser cannot do it at all" — is reported
- * through the handlers rather than through the return value, and always
- * asynchronously. That is not ceremony: the caller starts this from an effect,
- * and a failure reported synchronously would be a state change caused by the
- * render that started it rather than by the microphone.
+ * Continuous, not one-shot. The old version stopped at the first pause and
+ * needed a button press to start again, which is not a conversation — it is a
+ * walkie-talkie. This stays open, collects what it hears, and hands over a
+ * whole thought once they have actually stopped talking.
  *
- * Deliberately one-shot rather than continuous: an always-on microphone is
- * both a battery and a trust problem, and the panel's "stop" has to mean it.
+ * It also restarts itself. Browsers end a recognition session on their own
+ * after a stretch of quiet, and without this the microphone would quietly die
+ * partway through a conversation with nothing on screen to say so.
+ *
+ * Returns a stop function that means it. Every outcome is reported through the
+ * handlers and always asynchronously, because the caller starts this from an
+ * effect and a failure reported synchronously would be a state change caused
+ * by the render that started it rather than by the microphone.
  */
-const NO_OP = () => {};
-
 export function listen(handlers: ListenHandlers): () => void {
-  const unavailable = () => {
+  const Recognition = recognitionConstructor();
+  if (!Recognition) {
     queueMicrotask(() =>
       handlers.onError('This browser will not do speech recognition. You can type instead.'),
     );
-    return NO_OP;
+    return () => {};
+  }
+
+  let recognition: RecognitionLike | null = null;
+  let stopped = false;
+  let pending = '';
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const flush = () => {
+    const text = pending.trim();
+    pending = '';
+    if (text) handlers.onUtterance(text);
   };
 
-  const Recognition = recognitionConstructor();
-  if (!Recognition) return unavailable();
+  const restartEndpoint = () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, END_OF_THOUGHT_MS);
+  };
 
-  let recognition: RecognitionLike;
-  try {
-    recognition = new Recognition();
-  } catch {
-    return unavailable();
-  }
-  recognition.lang = typeof navigator !== 'undefined' ? navigator.language || 'en-GB' : 'en-GB';
-  recognition.continuous = false;
-  recognition.interimResults = true;
-
-  recognition.onresult = (event) => {
-    let text = '';
-    let final = false;
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const result = event.results[i];
-      text += result[0].transcript;
-      if (result.isFinal) final = true;
+  const open = () => {
+    if (stopped) return;
+    try {
+      recognition = new Recognition();
+    } catch {
+      queueMicrotask(() =>
+        handlers.onError('The microphone could not be opened. You can type instead.'),
+      );
+      return;
     }
-    handlers.onTranscript(text.trim(), final);
-  };
-  recognition.onerror = (event) => {
-    handlers.onError(recognitionMessage(event.error));
-  };
-  recognition.onend = handlers.onEnd;
+    recognition.lang = typeof navigator !== 'undefined' ? navigator.language || 'en-GB' : 'en-GB';
+    recognition.continuous = true;
+    recognition.interimResults = true;
 
-  try {
-    recognition.start();
-  } catch {
-    // Already running, or blocked before it began.
-    queueMicrotask(handlers.onEnd);
-    return NO_OP;
-  }
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) pending += `${result[0].transcript} `;
+        else interim += result[0].transcript;
+      }
+      handlers.onPartial((pending + interim).trim());
+      restartEndpoint();
+    };
+
+    recognition.onerror = (event) => {
+      // Quiet is not a failure when the microphone is meant to stay open.
+      if (event.error === 'no-speech' || event.error === 'aborted') return;
+      handlers.onError(recognitionMessage(event.error));
+      stopped = true;
+    };
+
+    // Browsers end a session on their own after a stretch of quiet. Reopening
+    // is what makes "it keeps listening" actually true.
+    recognition.onend = () => {
+      if (stopped) return;
+      open();
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      // Already running: the previous session had not finished tearing down.
+      // Its own onend will reopen.
+    }
+  };
+
+  open();
 
   return () => {
+    stopped = true;
+    if (timer) clearTimeout(timer);
     try {
-      recognition.abort();
+      recognition?.abort();
     } catch {
       /* ignore */
     }

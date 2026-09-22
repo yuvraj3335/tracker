@@ -34,7 +34,7 @@ export type TurnEvent =
   | 'spoke'
   /** Something was heard, and is about to be sent. */
   | 'heard'
-  /** The microphone closed without hearing anything. */
+  /** The microphone closed without hearing anything. Not an ending. */
   | 'silence'
   /** A reply came back. */
   | 'reply'
@@ -69,7 +69,10 @@ export function nextTurn(turn: Turn, event: TurnEvent, can: Capabilities): Turn 
 
     case 'listening':
       if (event === 'heard') return 'thinking';
-      if (event === 'silence') return 'resting';
+      // Quiet is not the end of the conversation. It used to stop the loop and
+      // wait to be asked again, which meant every pause cost a button press —
+      // the opposite of talking to someone.
+      if (event === 'silence') return 'listening';
       return turn;
 
     case 'thinking':
@@ -121,7 +124,10 @@ export function captionFor(turn: Turn, name: string): string {
     case 'listening':
       return 'Listening — just talk.';
     case 'thinking':
-      return 'Thinking…';
+      // Deliberately not "Thinking…". It is covered out loud by a filler, the
+      // way a person covers it, and a status label under a talking character
+      // reads as machinery.
+      return '';
     case 'resting':
       return 'Tap to talk, or type instead.';
     default:
