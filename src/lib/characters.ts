@@ -16,8 +16,8 @@
  * filesystem; the fs walk lives in `characters.server.ts`.
  */
 
-/** The four poses. Only `idle` is mandatory; the rest resolve by fallback. */
-export const POSES = ['idle', 'celebrate', 'milestone', 'sad'] as const;
+/** The poses. Only `idle` is mandatory; the rest resolve by fallback. */
+export const POSES = ['idle', 'celebrate', 'milestone', 'sad', 'concerned', 'focused'] as const;
 export type Pose = (typeof POSES)[number];
 
 /** Image extensions accepted for a pose, in preference order. */
@@ -45,15 +45,25 @@ export type Character = {
 /**
  * Pose fallback chain.
  *
- * `milestone` is the only one that degrades in two steps: a character with no
- * milestone art should still feel celebratory rather than dropping to a
- * resting pose mid-celebration.
+ * Two of these degrade in two steps rather than dropping straight to `idle`,
+ * because the intermediate pose still carries the right feeling:
+ *
+ *   milestone  a character with no milestone art should still look celebratory
+ *              rather than resting in the middle of a celebration.
+ *   concerned  the softer "things have gone quiet" pose. With no art of its
+ *              own, `sad` is far closer to it than a neutral idle is.
+ *
+ * `focused` drops straight to `idle` deliberately: nothing else in the set
+ * reads as quiet concentration, and a celebratory or sad stand-in would say
+ * the wrong thing for the whole length of a focus session.
  */
 const FALLBACK: Record<Pose, Pose[]> = {
   idle: ['idle'],
   celebrate: ['celebrate', 'idle'],
   milestone: ['milestone', 'celebrate', 'idle'],
   sad: ['sad', 'idle'],
+  concerned: ['concerned', 'sad', 'idle'],
+  focused: ['focused', 'idle'],
 };
 
 /**

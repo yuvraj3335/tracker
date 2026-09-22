@@ -40,6 +40,8 @@ public/characters/
     celebrate.webp    optional — falls back to idle
     milestone.webp    optional — falls back to celebrate, then idle
     sad.webp          optional — falls back to idle
+    concerned.webp    optional — falls back to sad, then idle
+    focused.webp      optional — falls back to idle
 ```
 
 The **folder name is the character id**. It must be letters, digits, `-` and `_`
@@ -58,10 +60,14 @@ breaks the page; the mascot fallback covers it.
 | `celebrate` | A question is ticked. |
 | `milestone` | A heading or section is finished — the bigger moment. |
 | `sad` | You come back after a streak has broken. Used gently, once. |
+| `concerned` | Your pace has dropped well below your own recent average. Softer than `sad` — nothing has actually lapsed yet. |
+| `focused` | A focus-timer session is running. The one pose that means "right now", rather than "lately". |
 
 Only `idle` is required. A character with just `idle.webp` works everywhere;
 every other pose resolves through the fallback chain above, so a missing file is
-never a 404.
+never a 404. Drawing `idle`, `celebrate` and `sad` covers all six sensibly:
+`milestone` borrows `celebrate`, `concerned` borrows `sad`, and `focused`
+borrows `idle`.
 
 ## Image requirements
 

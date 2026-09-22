@@ -87,6 +87,8 @@ const GLYPH = {
   celebrate: ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
   milestone: ['..#..', '.###.', '#####', '.###.', '..#..'],
   sad: ['.....', '#...#', '.....', '.###.', '#...#'],
+  concerned: ['.....', '#...#', '.....', '.###.', '.....'],
+  focused: ['#####', '.....', '..#..', '.....', '#####'],
 };
 
 /**
@@ -96,7 +98,7 @@ const FIXTURES = [
   {
     id: 'fixture-full',
     colour: [124, 77, 204],
-    poses: ['idle', 'celebrate', 'milestone', 'sad'],
+    poses: ['idle', 'celebrate', 'milestone', 'sad', 'concerned', 'focused'],
     meta: {
       name: 'Fixture Full',
       artist: 'Placeholder generator',
@@ -112,7 +114,9 @@ const FIXTURES = [
   },
   {
     // Only idle: every other pose must resolve through the fallback chain and
-    // must never request a file that is not there.
+    // must never request a file that is not there. With six poses in the set
+    // this is also what proves the two-step chains (milestone -> celebrate ->
+    // idle, concerned -> sad -> idle) never dead-end.
     id: 'fixture-idle-only',
     colour: [15, 122, 107],
     poses: ['idle'],

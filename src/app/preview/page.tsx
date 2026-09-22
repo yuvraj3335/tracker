@@ -13,6 +13,7 @@ import { Heatmap } from '@/components/heatmap';
 import { VelocityChart } from '@/components/velocity-chart';
 import { TaskRow } from '@/components/task-row';
 import { CharacterBadge, CharacterFigure } from '@/components/character-figure';
+import { POSES } from '@/lib/characters';
 import { DashboardSkeleton, SheetSkeleton } from '@/components/skeletons';
 import { Sheet } from '@/components/sheet';
 
@@ -172,7 +173,7 @@ export default function PreviewPage() {
       <Section title="Character poses">
         <Card>
           <CardContent className="flex flex-wrap items-end gap-6 pt-4">
-            {(['idle', 'celebrate', 'milestone', 'sad'] as const).map((pose) => (
+            {POSES.map((pose) => (
               <div key={pose} className="flex flex-col items-center gap-1.5">
                 <CharacterFigure pose={pose} size={64} />
                 <span className="text-micro tracking-wide text-ink-muted uppercase">{pose}</span>

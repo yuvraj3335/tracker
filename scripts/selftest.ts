@@ -23,6 +23,7 @@ import {
 import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey, isDayKey } from '../src/lib/date';
 import { streaks, countsByDay, overallProgress, areaProgress, streakMood } from '../src/lib/derive';
 import {
+  POSES,
   parseCharacterMeta,
   parseAccent,
   resolvePose,
@@ -377,21 +378,50 @@ async function main() {
   {
     const full: Character = {
       id: 'f', name: 'F', artist: 'a', license: 'l', source: '',
-      poses: { idle: '/i.webp', celebrate: '/c.webp', milestone: '/m.webp', sad: '/s.webp' },
+      poses: {
+        idle: '/i.webp', celebrate: '/c.webp', milestone: '/m.webp',
+        sad: '/s.webp', concerned: '/cn.webp', focused: '/fo.webp',
+      },
     };
     const idleOnly: Character = { ...full, poses: { idle: '/i.webp' } };
     const noMilestone: Character = { ...full, poses: { idle: '/i.webp', celebrate: '/c.webp' } };
+    // Has the pose `concerned` degrades to, and the one `focused` must NOT.
+    const sadAndCelebrate: Character = {
+      ...full,
+      poses: { idle: '/i.webp', celebrate: '/c.webp', sad: '/s.webp' },
+    };
 
     check('full set resolves each pose directly', resolvePose(full, 'milestone') === '/m.webp');
     check('sad resolves directly when present', resolvePose(full, 'sad') === '/s.webp');
+    check('concerned resolves directly when present', resolvePose(full, 'concerned') === '/cn.webp');
+    check('focused resolves directly when present', resolvePose(full, 'focused') === '/fo.webp');
     check('milestone falls back to celebrate', resolvePose(noMilestone, 'milestone') === '/c.webp');
     check('sad falls back to idle', resolvePose(noMilestone, 'sad') === '/i.webp');
     check('celebrate falls back to idle', resolvePose(idleOnly, 'celebrate') === '/i.webp');
     check('milestone falls all the way to idle', resolvePose(idleOnly, 'milestone') === '/i.webp');
+
+    // concerned is the softer sibling of sad, so it borrows sad before idle.
+    check('concerned falls back to sad', resolvePose(sadAndCelebrate, 'concerned') === '/s.webp');
+    check('concerned falls all the way to idle', resolvePose(idleOnly, 'concerned') === '/i.webp');
+    // focused must never borrow a celebratory or sad stand-in — it would say
+    // the wrong thing for the whole length of a focus session.
+    check('focused falls back to idle, not celebrate', resolvePose(sadAndCelebrate, 'focused') === '/i.webp');
+    check('focused falls back to idle when that is all there is', resolvePose(idleOnly, 'focused') === '/i.webp');
+
     check('a null character resolves to null (SVG mascot renders)', resolvePose(null, 'idle') === null);
     check('a character with no art resolves to null',
       resolvePose({ ...full, poses: {} }, 'idle') === null);
     check('isRenderable tracks the idle pose', isRenderable(idleOnly) && !isRenderable({ ...full, poses: {} }));
+
+    // Structural, so adding a pose key without a chain cannot slip through:
+    // every pose must resolve for a character that has only idle art, and
+    // none may resolve for a character with none.
+    check('every pose resolves to its own file when all are installed',
+      POSES.every((p) => resolvePose(full, p) === full.poses[p]));
+    check('every pose falls back to idle with idle-only art',
+      POSES.every((p) => resolvePose(idleOnly, p) === '/i.webp'));
+    check('no pose invents a URL when there is no art at all',
+      POSES.every((p) => resolvePose({ ...full, poses: {} }, p) === null));
 
     const catalog = [full, idleOnly];
     check('lookup finds by id', resolveCharacter(catalog, 'f')?.id === 'f');
