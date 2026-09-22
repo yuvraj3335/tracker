@@ -52,8 +52,8 @@ import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate'
 import { setupStage } from '../src/lib/setup';
 import {
   CRITICAL_MS, HOUR, MAX_DURATION_MS, MINUTE, SECOND, WARNING_MS,
-  crossedBelow, describeRemaining, elapsedFraction, formatRemaining,
-  parseDuration, phaseFor, remainingMs,
+  crossedBelow, describeRemaining, elapsedFraction, finishesAt, formatClock,
+  formatRemaining, parseDuration, phaseFor, remainingMs,
 } from '../src/lib/timer';
 import { usableAccent, contrastRatio, readableInk } from '../src/lib/contrast';
 import { resolveDatabaseUrl } from '../src/lib/env';
@@ -947,6 +947,26 @@ async function main() {
     check('reaching zero crosses zero', crossedBelow(1, 0, 0));
     check('sitting at zero does not cross it twice', !crossedBelow(0, 0, 0));
 
+    // ---- the wall clock on the focus screen. Pinned to the app's configured
+    // zone, so it cannot disagree with the date the dashboard is showing.
+    const NOON_UTC = Date.UTC(2026, 8, 22, 12, 0, 0);
+    check('midnight UTC', formatClock(Date.UTC(2026, 8, 22, 0, 0), 'UTC') === '00:00');
+    check('noon UTC', formatClock(NOON_UTC, 'UTC') === '12:00');
+    check('afternoon is 24-hour, not 1 pm', formatClock(Date.UTC(2026, 8, 22, 13, 45), 'UTC') === '13:45');
+    check('a half-hour offset zone', formatClock(NOON_UTC, 'Asia/Kolkata') === '17:30');
+    check('a zone across the date line', formatClock(NOON_UTC, 'Pacific/Kiritimati') === '02:00');
+    check('the far side of it', formatClock(NOON_UTC, 'Pacific/Midway') === '01:00');
+    // A misconfigured APP_TIMEZONE must not take the timer down with it.
+    let clockThrew = false;
+    try { formatClock(NOON_UTC, 'Not/AZone'); } catch { clockThrew = true; }
+    check('an unusable zone falls back instead of throwing', !clockThrew);
+
+    check('the finish time is now plus what is left',
+      finishesAt(NOON_UTC, 25 * MINUTE, 'UTC') === '12:25');
+    check('it rolls over the hour', finishesAt(NOON_UTC, 75 * MINUTE, 'UTC') === '13:15');
+    check('it rolls over midnight', finishesAt(Date.UTC(2026, 8, 22, 23, 50), 45 * MINUTE, 'UTC') === '00:35');
+    check('a finished timer finishes now', finishesAt(NOON_UTC, 0, 'UTC') === '12:00');
+    check('an overdue timer does not go backwards', finishesAt(NOON_UTC, -60 * MINUTE, 'UTC') === '12:00');
   }
 
   // -----------------------------------------------------------------------

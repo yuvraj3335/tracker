@@ -1,4 +1,5 @@
 import { FocusTimer } from '@/components/focus-timer';
+import { env } from '@/lib/env';
 import { PageHeader } from '@/components/page-header';
 
 export const metadata = { title: 'Focus · Job Switch Tracker' };
@@ -17,7 +18,10 @@ export default function FocusPage() {
         title="Focus"
         sub="A countdown for one sitting. Nothing here is logged — ticking a question is still the only input."
       />
-      <FocusTimer />
+      {/* The same zone that decides when a day rolls over for streaks and
+          the heatmap, so the clock here and the date on the dashboard cannot
+          disagree about what day it is. */}
+      <FocusTimer timeZone={env.timezone} />
     </div>
   );
 }

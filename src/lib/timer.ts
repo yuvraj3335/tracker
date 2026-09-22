@@ -153,3 +153,46 @@ export function elapsedFraction(remaining: number, total: number): number {
 export function crossedBelow(prev: number, next: number, threshold: number): boolean {
   return prev > threshold && next <= threshold;
 }
+
+/**
+ * Wall-clock time, in the app's configured zone.
+ *
+ * The same zone that decides when a day rolls over for streaks and the
+ * heatmap, so the clock on the focus screen and the date on the dashboard
+ * never disagree about what time it is.
+ *
+ * Formatters are cached: this is called once a second for as long as the page
+ * is open, and building an Intl.DateTimeFormat is not free.
+ */
+const clockFormatters = new Map<string, Intl.DateTimeFormat>();
+
+export function formatClock(epochMs: number, timeZone?: string): string {
+  const key = timeZone ?? '';
+  let formatter = clockFormatters.get(key);
+  if (!formatter) {
+    const options: Intl.DateTimeFormatOptions = {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    };
+    try {
+      formatter = new Intl.DateTimeFormat('en-GB', timeZone ? { ...options, timeZone } : options);
+    } catch {
+      // A misconfigured APP_TIMEZONE is not worth taking the timer down for;
+      // the countdown itself does not depend on a zone at all.
+      formatter = new Intl.DateTimeFormat('en-GB', options);
+    }
+    clockFormatters.set(key, formatter);
+  }
+  return formatter.format(epochMs);
+}
+
+/**
+ * The wall-clock time a running session will finish at.
+ *
+ * Worth showing because it answers the question people actually have — "can I
+ * make the 4 o'clock?" — which a count of minutes does not.
+ */
+export function finishesAt(nowMs: number, remaining: number, timeZone?: string): string {
+  return formatClock(nowMs + Math.max(0, remaining), timeZone);
+}
