@@ -24,6 +24,7 @@ import {
   type Point,
   type Safe,
 } from '@/lib/companion';
+import { primeAudio } from '@/lib/speech';
 import { cn } from '@/lib/utils';
 
 /**
@@ -154,6 +155,12 @@ export function Companion({
       return;
     }
 
+    // Inside the tap, before anything defers. Mobile Safari only grants
+    // audio to code running in the gesture itself, and the open below goes
+    // through a timer — so by the time the panel mounts and tries to say
+    // hello, the gesture is over and the permission is gone.
+    primeAudio();
+
     const now = Date.now();
     if (now - lastTap.current < DOUBLE_TAP_MS) {
       lastTap.current = 0;
@@ -170,6 +177,7 @@ export function Companion({
 
   // ---- keyboard ----------------------------------------------------------
   function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') primeAudio();
     if (!position || !viewport) return;
     const step = e.shiftKey ? NUDGE_FAR : NUDGE;
     const delta: Record<string, Point> = {

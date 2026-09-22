@@ -60,8 +60,11 @@ import {
 } from '../src/lib/companion';
 import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate-limit';
 import { buildSnapshot } from '../src/lib/companion-context';
-import { pickVoice, prosody, sayable, splitForSpeech, voiceScore, type VoiceLike } from '../src/lib/speech';
-import { KOKORO_PREFIX, KOKORO_VOICES, kokoroVoice, pickBackend } from '../src/lib/kokoro';
+import {
+  SPEECH_START_MS, SPEECH_WATCHDOG_MS,
+  pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
+} from '../src/lib/speech';
+import { KOKORO_PREFIX, KOKORO_VOICES, MODEL_MEGABYTES, kokoroVoice, shouldAutoLoad } from '../src/lib/kokoro';
 import { fixtures } from '../src/lib/fixtures';
 import {
   MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_REPLY_CHARS,
@@ -1303,15 +1306,16 @@ async function main() {
     // The figure is the status indicator, so every turn needs its own.
     check('talking looks like talking', poseForTurn('speaking') === 'talking' && poseForTurn('greeting') === 'talking');
     check('listening looks like listening', poseForTurn('listening') === 'listening');
-    check('thinking casts', poseForTurn('thinking') === 'casting');
+    // Not a label and not a stock phrase: the figure bobs while it works, and
+    // a looping clip is the only kind that can hold for an unknown wait.
+    check('thinking is shown, not said', poseForTurn('thinking') === 'floating');
     check('closed and resting are at rest',
       poseForTurn('closed') === 'idle' && poseForTurn('resting') === 'idle');
 
     check('every active turn says what it is doing',
       (['greeting', 'listening', 'speaking', 'resting'] as Turn[])
         .every((t) => captionFor(t, 'Miso').length > 0));
-    // Thinking is covered out loud by a filler. A "Thinking…" label under a
-    // talking character reads as machinery, which is the thing being removed.
+    // The wait is shown — bobbing figure, moving dots — rather than narrated.
     check('thinking is never labelled on screen', captionFor('thinking', 'Miso') === '');
     check('the caption names the character', captionFor('speaking', 'Miso').includes('Miso'));
     check('a closed conversation says nothing', captionFor('closed', 'Miso') === '');
@@ -1435,6 +1439,19 @@ async function main() {
       Array.from({ length: 24 }, (_, i) => prosody(i % 2 ? 'Wow!' : 'Really?', i)).every(
         (p) => p.rate >= 0.85 && p.rate <= 1.2 && p.pitch >= 0.9 && p.pitch <= 1.25));
 
+    // ---- not being stranded by an engine that says nothing
+    // A refused utterance fires no events at all, which on a phone means the
+    // conversation stops at hello and never opens the microphone again.
+    check('a refusal is caught in under two seconds', SPEECH_START_MS <= 2_000);
+    check('but not so fast it cuts off a slow engine', SPEECH_START_MS >= 1_000);
+    check('the long backstop outlasts the start check', SPEECH_WATCHDOG_MS > SPEECH_START_MS);
+    check('a longer reply is given longer',
+      speakingTime('One two three four five six seven eight nine ten.') > speakingTime('Hi.'));
+    check('even the shortest line gets a grace period', speakingTime('Hi.') > 1_000);
+    check('nothing waits forever', speakingTime('word '.repeat(4000)) <= 60_000);
+    check('an empty string still returns a real number',
+      Number.isFinite(speakingTime('')) && speakingTime('') > 0);
+
     // ---- the rest of the robot list
     check('an enhanced voice beats the plain one of the same name',
       voiceScore(v('Karen (Enhanced)')) > voiceScore(v('Karen')));
@@ -1464,13 +1481,18 @@ async function main() {
     check('no voice is offered twice',
       new Set(KOKORO_VOICES.map((voice) => voice.id)).size === KOKORO_VOICES.length);
 
-    // The download is the whole cost of this, so the size quoted in the
-    // picker has to be the size of the build that machine will actually get.
-    check('a GPU gets the full-precision model', pickBackend(true).device === 'webgpu');
-    check('everything else gets the quantised one', pickBackend(false).dtype === 'q8');
-    check('the quantised build is the smaller download',
-      pickBackend(false).megabytes < pickBackend(true).megabytes);
-    check('both builds quote a size', pickBackend(true).megabytes > 0 && pickBackend(false).megabytes > 0);
+    // Fetching 90 MB nobody asked for is the one way this feature can be
+    // rude, so the conditions for doing it unprompted are worth pinning down.
+    check('a laptop on wi-fi just gets it', shouldAutoLoad({ effectiveType: '4g', deviceMemory: 8 }));
+    check('knowing nothing about the device is not a reason to refuse', shouldAutoLoad({}));
+    check('Data Saver is an explicit no', !shouldAutoLoad({ saveData: true, deviceMemory: 8 }));
+    check('a slow connection is a no',
+      !shouldAutoLoad({ effectiveType: '2g' }) && !shouldAutoLoad({ effectiveType: 'slow-2g' }));
+    check('3g is a no too', !shouldAutoLoad({ effectiveType: '3g' }));
+    check('a low-memory phone is left on its own voices',
+      !shouldAutoLoad({ effectiveType: '4g', deviceMemory: 2 }));
+    check('Data Saver beats a fast connection', !shouldAutoLoad({ saveData: true, effectiveType: '4g' }));
+    check('the download size is quoted honestly', MODEL_MEGABYTES > 0 && MODEL_MEGABYTES < 200);
   }
 
   section('Keyboard mapping');

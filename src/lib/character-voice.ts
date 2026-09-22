@@ -13,12 +13,11 @@
 import { pickLine, type ThemeMeta } from './themes';
 import type { Character } from './characters';
 
-export type VoiceKind = 'cheer' | 'milestone' | 'sectionDone' | 'finale' | 'idle' | 'undo' | 'filler';
+export type VoiceKind = 'cheer' | 'milestone' | 'sectionDone' | 'finale' | 'idle' | 'undo';
 
 /** The skin's own copy for a kind, used whenever the character has none. */
 function themeLines(theme: ThemeMeta, kind: VoiceKind): string[] {
   if (kind === 'undo') return theme.undo;
-  if (kind === 'filler') return theme.filler;
   if (kind === 'milestone') return theme.milestone;
   if (kind === 'sectionDone') return theme.sectionDone;
   if (kind === 'finale') return theme.finale;

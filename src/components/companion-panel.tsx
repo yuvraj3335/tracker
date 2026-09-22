@@ -10,14 +10,11 @@ import { THEMES } from '@/lib/themes';
 import {
   KOKORO_PREFIX,
   KOKORO_VOICES,
-  backend,
+  MODEL_MEGABYTES,
   engineProgress,
   engineState,
-  kokoroVoice,
-  probeGPU,
   serverEngineProgress,
   serverEngineState,
-  warm,
 } from '@/lib/kokoro';
 import {
   canListen,
@@ -26,6 +23,8 @@ import {
   getVoiceName,
   listVoices,
   listen,
+  loadEngine,
+  naturalVoice,
   serverVoice,
   serverVoiceList,
   serverVoiceName,
@@ -62,9 +61,6 @@ export function CompanionPanel({
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
   const voice = useSyncExternalStore(subscribe, getVoice, serverVoice);
 
-  const natural = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
-  const engine = useSyncExternalStore(subscribe, engineState, serverEngineState);
-
   const [canHear] = useState(canListen);
   const [canTalk] = useState(canSpeak);
   // Mounted only while open, so the opening turn and the greeting are the
@@ -80,7 +76,6 @@ export function CompanionPanel({
   const box = useRef<HTMLDivElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const stopHearing = useRef<(() => void) | null>(null);
-  const fillers = useRef(0);
 
   const name = character?.name ?? 'Your companion';
 
@@ -118,11 +113,6 @@ export function CompanionPanel({
       setProblem('');
       advance('heard');
 
-      // Cover the wait the way a person does. By the time this is out of its
-      // mouth the reply has usually landed, so the reply queues behind it
-      // rather than cutting it off — and there is no spinner anywhere.
-      speak(pickCharacterLine(character, 'filler', THEMES[skin], fillers.current++));
-
       const next: ChatMessage[] = [...messages, { role: 'user', content: trimmed }];
       setMessages(next);
       try {
@@ -138,8 +128,7 @@ export function CompanionPanel({
         if (data?.ok && data.reply) {
           setMessages((m) => [...m, { role: 'assistant', content: data.reply as string }]);
           advance('reply');
-          // Queued, so it waits behind the filler instead of talking over it.
-          speak(data.reply, () => advance('spoke'), true);
+          speak(data.reply, () => advance('spoke'));
           return;
         }
         setProblem(
@@ -152,7 +141,7 @@ export function CompanionPanel({
       }
       advance('error');
     },
-    [messages, character, skin, advance],
+    [messages, character, advance],
   );
 
   // ---- the microphone, open the whole time the loop says to ---------------
@@ -182,6 +171,15 @@ export function CompanionPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn]);
 
+  // The voice downloads itself when a conversation starts, rather than when
+  // somebody finds the dropdown. Until it lands the browser's own voice
+  // answers, so this costs nothing but the bytes — and on a metered or
+  // low-powered device it does not happen at all.
+  useEffect(() => {
+    const voice = naturalVoice();
+    if (voice) void loadEngine(voice);
+  }, []);
+
   // ---- opening and closing ------------------------------------------------
   // Says hello on mount. Only an external call — the turn it hands back
   // arrives through `speak`'s callback, not from this effect's body.
@@ -194,15 +192,6 @@ export function CompanionPanel({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // The filler exists to cover the couple of seconds a natural voice needs to
-  // generate a reply — so a filler that had to be generated first would cover
-  // nothing. These are made during the greeting, when it has nothing else to
-  // do, and then they are instant for the rest of the conversation.
-  useEffect(() => {
-    const voice = kokoroVoice(natural);
-    if (voice && engine === 'ready') void warm(THEMES[skin].filler, voice);
-  }, [natural, engine, skin]);
 
   /** Keeps the figure outside in step. */
   useEffect(() => {
@@ -281,6 +270,19 @@ export function CompanionPanel({
             {m.content}
           </p>
         ))}
+        {turn === 'thinking' ? (
+          <span className="skin-pill inline-flex w-fit items-center gap-1 border border-hairline bg-surface-2 px-3 py-2.5">
+            <span className="sr-only">Working on a reply</span>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                aria-hidden
+                className="js-dot size-1.5 rounded-full bg-ink-muted"
+                style={{ animationDelay: `${i * 160}ms` }}
+              />
+            ))}
+          </span>
+        ) : null}
         {heard ? (
           <p className="skin-pill ml-auto max-w-[85%] border border-dashed border-control px-2.5 py-1.5 text-xs text-ink-muted italic">
             {heard}
@@ -427,14 +429,6 @@ function VoicePicker({ name }: { name: string }) {
   const chosen = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
   const state = useSyncExternalStore(subscribe, engineState, serverEngineState);
   const percent = useSyncExternalStore(subscribe, engineProgress, serverEngineProgress);
-  // Asking for a GPU adapter is the only honest way to know whether there is
-  // one, and it is async — so the label starts at the modest build and
-  // corrects itself once the answer arrives. Quoting the wrong download size
-  // is the one thing this label must not do.
-  useEffect(() => {
-    void probeGPU();
-  }, []);
-  const size = backend().megabytes;
 
   return (
     <span className="flex min-w-0 items-center gap-1">
@@ -462,7 +456,7 @@ function VoicePicker({ name }: { name: string }) {
         {/* The real answer to "it sounds like a robot". These run on this
             machine, so the only cost is the one-off download, and saying so
             in the label is the difference between a choice and a surprise. */}
-        <optgroup label={state === 'ready' ? 'Natural' : `Natural — ${size} MB once`}>
+        <optgroup label={state === 'ready' ? 'Natural' : `Natural — ${MODEL_MEGABYTES} MB once`}>
           {KOKORO_VOICES.map((v) => (
             <option key={v.id} value={`${KOKORO_PREFIX}${v.id}`}>
               {v.label}

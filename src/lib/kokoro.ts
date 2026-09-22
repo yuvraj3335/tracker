@@ -47,49 +47,58 @@ export function kokoroVoice(preference: string): string | null {
   return KOKORO_VOICES.some((v) => v.id === id) ? id : null;
 }
 
-export type Backend = { device: 'webgpu' | 'wasm'; dtype: 'fp32' | 'q8'; megabytes: number };
+/**
+ * One build, everywhere: the quantised model on WASM.
+ *
+ * WebGPU would run this several times faster, and the full-precision build it
+ * wants is 330 MB — too much to fetch without being asked, which rules it out
+ * as a default. Keeping one path also means the path that ships is the path
+ * that was tested; a WebGPU branch that could only be guessed at is not worth
+ * the speed it might have bought.
+ */
+export const MODEL_MEGABYTES = 90;
+
+/** The voice used when nobody has chosen one. Kokoro's best-graded voice. */
+export const DEFAULT_VOICE = 'af_heart';
+
+/** What the browser will tell us about the connection and the machine. */
+export type DeviceHints = { saveData?: boolean; effectiveType?: string; deviceMemory?: number };
 
 /**
- * Which build of the model to fetch.
+ * Whether to fetch the model without being asked.
  *
- * A machine with WebGPU can run the full-precision model faster than real
- * time, and is by definition a machine that can afford the download. Anything
- * else gets the quantised build, which is a third of the size and the only
- * thing that is bearable on a CPU.
- */
-export function pickBackend(hasWebGPU: boolean): Backend {
-  return hasWebGPU
-    ? { device: 'webgpu', dtype: 'fp32', megabytes: 330 }
-    : { device: 'wasm', dtype: 'q8', megabytes: 90 };
-}
-
-/**
- * Whether WebGPU is real here, which is not the same question as whether
- * `navigator.gpu` exists.
+ * A good voice is worth 90 MB on a laptop on wi-fi and is not worth it on a
+ * phone on a train, and the browser knows which of those this is. Data Saver
+ * is an explicit "no" and is treated as one. Small-memory devices are left
+ * out too — not for the download but for what comes after it, since running
+ * this on a low-end phone is slower than it is worth.
  *
- * It exists in plenty of places that have no adapter behind it — headless
- * browsers, VMs, machines with the GPU blocklisted — and the only way to know
- * is to ask for one. Getting this wrong would quote a 330 MB download and
- * then fail to run the thing it downloaded.
+ * Nothing here blocks *choosing* a natural voice by hand. This decides only
+ * what happens when nobody has said anything either way.
  */
-let adapter: boolean | null = null;
-
-export async function probeGPU(): Promise<boolean> {
-  if (adapter !== null) return adapter;
-  try {
-    const gpu = (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-    adapter = gpu ? (await gpu.requestAdapter()) !== null : false;
-  } catch {
-    adapter = false;
-  }
-  announce();
-  return adapter;
+export function shouldAutoLoad(hints: DeviceHints): boolean {
+  if (hints.saveData) return false;
+  if (hints.effectiveType && /^(slow-2g|2g|3g)$/.test(hints.effectiveType)) return false;
+  if (typeof hints.deviceMemory === 'number' && hints.deviceMemory < 4) return false;
+  return true;
 }
 
-/** Assumes the modest build until the probe says otherwise. */
-export function backend(): Backend {
-  return pickBackend(adapter === true);
+export function deviceHints(): DeviceHints {
+  if (typeof navigator === 'undefined') return {};
+  const n = navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+    deviceMemory?: number;
+  };
+  return {
+    saveData: n.connection?.saveData,
+    effectiveType: n.connection?.effectiveType,
+    deviceMemory: n.deviceMemory,
+  };
 }
+
+/** True when a natural voice should be used without anyone having picked one. */
+export const autoNatural = (): string | null =>
+  shouldAutoLoad(deviceHints()) ? DEFAULT_VOICE : null;
 
 // ------------------------------------------------------------------ loading
 export type EngineState = 'off' | 'loading' | 'ready' | 'failed';
@@ -144,13 +153,10 @@ export function loadEngine(voice: string): Promise<boolean> {
 
   loading = (async () => {
     try {
-      // Asked before the model id is chosen, because the answer picks it.
-      await probeGPU();
-      const { device, dtype } = backend();
       const { KokoroTTS } = await import('kokoro-js');
       const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-        dtype,
-        device,
+        dtype: 'q8',
+        device: 'wasm',
         progress_callback: (report: { status?: string; file?: string; loaded?: number; total?: number }) => {
           if (report.status !== 'progress' || !report.file || !report.total) return;
           files.set(report.file, { at: report.loaded ?? 0, of: report.total });
@@ -189,6 +195,16 @@ export function loadEngine(voice: string): Promise<boolean> {
 // ------------------------------------------------------------------ playback
 let context: AudioContext | null = null;
 let playing: AudioBufferSourceNode | null = null;
+
+/**
+ * Opens the audio context from inside a tap, so it is allowed to make sound.
+ *
+ * An `AudioContext` created outside a user gesture starts suspended on mobile
+ * Safari and stays that way, which is silence with no error to explain it.
+ */
+export function primeKokoroAudio() {
+  audio();
+}
 
 function audio(): AudioContext | null {
   if (typeof window === 'undefined') return null;

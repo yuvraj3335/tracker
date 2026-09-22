@@ -16,7 +16,15 @@
  * because you once said yes is not something to ship.
  */
 import { announce } from './appearance';
-import { kokoroReady, kokoroVoice, loadEngine, speakKokoro, stopKokoro } from './kokoro';
+import {
+  autoNatural,
+  kokoroReady,
+  kokoroVoice,
+  loadEngine,
+  primeKokoroAudio,
+  speakKokoro,
+  stopKokoro,
+} from './kokoro';
 
 // --------------------------------------------------------------- preference
 export const VOICE_KEY = 'jst-voice';
@@ -232,12 +240,26 @@ export function setVoiceName(name: string) {
   refreshVoice();
   // Chosen is chosen: start fetching it now rather than at the first reply,
   // so the download overlaps with whatever is said next.
-  const natural = kokoroVoice(preferredName ?? '');
+  const natural = naturalVoice();
   if (natural) void loadEngine(natural);
   announce();
 }
 
 export const serverVoiceName = (): string => '';
+
+/**
+ * The natural voice to use right now, or null to use the browser's.
+ *
+ * An explicit choice always wins, in both directions: picking a browser voice
+ * by name turns the natural one off. With no choice made, a capable device
+ * gets a natural voice anyway — which is the point. Leaving it behind a
+ * dropdown meant the default was still the flat synthesiser everybody was
+ * complaining about, and a default nobody finds is not a feature.
+ */
+export function naturalVoice(): string | null {
+  const preference = getVoiceName();
+  return preference ? kokoroVoice(preference) : autoNatural();
+}
 
 /**
  * The installed voices, best first.
@@ -298,25 +320,102 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
 }
 
 /**
+ * Unlocks audio, from inside the tap that asked for it.
+ *
+ * Mobile Safari will not start speech or audio that did not begin in a user
+ * gesture, and "in a gesture" means synchronously inside the handler — not in
+ * an effect after the panel mounts, and not after a `setTimeout`. Anything
+ * later is silently refused, and because the refusal is silent the `onend`
+ * that hands the conversation on never fires either, so the whole thing
+ * stalls at hello. This is the one call that has to be made from the tap.
+ *
+ * Both engines need it: `speechSynthesis` wants one utterance, and an
+ * `AudioContext` starts suspended and needs resuming. Both are cheap and both
+ * are safe to repeat.
+ */
+export function primeAudio() {
+  if (typeof window === 'undefined') return;
+  try {
+    if ('speechSynthesis' in window) {
+      // A single space rather than an empty string: some engines drop an
+      // empty utterance without counting it as the unlock.
+      const nudge = new SpeechSynthesisUtterance(' ');
+      nudge.volume = 0;
+      window.speechSynthesis.speak(nudge);
+      window.speechSynthesis.resume();
+    }
+  } catch {
+    /* an engine that refuses is an engine we fall back from anyway */
+  }
+  primeKokoroAudio();
+}
+
+/**
+ * How long to wait for an engine to say it has finished before assuming it
+ * never will.
+ *
+ * `onend` is not reliable. Mobile Safari drops it when a tab is backgrounded
+ * mid-sentence, and a refused utterance fires nothing at all. Without a
+ * backstop the conversation stops dead in `speaking` and the microphone never
+ * reopens — which is exactly what "it does not work on my phone" looks like.
+ */
+export const SPEECH_WATCHDOG_MS = 6_000;
+
+/**
+ * How long to wait for an engine to make a sound before deciding it will not.
+ *
+ * A refused utterance — the usual outcome on mobile Safari when the gesture
+ * has already ended — fires no events whatsoever. `onstart` is the difference
+ * between "speaking, be patient" and "silently declined", and catching the
+ * second case in under two seconds is the difference between a conversation
+ * that recovers and one that looks broken.
+ */
+export const SPEECH_START_MS = 1_800;
+
+/** Roughly how long something will take to say, in milliseconds. */
+export function speakingTime(text: string): number {
+  // About three words a second, plus a beat per sentence, plus headroom.
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  const sentences = splitForSpeech(text).length || 1;
+  return Math.min(60_000, 1_500 + (words / 3) * 1_000 + sentences * 400);
+}
+
+/**
  * Reads a reply aloud, sentence by sentence, in the best voice available.
  *
  * `onDone` fires when the whole thing has been said — or immediately when
  * muted or unsupported, because the conversation loop hands the turn on from
  * there and would otherwise stop dead the first time someone hit mute.
  */
+export { loadEngine };
+
 export function speak(text: string, onDone?: () => void, queue = false) {
-  const finish = () => onDone?.();
+  // Whichever comes first — the engine saying it is done, or the clock
+  // deciding it never will. Called at most once either way, because handing
+  // the same turn on twice would open the microphone under a live voice.
+  let handed = false;
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
+  const finish = () => {
+    if (handed) return;
+    handed = true;
+    if (watchdog) clearTimeout(watchdog);
+    onDone?.();
+  };
+  const guard = () => {
+    watchdog = setTimeout(finish, SPEECH_WATCHDOG_MS + speakingTime(text));
+  };
+
   if (!getVoice() || typeof window === 'undefined') {
     finish();
     return;
   }
 
-  // A chosen natural voice wins, and asks for itself to be downloaded the
-  // first time. Until it is ready the browser's own voice still answers, so
-  // choosing it never costs anyone a silent conversation.
-  const natural = kokoroVoice(getVoiceName());
+  // Until the model is ready the browser's own voice answers, so the natural
+  // one never costs anyone a silent conversation while it downloads.
+  const natural = naturalVoice();
   if (natural) {
     if (kokoroReady()) {
+      guard();
       speakKokoro(sayable(text), natural, splitForSpeech, finish, queue);
       return;
     }
@@ -335,14 +434,24 @@ export function speak(text: string, onDone?: () => void, queue = false) {
   }
 
   try {
-    // A queued line waits its turn. That is what lets a reply land behind the
-    // filler that covered the wait for it, rather than cutting it off.
+    guard();
+    // A queued line waits its turn, rather than cutting off what is already
+    // being said.
     if (!queue) window.speechSynthesis.cancel();
     if (!chosenVoice) refreshVoice();
+
+    // If nothing has made a sound by the time this fires, the engine refused
+    // and is not going to say so. Cleared the moment anything starts.
+    let began: ReturnType<typeof setTimeout> | null = setTimeout(finish, SPEECH_START_MS);
+    const started = () => {
+      if (began) clearTimeout(began);
+      began = null;
+    };
 
     parts.forEach((part, i) => {
       const utterance = new SpeechSynthesisUtterance(part);
       if (chosenVoice) utterance.voice = chosenVoice;
+      utterance.onstart = started;
       // Close to a speaking voice rather than a reading one, and varied
       // sentence by sentence — see `prosody`.
       const { rate, pitch } = prosody(part, i);

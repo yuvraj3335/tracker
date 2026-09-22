@@ -101,7 +101,7 @@ export const isTalking = (turn: Turn): boolean => turn === 'greeting' || turn ==
  * This is the whole status indicator. A spinner would tell you the same thing
  * and tell you nothing about who you are talking to.
  */
-export function poseForTurn(turn: Turn): 'idle' | 'talking' | 'listening' | 'casting' {
+export function poseForTurn(turn: Turn): 'idle' | 'talking' | 'listening' | 'floating' {
   switch (turn) {
     case 'greeting':
     case 'speaking':
@@ -109,7 +109,9 @@ export function poseForTurn(turn: Turn): 'idle' | 'talking' | 'listening' | 'cas
     case 'listening':
       return 'listening';
     case 'thinking':
-      return 'casting';
+      // Floating rather than casting: it loops, and a figure bobbing while it
+      // works reads as "working" to someone who is not reading anything.
+      return 'floating';
     default:
       return 'idle';
   }
@@ -124,9 +126,10 @@ export function captionFor(turn: Turn, name: string): string {
     case 'listening':
       return 'Listening — just talk.';
     case 'thinking':
-      // Deliberately not "Thinking…". It is covered out loud by a filler, the
-      // way a person covers it, and a status label under a talking character
-      // reads as machinery.
+      // Deliberately nothing. The wait is shown — the figure bobs and three
+      // dots move — rather than narrated. A label saying "Thinking…", or a
+      // stock phrase said out loud to cover the gap, both draw attention to
+      // the machinery instead of away from it.
       return '';
     case 'resting':
       return 'Tap to talk, or type instead.';

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import { AnimationMixer, LoopOnce, LoopRepeat, type Group } from 'three';
@@ -91,14 +91,67 @@ function Figure({ url, pose }: { url: string; pose: Pose }) {
 }
 
 export function CharacterCanvas({ url, pose, size }: { url: string; pose: Pose; size: number }) {
+  /**
+   * Bumped to rebuild the renderer after the browser takes its context away.
+   *
+   * A backgrounded tab is the most common way to lose one — phones reclaim
+   * GPU memory aggressively, and a page with several figures can also run
+   * past the per-document context limit. Losing it is normal. What is not
+   * normal is never coming back, which is the default, and is why the
+   * character vanishes for good after a tab switch.
+   *
+   * Rebuilt on the loss rather than on the restore. Waiting for
+   * `webglcontextrestored` means depending on the browser to send it, and it
+   * also means three.js reinitialising the very renderer being replaced —
+   * which throws, because its context is gone. Remounting immediately takes
+   * the old canvas and its listeners out with it.
+   *
+   * `preventDefault` still matters: it is what marks the context as wanting
+   * restoration rather than being abandoned.
+   */
+  const [generation, setGeneration] = useState(0);
+
+  /**
+   * How many rebuilds before giving up.
+   *
+   * If a fresh context is lost the instant it is made — no GPU memory left,
+   * a driver that has given up — then rebuilding on loss is a loop that
+   * never ends. After a few tries the figure simply stays away, which is a
+   * far better failure than a page pinned at 100% of a phone's GPU.
+   */
+  const attempts = useRef(0);
+
+  const watch = useCallback((canvas: HTMLCanvasElement) => {
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      if (attempts.current >= 3) return;
+      attempts.current += 1;
+      setGeneration((n) => n + 1);
+    });
+  }, []);
+
+  // A context lost while the tab was hidden is worth one more try when it
+  // comes back, since that is the moment there is memory to be had again.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') attempts.current = 0;
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   return (
     <Canvas
+      key={generation}
+      onCreated={({ gl }) => watch(gl.domElement)}
       style={{ width: size, height: size }}
       // Capped at 2: this draws a few thousand triangles into a box that is
       // never larger than 112px, and a 3x phone screen would be paying for
       // detail nobody can see.
       dpr={[1, 2]}
-      gl={{ alpha: true, antialias: true }}
+      // `low-power` because this is a 112px box and a phone that spins up a
+      // discrete GPU for it will lose the context sooner, not later.
+      gl={{ alpha: true, antialias: true, powerPreference: 'low-power' }}
       // Framed for the figure's whole range of motion, not just its rest pose,
       // so the milestone jump has somewhere to go instead of clipping.
       camera={{ fov: 30, position: [0, 0, 4.72], near: 0.1, far: 20 }}
