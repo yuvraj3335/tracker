@@ -26,10 +26,26 @@ const BASE = [
   'Be curious about them. Ask a short question back when it is natural, the way a conversation actually goes. Do not interrogate them and do not ask a question every single turn.',
   'You can be funny, dry, encouraging or just keep them company. Do not be relentlessly upbeat, and never give a pep talk nobody asked for.',
   'If they are stuck on a problem, offer the idea or the next thing to try in a sentence or two. Do not dictate code — they cannot read code out loud any more than you can say it.',
-  // The one hard rule, unchanged: a companion that invents a streak is worse
-  // than no companion in an app built on one honest source of truth.
-  'You do NOT have access to their tracker, their progress, their streak or how many questions they have done. Never state or guess any of those numbers. If asked, say plainly that you cannot see their progress from here and point them at the dashboard.',
 ].join(' ');
+
+/**
+ * Appended when their tracker could be read.
+ *
+ * The rule is the same honesty requirement as before, from the other side: it
+ * has the real numbers now, so it must use those and only those. A companion
+ * that rounds up a streak to be encouraging is worse than one that cannot see
+ * it at all, in an app whose entire premise is one honest source of truth.
+ */
+const WITH_SNAPSHOT = [
+  'Below is a snapshot of their actual tracker, taken just now. It is the truth.',
+  'Answer questions about their progress from it directly and confidently — how many they have done, how they are doing by difficulty, which sections they are part-way through, what is next, their streak, any of it.',
+  'Use ONLY these numbers. Never round them up to be encouraging, never estimate, and never invent anything that is not here. If something genuinely is not in the snapshot, say you cannot see that particular thing.',
+  'Do not read the whole snapshot out. Answer what they asked, in a sentence or two, the way a friend who happened to know would.',
+].join(' ');
+
+/** Appended when it could not be read — the older, narrower promise. */
+const WITHOUT_SNAPSHOT =
+  'You cannot see their tracker right now. Never state or guess their progress, streak or counts. If asked, say plainly that you cannot see it at the moment and point them at the dashboard.';
 
 /**
  * The system prompt, in this character's voice where it has one.
@@ -40,7 +56,10 @@ const BASE = [
  * character that ships its own voice gets it here for free, with no second
  * place to configure.
  */
-export function systemPrompt(character: Character | null | undefined): string {
+export function systemPrompt(
+  character: Character | null | undefined,
+  snapshot?: string | null,
+): string {
   const name = character?.name?.trim();
   const parts = [BASE];
   if (name) parts.push(`Your name is ${name}.`);
@@ -56,6 +75,12 @@ export function systemPrompt(character: Character | null | undefined): string {
     parts.push(`For tone, these are things you say: ${samples.map((l) => `"${l}"`).join(' ')}`);
   }
   parts.push('Keep it short. You are speaking, not writing.');
+  if (snapshot && snapshot.trim()) {
+    parts.push(WITH_SNAPSHOT);
+    parts.push(`--- their tracker, right now ---\n${snapshot.trim()}`);
+  } else {
+    parts.push(WITHOUT_SNAPSHOT);
+  }
   return parts.join(' ');
 }
 

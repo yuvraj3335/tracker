@@ -1,27 +1,26 @@
 import { NextResponse } from 'next/server';
-import { currentUser } from '@/lib/tenant';
+import { currentUser, tenantStatus } from '@/lib/tenant';
+import { getEverything } from '@/lib/notion';
 import { discoverCharacters } from '@/lib/characters.server';
 import { resolveCharacter } from '@/lib/characters';
 import { createRateLimiter, retryAfterSeconds } from '@/lib/rate-limit';
+import { buildSnapshot } from '@/lib/companion-context';
 import { sanitiseHistory, systemPrompt, tidyReply } from '@/lib/companion-prompt';
 
 export const runtime = 'nodejs';
 /** A conversation, so it either answers quickly or it has not answered. */
 export const maxDuration = 30;
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2023-06-01';
 
 /**
- * Chosen by asking the account what it actually has rather than assuming a
- * model name: this key has no Llama models at all, so the usual
- * `llama-3.1-8b-instant` guess would have 404'd on the first real request.
- * gpt-oss-120b answered a in-character prompt in about 150ms of generation,
- * which is the same as the 20b and markedly better, and it is a reasoning
- * model — hence `reasoning_effort: low`, or it spends the whole token budget
- * thinking and returns empty content.
+ * Claude Haiku 4.5. The id was read off the account's own model list rather
+ * than guessed — the last two providers this was built against both turned out
+ * not to have the model everyone assumes they do.
  */
-const MODEL = 'openai/gpt-oss-120b';
-const MAX_COMPLETION_TOKENS = 320;
+const MODEL = 'claude-haiku-4-5-20251001';
+const MAX_TOKENS = 260;
 const TIMEOUT_MS = 20_000;
 
 /**
@@ -38,7 +37,7 @@ const take = createRateLimiter(20, 5 * 60_000);
 const COPY = {
   signedOut: 'Sign in to talk to your companion.',
   notConfigured:
-    'Your companion is not set up on this deployment yet. Once a Groq key is configured it will be able to talk back.',
+    'Your companion is not set up on this deployment yet. Once a key is configured it will be able to talk back.',
   badRequest: 'That message did not come through. Try saying it again.',
   tooMany: 'Give your companion a moment to catch up, then try again.',
   slow: 'Your companion took too long to answer. Try again in a moment.',
@@ -68,7 +67,7 @@ export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return fail(401, COPY.signedOut);
 
-  const key = process.env.GROQ_API_KEY?.trim();
+  const key = process.env.ANTHROPIC_API_KEY?.trim();
   // 200, deliberately: the request worked, the feature is simply not turned on
   // here, and the panel renders that as a state rather than as a failure.
   if (!key) return NextResponse.json<Reply>({ ok: false, message: COPY.notConfigured, configured: false });
@@ -99,19 +98,44 @@ export async function POST(req: Request) {
     typeof characterId === 'string' ? characterId : null,
   );
 
+  // What it actually knows about them. Derived through derive.ts so the
+  // numbers it says out loud are the same ones the dashboard shows, and read
+  // here rather than trusted from the client, which could claim anything.
+  //
+  // Notion being slow or down must never take the conversation with it: a
+  // companion that cannot see the tracker is a far smaller loss than one that
+  // refuses to talk at all.
+  let snapshot: string | null = null;
+  try {
+    const status = await tenantStatus();
+    if (status.kind === 'ready') {
+      const { areas, topics, tasks } = await getEverything(status.tenant);
+      snapshot = buildSnapshot(areas, topics, tasks);
+    }
+  } catch (e) {
+    console.error('[companion] could not read the tracker:', (e as Error)?.message);
+  }
+
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(GROQ_URL, {
+    const res = await fetch(ANTHROPIC_URL, {
       method: 'POST',
       signal: abort.signal,
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': ANTHROPIC_VERSION,
+        'content-type': 'application/json',
+      },
+      // The system prompt is a top-level field here rather than a first
+      // message, which is the one thing that differs from every
+      // OpenAI-shaped API this has talked to.
       body: JSON.stringify({
         model: MODEL,
-        max_completion_tokens: MAX_COMPLETION_TOKENS,
-        temperature: 0.85,
-        reasoning_effort: 'low',
-        messages: [{ role: 'system', content: systemPrompt(character) }, ...messages],
+        max_tokens: MAX_TOKENS,
+        temperature: 1,
+        system: systemPrompt(character, snapshot),
+        messages,
       }),
     });
 
@@ -119,14 +143,13 @@ export async function POST(req: Request) {
       // Logged where it is useful, never returned. Upstream error text names
       // models, quotas and internal mechanics, and is written for whoever is
       // integrating rather than whoever is talking to a cartoon wizard.
-      console.error('[companion] groq responded', res.status, (await res.text()).slice(0, 400));
+      console.error('[companion] anthropic responded', res.status, (await res.text()).slice(0, 300));
       return fail(502, res.status === 429 ? COPY.tooMany : COPY.upstream);
     }
 
-    const data = (await res.json()) as {
-      choices?: { message?: { content?: unknown } }[];
-    };
-    const reply = tidyReply(data.choices?.[0]?.message?.content);
+    const data = (await res.json()) as { content?: { type?: string; text?: unknown }[] };
+    const spoken = data.content?.find((block) => block.type === 'text')?.text;
+    const reply = tidyReply(spoken);
     if (!reply) return fail(502, COPY.empty);
     return NextResponse.json<Reply>({ ok: true, reply });
   } catch (e) {

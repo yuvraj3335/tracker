@@ -59,6 +59,8 @@ import {
   pokeReaction, trimPokes, type Safe,
 } from '../src/lib/companion';
 import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate-limit';
+import { buildSnapshot } from '../src/lib/companion-context';
+import { fixtures } from '../src/lib/fixtures';
 import {
   MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_REPLY_CHARS,
   sanitiseHistory, systemPrompt, tidyReply,
@@ -1186,11 +1188,25 @@ async function main() {
     const prompt = systemPrompt(wizard);
     check('the character is named to the model', prompt.includes('Thistle'));
     check('its own lines set the tone', prompt.includes('One down.') && prompt.includes('Ready when you are.'));
-    // The one unacceptable failure: a companion that invents a streak.
-    check('the model is told it cannot see their progress', /cannot see their progress/i.test(prompt));
-    check('and told not to guess the numbers', /never state or guess/i.test(prompt));
     check('no character still produces a usable prompt', systemPrompt(null).length > 100);
-    check('and still carries the no-guessing rule', /never state or guess/i.test(systemPrompt(null)));
+
+    // The one unacceptable failure is a companion that invents progress, and
+    // it has two sides now that it can actually see the tracker: with a
+    // snapshot it must use those numbers and only those; without one it must
+    // admit it cannot see and not guess.
+    const withData = systemPrompt(wizard, 'Overall they have done 163 of 456 questions (35.7%).');
+    check('the real numbers reach the model', withData.includes('163 of 456'));
+    check('and it is told they are the truth', /it is the truth/i.test(withData));
+    check('and told to use only those', /use only these numbers/i.test(withData));
+    check('and told never to round up to be encouraging', /never round them up/i.test(withData));
+    check('and not to read the whole thing out', /do not read the whole snapshot out/i.test(withData));
+
+    const blind = systemPrompt(wizard, null);
+    check('with no snapshot it is told it cannot see', /cannot see their tracker/i.test(blind));
+    check('and told not to guess', /never state or guess/i.test(blind));
+    check('an empty snapshot counts as no snapshot', /cannot see their tracker/i.test(systemPrompt(wizard, '   ')));
+    check('the two branches are mutually exclusive',
+      !/cannot see their tracker/i.test(withData) && !/use only these numbers/i.test(blind));
     check('a character with no lines is not quoted',
       !systemPrompt({ ...wizard, lines: undefined }).includes('For tone'));
 
@@ -1294,6 +1310,41 @@ async function main() {
     check('a closed conversation says nothing', captionFor('closed', 'Miso') === '');
     check('no caption leaks a state name',
       (everyTurn).every((t) => !/greeting|thinking\b.*state|resting/i.test(captionFor(t, 'Miso').replace('Thinking…', ''))));
+  }
+
+  // -----------------------------------------------------------------------
+  // What the companion is told about them. Every number here comes through
+  // derive.ts rather than being recounted, so what it says out loud and what
+  // the dashboard shows cannot drift apart — which is the whole reason it is
+  // allowed to quote numbers at all.
+  // -----------------------------------------------------------------------
+  section('Companion tracker snapshot');
+  {
+    const { areas: fa, topics: ft, tasks: fx } = fixtures();
+    const snap = buildSnapshot(fa, ft, fx);
+    const stats = summarize(fa, fx);
+
+    check('it states the real overall count',
+      snap.includes(`${stats.overall.done} of ${stats.overall.total}`), snap.slice(0, 80));
+    check('and the real streak', snap.includes(`${stats.streak.current} `));
+    check('it breaks down by difficulty', /By difficulty/.test(snap));
+    check('it says how many have no difficulty set', /no difficulty set/.test(snap));
+    check('it names what they are part-way through', /part-way through|Finished sections|Not started/.test(snap));
+    check('it names the next questions', /Next few questions/.test(snap));
+    check('it gives the same reading as the dashboard banner', /How it is going/.test(snap));
+
+    // Compact enough to sit in every system prompt without dominating it.
+    check(`the snapshot stays short (${snap.length} chars)`, snap.length < 1800, String(snap.length));
+    check('it never dumps the whole sheet',
+      snap.split('\n').length < 20, String(snap.split('\n').length));
+
+    // An empty tracker must say so rather than producing confident zeroes
+    // dressed up as progress.
+    const empty = buildSnapshot([area({})], [], []);
+    check('an empty tracker says they have never logged anything',
+      /never logged/.test(empty), empty.slice(0, 120));
+    check('and does not claim a streak', empty.includes('Current streak: 0 days'));
+    check('and does not invent a next question', !/Next few questions/.test(empty));
   }
 
   section('Keyboard mapping');

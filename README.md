@@ -183,8 +183,18 @@ never the only way in.
 answers, and listens again, hands-free, until you stop it. The figure is the
 status indicator — it talks while it talks, leans in while it listens, casts
 while it thinks — and every turn is captioned on screen as well. Typing still
-works and is the only path in a browser without speech recognition. Talking
-needs `GROQ_API_KEY`; without one it says so plainly rather than failing.
+works and is the only path in a browser without speech recognition.
+
+**It can see your tracker.** Ask how many you have done, how the hard ones are
+going, what you are part-way through, what is next — it answers from the real
+numbers, derived through `derive.ts` so what it says out loud and what the
+dashboard shows cannot drift apart. It is read server-side, never taken from
+the browser, and it is told to use those numbers and only those: rounding a
+streak up to be encouraging is the one thing it must never do. If Notion is
+slow or down the conversation still works, it just says it cannot see.
+
+Talking needs `ANTHROPIC_API_KEY` (Claude Haiku); without one it says so
+plainly rather than failing.
 
 - **Accessible.** The overlay is `position: fixed` and `pointer-events: none`, so
   it can never block a tap or shift the page, and every message goes through an
@@ -314,7 +324,7 @@ API. Any cell links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 507 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
+| `npm run test` | 541 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
