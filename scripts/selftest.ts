@@ -70,6 +70,7 @@ import { getPersona, hasPersona, personaPrompt } from '../src/lib/persona';
 import { splitEvents, textOfEvent } from '../src/lib/anthropic-stream';
 import { FRESH_MS, STALE_MS, PATIENCE_MS, clearSnapshots, snapshotFor, within } from '../src/lib/companion-cache';
 import { GUARD_MS, KOKORO_PREFIX, KOKORO_VOICES, modelBuild, modelMegabytes, kokoroVoice, shouldAutoLoad, trimBounds } from '../src/lib/kokoro';
+import { shouldUseGPU } from '../src/lib/gpu';
 import { fixtures } from '../src/lib/fixtures';
 import {
   MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_REPLY_CHARS,
@@ -1530,6 +1531,31 @@ async function main() {
     // Safari does not report memory at all, so "unknown" is mostly a phone.
     check('a machine that will not say gets the small build',
       modelBuild({}).dtype === 'q8');
+
+    // ---- and which device runs it
+    // The GPU is several times faster and wants the same file the WASM path
+    // already downloads, so on a machine that qualifies it costs nothing.
+    // "Qualifies" is deliberately narrow: none of this has been run on real
+    // GPU hardware, so anything it cannot reason about is refused.
+    check('a real GPU with half precision is used',
+      shouldUseGPU({ vendor: 'apple', architecture: 'apple-m', shaderF16: true }));
+    check('so is a discrete one',
+      shouldUseGPU({ vendor: 'nvidia', description: 'NVIDIA GeForce RTX 4070', shaderF16: true }));
+    check('no half precision, no GPU path — the full build is 310 MB',
+      !shouldUseGPU({ vendor: 'intel', shaderF16: false }));
+    check('nothing at all is not a GPU', !shouldUseGPU(null) && !shouldUseGPU(undefined));
+    check('a browser that admits it is emulating is refused',
+      !shouldUseGPU({ vendor: 'google', isFallbackAdapter: true, shaderF16: true }));
+    // Measured on a software adapter: 264x slower than real time, against
+    // 1.15x for the WASM build it would have replaced.
+    check('and so is one that does not admit it',
+      !shouldUseGPU({ vendor: 'google', architecture: 'swiftshader', shaderF16: true }));
+    check('every name a software renderer goes by',
+      ['llvmpipe', 'lavapipe', 'SwiftShader', 'Microsoft Basic Render Driver', 'Software Adapter'].every(
+        (name) => !shouldUseGPU({ vendor: 'x', description: name, shaderF16: true })));
+    check('a real vendor name is not caught by that net',
+      ['Apple', 'NVIDIA', 'AMD', 'Intel', 'Qualcomm', 'ARM'].every(
+        (vendor) => shouldUseGPU({ vendor, shaderF16: true })));
 
     // ---- when a download is not worth it at all
     // A machine with a modern system voice already has a neural voice, and it

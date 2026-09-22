@@ -31,10 +31,18 @@
  *
  * Everything heavy is behind a dynamic import and a worker. Nothing in this
  * file is loaded at all unless a natural voice is actually used.
+ *
+ * There is a third engine now, and it is why this file owns playback rather
+ * than Kokoro owning it: where a deployment has configured a hosted voice,
+ * the clips come over the network instead of out of the worker. Everything
+ * after that point — the trimming, the chosen pauses, the audio clock, the
+ * level the figure is drawn from — is the same code for all three, because
+ * all three have the same problem once the samples exist.
  */
 import { announce } from './appearance';
 import { headStartMs, pauseAfter, speedFor } from './speech-shape';
-import type { FromWorker, ToWorker } from './kokoro.worker';
+import { HOSTED_VOICE, hostedAudio, hostedConfigured } from './hosted-voice';
+import type { Device, FromWorker, ToWorker } from './kokoro.worker';
 
 /** The voices worth offering, and what they actually sound like. */
 export const KOKORO_VOICES = [
@@ -146,6 +154,40 @@ let worker: Worker | null = null;
 let state: EngineState = 'off';
 let loaded = 0;
 let loading: Promise<boolean> | null = null;
+let device: Device | null = null;
+
+/**
+ * The yardstick the worker times itself against, in characters and in
+ * milliseconds of speech, so its answer can be turned back into the
+ * per-character cost the head start is computed from.
+ */
+const YARDSTICK_CHARS = 50;
+const YARDSTICK_MS = 3_400;
+
+/** Which device the model ended up on, once it is loaded. */
+export const engineDevice = (): Device | null => device;
+export const serverEngineDevice = (): Device | null => null;
+
+/**
+ * What is making the sound. Three engines, one queue.
+ *
+ * The hosted one needs nothing loaded, so it is ready the moment the
+ * deployment says it exists; the other two are the same model on different
+ * hardware, and which one it ended up on is only known after the worker has
+ * measured them.
+ */
+export type EngineKind = 'hosted' | Device | 'none';
+
+export function engineKind(): EngineKind {
+  if (hostedConfigured()) return 'hosted';
+  if (state !== 'ready') return 'none';
+  return device ?? 'wasm';
+}
+export const serverEngineKind = (): EngineKind => 'none';
+
+/** Whether this particular voice can speak right now. */
+export const voiceReady = (voice: string): boolean =>
+  voice === HOSTED_VOICE ? hostedConfigured() : state === 'ready';
 
 /** Read through `useSyncExternalStore`, so both of these are plain values. */
 export const engineState = (): EngineState => state;
@@ -229,6 +271,9 @@ function onMessage(event: MessageEvent<FromWorker>) {
  * covering.
  */
 export function loadEngine(voice: string): Promise<boolean> {
+  // The hosted engine has nothing to load, and asking the worker to warm up
+  // on a voice the model has never heard of would fail the whole load.
+  if (voice === HOSTED_VOICE) return Promise.resolve(hostedConfigured());
   if (state === 'ready') return Promise.resolve(true);
   if (state === 'failed') return Promise.resolve(false);
   if (loading) return loading;
@@ -272,6 +317,11 @@ export function loadEngine(voice: string): Promise<boolean> {
       if (message.type === 'ready') {
         worker = spawned;
         loaded = 100;
+        device = message.device;
+        // Measured on this machine, on the device it actually ended up using,
+        // so the head start is priced from the truth rather than from an
+        // average of every machine this has ever run on.
+        msPerChar = (message.rtf * YARDSTICK_MS) / YARDSTICK_CHARS;
         settle('ready');
         resolve(true);
         return;
@@ -305,7 +355,11 @@ export function loadEngine(voice: string): Promise<boolean> {
     });
 
     const build = modelBuild(deviceHints());
-    const message: ToWorker = { type: 'load', dtype: build.dtype, device: 'wasm', voice };
+    // Which *build* to fetch is decided here, from what the browser says about
+    // the machine. Which *device* runs it is decided in the worker, from what
+    // the GPU says about itself and then from how fast it actually turns out
+    // to be. See `useWebGPU` and the yardstick in kokoro.worker.ts.
+    const message: ToWorker = { type: 'load', dtype: build.dtype, voice };
     spawned.postMessage(message);
   }).finally(() => {
     loading = null;
@@ -495,9 +549,35 @@ const warmed = new Map<string, Clip>();
 const WARM_LIMIT = 24;
 const key = (voice: string, text: string, speed: number) => `${voice}|${speed}|${text}`;
 
+/**
+ * One line, as samples, from whichever engine is in use.
+ *
+ * The hosted one hands back an encoded file rather than a buffer, so it is
+ * decoded here — through the same audio context everything else is scheduled
+ * on, which is also the only thing in the browser that knows how to read a
+ * WAV. Everything downstream of this point is identical for all three
+ * engines: the same trimming, the same pauses, the same clock.
+ */
+async function hosted(text: string, speed: number): Promise<Clip | null> {
+  const ctx = audio();
+  if (!ctx) return null;
+  const started = performance.now();
+  const bytes = await hostedAudio(text, speed);
+  if (!bytes) return null;
+  try {
+    const decoded = await ctx.decodeAudioData(bytes);
+    const genMs = performance.now() - started;
+    observe(text.length, genMs);
+    return { audio: decoded.getChannelData(0), sampleRate: decoded.sampleRate, genMs };
+  } catch {
+    return null;
+  }
+}
+
 async function render(voice: string, text: string, speed: number): Promise<Clip | null> {
   const cached = warmed.get(key(voice, text, speed));
   if (cached) return cached;
+  if (voice === HOSTED_VOICE) return hosted(text, speed);
   return generate(text, voice, speed);
 }
 
@@ -509,7 +589,7 @@ async function render(voice: string, text: string, speed: number): Promise<Clip 
  * conversation — the one moment when there is nothing else for it to be doing.
  */
 export async function warm(lines: readonly string[], voice: string) {
-  if (state !== 'ready') return;
+  if (!voiceReady(voice)) return;
   for (const line of lines) {
     // Real speech always wins. There is one model and one worker behind it, so
     // a warm-up still running when a reply arrives is a reply waiting behind
@@ -661,7 +741,7 @@ export function openKokoroStream(
   onDone?: () => void,
   queued = false,
 ): KokoroStream {
-  if (state !== 'ready') {
+  if (!voiceReady(voice)) {
     onDone?.();
     return { push: () => {}, end: () => {} };
   }
@@ -715,7 +795,7 @@ export function speakKokoro(
   onDone?: () => void,
   queued = false,
 ) {
-  if (state !== 'ready' || !text) {
+  if (!voiceReady(voice) || !text) {
     onDone?.();
     return;
   }

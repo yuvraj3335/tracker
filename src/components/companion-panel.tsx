@@ -10,13 +10,21 @@ import { THEMES } from '@/lib/themes';
 import {
   KOKORO_PREFIX,
   KOKORO_VOICES,
+  engineKind,
   engineProgress,
   engineState,
   modelMegabytes,
+  serverEngineKind,
   serverEngineProgress,
   serverEngineState,
   warm,
 } from '@/lib/kokoro';
+import {
+  HOSTED_PREFIX,
+  checkHosted,
+  hostedConfigured,
+  serverHostedConfigured,
+} from '@/lib/hosted-voice';
 import {
   canListen,
   canSpeak,
@@ -39,6 +47,7 @@ import {
   whenVoicesKnown,
 } from '@/lib/speech';
 import { captionFor, isHearing, isTalking, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
+import type { EngineKind } from '@/lib/kokoro';
 import { MAX_MESSAGE_CHARS, type ChatMessage } from '@/lib/companion-prompt';
 import { cn } from '@/lib/utils';
 
@@ -343,21 +352,25 @@ export function CompanionPanel({
   // session then starts talking immediately instead of pausing on hello.
   useEffect(() => {
     let gone = false;
-    // Waited for on purpose. Which voices the browser has arrives a tick or
-    // two after load, and that answer is what decides whether there is
-    // anything to download at all — asking before it lands means fetching the
-    // model onto a machine that already had a better voice installed.
-    const stop = whenVoicesKnown(() => {
-      const id = naturalVoice();
-      if (!id || gone) return;
-      void loadEngine(id).then((ok) => {
-        if (!ok || gone) return;
-        // Just the greeting. There is one model behind one worker, so a
-        // warm-up still running when a reply arrives is a reply waiting
-        // behind it — the exact wait this was meant to remove. `hello` is
-        // picked deterministically, so warming that one line is what makes
-        // the next conversation open without a pause.
-        void warm([hello], id);
+    let stop = () => {};
+    // Both answers before anything is decided. Which voices the browser has
+    // arrives a tick or two after load, and whether this deployment has a
+    // hosted voice is a round trip — and guessing at either is how a machine
+    // that needed no download at all starts a 155 MB one.
+    void checkHosted().then(() => {
+      if (gone) return;
+      stop = whenVoicesKnown(() => {
+        const id = naturalVoice();
+        if (!id || gone) return;
+        void loadEngine(id).then((ok) => {
+          if (!ok || gone) return;
+          // Just the greeting. There is one model behind one worker, so a
+          // warm-up still running when a reply arrives is a reply waiting
+          // behind it — the exact wait this was meant to remove. `hello` is
+          // picked deterministically, so warming that one line is what makes
+          // the next conversation open without a pause.
+          void warm([hello], id);
+        });
       });
     });
     return () => {
@@ -830,6 +843,20 @@ function Level({ turn }: { turn: Turn }) {
 }
 
 /**
+ * What the auto setting has actually landed on, said plainly.
+ *
+ * Three engines can be behind it and they differ in ways worth knowing about
+ * — one of them is not running on this machine — so the control says which
+ * rather than leaving "Auto" to mean whatever it happens to mean today.
+ */
+const ENGINE_LABEL: Record<EngineKind, string> = {
+  hosted: 'hosted voice',
+  webgpu: 'on your GPU',
+  wasm: 'on this machine',
+  none: 'browser voice',
+};
+
+/**
  * Which of the installed voices to use.
  *
  * Every browser ships a pile of them and picks the worst one by default, and
@@ -843,6 +870,8 @@ function VoicePicker({ name, onSpoke }: { name: string; onSpoke: () => void }) {
   const chosen = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
   const state = useSyncExternalStore(subscribe, engineState, serverEngineState);
   const percent = useSyncExternalStore(subscribe, engineProgress, serverEngineProgress);
+  const hosted = useSyncExternalStore(subscribe, hostedConfigured, serverHostedConfigured);
+  const kind = useSyncExternalStore(subscribe, engineKind, serverEngineKind);
   // Device-dependent, and this panel is never server-rendered — it mounts on
   // a click — so reading it once on mount is safe and cannot mismatch.
   const [megabytes] = useState(modelMegabytes);
@@ -891,7 +920,15 @@ function VoicePicker({ name, onSpoke }: { name: string; onSpoke: () => void }) {
         }}
         className="absolute inset-0 cursor-pointer appearance-none opacity-0 focus:outline-none"
       >
-        <option value="">Auto voice</option>
+        <option value="">{`Auto — ${ENGINE_LABEL[kind]}`}</option>
+        {/* Only where somebody has configured one. It costs money per reply
+            and the reply text leaves the device, so it is never a default
+            this code chooses — it is a key an owner set. */}
+        {hosted ? (
+          <optgroup label="Hosted">
+            <option value={HOSTED_PREFIX}>Studio — instant, off this machine</option>
+          </optgroup>
+        ) : null}
         {/* The real answer to "it sounds like a robot". These run on this
             machine, so the only cost is the one-off download, and saying so
             in the label is the difference between a choice and a surprise. */}

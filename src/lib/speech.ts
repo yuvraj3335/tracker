@@ -18,14 +18,15 @@
 import { announce } from './appearance';
 import {
   autoNatural,
-  kokoroReady,
   kokoroVoice,
   loadEngine,
   openKokoroStream,
   primeKokoroAudio,
   speakKokoro,
   stopKokoro,
+  voiceReady,
 } from './kokoro';
+import { HOSTED_PREFIX, HOSTED_VOICE, hostedConfigured, hostedKnown } from './hosted-voice';
 
 // --------------------------------------------------------------- preference
 export const VOICE_KEY = 'jst-voice';
@@ -313,14 +314,21 @@ export const serverVoiceName = (): string => '';
  */
 export function naturalVoice(): string | null {
   const preference = getVoiceName();
+  if (preference === HOSTED_PREFIX) return hostedConfigured() ? HOSTED_VOICE : null;
   if (preference) return kokoroVoice(preference);
-  // Before the browser has said which voices it has, the honest answer is
-  // "not yet". `getVoices()` is empty for the first tick or two in Chrome, and
-  // reading that emptiness as "nothing good is installed" is how a laptop that
-  // already had a neural voice on it ends up fetching a hundred and fifty
-  // megabytes it will never play. Until the list lands, the browser's own
-  // voice answers — which is what it was going to do anyway.
-  if (!voicesAreKnown()) return null;
+
+  // Nothing is decided until both questions have been answered. Which voices
+  // the browser has arrives a tick or two after load, and whether this
+  // deployment has a hosted engine is a round trip — and guessing "no" at
+  // either is how a machine that needed neither ends up fetching a hundred
+  // and fifty megabytes. Until then the browser's own voice answers, which is
+  // what it was going to do for the greeting regardless.
+  if (!hostedKnown() || !voicesAreKnown()) return null;
+
+  // Somebody set a key. That is a deliberate, billed decision to have this
+  // sound better and answer sooner, and it outranks whatever is installed.
+  if (hostedConfigured()) return HOSTED_VOICE;
+
   if (hasGoodSystemVoice()) return null;
   return autoNatural();
 }
@@ -596,7 +604,7 @@ export function speak(text: string, onDone?: () => void, queue = false) {
   // one never costs anyone a silent conversation while it downloads.
   const natural = naturalVoice();
   if (natural) {
-    if (kokoroReady()) {
+    if (voiceReady(natural)) {
       guard();
       speakKokoro(sayable(text), natural, splitForSpeech, finish, queue);
       return;
@@ -690,7 +698,7 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
   }
 
   const natural = naturalVoice();
-  if (natural && kokoroReady()) return openKokoroStream(natural, finish, queue);
+  if (natural && voiceReady(natural)) return openKokoroStream(natural, finish, queue);
   if (natural) void loadEngine(natural);
 
   if (!('speechSynthesis' in window)) {
