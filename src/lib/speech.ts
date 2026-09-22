@@ -60,28 +60,152 @@ export const serverVoice = (): boolean => true;
  * Cancels whatever is queued first: two replies talking over each other is
  * worse than a missed one, and there has to be a way to cut it off.
  */
+/**
+ * How natural a voice is likely to sound, higher is better.
+ *
+ * Browsers hand back whatever is installed and pick the first one by default,
+ * which is almost always the worst — the flat formant-synth voice everyone
+ * means when they say a computer sounds robotic. The good ones are there, they
+ * just have to be asked for, and they are identifiable: the modern neural
+ * voices say so in their name, and cloud voices report `localService: false`
+ * because they are not the OS's built-in synthesiser.
+ *
+ * Pure and taking plain objects so the ranking can be tested without a browser.
+ */
+export type VoiceLike = { name: string; lang: string; localService?: boolean; default?: boolean };
+
+export function voiceScore(voice: VoiceLike, lang = 'en'): number {
+  const name = voice.name.toLowerCase();
+  const language = (voice.lang || '').toLowerCase();
+  const want = lang.toLowerCase().slice(0, 2);
+  // A voice in the wrong language is not a candidate at any quality.
+  if (want && language && !language.startsWith(want)) return -1;
+
+  let score = 0;
+  // The engines that actually sound like people announce it.
+  if (/natural|neural/.test(name)) score += 60;
+  if (/google/.test(name)) score += 30;
+  // Cloud voices are the newer generation; local ones are the OS synthesiser.
+  if (voice.localService === false) score += 25;
+  // The ones people mean by "robotic".
+  if (/espeak|compact|eloquence/.test(name)) score -= 60;
+  if (/\bdavid\b|\bzira\b|\bmark\b/.test(name) && /desktop/.test(name)) score -= 30;
+  // An exact regional match beats a generic one, gently.
+  if (language === lang.toLowerCase()) score += 6;
+  return score;
+}
+
+/** The best installed voice for a language, or null to leave it to the browser. */
+export function pickVoice<T extends VoiceLike>(voices: readonly T[], lang = 'en'): T | null {
+  let best: T | null = null;
+  let bestScore = 0;
+  for (const voice of voices) {
+    const score = voiceScore(voice, lang);
+    // Strictly better, so the first of equals wins and the choice is stable
+    // between calls rather than flickering with list order.
+    if (score > bestScore) {
+      best = voice;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+/**
+ * Breaks a reply into things to say one at a time.
+ *
+ * Two reasons. Some engines quietly truncate or stumble on a long utterance,
+ * and speaking sentence by sentence puts a real pause at each full stop —
+ * which is most of the difference between reading a paragraph and talking.
+ */
+export function splitForSpeech(text: string, max = 180): string[] {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (!clean) return [];
+  const sentences = clean.match(/[^.!?]+[.!?]*/g) ?? [clean];
+  const out: string[] = [];
+  for (const raw of sentences) {
+    const sentence = raw.trim();
+    if (!sentence) continue;
+    const last = out[out.length - 1];
+    // Glue short fragments back together — one-word sentences said alone
+    // sound clipped.
+    if (last && last.length + sentence.length + 1 <= max) out[out.length - 1] = `${last} ${sentence}`;
+    else out.push(sentence);
+  }
+  return out;
+}
+
+let chosenVoice: SpeechSynthesisVoice | null = null;
+
+/** Re-reads the installed voices. They arrive asynchronously in most browsers. */
+function refreshVoice() {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  try {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length) {
+      chosenVoice = pickVoice(voices, navigator?.language || 'en-GB');
+    }
+  } catch {
+    chosenVoice = null;
+  }
+}
+
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  refreshVoice();
+  try {
+    // Chrome populates the list after a tick and fires this; without it the
+    // first reply of a session gets the default robotic voice.
+    window.speechSynthesis.addEventListener('voiceschanged', refreshVoice);
+  } catch {
+    /* older engines expose no event; the eager read above is all there is */
+  }
+}
+
+/**
+ * Reads a reply aloud, sentence by sentence, in the best voice available.
+ *
+ * `onDone` fires when the whole thing has been said — or immediately when
+ * muted or unsupported, because the conversation loop hands the turn on from
+ * there and would otherwise stop dead the first time someone hit mute.
+ */
 export function speak(text: string, onDone?: () => void) {
   const finish = () => onDone?.();
   if (!getVoice() || typeof window === 'undefined' || !('speechSynthesis' in window)) {
-    // Muted or unsupported still has to hand the turn back, or the loop stops
-    // dead the first time someone mutes it.
     finish();
     return;
   }
+
+  const parts = splitForSpeech(text);
+  if (!parts.length) {
+    finish();
+    return;
+  }
+
   try {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.04;
-    utterance.pitch = 1.18;
-    utterance.onend = finish;
-    // A synthesis error must not strand the conversation mid-turn either.
-    utterance.onerror = finish;
-    window.speechSynthesis.speak(utterance);
+    if (!chosenVoice) refreshVoice();
+
+    parts.forEach((part, i) => {
+      const utterance = new SpeechSynthesisUtterance(part);
+      if (chosenVoice) utterance.voice = chosenVoice;
+      // Close to a speaking voice rather than a reading one. The pitch used to
+      // be 1.18, which is most of the way to sounding like a cartoon and was
+      // making the flat default voice worse rather than better.
+      utterance.rate = 1.0;
+      utterance.pitch = 1.04;
+      if (i === parts.length - 1) {
+        utterance.onend = finish;
+        // A synthesis error must not strand the conversation mid-turn either.
+        utterance.onerror = finish;
+      }
+      window.speechSynthesis.speak(utterance);
+    });
   } catch {
     finish();
   }
 }
 
+/** Cuts off whatever is being said, including everything still queued. */
 export function stopSpeaking() {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
   try {

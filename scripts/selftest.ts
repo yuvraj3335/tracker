@@ -60,6 +60,7 @@ import {
 } from '../src/lib/companion';
 import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate-limit';
 import { buildSnapshot } from '../src/lib/companion-context';
+import { pickVoice, splitForSpeech, voiceScore, type VoiceLike } from '../src/lib/speech';
 import { fixtures } from '../src/lib/fixtures';
 import {
   MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_REPLY_CHARS,
@@ -1345,6 +1346,55 @@ async function main() {
       /never logged/.test(empty), empty.slice(0, 120));
     check('and does not claim a streak', empty.includes('Current streak: 0 days'));
     check('and does not invent a next question', !/Next few questions/.test(empty));
+  }
+
+  // -----------------------------------------------------------------------
+  // Why it sounded robotic: browsers hand back every installed voice and use
+  // the first, which is almost always the flat formant synth. The good ones
+  // are there and identifiable, they just have to be asked for.
+  // -----------------------------------------------------------------------
+  section('Choosing a voice');
+  {
+    const v = (name: string, lang = 'en-GB', localService = true): VoiceLike => ({ name, lang, localService });
+
+    check('a neural voice beats a plain one',
+      voiceScore(v('Microsoft Aria Online (Natural)')) > voiceScore(v('Daniel')));
+    check('a cloud voice beats a local one',
+      voiceScore(v('Some Voice', 'en-GB', false)) > voiceScore(v('Some Voice', 'en-GB', true)));
+    check('the known-robotic ones are pushed down',
+      voiceScore(v('eSpeak English')) < 0 && voiceScore(v('English Compact')) < 0);
+    check('a wrong-language voice is never a candidate',
+      voiceScore(v('Amélie', 'fr-FR'), 'en-GB') === -1);
+
+    const installed = [
+      v('eSpeak English'),
+      v('Microsoft David Desktop - English (United States)', 'en-US'),
+      v('Daniel'),
+      v('Google UK English Female', 'en-GB', false),
+      v('Amélie', 'fr-FR', false),
+    ];
+    check('it picks the best one installed',
+      pickVoice(installed, 'en-GB')?.name === 'Google UK English Female');
+    check('and never picks one in another language',
+      pickVoice([v('Amélie', 'fr-FR', false)], 'en-GB') === null);
+    check('nothing installed leaves it to the browser', pickVoice([], 'en-GB') === null);
+    check('only bad options still leaves it to the browser',
+      pickVoice([v('eSpeak English')], 'en-GB') === null);
+    // Stable between calls, or the voice would change mid-conversation.
+    check('the choice is stable',
+      pickVoice(installed, 'en-GB')?.name === pickVoice([...installed].reverse(), 'en-GB')?.name);
+
+    // ---- sentence chunking, which is where the pauses come from
+    check('one sentence stays one', splitForSpeech('Hello there.').length === 1);
+    check('sentences are split apart',
+      splitForSpeech('Nice one. How did that go? Tell me.').length === 1);
+    check('a long reply is broken up',
+      splitForSpeech('This is a sentence. '.repeat(20)).length > 1);
+    check('layout whitespace is collapsed', splitForSpeech('one\n\n  two.')[0] === 'one two.');
+    check('nothing to say is nothing to speak', splitForSpeech('   ').length === 0);
+    check('no chunk is empty', splitForSpeech('Hi... ok. Sure!').every((c) => c.trim().length > 0));
+    check('nothing is lost in the split',
+      splitForSpeech('Alpha. Beta. Gamma.').join(' ').replace(/\s+/g, '') === 'Alpha.Beta.Gamma.');
   }
 
   section('Keyboard mapping');
