@@ -78,7 +78,7 @@ function TaskRowImpl({
 
   function toggle(next: boolean) {
     // Celebrate optimistically, before Notion replies — the reward has to land
-    // with the tap, not a second later. Unticking is silent.
+    // with the tap, not a second later.
     //
     // The row does not resolve the line: picking copy needs the skin and the
     // active character, and subscribing to those here would mean one store
@@ -91,6 +91,13 @@ function TaskRowImpl({
       // Reads the preference at call time rather than subscribing — a store
       // subscription here would cost one per row across 456 of them.
       feedbackForTick(tier !== 'cheer');
+    } else {
+      // Unticking used to be silent. It now gets the quietest thing the
+      // overlay can do — the character looks sad for a moment and says so
+      // without scolding — because a completion coming back off is a real
+      // event and the figure noticing it is the point of having one. Still no
+      // sound and no sparks: this is not a tier.
+      celebrate('undo');
     }
     // A mis-tap on a 456-row list is easy and, on a filtered view, the row
     // vanishes the moment it is ticked — so the correction has to come to you.

@@ -46,6 +46,12 @@ public/characters/
     sad.webp          optional — falls back to idle
     concerned.webp    optional — falls back to sad, then idle
     focused.webp      optional — falls back to idle
+    crying.webp       optional — falls back to sad, then idle
+    laughing.webp     optional — falls back to celebrate, then idle
+    angry.webp        optional — falls back to idle
+    floating.webp     optional — falls back to idle
+    jumping.webp      optional — falls back to celebrate, then idle
+    casting.webp      optional — falls back to focused, then idle
 ```
 
 The **folder name is the character id**. It must be letters, digits, `-` and `_`
@@ -66,12 +72,19 @@ breaks the page; the mascot fallback covers it.
 | `sad` | You come back after a streak has broken. Used gently, once. |
 | `concerned` | Your pace has dropped well below your own recent average. Softer than `sad` — nothing has actually lapsed yet. |
 | `focused` | A focus-timer session is running. The one pose that means "right now", rather than "lately". |
+| `crying` | A completed question is taken back off. Brief and quiet — it notices, it does not scold. |
+| `laughing` | The companion is double-tapped. |
+| `angry` | The companion is poked repeatedly in a short span. |
+| `floating` | The companion is picked up and being dragged. |
+| `jumping` | The companion is put back down, or nudged with the keyboard. |
+| `casting` | The companion is working out a reply. |
 
 Only `idle` is required. A character with just `idle.webp` works everywhere;
 every other pose resolves through the fallback chain above, so a missing file is
-never a 404. Drawing `idle`, `celebrate` and `sad` covers all six sensibly:
-`milestone` borrows `celebrate`, `concerned` borrows `sad`, and `focused`
-borrows `idle`.
+never a 404. Drawing `idle`, `celebrate` and `sad` covers all twelve sensibly:
+`milestone`, `laughing` and `jumping` borrow `celebrate`, `concerned` and
+`crying` borrow `sad`, and `focused`, `casting`, `angry` and `floating` fall
+back to `idle`.
 
 ## A rendered model instead of images
 

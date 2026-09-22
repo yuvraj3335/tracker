@@ -32,8 +32,14 @@ const FADE_SECONDS = 0.25;
  */
 const GROUND_OFFSET = -0.197;
 
-/** Poses that happen once and hold, rather than looping. */
-const ONE_SHOT: ReadonlySet<Pose> = new Set(['celebrate', 'milestone']);
+/**
+ * Poses that happen once and hold, rather than looping.
+ *
+ * Reactions are events: laughing, jumping and a flash of temper all end. The
+ * moods and the two "right now" states — crying, floating, casting — loop,
+ * because they describe a condition that is still true.
+ */
+const ONE_SHOT: ReadonlySet<Pose> = new Set(['celebrate', 'milestone', 'laughing', 'jumping', 'angry']);
 
 function Figure({ url, pose }: { url: string; pose: Pose }) {
   const group = useRef<Group>(null);

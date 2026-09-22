@@ -148,7 +148,8 @@ reads round.
 sparkle burst and a line in that theme's voice ("Advance." vs "Yay! ✨"). Finish
 every question under a heading and you get the bigger milestone version with an
 impact ring. Lines rotate rather than shuffle, so the same one never lands twice
-running. Unticking is silent.
+running. Taking a completion back gets the quietest thing the overlay can do —
+the character looks sad for a moment and says so, with no sound and no sparks.
 
 The celebration fires **optimistically**, before Notion replies — the reward has
 to land with the tap, not a second later.
@@ -300,7 +301,7 @@ API. Any cell links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 389 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
+| `npm run test` | 406 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |

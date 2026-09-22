@@ -18,8 +18,12 @@
  * Escalating tiers. Each one is a strictly bigger moment than the last, and the
  * overlay scales the figure, the sparks and the ring to match — so finishing a
  * whole section does not land with the same weight as ticking one question.
+ *
+ * `undo` is not a tier. It is the one thing on this bus that goes backwards —
+ * a completion taken back — and it is deliberately the quietest thing here:
+ * no sparks, no ring, no sound, and a line that does not scold.
  */
-export type CelebrationKind = 'cheer' | 'milestone' | 'section' | 'area';
+export type CelebrationKind = 'cheer' | 'milestone' | 'section' | 'area' | 'undo';
 
 export type Celebration = {
   kind: CelebrationKind;

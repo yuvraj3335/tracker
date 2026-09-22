@@ -34,6 +34,8 @@ export type ThemeMeta = {
   sectionDone: string[];
   /** Shown when every question in an area is done. The rarest line in the app. */
   finale: string[];
+  /** Shown when a completion is taken back. Never scolding — it just notices. */
+  undo: string[];
   /** Shown when a streak ticks over. */
   streak: (days: number) => string;
 };
@@ -49,6 +51,7 @@ export const THEMES: Record<Skin, ThemeMeta> = {
     milestone: ['Heading complete.', 'That block is finished.'],
     sectionDone: ['Section complete.', 'Whole section done.'],
     finale: ['Every question. Done.'],
+    undo: ['Put back.', 'Cleared.'],
     streak: (d) => `${d}-day streak.`,
   },
 
@@ -69,6 +72,7 @@ export const THEMES: Record<Skin, ThemeMeta> = {
     milestone: ['Sector cleared.', 'The wall holds. Sector secure.', 'Position taken.'],
     sectionDone: ['Front secured.', 'The whole line is yours.'],
     finale: ['Campaign complete. Stand down.'],
+    undo: ['Ground given up.', 'Position released.'],
     streak: (d) => `${d} days on the wall.`,
   },
 
@@ -90,6 +94,7 @@ export const THEMES: Record<Skin, ThemeMeta> = {
     milestone: ['Whole heading done! ✨', 'That is a full set — wow!', 'Every single one! 🌸'],
     sectionDone: ['A whole section! 🌸✨', 'Look at you go — section cleared!'],
     finale: ['Every. Single. Question. 🌸✨'],
+    undo: ['Oh! Taken back.', 'That is okay.'],
     streak: (d) => `${d} days in a row! ✨`,
   },
 };

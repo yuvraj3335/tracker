@@ -18,7 +18,10 @@
 import type { PerformanceMood } from './derive';
 
 /** The poses. Only `idle` is mandatory; the rest resolve by fallback. */
-export const POSES = ['idle', 'celebrate', 'milestone', 'sad', 'concerned', 'focused'] as const;
+export const POSES = [
+  'idle', 'celebrate', 'milestone', 'sad', 'concerned', 'focused',
+  'crying', 'laughing', 'angry', 'floating', 'jumping', 'casting',
+] as const;
 export type Pose = (typeof POSES)[number];
 
 /** Image extensions accepted for a pose, in preference order. */
@@ -68,6 +71,10 @@ export type Character = {
  *              rather than resting in the middle of a celebration.
  *   concerned  the softer "things have gone quiet" pose. With no art of its
  *              own, `sad` is far closer to it than a neutral idle is.
+ *   crying     an intensified `sad`, so it borrows it.
+ *   laughing   an intensified `celebrate`.
+ *   jumping    celebratory motion, so `celebrate` covers it.
+ *   casting    concentration with a flourish, so `focused` covers it.
  *
  * `focused` drops straight to `idle` deliberately: nothing else in the set
  * reads as quiet concentration, and a celebratory or sad stand-in would say
@@ -80,6 +87,16 @@ const FALLBACK: Record<Pose, Pose[]> = {
   sad: ['sad', 'idle'],
   concerned: ['concerned', 'sad', 'idle'],
   focused: ['focused', 'idle'],
+  // Reaction poses. Each borrows the nearest thing that means the same sort
+  // of thing, and only that: `angry` and `floating` drop straight to idle
+  // because nothing else in the set reads as either, and standing in a sad or
+  // celebratory pose for them would say something actively wrong.
+  crying: ['crying', 'sad', 'idle'],
+  laughing: ['laughing', 'celebrate', 'idle'],
+  angry: ['angry', 'idle'],
+  floating: ['floating', 'idle'],
+  jumping: ['jumping', 'celebrate', 'idle'],
+  casting: ['casting', 'focused', 'idle'],
 };
 
 /**

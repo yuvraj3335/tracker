@@ -98,10 +98,10 @@ export function CelebrationLayer() {
           className={cn(
             'js-rise skin-pill border px-3 py-1 font-semibold shadow-lift-3',
             tier.big ? 'text-sm' : 'text-xs',
-            event.kind === 'cheer' ? 'text-ink' : 'text-accent-ink',
+            tier.quiet ? 'text-ink' : 'text-accent-ink',
           )}
           style={{
-            background: event.kind === 'cheer' ? 'var(--surface)' : 'var(--accent)',
+            background: tier.quiet ? 'var(--surface)' : 'var(--accent)',
             borderColor: 'var(--border)',
           }}
         >
@@ -121,12 +121,25 @@ export function CelebrationLayer() {
  */
 const TIERS: Record<
   CelebrationKind,
-  { voice: VoiceKind; pose: Pose; size: number; sparks: number; rings: number; big: boolean }
+  {
+    voice: VoiceKind;
+    pose: Pose;
+    size: number;
+    sparks: number;
+    rings: number;
+    big: boolean;
+    /** Sits on a plain surface pill rather than a filled accent one. */
+    quiet: boolean;
+  }
 > = {
-  cheer:     { voice: 'cheer',       pose: 'celebrate', size: 78, sparks: 0,  rings: 0, big: false },
-  milestone: { voice: 'milestone',   pose: 'milestone', size: 100, sparks: 6,  rings: 1, big: false },
-  section:   { voice: 'sectionDone', pose: 'milestone', size: 116, sparks: 10, rings: 2, big: true },
-  area:      { voice: 'finale',      pose: 'milestone', size: 136, sparks: 14, rings: 3, big: true },
+  cheer:     { voice: 'cheer',       pose: 'celebrate', size: 78,  sparks: 0,  rings: 0, big: false, quiet: true },
+  milestone: { voice: 'milestone',   pose: 'milestone', size: 100, sparks: 6,  rings: 1, big: false, quiet: false },
+  section:   { voice: 'sectionDone', pose: 'milestone', size: 116, sparks: 10, rings: 2, big: true,  quiet: false },
+  area:      { voice: 'finale',      pose: 'milestone', size: 136, sparks: 14, rings: 3, big: true,  quiet: false },
+  // Going backwards. Same overlay, no sparks, no ring, and the quiet pill —
+  // an accent-filled badge would make taking something back look like an
+  // achievement.
+  undo:      { voice: 'undo',        pose: 'crying',    size: 84,  sparks: 0,  rings: 0, big: false, quiet: true },
 };
 
 /** Fixed offsets rather than random, so the burst looks designed and is stable. */

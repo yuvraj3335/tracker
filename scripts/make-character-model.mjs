@@ -456,7 +456,7 @@ const HAT_CONE = [
 
 const MESHES = {
   head: {
-    geometry: lathe(HEAD, 36),
+    geometry: lathe(HEAD, 32),
     material: MAT.skin,
     // Deep shadow where the hat sits on it, and a softer one under the jaw.
     tint: shade(sky(HEAD_Y + NECK_Y, 0.1), beneath(0.15, 0.3, 0.34), below(-0.3, -0.14, 0.24)),
@@ -471,7 +471,7 @@ const MESHES = {
   ear: { geometry: sphere(0.05, 14, 10), material: MAT.skin, tint: shade(() => 0.9) },
   nose: { geometry: sphere(0.022, 12, 8), material: MAT.skinShade },
 
-  hairCap: { geometry: lathe(offsetProfile(HEAD, 0.028, 0.098), 36), material: MAT.hair, tint: shade(beneath(0.19, 0.3, 0.44)) },
+  hairCap: { geometry: lathe(offsetProfile(HEAD, 0.028, 0.098), 32), material: MAT.hair, tint: shade(beneath(0.19, 0.3, 0.44)) },
   hairBack: { geometry: sphere(0.25, 28, 18), material: MAT.hair, tint: shade(() => 0.81) },
   ponytail: { geometry: taper(0.085, 0.022, 0, -0.34, 9, 14), material: MAT.hair, tint: below(-0.34, 0.0, 0.4) },
   lock: { geometry: taper(0.058, 0.018, 0, -0.25, 8, 14), material: MAT.hair, tint: below(-0.25, 0.0, 0.33) },
@@ -484,6 +484,7 @@ const MESHES = {
   lash: { geometry: sphere(0.066, 16, 10), material: MAT.pupil },
   brow: { geometry: sphere(0.044, 12, 8), material: MAT.hairDark },
   blush: { geometry: sphere(0.048, 14, 10), material: MAT.blush },
+  tear: { geometry: sphere(0.026, 12, 10), material: MAT.orb },
   mouthSmile: {
     geometry: tube([[-0.044, 0.012], [-0.022, -0.004], [0, -0.011], [0.022, -0.004], [0.044, 0.012]], 0.011),
     material: MAT.mouth,
@@ -502,7 +503,7 @@ const MESHES = {
 
   torso: { geometry: lathe(TORSO, 34), material: MAT.robe, tint: shade(sky(0, 0.14), beneath(-0.06, 0.13, 0.3)) },
   skirt: {
-    geometry: lathe(SKIRT, 48, {
+    geometry: lathe(SKIRT, 40, {
       count: 10,
       // Zero at the waist, widest across the skirt, back to zero at the hem so
       // the pleats close rather than scalloping the bottom edge.
@@ -637,7 +638,7 @@ const NODES = [
       'hairBack', 'hairCap', 'ponytail', 'lockL', 'lockR',
       'bang1', 'bang2', 'bang3', 'bang4', 'bang5', 'bang6', 'bang7',
       'earL', 'earR', 'nose',
-      'eyeL', 'eyeR', 'browL', 'browR', 'blushL', 'blushR',
+      'eyeL', 'eyeR', 'browL', 'browR', 'blushL', 'blushR', 'tearL', 'tearR',
       'mouthSmile', 'mouthFrown', 'hat',
     ],
   },
@@ -664,6 +665,10 @@ const NODES = [
   { name: 'browR', mesh: 'brow', translation: [0.132, 0.07, 0.267], rotation: [0, 20, 0], scale: [1.24, 0.19, 0.28] },
   { name: 'blushL', mesh: 'blush', translation: [-0.185, -0.115, 0.174], rotation: [0, -35, 0], scale: [1.5, 0.92, 0.22] },
   { name: 'blushR', mesh: 'blush', translation: [0.185, -0.115, 0.174], rotation: [0, 35, 0], scale: [1.5, 0.92, 0.22] },
+  // Scaled away at rest. Only `crying` brings them up, and it does it twice a
+  // loop so they read as falling rather than as two permanent beads.
+  { name: 'tearL', mesh: 'tear', translation: [-0.15, -0.105, 0.225], scale: [0.001, 0.001, 0.001] },
+  { name: 'tearR', mesh: 'tear', translation: [0.15, -0.105, 0.225], scale: [0.001, 0.001, 0.001] },
   // Two mouths, swapped by scaling one of them away. A smile cannot be turned
   // into a frown by scaling it, and node transforms are all a clip can drive.
   { name: 'mouthSmile', mesh: 'mouthSmile', translation: [0, -0.165, 0.218] },
@@ -907,6 +912,157 @@ const CLIPS = [
       move('sparkA', [0, 2.3, 4.6], [[0.1, 0.74, 0.02], [0.05, 0.77, 0.09], [0.1, 0.74, 0.02]]),
       move('sparkB', [0, 2.3, 4.6], [[-0.095, 0.725, -0.03], [-0.05, 0.77, -0.09], [-0.095, 0.725, -0.03]]),
       move('sparkC', [0, 2.3, 4.6], [[0.01, 0.8, 0.01], [0.02, 0.84, 0.0], [0.01, 0.8, 0.01]]),
+    ],
+  },
+  {
+    // A ticked question taken back. Head down, hands up toward the face,
+    // shoulders going, and two tears that swell and fall twice a loop.
+    // Deliberately small and quiet: the point is that it noticed, not that
+    // you should feel bad about it.
+    name: 'crying',
+    tracks: [
+      move('root', [0, 0.5, 1.0, 1.5, 2.0], [[0, -0.05, 0], [0, -0.08, 0], [0, -0.05, 0], [0, -0.08, 0], [0, -0.05, 0]]),
+      turn('body', [0, 0.5, 1.0, 1.5, 2.0], [[11, 0, 0], [13, 0, 2], [11, 0, 0], [13, 0, -2], [11, 0, 0]]),
+      turn('neck', [0, 1.0, 2.0], [[20, 0, 0], [23, 0, 0], [20, 0, 0]]),
+      turn('hatTip', [0, 1.0, 2.0], [[22, 0, -70], [25, 0, -76], [22, 0, -70]]),
+      turn('upperArmL', [0, 1.0, 2.0], [[16, 0, -20], [18, 0, -22], [16, 0, -20]]),
+      turn('foreArmL', [0, 1.0, 2.0], [[-104, 0, -18], [-108, 0, -20], [-104, 0, -18]]),
+      turn('upperArmR', [0, 1.0, 2.0], [[16, 0, 20], [18, 0, 22], [16, 0, 20]]),
+      turn('foreArmR', [0, 1.0, 2.0], [[-104, 0, 18], [-108, 0, 20], [-104, 0, 18]]),
+      ...brows([0, 1.0, 2.0], [21, 23, 21]),
+      ...eyes([0, 2.0], [[1.02, 0.16, 1], [1.02, 0.16, 1]]),
+      size('mouthSmile', [0, 2.0], [HIDDEN, HIDDEN]),
+      size('mouthFrown', [0, 2.0], [[1.1, 1.1, 1], [1.1, 1.1, 1]]),
+      size('tearL', [0, 0.18, 0.55, 0.75, 1.18, 1.55, 1.75, 2.0],
+        [HIDDEN, [1, 1, 1], [1, 1.5, 1], HIDDEN, [1, 1, 1], [1, 1.5, 1], HIDDEN, HIDDEN]),
+      move('tearL', [0, 0.18, 0.75, 1.18, 1.75, 2.0],
+        [[-0.15, -0.105, 0.225], [-0.15, -0.105, 0.225], [-0.15, -0.23, 0.2],
+         [-0.15, -0.105, 0.225], [-0.15, -0.23, 0.2], [-0.15, -0.23, 0.2]]),
+      size('tearR', [0, 0.42, 0.8, 1.0, 1.42, 1.8, 2.0],
+        [HIDDEN, [1, 1, 1], [1, 1.5, 1], HIDDEN, [1, 1, 1], [1, 1.5, 1], HIDDEN]),
+      move('tearR', [0, 0.42, 1.0, 1.42, 2.0],
+        [[0.15, -0.105, 0.225], [0.15, -0.105, 0.225], [0.15, -0.23, 0.2],
+         [0.15, -0.105, 0.225], [0.15, -0.23, 0.2]]),
+      size('orb', [0, 1.0, 2.0], [[0.7, 0.7, 0.7], [0.62, 0.62, 0.62], [0.7, 0.7, 0.7]]),
+    ],
+  },
+  {
+    // Tickled. Head tipped back, whole figure bouncing on the spot, eyes
+    // squeezed shut, arms loose. The double-tap reaction.
+    name: 'laughing',
+    tracks: [
+      move('root', [0, 0.16, 0.32, 0.48, 0.64, 0.8],
+        [[0, 0, 0], [0, 0.055, 0], [0, 0, 0], [0, 0.05, 0], [0, 0, 0], [0, 0, 0]]),
+      size('body', [0, 0.16, 0.32, 0.48, 0.64, 0.8],
+        [SHOWN, [0.96, 1.06, 0.96], [1.05, 0.95, 1.05], [0.97, 1.05, 0.97], [1.04, 0.96, 1.04], SHOWN]),
+      turn('neck', [0, 0.16, 0.32, 0.48, 0.64, 0.8],
+        [[0, 0, 0], [-17, 0, 0], [-10, 0, 0], [-18, 0, 0], [-8, 0, 0], [0, 0, 0]]),
+      turn('hatTip', [0, 0.16, 0.32, 0.48, 0.64, 0.8],
+        [[10, 0, -38], [2, 0, -22], [12, 0, -44], [1, 0, -20], [13, 0, -46], [10, 0, -38]]),
+      ...arms([0, 0.2, 0.5, 0.8], [ARM_REST, [8, 46], [6, 40], ARM_REST]),
+      ...foreArms([0, 0.2, 0.5, 0.8], [FORE_REST, [-16, 22], [-14, 18], FORE_REST]),
+      ...eyes([0, 0.12, 0.66, 0.8], [SHOWN, [1.08, 0.2, 1], [1.08, 0.2, 1], SHOWN]),
+      ...brows([0, 0.12, 0.66, 0.8], [0, -14, -14, 0]),
+      size('mouthSmile', [0, 0.12, 0.4, 0.66, 0.8],
+        [SHOWN, [1.5, 1.8, 1], [1.35, 1.6, 1], [1.5, 1.8, 1], SHOWN]),
+      size('orb', [0, 0.4, 0.8], [SHOWN, [1.3, 1.3, 1.3], SHOWN]),
+    ],
+  },
+  {
+    // Poked once too often. Leaning in, arms stiff at the sides, brows driven
+    // down at the inner ends, and a fast shake rather than a sway — anger here
+    // is a rhythm change as much as a posture.
+    name: 'angry',
+    tracks: [
+      turn('root', [0, 0.09, 0.18, 0.27, 0.36, 0.45, 0.6],
+        [[0, 0, 0], [0, 0, 2.6], [0, 0, -2.6], [0, 0, 2.2], [0, 0, -2.2], [0, 0, 1], [0, 0, 0]]),
+      move('root', [0, 0.3, 0.6], [[0, 0, 0], [0, 0.02, 0], [0, 0, 0]]),
+      turn('body', [0, 0.3, 0.6], [[-7, 0, 0], [-9, 0, 0], [-7, 0, 0]]),
+      turn('neck', [0, 0.3, 0.6], [[-4, 0, 0], [-6, 0, 0], [-4, 0, 0]]),
+      // Rigid, not floppy: the one clip where the hat point does not swing.
+      turn('hatTip', [0, 0.3, 0.6], [[-4, 0, -14], [-6, 0, -12], [-4, 0, -14]]),
+      ...arms([0, 0.3, 0.6], [[-8, 12], [-10, 10], [-8, 12]]),
+      ...foreArms([0, 0.3, 0.6], [[-2, 4], [-3, 3], [-2, 4]]),
+      // Inner ends down is the whole of an angry brow.
+      ...brows([0, 0.3, 0.6], [-24, -26, -24]),
+      ...eyes([0, 0.6], [[1.04, 0.52, 1], [1.04, 0.52, 1]]),
+      size('mouthSmile', [0, 0.6], [HIDDEN, HIDDEN]),
+      size('mouthFrown', [0, 0.6], [[1.2, 1.2, 1], [1.2, 1.2, 1]]),
+      size('orb', [0, 0.15, 0.45, 0.6],
+        [SHOWN, [1.45, 1.45, 1.45], [1.45, 1.45, 1.45], SHOWN]),
+    ],
+  },
+  {
+    // Picked up. Hangs from nothing, arms out for balance, legs dangling, hat
+    // point drifting the way a thing does when it is not standing on anything.
+    name: 'floating',
+    tracks: [
+      move('root', [0, 0.9, 1.8, 2.7, 3.6], [[0, 0.1, 0], [0, 0.135, 0], [0, 0.1, 0], [0, 0.14, 0], [0, 0.1, 0]]),
+      turn('root', [0, 1.8, 3.6], [[0, 0, 3.5], [0, 0, -3.5], [0, 0, 3.5]]),
+      turn('body', [0, 1.8, 3.6], [[-4, 0, 0], [-2, 0, 0], [-4, 0, 0]]),
+      turn('neck', [0, 1.8, 3.6], [[-3, 0, -2], [-3, 0, 2], [-3, 0, -2]]),
+      turn('hatTip', [0, 0.9, 1.8, 2.7, 3.6],
+        [[16, 0, -48], [20, 0, -56], [16, 0, -44], [20, 0, -52], [16, 0, -48]]),
+      ...arms([0, 1.8, 3.6], [[-6, 54], [-4, 60], [-6, 54]]),
+      ...foreArms([0, 1.8, 3.6], [[-18, 16], [-16, 20], [-18, 16]]),
+      ...thighs([0, 1.8, 3.6], [[-14, 0], [-10, 0], [-14, 0]]),
+      ...shins([0, 1.8, 3.6], [[22, 0], [16, 0], [22, 0]]),
+      ...eyes([0, 1.4, 1.48, 1.56, 3.6], [SHOWN, SHOWN, [1, 0.08, 1], SHOWN, SHOWN]),
+      size('orb', [0, 1.8, 3.6], [SHOWN, [1.16, 1.16, 1.16], SHOWN]),
+    ],
+  },
+  {
+    // Two quick hops, not one — deliberately a different rhythm from
+    // `celebrate`, which is a single squash-and-stretch beat. Used when the
+    // companion is set back down or nudged.
+    name: 'jumping',
+    tracks: [
+      move('root', [0, 0.1, 0.26, 0.42, 0.52, 0.68, 0.84, 0.95],
+        [[0, 0, 0], [0, -0.03, 0], [0, 0.14, 0], [0, 0, 0], [0, -0.025, 0], [0, 0.11, 0], [0, 0, 0], [0, 0, 0]]),
+      size('body', [0, 0.1, 0.26, 0.42, 0.52, 0.68, 0.84, 0.95],
+        [SHOWN, [1.07, 0.92, 1.07], [0.95, 1.08, 0.95], [1.06, 0.93, 1.06], [1.06, 0.93, 1.06], [0.96, 1.07, 0.96], [1.05, 0.94, 1.05], SHOWN]),
+      ...arms([0, 0.26, 0.42, 0.68, 0.95], [ARM_REST, [0, 74], [0, 34], [0, 68], ARM_REST]),
+      ...foreArms([0, 0.26, 0.68, 0.95], [FORE_REST, [-10, 18], [-10, 16], FORE_REST]),
+      ...thighs([0, 0.26, 0.42, 0.68, 0.95], [[0, 0], [-26, 0], [0, 0], [-22, 0], [0, 0]]),
+      ...shins([0, 0.26, 0.42, 0.68, 0.95], [[0, 0], [44, 0], [0, 0], [38, 0], [0, 0]]),
+      turn('hatTip', [0, 0.26, 0.52, 0.68, 0.95],
+        [[10, 0, -38], [18, 0, -58], [4, 0, -22], [17, 0, -56], [10, 0, -38]]),
+      ...eyes([0, 0.26, 0.68, 0.95], [SHOWN, [1.04, 0.5, 1], [1.04, 0.5, 1], SHOWN]),
+      size('mouthSmile', [0, 0.26, 0.68, 0.95], [SHOWN, [1.3, 1.4, 1], [1.3, 1.4, 1], SHOWN]),
+    ],
+  },
+  {
+    // Working on an answer. The staff comes up and the wrist draws a circle,
+    // the orb brightens on the beat, and the sparks swing wide — a wand-wave
+    // that reads as "thinking" at a glance rather than a spinner.
+    name: 'casting',
+    tracks: [
+      move('root', [0, 0.6, 1.2], [[0, 0.01, 0], [0, 0.035, 0], [0, 0.01, 0]]),
+      turn('neck', [0, 0.6, 1.2], [[-4, 0, 0], [-6, 0, 2], [-4, 0, 0]]),
+      turn('hatTip', [0, 0.3, 0.6, 0.9, 1.2],
+        [[10, 0, -38], [16, 0, -50], [10, 0, -34], [16, 0, -46], [10, 0, -38]]),
+      turn('upperArmL', [0, 0.6, 1.2], [[-4, 0, -30], [-6, 0, -34], [-4, 0, -30]]),
+      turn('foreArmL', [0, 0.6, 1.2], [[-14, 0, -12], [-16, 0, -14], [-14, 0, -12]]),
+      turn('upperArmR', [0, 0.6, 1.2], [[-52, 0, 30], [-56, 0, 34], [-52, 0, 30]]),
+      // The wrist circle. Four keys around, because a rotation track takes the
+      // short way and two would only rock it back and forth.
+      turn('foreArmR', [0, 0.3, 0.6, 0.9, 1.2],
+        [[-18, 0, 4], [-30, 0, 16], [-18, 0, 28], [-6, 0, 16], [-18, 0, 4]]),
+      ...brows([0, 1.2], [-5, -5]),
+      ...eyes([0, 1.2], [[1, 0.78, 1], [1, 0.78, 1]]),
+      size('mouthSmile', [0, 1.2], [[0.8, 0.45, 1], [0.8, 0.45, 1]]),
+      size('orb', [0, 0.3, 0.6, 0.9, 1.2],
+        [[1.1, 1.1, 1.1], [1.55, 1.55, 1.55], [1.15, 1.15, 1.15], [1.5, 1.5, 1.5], [1.1, 1.1, 1.1]]),
+      move('sparkA', [0, 0.4, 0.8, 1.2],
+        [[0.1, 0.74, 0.02], [0.02, 0.8, 0.12], [-0.09, 0.74, 0.0], [0.1, 0.74, 0.02]]),
+      move('sparkB', [0, 0.4, 0.8, 1.2],
+        [[-0.095, 0.725, -0.03], [0.06, 0.79, -0.1], [0.1, 0.72, 0.04], [-0.095, 0.725, -0.03]]),
+      move('sparkC', [0, 0.4, 0.8, 1.2],
+        [[0.01, 0.8, 0.01], [-0.02, 0.86, -0.06], [0.05, 0.82, 0.06], [0.01, 0.8, 0.01]]),
+      size('sparkA', [0, 0.3, 0.6, 0.9, 1.2],
+        [SHOWN, [1.7, 1.7, 1.7], SHOWN, [1.6, 1.6, 1.6], SHOWN]),
+      size('sparkB', [0, 0.45, 0.9, 1.2], [SHOWN, [1.6, 1.6, 1.6], [1.3, 1.3, 1.3], SHOWN]),
+      size('sparkC', [0, 0.2, 0.75, 1.2], [SHOWN, [1.8, 1.8, 1.8], [1.2, 1.2, 1.2], SHOWN]),
     ],
   },
 ];

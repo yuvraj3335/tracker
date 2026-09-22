@@ -13,10 +13,11 @@
 import { pickLine, type ThemeMeta } from './themes';
 import type { Character } from './characters';
 
-export type VoiceKind = 'cheer' | 'milestone' | 'sectionDone' | 'finale' | 'idle';
+export type VoiceKind = 'cheer' | 'milestone' | 'sectionDone' | 'finale' | 'idle' | 'undo';
 
 /** The skin's own copy for a kind, used whenever the character has none. */
 function themeLines(theme: ThemeMeta, kind: VoiceKind): string[] {
+  if (kind === 'undo') return theme.undo;
   if (kind === 'milestone') return theme.milestone;
   if (kind === 'sectionDone') return theme.sectionDone;
   if (kind === 'finale') return theme.finale;
@@ -40,6 +41,8 @@ export function pickCharacterLine(
   if (own && own.length) return pickLine(own, n);
   // A character that only ships `milestone` lines still uses them for the two
   // bigger tiers, rather than dropping back to the skin mid-celebration.
+  // `undo` deliberately does NOT borrow a character's cheer lines: "Nice one!"
+  // is exactly the wrong thing to say about a completion being taken back.
   if (kind === 'sectionDone' || kind === 'finale') {
     const fallback = character?.lines?.milestone;
     if (fallback && fallback.length) return pickLine(fallback, n);

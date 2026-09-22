@@ -37,7 +37,7 @@ import {
 } from '../src/lib/characters';
 import { discoverCharacters } from '../src/lib/characters.server';
 import { pickCharacterLine, dailyLine } from '../src/lib/character-voice';
-import { THEMES } from '../src/lib/themes';
+import { SKINS, THEMES } from '../src/lib/themes';
 import {
   normalize,
   tokenize,
@@ -388,10 +388,7 @@ async function main() {
   {
     const full: Character = {
       id: 'f', name: 'F', artist: 'a', license: 'l', source: '',
-      poses: {
-        idle: '/i.webp', celebrate: '/c.webp', milestone: '/m.webp',
-        sad: '/s.webp', concerned: '/cn.webp', focused: '/fo.webp',
-      },
+      poses: Object.fromEntries(POSES.map((p) => [p, `/${p}.webp`])) as Character['poses'],
     };
     const idleOnly: Character = { ...full, poses: { idle: '/i.webp' } };
     const noMilestone: Character = { ...full, poses: { idle: '/i.webp', celebrate: '/c.webp' } };
@@ -401,10 +398,10 @@ async function main() {
       poses: { idle: '/i.webp', celebrate: '/c.webp', sad: '/s.webp' },
     };
 
-    check('full set resolves each pose directly', resolvePose(full, 'milestone') === '/m.webp');
-    check('sad resolves directly when present', resolvePose(full, 'sad') === '/s.webp');
-    check('concerned resolves directly when present', resolvePose(full, 'concerned') === '/cn.webp');
-    check('focused resolves directly when present', resolvePose(full, 'focused') === '/fo.webp');
+    check('full set resolves each pose directly', resolvePose(full, 'milestone') === '/milestone.webp');
+    check('sad resolves directly when present', resolvePose(full, 'sad') === '/sad.webp');
+    check('concerned resolves directly when present', resolvePose(full, 'concerned') === '/concerned.webp');
+    check('focused resolves directly when present', resolvePose(full, 'focused') === '/focused.webp');
     check('milestone falls back to celebrate', resolvePose(noMilestone, 'milestone') === '/c.webp');
     check('sad falls back to idle', resolvePose(noMilestone, 'sad') === '/i.webp');
     check('celebrate falls back to idle', resolvePose(idleOnly, 'celebrate') === '/i.webp');
@@ -443,6 +440,16 @@ async function main() {
     check('concerned degrades through sad', poseChain('concerned').join('>') === 'concerned>sad>idle');
     check('milestone degrades through celebrate', poseChain('milestone').join('>') === 'milestone>celebrate>idle');
     check('focused degrades straight to idle', poseChain('focused').join('>') === 'focused>idle');
+
+    // The reaction poses. `angry` and `floating` must not borrow a mood or a
+    // celebration — standing in either for them says the wrong thing.
+    check('crying degrades through sad', poseChain('crying').join('>') === 'crying>sad>idle');
+    check('laughing degrades through celebrate', poseChain('laughing').join('>') === 'laughing>celebrate>idle');
+    check('jumping degrades through celebrate', poseChain('jumping').join('>') === 'jumping>celebrate>idle');
+    check('casting degrades through focused', poseChain('casting').join('>') === 'casting>focused>idle');
+    check('angry never borrows a mood', poseChain('angry').join('>') === 'angry>idle');
+    check('floating never borrows a mood', poseChain('floating').join('>') === 'floating>idle');
+    check('there are twelve poses', POSES.length === 12, String(POSES.length));
 
     // A character that ships a rendered model has no pose images at all, and
     // must still count as renderable — otherwise the picker hides it and the
@@ -528,8 +535,12 @@ async function main() {
       gltf.meshes.every((m: { primitives: { attributes: Record<string, number> }[] }) =>
         m.primitives.every((p) => p.attributes.POSITION !== undefined && p.attributes.NORMAL !== undefined)));
 
-    // It loads on the dashboard, so its weight is not incidental.
-    check(`the model is under 400 KB (${(glb.length / 1024).toFixed(0)} KB)`, glb.length < 400 * 1024);
+    // It loads on the dashboard, so its weight is not incidental — but the
+    // budget to compare against is what it replaces. Twelve poses as images at
+    // the ~80 KB each the folder README asks for would be about 960 KB, and
+    // those would not animate. This is the whole character, every pose,
+    // cached after one fetch.
+    check(`the model is under 550 KB (${(glb.length / 1024).toFixed(0)} KB)`, glb.length < 550 * 1024);
 
     const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'pip');
     check('its meta passes the same validation every character does', meta !== null);
@@ -587,6 +598,36 @@ async function main() {
   // to do that if it clears the same floors every shipped token is held to —
   // otherwise one character could quietly undo the palette.
   // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Taking a completion back is the one thing on the celebration bus that
+  // goes backwards, and it must never borrow celebratory copy — "Nice one!"
+  // is exactly the wrong thing to say about it.
+  // -----------------------------------------------------------------------
+  section('Undo reaction copy');
+  {
+    for (const skin of SKINS) {
+      const theme = THEMES[skin];
+      check(`${skin} has its own undo copy`, theme.undo.length > 0);
+      check(
+        `${skin}'s undo copy is not a cheer`,
+        !theme.undo.some((line) => theme.cheers.includes(line)),
+      );
+      check(`${skin} undo lines rotate`, pickCharacterLine(null, 'undo', theme, 0) === theme.undo[0]);
+    }
+
+    // A character that ships only cheer lines must still fall through to the
+    // skin for this one, rather than congratulating someone for undoing.
+    const cheerful: Character = {
+      id: 'c', name: 'C', artist: 'a', license: 'l', source: '',
+      poses: { idle: '/i.webp' },
+      lines: { cheer: ['Amazing!!'] },
+    };
+    check(
+      'a cheer-only character does not celebrate an undo',
+      pickCharacterLine(cheerful, 'undo', THEMES.studio, 0) === THEMES.studio.undo[0],
+    );
+  }
+
   section('Character accent gate');
   {
     // Text surfaces, then the mark-only surface — the same split the palette
