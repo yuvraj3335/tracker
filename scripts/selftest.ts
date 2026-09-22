@@ -49,6 +49,7 @@ import {
 } from '../src/lib/search';
 import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
 import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
+import { setupStage } from '../src/lib/setup';
 import {
   CRITICAL_MS, HOUR, MAX_DURATION_MS, MINUTE, SECOND, WARNING_MS,
   crossedBelow, describeRemaining, elapsedFraction, formatRemaining,
@@ -945,6 +946,33 @@ async function main() {
       !crossedBelow(3 * MINUTE, 3 * MINUTE - 250, WARNING_MS));
     check('reaching zero crosses zero', crossedBelow(1, 0, 0));
     check('sitting at zero does not cross it twice', !crossedBelow(0, 0, 0));
+
+  }
+
+  // -----------------------------------------------------------------------
+  // Which screen /setup shows. This used to be an inline ternary chain in the
+  // route, with the `ready` case redirecting to the dashboard — which made the
+  // route unreachable for every account that had finished setup, including
+  // from the nav's own account link.
+  // -----------------------------------------------------------------------
+  section('Setup routing');
+  {
+    check('no token yet asks for one', setupStage('needs_token', false) === 'token');
+    check('a token but no shared page asks for the page', setupStage('needs_page', false) === 'page');
+    check('a provision in flight shows progress', setupStage('provisioning', true) === 'seeding');
+    check('a finished connection is a connection screen, not a redirect',
+      setupStage('ready', true) === 'connected');
+
+    // A failure means different things depending on how far it got.
+    check('a failure after the databases exist resumes seeding',
+      setupStage('error', true) === 'seeding');
+    check('a failure before any database exists goes back to the page step',
+      setupStage('error', false) === 'page');
+
+    // The stage a connected account lands on must never be one the setup flow
+    // would try to render as a step.
+    check('connected is not one of the flow steps',
+      !['token', 'page', 'seeding'].includes(setupStage('ready', true)));
   }
 
   section('Keyboard mapping');
