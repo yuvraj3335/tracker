@@ -235,3 +235,113 @@ export function summarize(areas: Area[], tasks: Task[]) {
     perActiveDay: activeDays ? overall.done / activeDays : 0,
   };
 }
+
+/**
+ * How it has actually been going lately, as one mood.
+ *
+ * `streakMood` above answers one narrow question — is there a live run — and
+ * that was all the dashboard knew. It cannot see someone keeping a streak alive
+ * on one question a day after a fortnight of five, and it cannot tell "never
+ * started" from "stopped".
+ *
+ * Everything here is composed from what this module already derives (streaks,
+ * summarize, velocity, rollingAverage). There is deliberately no invented
+ * "questions per day target": the app has never asked anyone for one, so the
+ * only honest yardstick for a slowdown is a person's own earlier pace.
+ */
+
+/**
+ * The slowdown window.
+ *
+ * Three days is the shortest stretch that is not simply one bad Tuesday, and
+ * the seven before it are the same window the velocity chart's rolling average
+ * uses — so the dashboard and the chart are measuring the same thing rather
+ * than two things that happen to disagree.
+ */
+export const SLOWDOWN_RECENT_DAYS = 3;
+export const SLOWDOWN_BASELINE_DAYS = 7;
+
+/**
+ * How far the pace has to fall before it is worth remarking on: to 40% of the
+ * earlier average, i.e. rather more than halved. Ordinary week-to-week wobble
+ * does not reach that, and neither does one quiet day inside a good week —
+ * the recent window is three days wide, so it takes a real stretch.
+ */
+export const SLOWDOWN_RATIO = 0.4;
+
+/**
+ * A floor under the baseline, for the same reason `streakMood` refuses to
+ * report broken below a two-day longest: you cannot slow down from a pace you
+ * never had. One question a day, sustained across the baseline week, is the
+ * least that counts as a pace at all.
+ */
+export const SLOWDOWN_MIN_BASELINE = 1;
+
+/**
+ * True when recent output has fallen well below this person's own earlier pace.
+ *
+ * Measured through `velocity` and `rollingAverage` rather than a fresh counting
+ * pass, so it cannot drift away from what the analytics chart draws.
+ */
+function hasSlowedDown(tasks: Task[]): boolean {
+  const series = velocity(tasks, SLOWDOWN_RECENT_DAYS + SLOWDOWN_BASELINE_DAYS);
+  const recentPerDay =
+    series.slice(-SLOWDOWN_RECENT_DAYS).reduce((sum, pt) => sum + pt.count, 0) /
+    SLOWDOWN_RECENT_DAYS;
+  // The rolling average as it stood the day before the recent window opened:
+  // the pace that has been left behind, rather than one that already includes
+  // the drop and therefore partly hides it.
+  const baseline = rollingAverage(series, SLOWDOWN_BASELINE_DAYS)[
+    series.length - SLOWDOWN_RECENT_DAYS - 1
+  ].avg;
+  if (baseline < SLOWDOWN_MIN_BASELINE) return false;
+  return recentPerDay <= baseline * SLOWDOWN_RATIO;
+}
+
+/** What `summarize` hands back, named so callers can pass it around. */
+export type Summary = ReturnType<typeof summarize>;
+
+export type MoodKey = 'strong' | 'steady' | 'slipping';
+export type MoodCause = 'today' | 'live' | 'streak-broken' | 'slowing' | 'none';
+
+export type PerformanceMood = {
+  key: MoodKey;
+  cause: MoodCause;
+  /** Days since the last completed question; null when there has never been one. */
+  daysSinceActive: number | null;
+};
+
+/**
+ * The mood, and the one fact behind it.
+ *
+ * Takes the same `stats` object the hero is rendered from, rather than deriving
+ * its own: the banner sits directly under the hero, and two independent counts
+ * of the same thing is exactly how they would end up contradicting each other.
+ */
+export function performanceMood(tasks: Task[], stats: Summary): PerformanceMood {
+  const streak = streakMood(stats.streak);
+  const daysSinceActive = stats.streak.lastActive
+    ? Math.max(0, daysBetween(stats.streak.lastActive, todayKey()))
+    : null;
+  const base = { daysSinceActive };
+
+  // Anything logged today settles it. Whatever the last fortnight looked like,
+  // the thing we would have asked for has already happened — and telling
+  // someone who just ticked a question off that they have slowed down is
+  // precisely the nagging this is meant to avoid.
+  if (streak === 'live' && stats.todayCount > 0) {
+    return { key: 'strong', cause: 'today', ...base };
+  }
+
+  // A lapsed run is the more concrete thing to name, so it wins when both are
+  // true — "nothing for five days" is more useful than "you have slowed down".
+  if (streak === 'broken') return { key: 'slipping', cause: 'streak-broken', ...base };
+  if (hasSlowedDown(tasks)) return { key: 'slipping', cause: 'slowing', ...base };
+  if (streak === 'live') return { key: 'steady', cause: 'live', ...base };
+  // Everything else is neutral, including someone who has never logged
+  // anything: there is no pace to have fallen from and nothing to commiserate
+  // about, so the app should get out of the way. `daysSinceActive` is null in
+  // that case, which is how a caller tells "never started" from "stopped"
+  // without a fourth mood that would render identically to this one.
+  return { key: 'steady', cause: 'none', ...base };
+}

@@ -15,6 +15,7 @@
  * Everything in this file is pure so it can be unit-tested without a
  * filesystem; the fs walk lives in `characters.server.ts`.
  */
+import type { PerformanceMood } from './derive';
 
 /** The poses. Only `idle` is mandatory; the rest resolve by fallback. */
 export const POSES = ['idle', 'celebrate', 'milestone', 'sad', 'concerned', 'focused'] as const;
@@ -80,6 +81,29 @@ export function resolvePose(character: Character | null | undefined, pose: Pose)
     if (url) return url;
   }
   return null;
+}
+
+/**
+ * The figure for a mood. Every key renders differently, which is the point:
+ *
+ *   strong    a live streak with something logged today. Cheerful, and that
+ *             is the whole of it — the hero already states the numbers, so
+ *             this state gets a pose and no banner.
+ *   steady    nothing to say. The resting figure, same as an app with no
+ *             mood tracking at all.
+ *   slipping  sad for a run that actually lapsed, concerned for a pace that
+ *             has merely dropped — the softer of the two, because nothing
+ *             has broken yet.
+ *
+ * It lives here rather than beside the banner because three surfaces draw a
+ * figure from the same mood — the hero, the banner, and the dashboard's empty
+ * state — and two figures in different moods on one screen is exactly the
+ * contradiction this feature exists to remove.
+ */
+export function moodPose(mood: PerformanceMood): Pose {
+  if (mood.key === 'strong') return 'celebrate';
+  if (mood.key !== 'slipping') return 'idle';
+  return mood.cause === 'streak-broken' ? 'sad' : 'concerned';
 }
 
 /** True when a character has at least an idle pose — i.e. is renderable. */

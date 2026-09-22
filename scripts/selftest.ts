@@ -21,9 +21,10 @@ import {
   friendlyNotionError,
 } from '../src/lib/provision';
 import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey, isDayKey } from '../src/lib/date';
-import { streaks, countsByDay, overallProgress, areaProgress, streakMood } from '../src/lib/derive';
+import { streaks, countsByDay, overallProgress, areaProgress, streakMood, performanceMood, summarize } from '../src/lib/derive';
 import {
   POSES,
+  moodPose,
   parseCharacterMeta,
   parseAccent,
   resolvePose,
@@ -563,6 +564,102 @@ async function main() {
       'a future-dated completion is not reported as broken',
       streakMood({ current: 0, longest: 3, lastActive: shiftKey(T, 5) }) === 'none',
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // The mood the dashboard banner is built from. Every case here is composed
+  // out of this module's own outputs — there is no invented "questions per
+  // day" target anywhere, only a person's pace measured against their own.
+  // -----------------------------------------------------------------------
+  section('Performance mood');
+  {
+    const T = todayKey();
+    const A = [area({})];
+    /** `n` completions on the day `back` days ago. */
+    const on = (back: number, n: number) =>
+      Array.from({ length: n }, (_, i) =>
+        task({ id: `d${back}-${i}`, done: true, completedOn: shiftKey(T, -back) }),
+      );
+    const mood = (ts: Task[]) => performanceMood(ts, summarize(A, ts));
+    /** `n` a day across the baseline window (9 to 3 days ago). */
+    const baseline = (n: number) => [3, 4, 5, 6, 7, 8, 9].flatMap((d) => on(d, n));
+
+    // Anything at all today settles it, whatever the fortnight looked like.
+    const today = mood([...baseline(5), ...on(1, 1), ...on(0, 1)]);
+    check('a question logged today reads as strong', today.key === 'strong', today.key);
+    check('and names today as the reason', today.cause === 'today', today.cause);
+    check('days since active is zero today', today.daysSinceActive === 0);
+
+    // A live streak with nothing yet today is quiet, not celebrated.
+    const live = mood([1, 2, 3, 4, 5, 6, 7, 8, 9].flatMap((d) => on(d, 1)));
+    check('a live streak with nothing yet today is steady', live.key === 'steady', live.key);
+    check('and the reason is the live streak', live.cause === 'live', live.cause);
+
+    // A lapsed run.
+    const lapsed = mood([...on(5, 2), ...on(6, 2), ...on(7, 2)]);
+    check('a lapsed run is slipping', lapsed.key === 'slipping', lapsed.key);
+    check('and names the broken streak', lapsed.cause === 'streak-broken', lapsed.cause);
+    check('and counts the days since the last one', lapsed.daysSinceActive === 5, String(lapsed.daysSinceActive));
+
+    // Streak still alive, pace collapsed: 5 a day for a week, then almost
+    // nothing. This is the case `streakMood` alone cannot see.
+    const slowed = mood([...baseline(5), ...on(1, 1)]);
+    check('a collapsed pace on a live streak is slipping', slowed.key === 'slipping', slowed.key);
+    check('and names the slowdown, not the streak', slowed.cause === 'slowing', slowed.cause);
+
+    // The same collapse, but something was logged today: nothing to say.
+    const recovered = mood([...baseline(5), ...on(1, 1), ...on(0, 1)]);
+    check('one question today clears the slowdown', recovered.key === 'strong', recovered.key);
+
+    // An ordinary dip — 3 a day, then 2/1/2 — is not a slowdown. Two thirds of
+    // the earlier pace is week-to-week wobble, not a person stopping.
+    const wobble = mood([...baseline(3), ...on(2, 2), ...on(1, 1), ...on(0, 2)]);
+    check('an ordinary dip is not reported as slowing', wobble.cause !== 'slowing', wobble.cause);
+
+    // You cannot slow down from a pace you never had: three questions spread
+    // over the baseline week is under the one-a-day floor.
+    const neverHadAPace = mood([...on(4, 1), ...on(6, 1), ...on(8, 1), ...on(1, 1)]);
+    check(
+      'a pace below the floor cannot slow down',
+      neverHadAPace.cause !== 'slowing',
+      neverHadAPace.cause,
+    );
+
+    // Both true at once: the lapsed run is the more concrete thing to name.
+    const both = mood(baseline(5));
+    check('a broken streak wins over a slowdown', both.cause === 'streak-broken', both.cause);
+
+    // Nothing ever logged: no pace to have fallen from, so the mood is
+    // neutral. A null last-active day is how a caller tells that apart from
+    // someone who stopped, without a fourth mood that renders identically.
+    const fresh = mood([task({ id: 'u', done: false })]);
+    check('never started is neutral, not slipping', fresh.key === 'steady', fresh.key);
+    check('and has no last active day', fresh.daysSinceActive === null);
+    check('and no cause to name', fresh.cause === 'none', fresh.cause);
+
+    // One day of activity then a gap: streakMood refuses to call that broken,
+    // and neither does this.
+    const barelyStarted = mood(on(5, 1));
+    check('one day then a gap is steady, not slipping', barelyStarted.key === 'steady', barelyStarted.key);
+
+    // A finished sheet still produces a mood; the banner is what declines to
+    // render, because there is no next question to point at.
+    check('an empty task list does not throw', mood([]).key === 'steady');
+
+    // Every mood has to reach a different figure, or the key is decoration.
+    check(
+      'each mood key draws a different figure',
+      new Set([
+        moodPose(today),
+        moodPose(live),
+        moodPose(lapsed),
+        moodPose(slowed),
+      ]).size === 4,
+    );
+    check('a live streak with work today is cheerful', moodPose(today) === 'celebrate');
+    check('a neutral week rests', moodPose(live) === 'idle');
+    check('a lapsed run is sad', moodPose(lapsed) === 'sad');
+    check('a dropped pace is only concerned', moodPose(slowed) === 'concerned');
   }
 
   section('Search matching');

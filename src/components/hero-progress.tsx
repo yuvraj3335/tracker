@@ -7,6 +7,7 @@ import { StreakFlame } from './streak-flame';
 import { useActiveCharacter } from './character-provider';
 import { dailyLine } from '@/lib/character-voice';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
+import type { Pose } from '@/lib/characters';
 import { THEMES } from '@/lib/themes';
 import { pct } from '@/lib/utils';
 
@@ -32,6 +33,7 @@ export function HeroProgress({
   todayCount,
   greeting,
   day,
+  pose = 'idle',
 }: {
   done: number;
   total: number;
@@ -40,6 +42,12 @@ export function HeroProgress({
   greeting: string;
   /** Today's key, so the character's line is stable for the whole day. */
   day?: string;
+  /**
+   * How the figure is doing. This is the whole of the "things are going well"
+   * treatment: a cheerful pose and nothing else. There is no banner for it,
+   * because the numbers to its left already say so.
+   */
+  pose?: Pose;
 }) {
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
   const character = useActiveCharacter();
@@ -115,10 +123,10 @@ export function HeroProgress({
             mascot otherwise, and nothing at all for Studio. This is the app's
             resting figure, so it is the only one that preloads. */}
         <span className="sm:hidden">
-          <CharacterFigure pose="idle" size={52} />
+          <CharacterFigure pose={pose} size={52} />
         </span>
         <span className="hidden sm:block">
-          <CharacterFigure pose="idle" size={68} priority />
+          <CharacterFigure pose={pose} size={68} priority />
         </span>
       </div>
     </section>

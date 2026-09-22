@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { StatTile } from '@/components/stat-tile';
 import { HeroProgress } from '@/components/hero-progress';
+import { MoodBanner } from '@/components/mood-banner';
 import { PageHeader } from '@/components/page-header';
 import { HeadingBand } from '@/components/heading-band';
 import { ProgressBar } from '@/components/progress-bar';
@@ -58,6 +59,23 @@ export default function PreviewPage() {
             todayCount={stats.todayCount}
             greeting="Good evening"
           />
+        </div>
+      </Section>
+
+      <Section title="Mood banner">
+        <div className="space-y-3">
+          <MoodBanner
+            mood={{ key: 'slipping', cause: 'streak-broken', daysSinceActive: 5 }}
+            next={{ name: 'Longest Subarray with sum K', href: '/areas/dsa' }}
+          />
+          <MoodBanner
+            mood={{ key: 'slipping', cause: 'slowing', daysSinceActive: 1 }}
+            next={{ name: 'Sort an array of 0s, 1s and 2s', href: '/areas/dsa' }}
+          />
+          <p className="px-1 text-xs text-ink-muted">
+            Nothing renders for the strong and steady moods — those change the hero&rsquo;s
+            own figure instead, and nothing renders once the sheet is finished either.
+          </p>
         </div>
       </Section>
 

@@ -3,13 +3,15 @@ import { Flame, CalendarCheck, Target, TrendingUp, ArrowRight } from 'lucide-rea
 import { getEverything } from '@/lib/notion';
 import { requireReady } from '@/lib/tenant';
 import { env } from '@/lib/env';
-import { activityByDay, areaProgress, countsByDay, streakMood, summarize, topicProgress } from '@/lib/derive';
+import { activityByDay, areaProgress, countsByDay, performanceMood, summarize, topicProgress } from '@/lib/derive';
+import { moodPose } from '@/lib/characters';
 import { formatKey, greeting, todayKey } from '@/lib/date';
 import { pct } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { CharacterFigure } from '@/components/character-figure';
 import { PageHeader } from '@/components/page-header';
 import { HeroProgress } from '@/components/hero-progress';
+import { MoodBanner } from '@/components/mood-banner';
 import { ProgressBar } from '@/components/progress-bar';
 import { Heatmap } from '@/components/heatmap';
 import { TaskRow } from '@/components/task-row';
@@ -26,12 +28,20 @@ export default async function Dashboard() {
   const byDay = activityByDay(tasks);
   const todayTasks = byDay.get(today) ?? [];
   const counts = Object.fromEntries(countsByDay(tasks));
-  const mood = streakMood(stats.streak);
+  // Built from the same `stats` the hero renders, so the banner under it can
+  // never report a different version of the same week.
+  const mood = performanceMood(tasks, stats);
 
   // Next up: the first unsolved questions in original sheet order.
   const nextUp = tasks.filter((t) => !t.done).slice(0, 5);
   const tp = topicProgress(topics, tasks);
   const ap = areaProgress(areas, tasks);
+  // The banner's one action points at the area the next question actually
+  // lives in, rather than assuming DSA.
+  const nextArea = nextUp[0] ? areas.find((a) => nextUp[0].areaIds.includes(a.id)) : undefined;
+  const nextAction = nextUp[0]
+    ? { name: nextUp[0].name, href: `/areas/${nextArea?.slug || nextArea?.id || 'dsa'}` }
+    : null;
   const currentTopic = tp.find((r) => r.done > 0 && r.done < r.total) ?? tp.find((r) => r.done === 0);
 
   return (
@@ -45,7 +55,10 @@ export default async function Dashboard() {
         todayCount={stats.todayCount}
         greeting={greeting()}
         day={today}
+        pose={moodPose(mood)}
       />
+
+      <MoodBanner mood={mood} next={nextAction} />
 
       {/* ---- Job Switch progress, with DSA folded in automatically ---- */}
       <Card>
@@ -145,27 +158,13 @@ export default async function Dashboard() {
               ))}
             </ul>
           ) : (
-            // Coming back after a lapsed run gets the `sad` pose and softer
-            // copy. Deliberately not guilt-trippy: it names the gap once and
-            // points at the next action, and never mentions it again once the
-            // streak is live.
+            // The figure carries the mood; the words do not repeat it. Naming
+            // the lapse and offering the next question is the banner's job at
+            // the top of the page, and saying it twice on one screen is how a
+            // gentle nudge turns into nagging.
             <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
-              <CharacterFigure pose={mood === 'broken' ? 'sad' : 'idle'} size={48} />
-              <div className="min-w-0">
-                <p className="text-sm text-ink-muted">
-                  {mood === 'broken'
-                    ? 'Been a few days. One question is enough to start again.'
-                    : 'Nothing yet today.'}
-                </p>
-                {nextUp[0] ? (
-                  <p className="mt-1 text-xs">
-                    <Link href="/areas/dsa" className="font-medium text-accent hover:underline">
-                      Start with {nextUp[0].name}
-                      <ArrowRight className="ml-0.5 inline size-3 align-[-1px]" />
-                    </Link>
-                  </p>
-                ) : null}
-              </div>
+              <CharacterFigure pose={moodPose(mood)} size={48} />
+              <p className="min-w-0 text-sm text-ink-muted">Nothing yet today.</p>
             </div>
           )}
         </CardContent>
