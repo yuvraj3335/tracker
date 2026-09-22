@@ -8,6 +8,7 @@ import { buildSnapshot } from '@/lib/companion-context';
 import { MAX_REPLY_CHARS, sanitiseHistory, systemPrompt } from '@/lib/companion-prompt';
 import { getPersona, personaPrompt } from '@/lib/persona';
 import { splitEvents, textOfEvent } from '@/lib/anthropic-stream';
+import { snapshotFor } from '@/lib/companion-cache';
 
 export const runtime = 'nodejs';
 /** A conversation, so it either answers quickly or it has not answered. */
@@ -107,13 +108,21 @@ export async function POST(req: Request) {
   // Notion being slow or down must never take the conversation with it: a
   // companion that cannot see the tracker is a far smaller loss than one that
   // refuses to talk at all.
+  // Cached and served stale while it refreshes, because three Notion queries
+  // in front of every reply is where "it is laggy" mostly came from. A cold
+  // cache is waited on briefly and then given up on — the companion can talk
+  // about being tired and hungry perfectly well without knowing a streak, and
+  // the read still lands in time for the next message.
+  //
+  // Notion being slow or down must never take the conversation with it.
   let snapshot: string | null = null;
   try {
-    const status = await tenantStatus();
-    if (status.kind === 'ready') {
+    snapshot = await snapshotFor(user.id, async () => {
+      const status = await tenantStatus();
+      if (status.kind !== 'ready') return null;
       const { areas, topics, tasks } = await getEverything(status.tenant);
-      snapshot = buildSnapshot(areas, topics, tasks);
-    }
+      return buildSnapshot(areas, topics, tasks);
+    });
   } catch (e) {
     console.error('[companion] could not read the tracker:', (e as Error)?.message);
   }

@@ -62,10 +62,11 @@ import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate
 import { buildSnapshot } from '../src/lib/companion-context';
 import {
   SPEECH_START_MS, SPEECH_WATCHDOG_MS,
-  cutSentences, pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
+  cutSentences, endOfThought, pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
 } from '../src/lib/speech';
 import { getPersona, hasPersona, personaPrompt } from '../src/lib/persona';
 import { splitEvents, textOfEvent } from '../src/lib/anthropic-stream';
+import { FRESH_MS, STALE_MS, PATIENCE_MS, clearSnapshots, snapshotFor, within } from '../src/lib/companion-cache';
 import { KOKORO_PREFIX, KOKORO_VOICES, MODEL_MEGABYTES, kokoroVoice, shouldAutoLoad } from '../src/lib/kokoro';
 import { fixtures } from '../src/lib/fixtures';
 import {
@@ -1477,6 +1478,25 @@ async function main() {
                return d.length === 1 && d[0] === 'Oh. That is a much longer sentence here.'; })());
     check('an empty buffer is not a sentence', cutSentences('')[0].length === 0);
 
+    // ---- deciding they have finished talking
+    // One fixed pause is wrong both ways at once: long enough not to cut
+    // someone off is long enough to feel slow every time they finish a
+    // sentence properly.
+    check('a finished sentence is answered quickly',
+      endOfThought('so i am really tired and i have not eaten anything today') <= 700);
+    check('a couple of words gets real patience',
+      endOfThought('i think') >= 1_000);
+    check('a single word gets the most',
+      endOfThought('um') > endOfThought('i think'));
+    check('nothing at all is not a cue to answer', endOfThought('') >= 1_400);
+    check('patience only ever decreases with length',
+      (() => {
+        const steps = ['', 'um', 'i think', 'i think maybe so', 'one two three four five six seven eight'];
+        const waits = steps.map(endOfThought);
+        return waits.every((w, i) => i === 0 || w <= waits[i - 1]);
+      })());
+    check('it never waits longer than a beat and a half', endOfThought('') <= 1_600);
+
     // ---- not being stranded by an engine that says nothing
     // A refused utterance fires no events at all, which on a phone means the
     // conversation stops at hello and never opens the microphone again.
@@ -1589,6 +1609,71 @@ async function main() {
       check('one character at a time still reassembles exactly',
         out === 'Oh no. Have you eaten? Toast counts.');
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // Three Notion queries in front of every reply is where most of "it is
+  // laggy" actually came from — the voice was being blamed for a database.
+  // -----------------------------------------------------------------------
+  section('Keeping the tracker snapshot warm');
+  {
+    const now = 1_000_000;
+
+    clearSnapshots();
+    let reads = 0;
+    const load = async () => { reads += 1; return `snapshot ${reads}`; };
+
+    check('a cold cache reads', await snapshotFor('u', load, now) === 'snapshot 1');
+    check('and a fresh one does not read again',
+      await snapshotFor('u', load, now + FRESH_MS - 1) === 'snapshot 1' && reads === 1);
+
+    // The whole point: stale answers immediately and corrects itself behind
+    // the reply, rather than making someone wait on Notion mid-conversation.
+    const stale = await snapshotFor('u', load, now + FRESH_MS + 1);
+    check('a stale one answers instantly with what it has', stale === 'snapshot 1');
+    await new Promise((r) => setTimeout(r, 20));
+    check('and refreshes behind the answer', reads === 2);
+    check('so the next message has the new one',
+      await snapshotFor('u', load, now + FRESH_MS + 2) === 'snapshot 2' && reads === 2);
+
+    // Past the stale window there is nothing worth serving, so it waits.
+    clearSnapshots();
+    reads = 0;
+    check('beyond the stale window it reads afresh',
+      await snapshotFor('v', load, now) === 'snapshot 1');
+    check('a different person gets their own', await snapshotFor('w', load, now) === 'snapshot 2');
+    check('the stale window is longer than the fresh one', STALE_MS > FRESH_MS);
+
+    // A tracker that is down, or slow, must never take the conversation with it.
+    clearSnapshots();
+    const broken = async (): Promise<string | null> => { throw new Error('notion is having a day'); };
+    check('a failing read is not an exception', await snapshotFor('x', broken, now) === null);
+
+    clearSnapshots();
+    const forever = () => new Promise<string | null>(() => {});
+    const began = Date.now();
+    check('a hanging read gives up rather than hanging the reply',
+      await snapshotFor('y', forever, now) === null);
+    check('and gives up quickly', Date.now() - began < PATIENCE_MS + 400);
+
+    // `within` is the seam that makes that true, and is worth pinning alone.
+    check('within returns the value when it is in time',
+      await within(Promise.resolve('here'), 500) === 'here');
+    check('within returns null when it is not',
+      await within(new Promise((r) => setTimeout(() => r('late'), 300)), 30) === null);
+    check('within swallows a rejection rather than throwing',
+      await within(Promise.reject(new Error('no')), 500) === null);
+
+    // One read per tenant at a time, or a burst of messages on a cold cache
+    // each starts its own — the opposite of the point.
+    clearSnapshots();
+    let slowReads = 0;
+    const slow = async () => { slowReads += 1; await new Promise((r) => setTimeout(r, 40)); return 'one'; };
+    const together = await Promise.all([
+      snapshotFor('z', slow, now), snapshotFor('z', slow, now), snapshotFor('z', slow, now),
+    ]);
+    check('three at once is still one read', slowReads === 1);
+    check('and they all get the answer', together.every((t) => t === 'one'));
   }
 
   section('Persona');

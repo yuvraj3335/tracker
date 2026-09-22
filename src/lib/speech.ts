@@ -597,6 +597,24 @@ export const canListen = (): boolean => recognitionConstructor() !== null;
 export const END_OF_THOUGHT_MS = 1100;
 
 /**
+ * How long to wait after they stop before deciding they have finished.
+ *
+ * A single fixed pause is wrong in both directions at once: long enough not
+ * to cut someone off mid-thought is long enough to feel slow every time they
+ * finish a proper sentence. So it depends on how much they just said. A full
+ * sentence is almost always the end of a turn — answer it quickly. Two words
+ * is usually someone still assembling the thought, and cutting in there is
+ * the rude, stupid-sounding failure, so that gets real patience.
+ */
+export function endOfThought(text: string): number {
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  if (words >= 8) return 650;
+  if (words >= 4) return 850;
+  if (words >= 2) return 1100;
+  return 1500;
+}
+
+/**
  * How many refusals to sit through before believing one.
  *
  * The microphone permission prompt reports a refusal for as long as it is on
@@ -657,9 +675,9 @@ export function listen(handlers: ListenHandlers): () => void {
     if (text) handlers.onUtterance(text);
   };
 
-  const restartEndpoint = () => {
+  const restartEndpoint = (heard: string) => {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(flush, END_OF_THOUGHT_MS);
+    timer = setTimeout(flush, endOfThought(heard));
   };
 
   const open = () => {
@@ -683,8 +701,9 @@ export function listen(handlers: ListenHandlers): () => void {
         if (result.isFinal) pending += `${result[0].transcript} `;
         else interim += result[0].transcript;
       }
-      handlers.onPartial((pending + interim).trim());
-      restartEndpoint();
+      const heard = (pending + interim).trim();
+      handlers.onPartial(heard);
+      restartEndpoint(heard);
     };
 
     recognition.onerror = (event) => {

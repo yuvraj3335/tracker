@@ -206,12 +206,16 @@ export function Companion({
   // Being carried beats everything; working out a reply beats a reaction that
   // has already happened; otherwise it is whatever it was last poked into.
   const pose: Pose = dragging ? 'floating' : (overridePose ?? reaction ?? 'idle');
+  const thinking = overridePose === 'floating' && !dragging;
 
   return (
     <div
       // Below the nav (z-30) and the celebration overlay (z-40) on purpose, so
       // it can never take a click meant for a tab or sit over a celebration.
-      className="fixed z-20 touch-none select-none"
+      // `overflow-hidden` is what makes the duck read as going behind
+      // something rather than just moving down: the lower half is clipped, so
+      // it disappears and the hat comes back up first.
+      className="fixed z-20 overflow-hidden touch-none select-none"
       style={{ left: position.x, top: position.y, width: SIZE, height: SIZE }}
     >
       <button
@@ -228,6 +232,11 @@ export function Companion({
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
           'hover:bg-accent/10 active:scale-95',
           dragging ? 'cursor-grabbing bg-accent/10' : 'cursor-grab',
+          // Working out a reply is the one state worth animating the whole
+          // figure for. A second 3D canvas would have looked better still and
+          // would have been competing for the processor with the voice it is
+          // covering for, which is the wrong trade at exactly the wrong moment.
+          thinking && 'js-peek',
         )}
       >
         <CharacterFigure pose={pose} size={SIZE} />

@@ -296,10 +296,10 @@ export function CompanionPanel({
       ref={box}
       role="dialog"
       aria-label={`Talk to ${name}`}
-      className="skin-card fixed inset-x-3 bottom-24 z-40 flex max-h-[min(72vh,36rem)] flex-col overflow-hidden border border-hairline bg-surface shadow-lift-3 sm:inset-x-auto sm:right-6 sm:bottom-36 sm:w-[22rem]"
+      className="skin-card fixed inset-x-3 bottom-24 z-40 flex max-h-[min(76vh,38rem)] flex-col overflow-hidden border border-hairline bg-surface shadow-lift-3 sm:inset-x-auto sm:right-6 sm:bottom-36 sm:w-[24rem]"
     >
-      <div className="flex items-center gap-1 border-b border-hairline px-3 py-2">
-        <p className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">{name}</p>
+      <div className="flex items-center gap-1 border-b border-hairline px-3.5 py-2.5">
+        <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-ink">{name}</p>
         {canTalk && voice ? <VoicePicker name={name} /> : null}
         {canTalk ? (
           <button
@@ -327,22 +327,22 @@ export function CompanionPanel({
 
       {/* Captions. Everything said in either direction lands here, whether or
           not the microphone or the voice was ever used. */}
-      <div ref={log} className="min-h-28 flex-1 space-y-2 overflow-y-auto px-3 py-3">
+      <div ref={log} className="min-h-32 flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3.5">
         {messages.map((m, i) => (
           <p
             key={`${i}-${m.content.slice(0, 12)}`}
             className={cn(
-              'skin-pill max-w-[85%] px-2.5 py-1.5 text-xs leading-snug',
+              'skin-pill w-fit max-w-[88%] px-3 py-2 text-[0.8125rem] leading-relaxed',
               m.role === 'user'
-                ? 'ml-auto bg-accent text-accent-ink'
-                : 'border border-hairline bg-surface-2 text-ink-2',
+                ? 'ml-auto rounded-br-sm bg-accent text-accent-ink'
+                : 'rounded-bl-sm border border-hairline bg-surface-2 text-ink-2',
             )}
           >
             {m.content}
           </p>
         ))}
         {turn === 'thinking' ? (
-          <span className="skin-pill inline-flex w-fit items-center gap-1 border border-hairline bg-surface-2 px-3 py-2.5">
+          <span className="skin-pill flex w-fit items-center gap-1.5 rounded-bl-sm border border-hairline bg-surface-2 px-3.5 py-3">
             <span className="sr-only">Working on a reply</span>
             {[0, 1, 2].map((i) => (
               <span
@@ -355,7 +355,7 @@ export function CompanionPanel({
           </span>
         ) : null}
         {heard ? (
-          <p className="skin-pill ml-auto max-w-[85%] border border-dashed border-control px-2.5 py-1.5 text-xs text-ink-muted italic">
+          <p className="skin-pill ml-auto w-fit max-w-[88%] rounded-br-sm border border-dashed border-control px-3 py-2 text-[0.8125rem] leading-relaxed text-ink-muted italic">
             {heard}
           </p>
         ) : null}
@@ -365,7 +365,7 @@ export function CompanionPanel({
         role="status"
         aria-live="polite"
         className={cn(
-          'px-3 pb-2 text-xs',
+          'px-3.5 pb-2 text-xs',
           problem ? 'text-critical' : 'text-ink-muted',
           isHearing(turn) && 'font-medium text-ink-2',
         )}
@@ -373,7 +373,7 @@ export function CompanionPanel({
         {caption}
       </p>
 
-      <div className="border-t border-hairline p-2">
+      <div className="border-t border-hairline p-2.5">
         {typing || !canHear ? (
           <form
             className="flex items-center gap-1.5"
@@ -395,7 +395,7 @@ export function CompanionPanel({
               placeholder={`Say something to ${name}…`}
               disabled={busy}
               className={cn(
-                'skin-pill h-11 min-w-0 flex-1 border border-control bg-surface-2 px-3 text-xs',
+                'skin-pill h-11 min-w-0 flex-1 border border-control bg-surface-2 px-3.5 text-[0.8125rem]',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                 'disabled:opacity-50',
               )}
@@ -519,11 +519,11 @@ function VoicePicker({ name }: { name: string }) {
           speak(`Hi, I'm ${name}.`);
         }}
         className={cn(
-          'skin-pill max-w-[7.5rem] cursor-pointer appearance-none border border-control bg-surface-2 px-2 py-1 text-micro text-ink-muted',
+          'skin-pill max-w-[8.5rem] cursor-pointer appearance-none border border-control bg-surface-2 px-2 py-1 text-micro text-ink-muted',
           'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
         )}
       >
-        <option value="">Best available</option>
+        <option value="">Auto voice</option>
         {/* The real answer to "it sounds like a robot". These run on this
             machine, so the only cost is the one-off download, and saying so
             in the label is the difference between a choice and a surprise. */}
