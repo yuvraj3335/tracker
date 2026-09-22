@@ -1,25 +1,26 @@
 {
-  "id": "tally",
-  "name": "Tally",
+  "id": "pip",
+  "name": "Pip",
   "artist": "Generated for this project by scripts/make-character-model.mjs",
   "license": "Original work, generated for this project",
   "lines": {
     "cheer": [
-      "Logged.",
-      "That one is behind you.",
-      "Counted.",
-      "Onward."
+      "One down.",
+      "Noted!",
+      "That one is yours.",
+      "Neat.",
+      "Onward!"
     ],
     "milestone": [
-      "Whole block, done.",
-      "That is the set.",
-      "All of them."
+      "A whole set — look at that.",
+      "Every last one.",
+      "That is the lot!"
     ],
     "idle": [
-      "Still here.",
+      "Ready when you are.",
       "One at a time.",
       "Take the next one.",
-      "Whenever you are ready."
+      "Still here."
     ]
   }
 }

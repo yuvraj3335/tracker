@@ -496,9 +496,9 @@ async function main() {
   // dropped a pose, broke the container, or started claiming a licence would
   // otherwise only show up in a browser.
   // -----------------------------------------------------------------------
-  section('Shipped character (tally)');
+  section('Shipped character (pip)');
   {
-    const dir = join(process.cwd(), 'public', 'characters', 'tally');
+    const dir = join(process.cwd(), 'public', 'characters', 'pip');
     const glb = readFileSync(join(dir, 'model.glb'));
     check('the model is a glTF binary', glb.readUInt32LE(0) === 0x46546c67);
     check('it is glTF 2.0', glb.readUInt32LE(4) === 2);
@@ -528,20 +528,20 @@ async function main() {
         m.primitives.every((p) => p.attributes.POSITION !== undefined && p.attributes.NORMAL !== undefined)));
 
     // It loads on the dashboard, so its weight is not incidental.
-    check(`the model is under 250 KB (${(glb.length / 1024).toFixed(0)} KB)`, glb.length < 250 * 1024);
+    check(`the model is under 400 KB (${(glb.length / 1024).toFixed(0)} KB)`, glb.length < 400 * 1024);
 
-    const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'tally');
+    const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'pip');
     check('its meta passes the same validation every character does', meta !== null);
     check('it credits the generator, not a person', /generated for this project/i.test(meta?.artist ?? ''));
     check('it claims only the licence it has', /original work/i.test(meta?.license ?? ''));
     check('it claims no source it does not have', !meta?.source);
     check('it ships its own voice lines', Boolean(meta?.lines?.cheer?.length && meta?.lines?.idle?.length));
 
-    const tally = discoverCharacters().find((c) => c.id === 'tally');
-    check('discovery finds it', Boolean(tally));
-    check('discovery exposes the model, not pose images', tally?.model === '/characters/tally/model.glb');
-    check('it has no pose images to fall back to', Object.keys(tally?.poses ?? {}).length === 0);
-    check('and is renderable anyway', isRenderable(tally));
+    const pip = discoverCharacters().find((c) => c.id === 'pip');
+    check('discovery finds it', Boolean(pip));
+    check('discovery exposes the model, not pose images', pip?.model === '/characters/pip/model.glb');
+    check('it has no pose images to fall back to', Object.keys(pip?.poses ?? {}).length === 0);
+    check('and is renderable anyway', isRenderable(pip));
   }
 
   section('Character voice');

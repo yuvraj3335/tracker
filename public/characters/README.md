@@ -4,7 +4,7 @@ Drop a folder in here and the app picks it up. Nothing in `src/` lists
 characters — discovery is a filesystem walk, so adding art never means editing
 code.
 
-**This folder ships one character, and it is not installed artwork.** `tally/`
+**This folder ships one character, and it is not installed artwork.** `pip/`
 is generated in full by `scripts/make-character-model.mjs` — every vertex,
 material and animation clip — which is why it is the single, narrowly-scoped
 exception to the ignore rule on this directory. Everything else you drop in here
