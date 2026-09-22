@@ -21,6 +21,7 @@ import {
   kokoroReady,
   kokoroVoice,
   loadEngine,
+  openKokoroStream,
   primeKokoroAudio,
   speakKokoro,
   stopKokoro,
@@ -188,6 +189,21 @@ export function prosody(sentence: string, index: number): { rate: number; pitch:
 }
 
 /**
+ * Tempo, pauses and the lead cut live in speech-shape.ts — kokoro.ts needs
+ * them too and imports this file's dependency rather than this file. Re-
+ * exported here so every caller still has one place to reach for speech.
+ */
+export {
+  BASE_SPEED,
+  LEAD_MIN,
+  LEAD_MAX,
+  headStartMs,
+  leadCut,
+  pauseAfter,
+  speedFor,
+} from './speech-shape';
+
+/**
  * Pulls finished sentences out of a buffer that is still being written to.
  *
  * The reply arrives a few characters at a time, and the whole point is to
@@ -292,7 +308,38 @@ export const serverVoiceName = (): string => '';
  */
 export function naturalVoice(): string | null {
   const preference = getVoiceName();
-  return preference ? kokoroVoice(preference) : autoNatural();
+  if (preference) return kokoroVoice(preference);
+  // A modern system voice is not a compromise — it is a neural voice too, it
+  // is already installed, and it starts speaking in a tenth of a second
+  // instead of two seconds. Downloading 155 MB to sound slightly different
+  // and answer a second and a half later would be a worse product, so the
+  // download only happens where the installed voices are the flat formant
+  // synthesisers this feature exists to escape.
+  if (hasGoodSystemVoice()) return null;
+  return autoNatural();
+}
+
+/** The score a voice has to clear to be worth using instead of downloading. */
+export const GOOD_VOICE_SCORE = 50;
+
+/**
+ * Whether this machine already has a voice worth listening to.
+ *
+ * Deliberately a high bar. `voiceScore` awards 60 for a voice that says
+ * "natural" or "neural" in its own name and 50 for Siri, both of which are
+ * genuinely good; 45 for one of Apple's enhanced downloads, which is close.
+ * Everything below that is the OS synthesiser, and no ranking rescues it.
+ */
+export function hasGoodSystemVoice(): boolean {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+  try {
+    const lang = navigator?.language || 'en-GB';
+    return window.speechSynthesis
+      .getVoices()
+      .some((voice) => voiceScore(voice, lang) >= GOOD_VOICE_SCORE);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -539,6 +586,112 @@ export function speak(text: string, onDone?: () => void, queue = false) {
   } catch {
     finish();
   }
+}
+
+/**
+ * One utterance that is still being written while it is being said.
+ *
+ * A streamed reply is the case everything here exists for, and it used to be
+ * handled by calling `speak` once per sentence. That made each sentence its
+ * own independent playback, so the gap between two of them was two schedules
+ * meeting by chance — which is exactly the long stop after every full stop.
+ *
+ * This hands the whole reply to one scheduled timeline instead. `push` adds a
+ * line as soon as it has finished arriving, `end` says no more is coming, and
+ * `onDone` fires once when the last of it has actually been heard — so the
+ * conversation hands the turn back at the right moment rather than at the
+ * moment the last sentence was queued.
+ */
+export type Utterance = { push(line: string): void; end(): void };
+
+export function speakStream(onDone?: () => void, queue = false): Utterance {
+  let handed = false;
+  const finish = () => {
+    if (handed) return;
+    handed = true;
+    onDone?.();
+  };
+
+  if (!getVoice() || typeof window === 'undefined') {
+    // Muted or nowhere to say it: the caller still needs the turn back, but
+    // not before it has pushed anything, or it would advance mid-stream.
+    let closed = false;
+    return {
+      push: () => {},
+      end: () => {
+        if (closed) return;
+        closed = true;
+        finish();
+      },
+    };
+  }
+
+  const natural = naturalVoice();
+  if (natural && kokoroReady()) return openKokoroStream(natural, finish, queue);
+  if (natural) void loadEngine(natural);
+
+  if (!('speechSynthesis' in window)) {
+    return { push: () => {}, end: finish };
+  }
+
+  // The browser's own voice, queued utterance by utterance. It has no
+  // schedule to keep — the engine runs its own queue — so all this has to do
+  // is not hand the turn on until the last one has actually ended.
+  if (!queue) window.speechSynthesis.cancel();
+  if (!chosenVoice) refreshVoice();
+
+  let spoken = 0;
+  let ended = 0;
+  let closed = false;
+  let index = 0;
+  // A refused utterance fires nothing at all, which on mobile Safari is the
+  // normal outcome once the gesture is over. Without this the conversation
+  // stops dead in `speaking` and the microphone never reopens.
+  let silent: ReturnType<typeof setTimeout> | null = null;
+  const settle = () => {
+    if (closed && ended >= spoken) finish();
+  };
+
+  return {
+    push(line: string) {
+      const parts = splitForSpeech(line);
+      if (!parts.length) return;
+      for (const part of parts) {
+        const utterance = new SpeechSynthesisUtterance(part);
+        if (chosenVoice) utterance.voice = chosenVoice;
+        const { rate, pitch } = prosody(part, index++);
+        utterance.rate = rate;
+        utterance.pitch = pitch;
+        utterance.onstart = () => {
+          if (silent) clearTimeout(silent);
+          silent = null;
+        };
+        utterance.onend = () => {
+          ended += 1;
+          settle();
+        };
+        utterance.onerror = () => {
+          ended += 1;
+          settle();
+        };
+        spoken += 1;
+        try {
+          window.speechSynthesis.speak(utterance);
+        } catch {
+          ended += 1;
+          settle();
+        }
+      }
+      if (!silent && ended === 0) silent = setTimeout(finish, SPEECH_START_MS);
+    },
+    end() {
+      if (closed) return;
+      closed = true;
+      // Nothing was ever pushed, or the engine had already finished.
+      settle();
+      if (spoken === 0) finish();
+    },
+  };
 }
 
 /** Cuts off whatever is being said, including everything still queued. */

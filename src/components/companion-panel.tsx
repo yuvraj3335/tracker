@@ -1,20 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Keyboard, Mic, Send, Volume2, VolumeX, X } from 'lucide-react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { ArrowUp, AudioLines, Keyboard, Mic, Volume2, VolumeX, X } from 'lucide-react';
 import { useActiveCharacter } from './character-provider';
-import { Button } from './ui/button';
+import { CharacterThumb } from './character-figure';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
 import { pickCharacterLine } from '@/lib/character-voice';
 import { THEMES } from '@/lib/themes';
 import {
   KOKORO_PREFIX,
   KOKORO_VOICES,
-  MODEL_MEGABYTES,
   engineProgress,
   engineState,
+  modelMegabytes,
   serverEngineProgress,
   serverEngineState,
+  warm,
 } from '@/lib/kokoro';
 import {
   canListen,
@@ -23,6 +24,7 @@ import {
   getVoiceName,
   listVoices,
   cutSentences,
+  leadCut,
   listen,
   loadEngine,
   naturalVoice,
@@ -32,11 +34,15 @@ import {
   setVoice,
   setVoiceName,
   speak,
+  speakStream,
   stopSpeaking,
 } from '@/lib/speech';
-import { captionFor, isHearing, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
+import { captionFor, isHearing, isTalking, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
 import { MAX_MESSAGE_CHARS, type ChatMessage } from '@/lib/companion-prompt';
 import { cn } from '@/lib/utils';
+
+/** How tall the message box is allowed to grow before it scrolls instead. */
+const MAX_FIELD_PX = 120;
 
 /**
  * A conversation you have out loud.
@@ -76,6 +82,7 @@ export function CompanionPanel({
 
   const box = useRef<HTMLDivElement>(null);
   const log = useRef<HTMLDivElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
   const stopHearing = useRef<(() => void) | null>(null);
 
   const name = character?.name ?? 'Your companion';
@@ -135,27 +142,18 @@ export function CompanionPanel({
           let whole = '';
           let started = false;
 
-          // Every sentence is spoken the moment it is complete — nothing is
-          // held back waiting to find out which one is last, because holding
-          // the first sentence until the second arrives costs exactly the
-          // delay this whole change exists to remove.
+          // One utterance for the whole reply, written to as it arrives.
           //
-          // Which one is last is worked out by counting instead: the turn is
-          // handed on once the stream has ended AND everything queued from it
-          // has finished being said, whichever of those happens second.
-          let queued = 0;
-          let spokenThrough = 0;
-          let ended = false;
+          // It used to be one call to `speak` per sentence, which made every
+          // sentence an independent playback — so the silence between two of
+          // them was two schedules meeting by luck, and that luck was bad. A
+          // stream is a single timeline: the pause after a full stop is the
+          // one `pauseAfter` asked for and nothing else.
+          const voice = speakStream(() => advance('spoke'), true);
+          let said = 0;
           const utter = (line: string) => {
-            queued += 1;
-            speak(
-              line,
-              () => {
-                spokenThrough += 1;
-                if (ended && spokenThrough === queued) advance('spoke');
-              },
-              true,
-            );
+            said += 1;
+            voice.push(line);
           };
 
           for (;;) {
@@ -180,6 +178,18 @@ export function CompanionPanel({
               });
             }
 
+            // The first thing said is cut at the first clause rather than the
+            // first full stop, because the wait before anything is heard is
+            // the cost of generating that one line and nothing else. "Nice,
+            // that is four today." can start being said at the comma.
+            if (!said) {
+              const lead = leadCut(buffer);
+              if (lead) {
+                utter(lead[0]);
+                buffer = lead[1];
+              }
+            }
+
             const [sentences, rest] = cutSentences(buffer);
             buffer = rest;
             for (const sentence of sentences) utter(sentence);
@@ -189,15 +199,15 @@ export function CompanionPanel({
           if (tail) utter(tail);
 
           if (!started) {
+            voice.end();
             setProblem('Your companion did not have anything to say to that. Try asking another way.');
             advance('error');
             return;
           }
 
-          ended = true;
-          // Everything may already have been said while the stream was still
-          // open, in which case the last callback has been and gone.
-          if (spokenThrough === queued) advance('spoke');
+          // Nothing more is coming; the turn is handed back once the last of
+          // it has actually been heard.
+          voice.end();
           return;
         }
 
@@ -246,9 +256,19 @@ export function CompanionPanel({
   // somebody finds the dropdown. Until it lands the browser's own voice
   // answers, so this costs nothing but the bytes — and on a metered or
   // low-powered device it does not happen at all.
+  //
+  // Once it is here, the lines this panel opens with are generated and kept.
+  // They never change, they are short, and the second conversation of a
+  // session then starts talking immediately instead of pausing on hello.
   useEffect(() => {
-    const voice = naturalVoice();
-    if (voice) void loadEngine(voice);
+    const id = naturalVoice();
+    if (!id) return;
+    void loadEngine(id).then((ok) => {
+      if (!ok) return;
+      const openers = character?.lines?.idle ?? [];
+      void warm([hello, ...openers].slice(0, 6), id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- opening and closing ------------------------------------------------
@@ -288,95 +308,134 @@ export function CompanionPanel({
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
   }, [messages, heard, turn]);
 
+  /**
+   * The message box grows with what is being written.
+   *
+   * Driven by the value rather than by the keystroke that changed it, so it is
+   * also right when the draft is cleared on send, and when the window is
+   * narrow enough that the same text takes two lines instead of one. Doing it
+   * in the change handler meant a box that was the right height for the width
+   * it was typed at.
+   */
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, MAX_FIELD_PX)}px`;
+  }, [draft, typing]);
+
   const busy = turn === 'thinking';
   const caption = problem || captionFor(turn, name);
+  const composing = typing || !canHear;
 
   return (
     <div
       ref={box}
       role="dialog"
       aria-label={`Talk to ${name}`}
-      className="skin-card fixed inset-x-3 bottom-24 z-40 flex max-h-[min(76vh,38rem)] flex-col overflow-hidden border border-hairline bg-surface shadow-lift-3 sm:inset-x-auto sm:right-6 sm:bottom-36 sm:w-[24rem]"
+      className={cn(
+        'js-panel-in fixed z-40 flex flex-col overflow-hidden bg-surface shadow-lift-3',
+        // Phone: a sheet off the bottom edge, square where it meets the edge
+        // so it reads as attached rather than as a card that missed.
+        'inset-x-0 bottom-0 max-h-[86dvh] rounded-t-2xl border-t border-hairline',
+        'pb-[env(safe-area-inset-bottom)]',
+        // Desktop: a panel beside the figure, clear of it.
+        'sm:skin-card sm:inset-x-auto sm:right-6 sm:bottom-32 sm:max-h-[min(72vh,40rem)] sm:w-[25rem]',
+        'sm:rounded-2xl sm:border sm:pb-0',
+      )}
     >
-      <div className="flex items-center gap-1 border-b border-hairline px-3.5 py-2.5">
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-ink">{name}</p>
+      {/* A grab bar. It does nothing, which is the point: it is the shape that
+          says "this came up from the bottom edge" on a phone, and it is the
+          only chrome the sheet needs above the name. */}
+      <span
+        aria-hidden
+        className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-control/50 sm:hidden"
+      />
+
+      <header className="flex items-center gap-2.5 px-3.5 pt-3 pb-3 sm:pt-4">
+        <span className="relative shrink-0">
+          <Avatar turn={turn} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[0.9375rem] leading-tight font-semibold tracking-tight text-ink">
+            {name}
+          </span>
+          <span
+            role="status"
+            aria-live="polite"
+            className={cn(
+              'mt-0.5 block truncate text-meta',
+              problem ? 'text-critical' : 'text-ink-muted',
+            )}
+          >
+            {caption || ' '}
+          </span>
+        </span>
         {canTalk && voice ? <VoicePicker name={name} /> : null}
         {canTalk ? (
-          <button
-            type="button"
-            aria-pressed={!voice}
-            aria-label={voice ? 'Mute' : 'Unmute'}
+          <IconButton
+            label={voice ? 'Mute' : 'Unmute'}
+            pressed={!voice}
             onClick={() => {
               setVoice(!voice);
               if (voice) stopSpeaking();
             }}
-            className="grid size-9 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
           >
-            {voice ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-          </button>
+            {voice ? <Volume2 className="size-[1.125rem]" /> : <VolumeX className="size-[1.125rem]" />}
+          </IconButton>
         ) : null}
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="grid size-9 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
+        <IconButton label="Close" onClick={onClose}>
+          <X className="size-[1.125rem]" />
+        </IconButton>
+      </header>
 
       {/* Captions. Everything said in either direction lands here, whether or
           not the microphone or the voice was ever used. */}
-      <div ref={log} className="min-h-32 flex-1 space-y-2.5 overflow-y-auto px-3.5 py-3.5">
-        {messages.map((m, i) => (
-          <p
+      <div className="relative min-h-40 flex-1">
+        {/* What is scrolling away passes under the header rather than being
+            cut off by it. Sits above the list and takes no clicks. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-surface to-transparent"
+        />
+        <div
+          ref={log}
+          className="h-full space-y-2 overflow-y-auto overscroll-contain px-4 pt-3 pb-4"
+        >
+          {messages.map((m, i) => (
+          <Bubble
             key={`${i}-${m.content.slice(0, 12)}`}
-            className={cn(
-              'skin-pill w-fit max-w-[88%] px-3 py-2 text-[0.8125rem] leading-relaxed',
-              m.role === 'user'
-                ? 'ml-auto rounded-br-sm bg-accent text-accent-ink'
-                : 'rounded-bl-sm border border-hairline bg-surface-2 text-ink-2',
-            )}
+            role={m.role}
+            first={m.role !== messages[i - 1]?.role}
           >
             {m.content}
-          </p>
+          </Bubble>
         ))}
         {turn === 'thinking' ? (
-          <span className="skin-pill flex w-fit items-center gap-1.5 rounded-bl-sm border border-hairline bg-surface-2 px-3.5 py-3">
+          <span className="js-rise-in flex w-fit items-center gap-1.5 rounded-2xl rounded-bl-md bg-surface-2 px-4 py-3.5">
             <span className="sr-only">Working on a reply</span>
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
                 aria-hidden
-                className="js-dot size-1.5 rounded-full bg-ink-muted"
-                style={{ animationDelay: `${i * 160}ms` }}
+                className="js-dot size-[0.3125rem] rounded-full bg-ink-muted"
+                style={{ animationDelay: `${i * 150}ms` }}
               />
             ))}
           </span>
         ) : null}
         {heard ? (
-          <p className="skin-pill ml-auto w-fit max-w-[88%] rounded-br-sm border border-dashed border-control px-3 py-2 text-[0.8125rem] leading-relaxed text-ink-muted italic">
+          <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md border border-dashed border-control px-3.5 py-2.5 text-sm leading-relaxed text-ink-muted italic">
             {heard}
           </p>
         ) : null}
+        </div>
       </div>
 
-      <p
-        role="status"
-        aria-live="polite"
-        className={cn(
-          'px-3.5 pb-2 text-xs',
-          problem ? 'text-critical' : 'text-ink-muted',
-          isHearing(turn) && 'font-medium text-ink-2',
-        )}
-      >
-        {caption}
-      </p>
-
-      <div className="border-t border-hairline p-2.5">
-        {typing || !canHear ? (
+      <div className="shrink-0 border-t border-hairline p-2.5 sm:p-3">
+        {composing ? (
           <form
-            className="flex items-center gap-1.5"
+            className="flex items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               void send(draft);
@@ -385,74 +444,98 @@ export function CompanionPanel({
             <label htmlFor="companion-draft" className="sr-only">
               Message
             </label>
-            <input
-              id="companion-draft"
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              maxLength={MAX_MESSAGE_CHARS}
-              autoComplete="off"
-              placeholder={`Say something to ${name}…`}
-              disabled={busy}
+            {/* One container holds the field and the send key, so the focus
+                ring lands on the whole control rather than on a box with a
+                button floating beside it. */}
+            <div
               className={cn(
-                'skin-pill h-11 min-w-0 flex-1 border border-control bg-surface-2 px-3.5 text-[0.8125rem]',
-                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                'disabled:opacity-50',
+                'flex min-w-0 flex-1 items-end gap-1 rounded-2xl border border-control bg-surface-2 py-1 pr-1 pl-3.5',
+                'focus-within:border-accent focus-within:outline-2 focus-within:outline-offset-[-1px] focus-within:outline-accent',
+                busy && 'opacity-60',
               )}
-            />
+            >
+              <textarea
+                id="companion-draft"
+                ref={field}
+                autoFocus
+                rows={1}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void send(draft);
+                  }
+                }}
+                maxLength={MAX_MESSAGE_CHARS}
+                autoComplete="off"
+                placeholder={`Say something to ${name}…`}
+                disabled={busy}
+                className="min-w-0 flex-1 resize-none bg-transparent py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-muted focus:outline-none"
+                style={{ maxHeight: MAX_FIELD_PX }}
+              />
+              <button
+                type="submit"
+                aria-label="Send"
+                disabled={busy || !draft.trim()}
+                className={cn(
+                  'mb-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-ink transition',
+                  'hover:opacity-90 disabled:bg-control disabled:opacity-40',
+                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                )}
+              >
+                <ArrowUp className="size-4" strokeWidth={2.5} />
+              </button>
+            </div>
             {canHear ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="min-h-11 min-w-11 px-2"
+              <IconButton
+                label="Talk instead"
+                big
                 onClick={() => {
                   setTyping(false);
                   setProblem('');
                   advance('listen');
                 }}
               >
-                <Mic className="size-4" />
-                <span className="sr-only">Talk instead</span>
-              </Button>
+                <Mic className="size-[1.125rem]" />
+              </IconButton>
             ) : null}
-            <Button type="submit" className="min-h-11 min-w-11 px-2" disabled={busy || !draft.trim()}>
-              <Send className="size-4" />
-              <span className="sr-only">Send</span>
-            </Button>
           </form>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pl-1">
             {/* No Talk button and no Stop button. The microphone is open for
                 as long as the conversation is, and the cross in the corner is
                 how it ends — which is what "just talk to it" has to mean.
                 What is left is the live level and a way out to the keyboard. */}
-            <Listening active={isHearing(turn)} />
+            <Level turn={turn} />
             {turn === 'resting' ? (
-              <Button
+              <button
                 type="button"
-                className="min-h-11"
                 onClick={() => {
                   setProblem('');
                   advance('listen');
                 }}
+                className={cn(
+                  'ml-auto inline-flex h-10 items-center gap-2 rounded-full bg-accent px-4 text-sm font-medium text-accent-ink',
+                  'transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                )}
               >
                 <Mic className="size-4" />
                 Listen again
-              </Button>
+              </button>
             ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              className="ml-auto min-h-11 min-w-11 px-2"
+            <IconButton
+              label="Type instead"
+              big
+              className={turn === 'resting' ? '' : 'ml-auto'}
               onClick={() => {
                 stopSpeaking();
                 advance('stop');
                 setTyping(true);
               }}
             >
-              <Keyboard className="size-4" />
-              <span className="sr-only">Type instead</span>
-            </Button>
+              <Keyboard className="size-[1.125rem]" />
+            </IconButton>
           </div>
         )}
       </div>
@@ -460,28 +543,122 @@ export function CompanionPanel({
   );
 }
 
+/** One message. */
+function Bubble({
+  role,
+  first,
+  children,
+}: {
+  role: ChatMessage['role'];
+  /** First of a run from the same speaker — only that one gets the tail. */
+  first: boolean;
+  children: React.ReactNode;
+}) {
+  const mine = role === 'user';
+  return (
+    <p
+      className={cn(
+        'js-rise-in w-fit max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed',
+        // A generous radius with one corner pulled in is the shape everyone
+        // already reads as "someone said this". Only the first of a run gets
+        // the pulled-in corner, so consecutive lines read as one turn.
+        'rounded-2xl',
+        mine
+          ? ['ml-auto bg-accent text-accent-ink', first && 'rounded-br-md']
+          : ['bg-surface-2 text-ink', first && 'rounded-bl-md'],
+        !first && 'mt-1',
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+/** A square, comfortable tap target for the header and the composer. */
+function IconButton({
+  label,
+  pressed,
+  big,
+  className,
+  onClick,
+  children,
+}: {
+  label: string;
+  pressed?: boolean;
+  big?: boolean;
+  className?: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={pressed}
+      className={cn(
+        'grid shrink-0 place-items-center rounded-full text-ink-muted transition-colors',
+        'hover:bg-surface-2 hover:text-ink',
+        'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+        big ? 'size-11' : 'size-9',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * The figure, small, with a ring that says what it is doing.
+ *
+ * The same information as the caption beside it, in the shape people check
+ * first. Decorative: the caption is the live region, this is not.
+ */
+function Avatar({ turn }: { turn: Turn }) {
+  const character = useActiveCharacter();
+  const active = isTalking(turn) || isHearing(turn) || turn === 'thinking';
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'grid size-10 place-items-center rounded-full bg-surface-2 transition-shadow',
+        active && 'shadow-[0_0_0_2px_var(--accent)]',
+        isHearing(turn) && 'js-halo',
+      )}
+    >
+      {character ? <CharacterThumb character={character} size={34} /> : null}
+    </span>
+  );
+}
 
 /**
  * That the microphone is open, shown rather than stated.
  *
- * Three bars breathing is read at a glance and does not need reading at all,
- * which is what a status line asks of you. Decorative only — the caption
- * beside it carries the same thing for a screen reader, and the animation
+ * Five bars breathing is read at a glance and does not need reading at all,
+ * which is what a status line asks of you. Decorative only — the caption in
+ * the header carries the same thing for a screen reader, and the animation
  * collapses under the reduced-motion rule in globals.css.
  */
-function Listening({ active }: { active: boolean }) {
+const BARS = [0.45, 0.75, 1, 0.7, 0.4];
+
+function Level({ turn }: { turn: Turn }) {
+  const active = isHearing(turn);
   return (
-    <span className="flex items-center gap-2 px-1" aria-hidden>
-      <span className="flex h-5 items-end gap-[3px]">
-        {[0, 1, 2].map((i) => (
+    <span className="flex items-center gap-2.5" aria-hidden>
+      <span className="flex h-6 items-center gap-[3px]">
+        {BARS.map((scale, i) => (
           <span
             key={i}
-            className={cn('w-[3px] rounded-full transition-all', active ? 'js-level' : 'h-1 bg-control')}
-            style={active ? { background: 'var(--accent)', animationDelay: `${i * 140}ms` } : undefined}
+            className={cn(
+              'w-[3px] rounded-full transition-[height,background-color] duration-200',
+              active ? 'js-level bg-accent' : 'h-1 bg-control',
+            )}
+            style={active ? { animationDelay: `${i * 110}ms`, ['--level' as string]: scale } : undefined}
           />
         ))}
       </span>
-      <span className="text-xs text-ink-muted">{active ? 'Just talk' : 'Paused'}</span>
+      <span className="text-xs text-ink-muted">{active ? 'Just talk' : 'Tap to talk, or type'}</span>
     </span>
   );
 }
@@ -500,14 +677,32 @@ function VoicePicker({ name }: { name: string }) {
   const chosen = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
   const state = useSyncExternalStore(subscribe, engineState, serverEngineState);
   const percent = useSyncExternalStore(subscribe, engineProgress, serverEngineProgress);
+  // Device-dependent, and this panel is never server-rendered — it mounts on
+  // a click — so reading it once on mount is safe and cannot mismatch.
+  const [megabytes] = useState(modelMegabytes);
 
   return (
-    <span className="flex min-w-0 items-center gap-1">
+    // The native control, kept and made invisible over an icon. A select wide
+    // enough to show "Nicole — soft, American" is wider than the name of the
+    // person you are talking to, which is the wrong thing to give the room
+    // to; the labels are worth reading in the list and worth nothing on the
+    // closed control. Everything about the select still works — keyboard,
+    // screen reader, the platform's own picker on a phone — and the ring is
+    // carried by the wrapper through `focus-within`.
+    <span
+      className={cn(
+        'relative grid size-9 shrink-0 place-items-center rounded-full text-ink-muted transition-colors',
+        'hover:bg-surface-2 hover:text-ink focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-accent',
+        state === 'loading' && 'text-accent',
+      )}
+    >
       {state === 'loading' ? (
-        <span className="text-micro tabular-nums text-ink-muted" role="status" aria-live="polite">
-          {percent}%
+        <span className="text-micro tabular-nums" role="status" aria-live="polite">
+          {percent}
         </span>
-      ) : null}
+      ) : (
+        <AudioLines className="size-[1.125rem]" aria-hidden />
+      )}
       <select
         value={chosen}
         aria-label="Voice"
@@ -518,16 +713,13 @@ function VoicePicker({ name }: { name: string }) {
           // also what the download is for, so it plays the moment it lands.
           speak(`Hi, I'm ${name}.`);
         }}
-        className={cn(
-          'skin-pill max-w-[8.5rem] cursor-pointer appearance-none border border-control bg-surface-2 px-2 py-1 text-micro text-ink-muted',
-          'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
-        )}
+        className="absolute inset-0 cursor-pointer appearance-none opacity-0 focus:outline-none"
       >
         <option value="">Auto voice</option>
         {/* The real answer to "it sounds like a robot". These run on this
             machine, so the only cost is the one-off download, and saying so
             in the label is the difference between a choice and a surprise. */}
-        <optgroup label={state === 'ready' ? 'Natural' : `Natural — ${MODEL_MEGABYTES} MB once`}>
+        <optgroup label={state === 'ready' ? 'Natural' : `Natural — ${megabytes} MB once`}>
           {KOKORO_VOICES.map((v) => (
             <option key={v.id} value={`${KOKORO_PREFIX}${v.id}`}>
               {v.label}

@@ -11,14 +11,30 @@
  *
  * It runs on the person's own machine rather than on a server, which is the
  * only reason this is free: there is no inference to pay for, no API key to
- * leak, and nothing said out loud ever leaves the device. The cost is a
- * one-time model download, which is why it is opted into by name in the voice
- * picker rather than started behind someone's back on a phone.
+ * leak, and nothing said out loud ever leaves the device.
  *
- * Everything heavy is behind a dynamic import. Nothing in this file is loaded
- * at all unless a natural voice is actually chosen.
+ * Three things here are the answer to "why is there a gap before it talks,
+ * and why does it stop after every full stop":
+ *
+ *   1. Generation happens in a worker (`kokoro.worker.ts`), never on the main
+ *      thread. It is two seconds of solid arithmetic per sentence, and on the
+ *      main thread that is two seconds in which nothing can be painted and —
+ *      worse — nothing can start the next piece of audio at the instant the
+ *      last one ended.
+ *   2. Every generated clip is trimmed. The model pads each one with about a
+ *      third of a second of silence at the front and half a second at the
+ *      back, which is most of a second of dead air built into every sentence
+ *      boundary before any scheduling has even happened.
+ *   3. Playback is scheduled on the audio clock rather than chained off
+ *      `onended`, so the gap between two sentences is a number chosen in
+ *      `pauseAfter` rather than whatever the machine happened to manage.
+ *
+ * Everything heavy is behind a dynamic import and a worker. Nothing in this
+ * file is loaded at all unless a natural voice is actually used.
  */
 import { announce } from './appearance';
+import { headStartMs, pauseAfter, speedFor } from './speech-shape';
+import type { FromWorker, ToWorker } from './kokoro.worker';
 
 /** The voices worth offering, and what they actually sound like. */
 export const KOKORO_VOICES = [
@@ -47,17 +63,6 @@ export function kokoroVoice(preference: string): string | null {
   return KOKORO_VOICES.some((v) => v.id === id) ? id : null;
 }
 
-/**
- * One build, everywhere: the quantised model on WASM.
- *
- * WebGPU would run this several times faster, and the full-precision build it
- * wants is 330 MB — too much to fetch without being asked, which rules it out
- * as a default. Keeping one path also means the path that ships is the path
- * that was tested; a WebGPU branch that could only be guessed at is not worth
- * the speed it might have bought.
- */
-export const MODEL_MEGABYTES = 90;
-
 /** The voice used when nobody has chosen one. Kokoro's best-graded voice. */
 export const DEFAULT_VOICE = 'af_heart';
 
@@ -65,13 +70,39 @@ export const DEFAULT_VOICE = 'af_heart';
 export type DeviceHints = { saveData?: boolean; effectiveType?: string; deviceMemory?: number };
 
 /**
+ * Which build of the model to fetch.
+ *
+ * Measured on a four-core machine, against the same three sentences, warm
+ * cache, twice each:
+ *
+ *   q8    88 MB   1.40x real time   first sentence 3.39 s
+ *   fp16 155 MB   1.14x real time   first sentence 2.78 s
+ *   q4   291 MB   1.17x real time   (larger than q8: only the matrix
+ *                                    multiplies are quantised, the
+ *                                    convolutions stay full precision)
+ *
+ * So the half-precision build is both the fastest and the most faithful, and
+ * the trade is purely download size. It is worth 67 MB more on a machine with
+ * memory to spare and a connection that is not being counted, and is not
+ * worth it on a phone on a train — which is the same judgement
+ * `shouldAutoLoad` already makes, so it is made from the same hints.
+ */
+export type Build = { dtype: 'fp16' | 'q8'; megabytes: number };
+
+export function modelBuild(hints: DeviceHints): Build {
+  const roomy = typeof hints.deviceMemory !== 'number' || hints.deviceMemory >= 8;
+  const metered = hints.saveData || /^(slow-2g|2g|3g)$/.test(hints.effectiveType ?? '');
+  return roomy && !metered ? { dtype: 'fp16', megabytes: 155 } : { dtype: 'q8', megabytes: 88 };
+}
+
+/**
  * Whether to fetch the model without being asked.
  *
- * A good voice is worth 90 MB on a laptop on wi-fi and is not worth it on a
- * phone on a train, and the browser knows which of those this is. Data Saver
- * is an explicit "no" and is treated as one. Small-memory devices are left
- * out too — not for the download but for what comes after it, since running
- * this on a low-end phone is slower than it is worth.
+ * A good voice is worth the download on a laptop on wi-fi and is not worth it
+ * on a phone on a train, and the browser knows which of those this is. Data
+ * Saver is an explicit "no" and is treated as one. Small-memory devices are
+ * left out too — not for the download but for what comes after it, since
+ * running this on a low-end phone is slower than it is worth.
  *
  * Nothing here blocks *choosing* a natural voice by hand. This decides only
  * what happens when nobody has said anything either way.
@@ -96,6 +127,10 @@ export function deviceHints(): DeviceHints {
   };
 }
 
+/** How big the download is, for the one place that says so out loud. */
+export const modelMegabytes = (): number => modelBuild(deviceHints()).megabytes;
+export const serverModelMegabytes = (): number => 155;
+
 /** True when a natural voice should be used without anyone having picked one. */
 export const autoNatural = (): string | null =>
   shouldAutoLoad(deviceHints()) ? DEFAULT_VOICE : null;
@@ -103,13 +138,7 @@ export const autoNatural = (): string | null =>
 // ------------------------------------------------------------------ loading
 export type EngineState = 'off' | 'loading' | 'ready' | 'failed';
 
-type Raw = { audio: Float32Array; sampling_rate: number };
-
-type Engine = {
-  generate(text: string, options: { voice: string }): Promise<Raw>;
-};
-
-let engine: Engine | null = null;
+let worker: Worker | null = null;
 let state: EngineState = 'off';
 let loaded = 0;
 let loading: Promise<boolean> | null = null;
@@ -126,6 +155,49 @@ function settle(next: EngineState) {
   announce();
 }
 
+/** Generations in flight, by the id they were sent with. */
+type Pending = { resolve: (clip: Clip | null) => void; chars: number; sent: number };
+const pending = new Map<number, Pending>();
+let nextId = 1;
+
+export type Clip = { audio: Float32Array; sampleRate: number; genMs: number };
+
+/**
+ * How long a second of speech costs to generate on this machine, per
+ * character of text.
+ *
+ * Measured rather than assumed, and kept as a running average, because it is
+ * the number the head start is computed from and it is different on every
+ * machine — a fast laptop generates faster than it speaks and needs no head
+ * start at all, while a four-core box needs most of a second.
+ */
+let msPerChar = 55;
+
+function observe(chars: number, genMs: number) {
+  if (chars <= 0) return;
+  const sample = genMs / chars;
+  // A slow first measurement should not dominate for the rest of the session,
+  // and one fast one should not erase what the machine has been doing.
+  msPerChar = msPerChar * 0.7 + sample * 0.3;
+}
+
+/** Exposed for the bench, and so a test can pin it. */
+export const generationCostPerChar = (): number => msPerChar;
+
+function onMessage(event: MessageEvent<FromWorker>) {
+  const message = event.data;
+  if (message.type === 'audio') {
+    const job = pending.get(message.id);
+    pending.delete(message.id);
+    observe(job?.chars ?? 0, message.ms);
+    job?.resolve({ audio: message.audio, sampleRate: message.sampleRate, genMs: message.ms });
+  } else if (message.type === 'error') {
+    const job = pending.get(message.id);
+    pending.delete(message.id);
+    job?.resolve(null);
+  }
+}
+
 /**
  * Downloads and warms the model, once.
  *
@@ -134,67 +206,100 @@ function settle(next: EngineState) {
  * being able to halfway through a conversation, and retrying on every reply
  * would be a download loop.
  *
- * "Ready" deliberately means ready to be quick, not merely loaded. The very
- * first inference is several times slower than every one after it — the
- * runtime is still building its graph — and that cost has to land here, while
- * the progress figure is on screen and the browser's own voice is still
- * answering, rather than on the first thing anybody actually asks.
+ * "Ready" deliberately means ready to be quick, not merely loaded — the
+ * worker spends the slow first inference before it answers, while the
+ * progress figure is still on screen and the browser's own voice is still
+ * covering.
  */
 export function loadEngine(voice: string): Promise<boolean> {
   if (state === 'ready') return Promise.resolve(true);
   if (state === 'failed') return Promise.resolve(false);
   if (loading) return loading;
+  if (typeof window === 'undefined' || typeof Worker === 'undefined') {
+    return Promise.resolve(false);
+  }
 
   settle('loading');
 
-  // Per file, because transformers.js reports each one separately and a bar
-  // that restarts at zero four times is worse than no bar.
-  const files = new Map<string, { at: number; of: number }>();
-
-  loading = (async () => {
+  loading = new Promise<boolean>((resolve) => {
+    // Per file, because transformers.js reports each one separately and a bar
+    // that restarts at zero four times is worse than no bar.
+    const files = new Map<string, { at: number; of: number }>();
+    let spawned: Worker;
     try {
-      const { KokoroTTS } = await import('kokoro-js');
-      const tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-        dtype: 'q8',
-        device: 'wasm',
-        progress_callback: (report: { status?: string; file?: string; loaded?: number; total?: number }) => {
-          if (report.status !== 'progress' || !report.file || !report.total) return;
-          files.set(report.file, { at: report.loaded ?? 0, of: report.total });
-          let at = 0;
-          let of = 0;
-          for (const f of files.values()) {
-            at += f.at;
-            of += f.of;
-          }
-          const next = of ? Math.min(99, Math.round((at / of) * 100)) : 0;
-          // Only on a real change, or this announces on every network packet.
-          if (next !== loaded) {
-            loaded = next;
-            announce();
-          }
-        },
-      });
-      engine = tts as unknown as Engine;
-      // Discarded on purpose: this is the slow first inference, spent here.
-      await engine.generate('Okay.', { voice });
-      loaded = 100;
-      settle('ready');
-      return true;
+      spawned = new Worker(new URL('./kokoro.worker.ts', import.meta.url), { type: 'module' });
     } catch {
-      engine = null;
       settle('failed');
-      return false;
-    } finally {
-      loading = null;
+      resolve(false);
+      return;
     }
-  })();
+
+    spawned.addEventListener('message', (event: MessageEvent<FromWorker>) => {
+      const message = event.data;
+      if (message.type === 'progress') {
+        files.set(message.file, { at: message.loaded, of: message.total });
+        let at = 0;
+        let of = 0;
+        for (const f of files.values()) {
+          at += f.at;
+          of += f.of;
+        }
+        const next = of ? Math.min(99, Math.round((at / of) * 100)) : 0;
+        // Only on a real change, or this announces on every network packet.
+        if (next !== loaded) {
+          loaded = next;
+          announce();
+        }
+        return;
+      }
+      if (message.type === 'ready') {
+        worker = spawned;
+        loaded = 100;
+        settle('ready');
+        resolve(true);
+        return;
+      }
+      if (message.type === 'failed') {
+        spawned.terminate();
+        settle('failed');
+        resolve(false);
+        return;
+      }
+      onMessage(event);
+    });
+
+    spawned.addEventListener('error', () => {
+      if (state !== 'ready') {
+        settle('failed');
+        resolve(false);
+      }
+    });
+
+    const build = modelBuild(deviceHints());
+    const message: ToWorker = { type: 'load', dtype: build.dtype, device: 'wasm', voice };
+    spawned.postMessage(message);
+  }).finally(() => {
+    loading = null;
+  });
 
   return loading;
 }
 
+function generate(text: string, voice: string, speed: number): Promise<Clip | null> {
+  if (!worker) return Promise.resolve(null);
+  const id = nextId++;
+  const message: ToWorker = { type: 'generate', id, text, voice, speed };
+  return new Promise<Clip | null>((resolve) => {
+    pending.set(id, { resolve, chars: text.length, sent: performance.now() });
+    worker?.postMessage(message);
+  });
+}
+
 // ------------------------------------------------------------------ playback
 let context: AudioContext | null = null;
-let playing: AudioBufferSourceNode | null = null;
+let out: GainNode | null = null;
+let meter: AnalyserNode | null = null;
+let meterData: Float32Array<ArrayBuffer> | null = null;
 
 /**
  * Opens the audio context from inside a tap, so it is allowed to make sound.
@@ -208,129 +313,328 @@ export function primeKokoroAudio() {
 
 function audio(): AudioContext | null {
   if (typeof window === 'undefined') return null;
-  const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const Ctor =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) return null;
-  if (!context) context = new Ctor();
+  if (!context) {
+    context = new Ctor();
+    out = context.createGain();
+    meter = context.createAnalyser();
+    // Short window: this drives a figure that should react to syllables, not
+    // to the average loudness of a sentence.
+    meter.fftSize = 512;
+    meter.smoothingTimeConstant = 0.6;
+    meterData = new Float32Array(meter.fftSize);
+    out.connect(meter);
+    meter.connect(context.destination);
+  }
   // Opening the panel is a click, so there is always a gesture behind this;
   // a context can still be suspended after a tab has been in the background.
   if (context.state === 'suspended') void context.resume();
   return context;
 }
 
-function playChunk(raw: { audio: Float32Array; sampling_rate: number }): Promise<void> {
-  const ctx = audio();
-  if (!ctx) return Promise.resolve();
-  const buffer = ctx.createBuffer(1, raw.audio.length, raw.sampling_rate);
-  // `set` rather than `copyToChannel`: the model hands back a view on its own
-  // buffer, and this copies out of it without caring what kind it is.
-  buffer.getChannelData(0).set(raw.audio);
-  return new Promise((resolve) => {
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    source.onended = () => {
-      if (playing === source) playing = null;
-      resolve();
-    };
-    playing = source;
-    source.start();
-  });
+/**
+ * How loud the voice is right now, 0 to 1.
+ *
+ * The figure is driven from this rather than from a timer, which is the
+ * difference between a mouth that moves while there is a voice and a mouth
+ * that moves in time with nothing.
+ */
+export function speechLevel(): number {
+  if (!meter || !meterData) return 0;
+  meter.getFloatTimeDomainData(meterData);
+  let sum = 0;
+  for (let i = 0; i < meterData.length; i++) sum += meterData[i] * meterData[i];
+  const rms = Math.sqrt(sum / meterData.length);
+  // Speech sits well below full scale, so it needs lifting — but not so far
+  // that every vowel pins at the top, which is a figure holding one pose with
+  // extra steps. Measured against this model's own output, a loud vowel is
+  // around 0.25 RMS, so that is where the top of the range is put.
+  return Math.min(1, rms * 4);
 }
 
-type Job = { text: string; voice: string; onDone?: () => void; cancelled: boolean };
+/** Every source currently scheduled, so stopping means stopping. */
+const live = new Set<AudioBufferSourceNode>();
 
-let queue: Job[] = [];
+/** A short ramp at each cut, or the trim itself becomes an audible click. */
+const FADE_SECONDS = 0.008;
+
+function toBuffer(ctx: AudioContext, clip: Clip): AudioBuffer | null {
+  const [from, to] = trimBounds(clip.audio, clip.sampleRate);
+  const length = to - from;
+  if (length <= 0) return null;
+  const buffer = ctx.createBuffer(1, length, clip.sampleRate);
+  const channel = buffer.getChannelData(0);
+  channel.set(clip.audio.subarray(from, to));
+  const fade = Math.min(Math.floor(FADE_SECONDS * clip.sampleRate), Math.floor(length / 2));
+  for (let i = 0; i < fade; i++) {
+    const g = i / fade;
+    channel[i] *= g;
+    channel[length - 1 - i] *= g;
+  }
+  return buffer;
+}
+
+/**
+ * Where the speech actually starts and stops inside a generated clip.
+ *
+ * Kokoro pads every clip: measured across sentences of every length it is
+ * about 320 ms of silence at the front and 500 ms at the back, near enough
+ * regardless of what was said. Played as-is that is eight hundred
+ * milliseconds of nothing at every sentence boundary — before any of the
+ * waiting-for-the-next-one silence is added to it — and it is the single
+ * largest part of "it stops for ages after every full stop".
+ *
+ * Pure, and on a plain array, so the thresholds can be tested without an
+ * audio context. A guard band is kept at each end rather than cutting hard
+ * against the first loud sample, because a stop consonant starts quietly and
+ * clipping its onset is how a trimmed voice starts sounding chewed.
+ */
+export const SILENCE_FLOOR = 0.02;
+export const GUARD_MS = 30;
+
+export function trimBounds(
+  audio: ArrayLike<number>,
+  sampleRate: number,
+  floor = SILENCE_FLOOR,
+): [number, number] {
+  const window = Math.max(1, Math.round(sampleRate * 0.01));
+  const guard = Math.round((GUARD_MS / 1000) * sampleRate);
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i + window <= audio.length; i += window) {
+    let peak = 0;
+    for (let j = i; j < i + window; j++) {
+      const v = audio[j] < 0 ? -audio[j] : audio[j];
+      if (v > peak) peak = v;
+    }
+    if (peak > floor) {
+      if (first < 0) first = i;
+      last = i + window;
+    }
+  }
+  // Nothing above the floor anywhere: it is silence, and saying so is better
+  // than handing back a zero-length buffer the caller has to special-case.
+  if (first < 0) return [0, 0];
+  return [Math.max(0, first - guard), Math.min(audio.length, last + guard)];
+}
+
+// ------------------------------------------------------------------ speaking
+type Piece = { text: string; index: number };
+
+type Say = {
+  voice: string;
+  pieces: Piece[];
+  closed: boolean;
+  cancelled: boolean;
+  /** Woken when a piece is pushed or the stream is closed. */
+  wake: (() => void) | null;
+  onDone?: () => void;
+  /** Characters pushed but not yet generated. Drives the head start. */
+  waitingChars: number;
+};
+
+let queue: Say[] = [];
 let draining = false;
 
 /**
  * Lines already generated, so they can be said without the wait.
  *
- * Generating a sentence takes a couple of seconds, which is exactly what the
- * filler is there to cover — so a filler that had to be generated first would
- * cover nothing. There are only a handful of them, they never change, and
- * they are short, so they are made once and kept.
+ * There are only a handful of them — the greeting the panel opens with, and
+ * the character's own idle lines — they never change, and they are short. So
+ * they are generated once, while the model has nothing else to do, and the
+ * second conversation of a session opens instantly instead of pausing on
+ * hello.
  */
-const warmed = new Map<string, Raw>();
+const warmed = new Map<string, Clip>();
 const WARM_LIMIT = 24;
+const key = (voice: string, text: string, speed: number) => `${voice}|${speed}|${text}`;
 
-const key = (voice: string, text: string) => `${voice}|${text}`;
-
-async function render(voice: string, text: string): Promise<Raw | null> {
-  const cached = warmed.get(key(voice, text));
+async function render(voice: string, text: string, speed: number): Promise<Clip | null> {
+  const cached = warmed.get(key(voice, text, speed));
   if (cached) return cached;
-  if (!engine) return null;
-  try {
-    return await engine.generate(text, { voice });
-  } catch {
-    return null;
-  }
+  return generate(text, voice, speed);
 }
 
 /**
  * Generates a few lines ahead of time and keeps them.
  *
- * Called with the filler lines once the model is ready, which is while the
- * greeting is still being said — the one moment in a conversation when there
- * is nothing else for it to be doing.
+ * Called with the lines the panel is most likely to open with once the model
+ * is ready, which is while the browser's voice is still covering the first
+ * conversation — the one moment when there is nothing else for it to be doing.
  */
 export async function warm(lines: readonly string[], voice: string) {
   if (state !== 'ready') return;
   for (const line of lines) {
-    if (warmed.size >= WARM_LIMIT) return;
-    if (warmed.has(key(voice, line))) continue;
-    const raw = await render(voice, line);
-    if (raw) warmed.set(key(voice, line), raw);
+    // Real speech always wins. There is one model and one worker behind it, so
+    // a warm-up still running when a reply arrives is a reply waiting behind
+    // it — which is the exact wait this was supposed to remove.
+    if (queue.length || warmed.size >= WARM_LIMIT) return;
+    const speed = speedFor(line, 0);
+    if (warmed.has(key(voice, line, speed))) continue;
+    const clip = await render(voice, line, speed);
+    if (clip) warmed.set(key(voice, line, speed), clip);
   }
 }
 
 /**
- * Says one thing, sentence by sentence, generating ahead of the playback.
+ * Says one thing, piece by piece, generating ahead of the playback.
  *
- * The next sentence starts generating as soon as the previous one has been
- * generated rather than when it has finished playing, so after the first one
- * the audio keeps up with itself. Without that a paragraph would be several
- * seconds of silence before a word of it was heard — the difference between a
- * conversation and a download.
+ * Every clip is placed on the audio clock the moment it exists, at a time
+ * computed from where the previous one ended plus the pause its punctuation
+ * asks for. Nothing waits for an `onended` to fire before starting the next
+ * piece — that chain is what turns a two-hundred-millisecond breath into
+ * whatever the machine was busy with.
  *
- * `generate` per sentence rather than the library's `stream`: on a plain
- * string that generator yields every chunk and then never returns, because
- * nothing ever closes the splitter feeding it. This also puts the sentence
- * boundaries under the same `splitForSpeech` rules the browser voice uses.
+ * When generation cannot keep up the schedule slips, and it slips visibly
+ * rather than silently: the piece starts as soon as it can and the cursor is
+ * reset from there, which is one honest gap instead of a drift that
+ * accumulates for the rest of the reply.
  */
-async function run(job: Job, sentences: string[]) {
-  let tail: Promise<void> = Promise.resolve();
-  for (const sentence of sentences) {
-    if (job.cancelled) break;
-    const raw = await render(job.voice, sentence);
-    if (job.cancelled || !raw) break;
-    const previous = tail;
-    tail = (async () => {
-      await previous;
-      if (!job.cancelled) await playChunk(raw);
-    })();
+async function run(say: Say): Promise<void> {
+  const ctx = audio();
+  if (!ctx) return;
+
+  let cursor = 0;
+  let started = false;
+  let last: AudioBufferSourceNode | null = null;
+  let taken = 0;
+
+  for (;;) {
+    if (say.cancelled) break;
+    if (taken >= say.pieces.length) {
+      if (say.closed) break;
+      await new Promise<void>((resolve) => {
+        say.wake = resolve;
+      });
+      continue;
+    }
+
+    const piece = say.pieces[taken++];
+    say.waitingChars = Math.max(0, say.waitingChars - piece.text.length);
+    const speed = speedFor(piece.text, piece.index);
+    const clip = await render(say.voice, piece.text, speed);
+    if (say.cancelled) break;
+    if (!clip) continue;
+
+    const buffer = toBuffer(ctx, clip);
+    if (!buffer) continue;
+
+    const now = ctx.currentTime;
+    let at: number;
+    if (!started) {
+      started = true;
+      // Everything still to be generated, priced at what this machine has
+      // been managing, against what we already hold. See `headStartMs`.
+      const lead = headStartMs(buffer.duration * 1000, say.waitingChars * msPerChar);
+      at = now + 0.06 + lead / 1000;
+    } else {
+      at = Math.max(cursor, now + 0.02);
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(out ?? ctx.destination);
+    source.onended = () => live.delete(source);
+    live.add(source);
+    source.start(at);
+    last = source;
+    cursor = at + buffer.duration + pauseAfter(piece.text) / 1000;
   }
-  await tail;
+
+  if (say.cancelled || !last) return;
+  // The turn is handed on when the last thing said has actually finished
+  // being said, not when the last thing was handed to the audio clock.
+  await new Promise<void>((resolve) => {
+    const source = last as AudioBufferSourceNode;
+    const settled = () => resolve();
+    source.addEventListener('ended', settled, { once: true });
+    // A source that was stopped fires `ended` too, so there is no watchdog
+    // here; `stopKokoro` cancelling the job is what ends this early.
+  });
 }
 
-async function drain(split: (text: string) => string[]) {
+async function drain() {
   if (draining) return;
   draining = true;
   while (queue.length) {
-    const job = queue[0];
-    await run(job, split(job.text));
+    const say = queue[0];
+    await run(say);
     queue.shift();
-    if (!job.cancelled) job.onDone?.();
+    if (!say.cancelled) say.onDone?.();
   }
   draining = false;
 }
 
+export type KokoroStream = {
+  /** One more thing to say, once it has finished arriving. */
+  push(line: string): void;
+  /** No more is coming. The turn is handed on once the rest has been said. */
+  end(): void;
+};
+
 /**
- * Reads something aloud in the chosen natural voice.
+ * Opens one continuous utterance that can still be written to.
  *
- * `queue` is what lets a reply land behind the filler that covered the wait
- * for it rather than cutting it off, and mirrors `speak` in speech.ts. The
- * splitter is passed in rather than imported so this file does not depend on
- * speech.ts, which depends on it.
+ * This is what makes a streamed reply sound like one reply. Each sentence used
+ * to be its own job with its own playback chain, so the gap between two of
+ * them was two independent schedules meeting by luck. Here they are pieces of
+ * a single scheduled timeline, and the only silence between them is the one
+ * `pauseAfter` asked for.
+ */
+export function openKokoroStream(
+  voice: string,
+  onDone?: () => void,
+  queued = false,
+): KokoroStream {
+  if (state !== 'ready') {
+    onDone?.();
+    return { push: () => {}, end: () => {} };
+  }
+  if (!queued) cancelAll(false);
+
+  const say: Say = {
+    voice,
+    pieces: [],
+    closed: false,
+    cancelled: false,
+    wake: null,
+    onDone,
+    waitingChars: 0,
+  };
+  queue.push(say);
+  void drain();
+
+  const poke = () => {
+    const wake = say.wake;
+    say.wake = null;
+    wake?.();
+  };
+
+  return {
+    push(line: string) {
+      const text = line.trim();
+      if (!text || say.closed || say.cancelled) return;
+      say.pieces.push({ text, index: say.pieces.length });
+      say.waitingChars += text.length;
+      poke();
+    },
+    end() {
+      if (say.closed) return;
+      say.closed = true;
+      poke();
+    },
+  };
+}
+
+/**
+ * Reads one finished thing aloud in the chosen natural voice.
+ *
+ * The greeting and the voice preview go through here; a streamed reply goes
+ * through `openKokoroStream` instead, because it does not exist yet when it
+ * starts being said.
  */
 export function speakKokoro(
   text: string,
@@ -343,21 +647,47 @@ export function speakKokoro(
     onDone?.();
     return;
   }
-  if (!queued) stopKokoro();
-  queue.push({ text, voice, onDone, cancelled: false });
-  void drain(split);
+  const stream = openKokoroStream(voice, onDone, queued);
+  for (const line of split(text)) stream.push(line);
+  stream.end();
+}
+
+/**
+ * Drops everything queued and silences everything scheduled.
+ *
+ * `notify` is the difference between being stopped and being superseded, and
+ * it matters because the conversation hands the turn on from `onDone`. Being
+ * muted mid-reply is a stop: nothing more will be said, so the turn has to
+ * come back or the microphone never reopens and the panel sits in `speaking`
+ * for ever. Being replaced by a new utterance is not: the thing that replaced
+ * it will hand the turn on when it finishes, and two of them doing it would
+ * open the microphone underneath a live voice.
+ */
+function cancelAll(notify: boolean) {
+  const dropped = queue;
+  queue = [];
+  for (const say of dropped) {
+    say.cancelled = true;
+    const wake = say.wake;
+    say.wake = null;
+    wake?.();
+  }
+  for (const source of live) {
+    try {
+      source.stop();
+    } catch {
+      /* already ended */
+    }
+  }
+  live.clear();
+  // `onDone` is `speakStream`'s own `finish`, which is idempotent, so a job
+  // that had already completed cannot hand the same turn on twice.
+  if (notify) for (const say of dropped) say.onDone?.();
 }
 
 /** Cuts off whatever is being said, including everything still queued. */
 export function stopKokoro() {
-  for (const job of queue) job.cancelled = true;
-  queue = [];
-  try {
-    playing?.stop();
-  } catch {
-    /* already ended */
-  }
-  playing = null;
+  cancelAll(true);
 }
 
 /** True only when something can actually be said right now. */

@@ -63,11 +63,13 @@ import { buildSnapshot } from '../src/lib/companion-context';
 import {
   SPEECH_START_MS, SPEECH_WATCHDOG_MS,
   cutSentences, endOfThought, pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
+  GOOD_VOICE_SCORE,
 } from '../src/lib/speech';
+import { BASE_SPEED, LEAD_MAX, LEAD_MIN, headStartMs, leadCut, pauseAfter, speedFor } from '../src/lib/speech-shape';
 import { getPersona, hasPersona, personaPrompt } from '../src/lib/persona';
 import { splitEvents, textOfEvent } from '../src/lib/anthropic-stream';
 import { FRESH_MS, STALE_MS, PATIENCE_MS, clearSnapshots, snapshotFor, within } from '../src/lib/companion-cache';
-import { KOKORO_PREFIX, KOKORO_VOICES, MODEL_MEGABYTES, kokoroVoice, shouldAutoLoad } from '../src/lib/kokoro';
+import { GUARD_MS, KOKORO_PREFIX, KOKORO_VOICES, modelBuild, modelMegabytes, kokoroVoice, shouldAutoLoad, trimBounds } from '../src/lib/kokoro';
 import { fixtures } from '../src/lib/fixtures';
 import {
   MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_REPLY_CHARS,
@@ -1442,6 +1444,103 @@ async function main() {
       Array.from({ length: 24 }, (_, i) => prosody(i % 2 ? 'Wow!' : 'Really?', i)).every(
         (p) => p.rate >= 0.85 && p.rate <= 1.2 && p.pitch >= 0.9 && p.pitch <= 1.25));
 
+    // ---- tempo, which is the only prosody the neural voice exposes
+    check('it talks rather than reads', BASE_SPEED > 1);
+    check('a question settles', speedFor('Did it go well?', 0) < speedFor('It went well.', 0));
+    check('an exclamation quickens', speedFor('Nice one!', 0) > speedFor('Nice one.', 0));
+    check('a long sentence eases off',
+      speedFor('x'.repeat(120) + '.', 0) < speedFor('Short.', 0));
+    check('two lines in a row are never identical',
+      speedFor('Same words here.', 0) !== speedFor('Same words here.', 1));
+    check('the same line is said the same way twice',
+      speedFor('Hello there.', 2) === speedFor('Hello there.', 2));
+    check('tempo never leaves a human range',
+      Array.from({ length: 24 }, (_, i) => speedFor(i % 2 ? 'Wow!' : 'Really?', i)).every(
+        (v) => v >= 0.92 && v <= 1.18));
+
+    // ---- the pause after a line, which is the whole of the dead-air problem
+    check('a comma is a beat, a full stop is a breath',
+      pauseAfter('Nice, honestly,') < pauseAfter('Nice, honestly.'));
+    check('a question leaves a little room', pauseAfter('Did it?') > pauseAfter('It did.'));
+    check('trailing off is the longest pause', pauseAfter('Well...') > pauseAfter('Well.'));
+    check('a line cut for length barely pauses at all',
+      pauseAfter('and then we were') < pauseAfter('and then we were,'));
+    check('a closing quote does not hide the full stop',
+      pauseAfter('He said "no."') === pauseAfter('He said no.'));
+    check('every pause is a pause and not a stall',
+      ['a,', 'a.', 'a?', 'a!', 'a...', 'a'].every((t) => pauseAfter(t) >= 50 && pauseAfter(t) <= 400));
+
+    // ---- cutting the first line short, so it arrives sooner
+    check('a long opener is cut at its comma',
+      leadCut('That is a solid run, honestly. And more.')?.[0] === 'That is a solid run,');
+    check('what follows the cut is kept',
+      (leadCut('That is a solid run, honestly.') ?? ['', ''])[1].trim() === 'honestly.');
+    check('a two-word interjection is not worth its own clip',
+      leadCut('Oof, both at once is horrible.') === null);
+    check('a comma with nothing after it is not a cut yet',
+      leadCut('That is a solid run,') === null);
+    check('an opener already short enough is left alone',
+      leadCut('Hello there. Next.') === null);
+    check('a lead is never longer than it is worth',
+      leadCut(`${'x'.repeat(LEAD_MAX + 5)}, and more.`) === null);
+    check('the cut loses nothing',
+      (() => { const c = leadCut('That is a solid run, honestly.'); return c ? (c[0] + c[1]) === 'That is a solid run, honestly.' : false; })());
+    check('the bounds are the right way round', LEAD_MIN < LEAD_MAX);
+
+    // ---- how long to hold the first line back
+    check('a machine that keeps up waits for nothing', headStartMs(1600, 900) === 0);
+    check('a small deficit is paid up front', headStartMs(1600, 2100) === 500);
+    check('a deficit too big to cover is not part-paid', headStartMs(1600, 6000) === 0);
+    check('exactly the cap is still worth paying', headStartMs(0, 900) === 900);
+    check('one millisecond past the cap is not', headStartMs(0, 901) === 0);
+    check('nonsense in is zero out', headStartMs(NaN, 1000) === 0 && headStartMs(100, Infinity) === 0);
+
+    // ---- trimming the silence the model pads every clip with
+    {
+      const rate = 1000;
+      const clip = new Float32Array(rate);
+      // 300 ms of silence, 400 ms of sound, 300 ms of silence.
+      for (let i = 300; i < 700; i++) clip[i] = i % 2 ? 0.5 : -0.5;
+      const [from, to] = trimBounds(clip, rate);
+      const guard = Math.round((GUARD_MS / 1000) * rate);
+      check('the leading silence goes', from > 200 && from <= 300);
+      check('the trailing silence goes', to >= 700 && to < 800);
+      check('a guard band is kept either side',
+        from === 300 - guard && to === 700 + guard);
+      check('it never reads past the ends',
+        trimBounds(clip.subarray(0, 50), rate)[0] >= 0 &&
+        trimBounds(new Float32Array([0.9, 0.9, 0.9]), 1000)[1] <= 3);
+      check('silence all the way through is an empty range',
+        trimBounds(new Float32Array(rate), rate).join() === '0,0');
+      check('trimming keeps every loud sample',
+        (() => { const [a, b] = trimBounds(clip, rate); return a <= 300 && b >= 700; })());
+    }
+
+    // ---- which build of the model to fetch
+    check('a roomy machine gets the faster, truer build',
+      modelBuild({ deviceMemory: 8, effectiveType: '4g' }).dtype === 'fp16');
+    check('a small machine gets the small build',
+      modelBuild({ deviceMemory: 4 }).dtype === 'q8');
+    check('Data Saver gets the small build whatever the machine',
+      modelBuild({ deviceMemory: 16, saveData: true }).dtype === 'q8');
+    check('a slow connection gets the small build',
+      modelBuild({ deviceMemory: 16, effectiveType: '3g' }).dtype === 'q8');
+    check('the size quoted matches the build chosen',
+      modelBuild({ deviceMemory: 16 }).megabytes > modelBuild({ deviceMemory: 2 }).megabytes);
+
+    // ---- when a download is not worth it at all
+    // A machine with a modern system voice already has a neural voice, and it
+    // starts speaking immediately. Downloading another one to answer a second
+    // later would be a worse product, not a better one.
+    check('a natural system voice clears the bar',
+      voiceScore({ name: 'Microsoft Aria Online (Natural) - English (United States)', lang: 'en-US' }, 'en-US') >= GOOD_VOICE_SCORE);
+    check('Siri clears the bar',
+      voiceScore({ name: 'Siri Voice 4', lang: 'en-GB' }, 'en-GB') >= GOOD_VOICE_SCORE);
+    check('the formant synthesiser does not',
+      voiceScore({ name: 'eSpeak English', lang: 'en-GB' }, 'en-GB') < GOOD_VOICE_SCORE);
+    check('nor does a plain desktop voice',
+      voiceScore({ name: 'Microsoft David Desktop - English (United States)', lang: 'en-US' }, 'en-US') < GOOD_VOICE_SCORE);
+
     // ---- cutting a reply that is still arriving
     // The reply streams in a few characters at a time and the whole point is
     // to start speaking before it has finished, so what counts as a finished
@@ -1550,7 +1649,7 @@ async function main() {
     check('a low-memory phone is left on its own voices',
       !shouldAutoLoad({ effectiveType: '4g', deviceMemory: 2 }));
     check('Data Saver beats a fast connection', !shouldAutoLoad({ saveData: true, effectiveType: '4g' }));
-    check('the download size is quoted honestly', MODEL_MEGABYTES > 0 && MODEL_MEGABYTES < 200);
+    check('the download size is quoted honestly', modelMegabytes() > 0 && modelMegabytes() < 200);
   }
 
   // -----------------------------------------------------------------------

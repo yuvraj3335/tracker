@@ -124,7 +124,12 @@ export function captionFor(turn: Turn, name: string): string {
     case 'speaking':
       return `${name} is talking…`;
     case 'listening':
-      return 'Listening — just talk.';
+      // Short on purpose. It sits under the name in a panel that is 360 px
+      // wide on the smallest phone this has to work on, and a status line
+      // that ends in an ellipsis because it did not fit is worse than one
+      // that simply says less. The instruction it used to carry is on the
+      // control it belongs to.
+      return 'Listening';
     case 'thinking':
       // Deliberately nothing. The wait is shown — the figure bobs and three
       // dots move — rather than narrated. A label saying "Thinking…", or a
@@ -132,7 +137,7 @@ export function captionFor(turn: Turn, name: string): string {
       // the machinery instead of away from it.
       return '';
     case 'resting':
-      return 'Tap to talk, or type instead.';
+      return 'Paused';
     default:
       return '';
   }

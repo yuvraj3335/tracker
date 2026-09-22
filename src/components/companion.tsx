@@ -24,6 +24,7 @@ import {
   type Point,
   type Safe,
 } from '@/lib/companion';
+import { speechLevel } from '@/lib/kokoro';
 import { primeAudio } from '@/lib/speech';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +72,7 @@ export function Companion({
   const pokes = useRef<number[]>([]);
   const lastTap = useRef(0);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shell = useRef<HTMLSpanElement>(null);
 
   // One resize listener for the whole feature, and it only exists while the
   // companion is on screen.
@@ -87,6 +89,44 @@ export function Companion({
     },
     [],
   );
+
+  /**
+   * The figure moves with the voice, not with a timer.
+   *
+   * `speechLevel` is the loudness of what is actually coming out of the
+   * speaker this frame, so the motion lands on the syllables instead of
+   * merely happening at the same time as them — which is the difference
+   * between a figure that is talking and a figure that is wobbling. Written
+   * straight to a custom property rather than through state: this runs every
+   * frame, and a re-render per frame would cost more than the whole rest of
+   * the panel.
+   */
+  const talking = overridePose === 'talking';
+  useEffect(() => {
+    const node = shell.current;
+    if (!node || !talking) return;
+    // The reduced-motion rule in globals.css can shorten an animation but it
+    // cannot tell a transform written from JavaScript every frame to stop
+    // asking for one, so this has to check for itself — the same reason the
+    // focus timer's countdown does.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    let frame = 0;
+    let smoothed = 0;
+    const step = () => {
+      const level = speechLevel();
+      // Attack fast, release slow. A mouth opens quicker than it closes, and
+      // tracking the fall as sharply as the rise is what makes a level meter
+      // look like a level meter rather than like breathing.
+      smoothed = level > smoothed ? level : smoothed * 0.82 + level * 0.18;
+      node.style.setProperty('--voice', smoothed.toFixed(3));
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => {
+      cancelAnimationFrame(frame);
+      node.style.removeProperty('--voice');
+    };
+  }, [talking]);
 
   const safe = viewport && viewport.width < 640 ? SAFE_PHONE : SAFE_DESKTOP;
   // Clamped on every read, not only on write: a position saved on a wider
@@ -207,15 +247,13 @@ export function Companion({
   // has already happened; otherwise it is whatever it was last poked into.
   const pose: Pose = dragging ? 'floating' : (overridePose ?? reaction ?? 'idle');
   const thinking = overridePose === 'floating' && !dragging;
+  const listening = overridePose === 'listening' && !dragging;
 
   return (
     <div
       // Below the nav (z-30) and the celebration overlay (z-40) on purpose, so
       // it can never take a click meant for a tab or sit over a celebration.
-      // `overflow-hidden` is what makes the duck read as going behind
-      // something rather than just moving down: the lower half is clipped, so
-      // it disappears and the hat comes back up first.
-      className="fixed z-20 overflow-hidden touch-none select-none"
+      className="fixed z-20 touch-none select-none"
       style={{ left: position.x, top: position.y, width: SIZE, height: SIZE }}
     >
       <button
@@ -228,18 +266,31 @@ export function Companion({
         onPointerCancel={onPointerUp}
         onKeyDown={onKeyDown}
         className={cn(
-          'skin-pill grid size-full touch-none place-items-center rounded-full transition-[transform,background-color]',
+          'skin-pill grid size-full touch-none place-items-center rounded-full transition-[background-color]',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
           'hover:bg-accent/10 active:scale-95',
           dragging ? 'cursor-grabbing bg-accent/10' : 'cursor-grab',
-          // Working out a reply is the one state worth animating the whole
-          // figure for. A second 3D canvas would have looked better still and
-          // would have been competing for the processor with the voice it is
-          // covering for, which is the wrong trade at exactly the wrong moment.
-          thinking && 'js-peek',
+          listening && 'js-halo',
         )}
       >
-        <CharacterFigure pose={pose} size={SIZE} />
+        {/* Two nested motions on purpose, because they mean different things
+            and must be able to run at once: the shell carries the state the
+            conversation is in, the inner span carries the voice itself. */}
+        <span
+          ref={shell}
+          className={cn(
+            'grid size-full place-items-center',
+            // Working out a reply is the one state worth animating the whole
+            // figure for. A second 3D canvas would have looked better still
+            // and would have been competing for the processor with the voice
+            // it is covering for, which is the wrong trade at exactly the
+            // wrong moment.
+            thinking && 'js-think',
+            talking && 'js-voice',
+          )}
+        >
+          <CharacterFigure pose={pose} size={SIZE} />
+        </span>
       </button>
     </div>
   );
