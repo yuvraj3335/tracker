@@ -51,6 +51,10 @@ import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
 import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
 import { setupStage } from '../src/lib/setup';
 import {
+  ANGRY_POKES, ANGRY_WINDOW_MS, clampToViewport, defaultPosition, parsePosition,
+  pokeReaction, trimPokes, type Safe,
+} from '../src/lib/companion';
+import {
   CRITICAL_MS, HOUR, MAX_DURATION_MS, MINUTE, SECOND, WARNING_MS,
   crossedBelow, describeRemaining, elapsedFraction, finishesAt, formatClock,
   formatRemaining, parseDuration, phaseFor, remainingMs,
@@ -1034,6 +1038,84 @@ async function main() {
     // would try to render as a step.
     check('connected is not one of the flow steps',
       !['token', 'page', 'seeding'].includes(setupStage('ready', true)));
+  }
+
+  // -----------------------------------------------------------------------
+  // The floating companion. Clamping is the important one: the failure it
+  // prevents is a stored position from a wider window putting the character
+  // off-screen, where it cannot be picked up, moved, dismissed or reached.
+  // -----------------------------------------------------------------------
+  section('Companion position');
+  {
+    const SIZE = 104;
+    const SAFE: Safe = { top: 68, right: 16, bottom: 20, left: 16 };
+    const DESK = { width: 1280, height: 800 };
+    const clamp = (p: { x: number; y: number }, v = DESK) => clampToViewport(p, SIZE, v, SAFE);
+
+    check('a position already inside is left alone',
+      JSON.stringify(clamp({ x: 400, y: 300 })) === JSON.stringify({ x: 400, y: 300 }));
+    check('off the right edge comes back', clamp({ x: 5000, y: 300 }).x === 1280 - SIZE - 16);
+    check('off the bottom comes back', clamp({ x: 400, y: 5000 }).y === 800 - SIZE - 20);
+    check('under the header comes back', clamp({ x: 400, y: 0 }).y === 68);
+    check('off the left comes back', clamp({ x: -900, y: 300 }).x === 16);
+    check('a negative y is pushed below the header', clamp({ x: 400, y: -4000 }).y === 68);
+
+    // A stored spot from a desktop window, reopened on a phone.
+    const phone = { width: 375, height: 667 };
+    const moved = clampToViewport({ x: 1150, y: 700 }, SIZE, phone, { top: 68, right: 12, bottom: 96, left: 12 });
+    check('a desktop position lands on-screen on a phone',
+      moved.x >= 12 && moved.x <= 375 - SIZE - 12 && moved.y >= 68 && moved.y <= 667 - SIZE - 96,
+      JSON.stringify(moved));
+
+    // Hand-edited or corrupted storage must not strand it.
+    check('NaN resolves to the near edge', clamp({ x: NaN, y: NaN }).x === 16);
+    check('Infinity resolves to the near edge', clamp({ x: Infinity, y: -Infinity }).y === 68);
+
+    // A viewport too small for both margins must pin, not invert the clamp.
+    const tiny = clampToViewport({ x: 50, y: 50 }, SIZE, { width: 100, height: 100 }, SAFE);
+    check('a viewport smaller than the companion pins to the near edge',
+      tiny.x === 16 && tiny.y === 68, JSON.stringify(tiny));
+
+    const home = defaultPosition(SIZE, DESK, SAFE);
+    check('the default corner is bottom-right, inside the margins',
+      home.x === 1280 - SIZE - 16 && home.y === 800 - SIZE - 20, JSON.stringify(home));
+    check('the default corner is already clamped',
+      JSON.stringify(clamp(home)) === JSON.stringify(home));
+
+    // ---- stored values
+    check('a stored point reads back', JSON.stringify(parsePosition('{"x":10,"y":20}')) === '{"x":10,"y":20}');
+    check('nothing stored is no position', parsePosition(null) === null);
+    check('an empty string is no position', parsePosition('') === null);
+    check('malformed JSON is no position, not a throw', parsePosition('{x:1') === null);
+    check('a non-object is no position', parsePosition('42') === null);
+    check('null JSON is no position', parsePosition('null') === null);
+    check('a missing axis is no position', parsePosition('{"x":10}') === null);
+    check('a string axis is no position', parsePosition('{"x":"10","y":20}') === null);
+    check('NaN in storage is no position', parsePosition('{"x":null,"y":20}') === null);
+
+    // ---- poking
+    const T = 1_000_000;
+    check('one poke is funny', pokeReaction([T], T) === 'laughing');
+    check(`${ANGRY_POKES - 1} pokes is still funny`,
+      pokeReaction(Array.from({ length: ANGRY_POKES - 1 }, (_, i) => T + i * 100), T + 300) === 'laughing');
+    check(`${ANGRY_POKES} pokes in the window is not`,
+      pokeReaction(Array.from({ length: ANGRY_POKES }, (_, i) => T + i * 100), T + 300) === 'angry');
+    check('the same pokes spread out stay funny',
+      pokeReaction(
+        Array.from({ length: ANGRY_POKES }, (_, i) => T + i * ANGRY_WINDOW_MS),
+        T + ANGRY_WINDOW_MS * (ANGRY_POKES - 1),
+      ) === 'laughing');
+    check('a poke exactly on the window edge has aged out',
+      pokeReaction([T, T, T, T], T + ANGRY_WINDOW_MS) === 'laughing');
+
+    // Both pokes have to be older than the window, not just the first — the
+    // later one is still only 3.9s old at T + ANGRY_WINDOW_MS + 1.
+    check('aged-out pokes are dropped', trimPokes([T, T + 100], T + 100 + ANGRY_WINDOW_MS).length === 0);
+    check('a poke still inside the window survives the trim',
+      trimPokes([T, T + 100], T + ANGRY_WINDOW_MS + 1).length === 1);
+    check('recent pokes are kept', trimPokes([T, T + 100], T + 200).length === 2);
+    check('trimming keeps the history bounded',
+      trimPokes(Array.from({ length: 500 }, (_, i) => T - i * 1000), T).length <= ANGRY_WINDOW_MS / 1000 + 1);
   }
 
   section('Keyboard mapping');

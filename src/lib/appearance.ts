@@ -24,7 +24,9 @@ export const SKIN_KEY = 'jst-skin';
 export const CHARACTER_KEY = 'jst-character';
 
 const listeners = new Set<() => void>();
-function announce() {
+/** Exported so companion.ts can share this one subscriber set rather than
+ *  starting a second store with its own listeners for the same purpose. */
+export function announce() {
   listeners.forEach((l) => l());
 }
 export function subscribe(onChange: () => void) {

@@ -21,8 +21,14 @@ const LINKS = [
   { href: '/focus', label: 'Focus', icon: Timer },
 ];
 
-/** Screens that own the whole viewport and should not show app chrome. */
-const BARE = ['/login', '/signup', '/setup'];
+/**
+ * Screens that own the whole viewport and should not show app chrome.
+ *
+ * Exported because the floating companion has to stay off exactly the same
+ * screens, and two lists that must agree is one list that will eventually
+ * disagree.
+ */
+export const BARE_ROUTES = ['/login', '/signup', '/setup'];
 
 function isActive(pathname: string, href: string) {
   if (href === '/') return pathname === '/';
@@ -34,7 +40,7 @@ export function Nav({ username }: { username: string | null }) {
   const pathname = usePathname();
 
   // Signed out, or on a full-screen auth page: no chrome at all.
-  if (!username || BARE.some((p) => pathname.startsWith(p))) return null;
+  if (!username || BARE_ROUTES.some((p) => pathname.startsWith(p))) return null;
 
   return (
     <>
