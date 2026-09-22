@@ -5,6 +5,8 @@
  *
  *   npx tsx scripts/selftest.ts
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { config } from 'dotenv';
 // Secrets live in .env.local (gitignored), not .env.
 config({ path: '.env.local', quiet: true });
@@ -26,6 +28,7 @@ import {
   POSES,
   moodPose,
   parseCharacterMeta,
+  poseChain,
   parseAccent,
   resolvePose,
   resolveCharacter,
@@ -429,6 +432,25 @@ async function main() {
     check('no pose invents a URL when there is no art at all',
       POSES.every((p) => resolvePose({ ...full, poses: {} }, p) === null));
 
+    // The chain is shared with the model renderer, which resolves a pose to an
+    // animation clip rather than a file. If it ever stopped ending at `idle`,
+    // a model with one clip would have poses that resolve to nothing.
+    check('every chain starts at the pose asked for',
+      POSES.every((p) => poseChain(p)[0] === p));
+    check('every chain ends at idle',
+      POSES.every((p) => poseChain(p)[poseChain(p).length - 1] === 'idle'));
+    check('concerned degrades through sad', poseChain('concerned').join('>') === 'concerned>sad>idle');
+    check('milestone degrades through celebrate', poseChain('milestone').join('>') === 'milestone>celebrate>idle');
+    check('focused degrades straight to idle', poseChain('focused').join('>') === 'focused>idle');
+
+    // A character that ships a rendered model has no pose images at all, and
+    // must still count as renderable — otherwise the picker hides it and the
+    // figure falls back to an SVG mascot that is not the chosen character.
+    const modelOnly: Character = { ...full, poses: {}, model: '/characters/m/model.glb' };
+    check('a model with no pose images is renderable', isRenderable(modelOnly));
+    check('neither a model nor art is not renderable',
+      !isRenderable({ ...full, poses: {}, model: undefined }));
+
     const catalog = [full, idleOnly];
     check('lookup finds by id', resolveCharacter(catalog, 'f')?.id === 'f');
     check('an unknown id resolves to null, not a throw', resolveCharacter(catalog, 'gone') === null);
@@ -460,7 +482,66 @@ async function main() {
         Object.values(c.poses).every((u) => u.startsWith(`/characters/${c.id}/`)),
       ),
     );
+    check(
+      'every model url stays inside that character folder too',
+      found.every((c) => !c.model || c.model.startsWith(`/characters/${c.id}/`)),
+    );
     check('the catalogue is sorted by name', found.every((c, i) => i === 0 || found[i - 1].name.localeCompare(c.name) <= 0));
+  }
+
+  // -----------------------------------------------------------------------
+  // The one character this repo actually ships. Everything about it is
+  // produced by scripts/make-character-model.mjs, so these guard the generated
+  // asset rather than the code that reads it: a regenerate that quietly
+  // dropped a pose, broke the container, or started claiming a licence would
+  // otherwise only show up in a browser.
+  // -----------------------------------------------------------------------
+  section('Shipped character (tally)');
+  {
+    const dir = join(process.cwd(), 'public', 'characters', 'tally');
+    const glb = readFileSync(join(dir, 'model.glb'));
+    check('the model is a glTF binary', glb.readUInt32LE(0) === 0x46546c67);
+    check('it is glTF 2.0', glb.readUInt32LE(4) === 2);
+    check('the declared length matches the file', glb.readUInt32LE(8) === glb.length);
+
+    const jsonLength = glb.readUInt32LE(12);
+    check('the first chunk is JSON', glb.readUInt32LE(16) === 0x4e4f534a);
+    const gltf = JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8'));
+    check('the second chunk is BIN', glb.readUInt32LE(24 + jsonLength) === 0x004e4942);
+    check(
+      'the binary chunk is exactly the size the buffer declares',
+      glb.readUInt32LE(20 + jsonLength) === gltf.buffers[0].byteLength,
+    );
+
+    // Poses are clips here, so every pose key has to be a clip name — that is
+    // the model-side equivalent of "every pose has a file".
+    const clips: string[] = gltf.animations.map((a: { name: string }) => a.name);
+    check(`all ${POSES.length} poses exist as clips`, POSES.every((p) => clips.includes(p)), clips.join(','));
+    check('no clip is nameless', clips.every((c) => c.length > 0));
+    check('every clip has at least one channel',
+      gltf.animations.every((a: { channels: unknown[] }) => a.channels.length > 0));
+    check('every animation channel points at a real node',
+      gltf.animations.every((a: { channels: { target: { node: number } }[] }) =>
+        a.channels.every((c) => gltf.nodes[c.target.node] !== undefined)));
+    check('every mesh primitive has positions and normals',
+      gltf.meshes.every((m: { primitives: { attributes: Record<string, number> }[] }) =>
+        m.primitives.every((p) => p.attributes.POSITION !== undefined && p.attributes.NORMAL !== undefined)));
+
+    // It loads on the dashboard, so its weight is not incidental.
+    check(`the model is under 250 KB (${(glb.length / 1024).toFixed(0)} KB)`, glb.length < 250 * 1024);
+
+    const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'tally');
+    check('its meta passes the same validation every character does', meta !== null);
+    check('it credits the generator, not a person', /generated for this project/i.test(meta?.artist ?? ''));
+    check('it claims only the licence it has', /original work/i.test(meta?.license ?? ''));
+    check('it claims no source it does not have', !meta?.source);
+    check('it ships its own voice lines', Boolean(meta?.lines?.cheer?.length && meta?.lines?.idle?.length));
+
+    const tally = discoverCharacters().find((c) => c.id === 'tally');
+    check('discovery finds it', Boolean(tally));
+    check('discovery exposes the model, not pose images', tally?.model === '/characters/tally/model.glb');
+    check('it has no pose images to fall back to', Object.keys(tally?.poses ?? {}).length === 0);
+    check('and is renderable anyway', isRenderable(tally));
   }
 
   section('Character voice');

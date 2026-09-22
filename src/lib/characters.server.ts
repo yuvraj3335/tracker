@@ -11,6 +11,7 @@
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  MODEL_FILES,
   POSES,
   POSE_EXTENSIONS,
   parseCharacterMeta,
@@ -24,6 +25,14 @@ const ROOT = join(process.cwd(), 'public', 'characters');
 function findPose(dir: string, id: string, pose: Pose): string | null {
   for (const ext of POSE_EXTENSIONS) {
     const file = `${pose}.${ext}`;
+    if (existsSync(join(dir, file))) return `/characters/${id}/${file}`;
+  }
+  return null;
+}
+
+/** The rendered model, if this character ships one instead of pose images. */
+function findModel(dir: string, id: string): string | null {
+  for (const file of MODEL_FILES) {
     if (existsSync(join(dir, file))) return `/characters/${id}/${file}`;
   }
   return null;
@@ -64,15 +73,22 @@ function readOne(id: string): Character | null {
     return null;
   }
 
+  // A model wins outright, so the pose scan is skipped rather than run and
+  // ignored. That keeps "the two are not merged" a property of the data
+  // instead of a rule the renderer has to remember, and it stops a folder with
+  // both shipping pose URLs to the client that nothing will ever read.
+  const model = findModel(dir, id);
+  if (model) return { ...meta, poses: {}, model };
+
   const poses: Partial<Record<Pose, string>> = {};
   for (const pose of POSES) {
     const url = findPose(dir, id, pose);
     if (url) poses[pose] = url;
   }
 
-  // No idle art means nothing to render; the SVG mascot covers it instead.
+  // Nothing to render either way means the SVG mascot covers it instead.
   if (!poses.idle) {
-    console.warn(`[characters] ${id} has no idle image — skipping`);
+    console.warn(`[characters] ${id} has neither a model nor an idle image — skipping`);
     return null;
   }
 

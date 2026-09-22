@@ -24,6 +24,13 @@ export type Pose = (typeof POSES)[number];
 /** Image extensions accepted for a pose, in preference order. */
 export const POSE_EXTENSIONS = ['webp', 'avif', 'png', 'jpg', 'jpeg'] as const;
 
+/**
+ * A character may instead ship one rendered model whose poses are animation
+ * clips, in which case there are no pose images at all. Same preference-order
+ * rule as above; `.glb` first because it is the single-file form.
+ */
+export const MODEL_FILES = ['model.glb', 'model.gltf'] as const;
+
 export type CharacterLines = {
   cheer?: string[];
   milestone?: string[];
@@ -41,6 +48,14 @@ export type Character = {
   lines?: CharacterLines;
   /** Public URLs for each pose that actually exists on disk. */
   poses: Partial<Record<Pose, string>>;
+  /**
+   * Public URL of a rendered model, when the character ships one.
+   *
+   * A model and pose images are not halves of one thing to be merged: a
+   * character is drawn one way or the other, and a model wins, because its
+   * poses are clips inside the same file and degrade through the same chain.
+   */
+  model?: string;
 };
 
 /**
@@ -68,6 +83,18 @@ const FALLBACK: Record<Pose, Pose[]> = {
 };
 
 /**
+ * The fallback order for a pose, most specific first.
+ *
+ * Exposed because pose images are no longer the only thing that can be
+ * missing: a rendered character resolves a pose to an animation clip, and a
+ * model shipping four clips has to degrade in exactly the same order as a
+ * folder shipping four images. One chain, two kinds of asset.
+ */
+export function poseChain(pose: Pose): readonly Pose[] {
+  return FALLBACK[pose] ?? [pose];
+}
+
+/**
  * The URL to render for a pose, walking the fallback chain.
  *
  * Returns null when the character is missing or has no usable art at all, which
@@ -76,7 +103,7 @@ const FALLBACK: Record<Pose, Pose[]> = {
  */
 export function resolvePose(character: Character | null | undefined, pose: Pose): string | null {
   if (!character) return null;
-  for (const candidate of FALLBACK[pose] ?? [pose]) {
+  for (const candidate of poseChain(pose)) {
     const url = character.poses[candidate];
     if (url) return url;
   }
@@ -106,9 +133,9 @@ export function moodPose(mood: PerformanceMood): Pose {
   return mood.cause === 'streak-broken' ? 'sad' : 'concerned';
 }
 
-/** True when a character has at least an idle pose — i.e. is renderable. */
+/** A character is renderable if it has either a model or at least idle art. */
 export function isRenderable(character: Character | null | undefined): boolean {
-  return Boolean(character && character.poses.idle);
+  return Boolean(character && (character.model || character.poses.idle));
 }
 
 /** Looks a character up by id. Unknown ids answer null rather than throwing. */

@@ -1,0 +1,25 @@
+{
+  "id": "tally",
+  "name": "Tally",
+  "artist": "Generated for this project by scripts/make-character-model.mjs",
+  "license": "Original work, generated for this project",
+  "lines": {
+    "cheer": [
+      "Logged.",
+      "That one is behind you.",
+      "Counted.",
+      "Onward."
+    ],
+    "milestone": [
+      "Whole block, done.",
+      "That is the set.",
+      "All of them."
+    ],
+    "idle": [
+      "Still here.",
+      "One at a time.",
+      "Take the next one.",
+      "Whenever you are ready."
+    ]
+  }
+}

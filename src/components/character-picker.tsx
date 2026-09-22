@@ -1,9 +1,9 @@
 'use client';
 
-import Image from 'next/image';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Check, Info, Sparkles, ArrowLeft, ExternalLink } from 'lucide-react';
 import { Mascot } from './mascot';
+import { CharacterThumb } from './character-figure';
 import { useCharacterCatalog } from './character-provider';
 import { getCharacter, getSkin, serverCharacter, serverSkin, setCharacter, subscribe } from '@/lib/appearance';
 import { THEMES } from '@/lib/themes';
@@ -125,13 +125,7 @@ export function CharacterPicker() {
                   )}
                 >
                   <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md bg-surface-2">
-                    <Image
-                      src={c.poses.idle!}
-                      alt=""
-                      width={36}
-                      height={36}
-                      className="h-9 w-9 object-contain"
-                    />
+                    <CharacterThumb character={c} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-semibold text-ink">{c.name}</span>

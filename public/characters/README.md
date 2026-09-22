@@ -4,11 +4,15 @@ Drop a folder in here and the app picks it up. Nothing in `src/` lists
 characters — discovery is a filesystem walk, so adding art never means editing
 code.
 
-**This folder ships empty on purpose.** With no characters installed the app
-falls back to the original SVG mascots in `src/components/mascot.tsx`, which are
-drawn from scratch and themed from design tokens. That is the default look, not
-a degraded one. The character picker in the nav only appears once at least one
-character is installed.
+**This folder ships one character, and it is not installed artwork.** `tally/`
+is generated in full by `scripts/make-character-model.mjs` — every vertex,
+material and animation clip — which is why it is the single, narrowly-scoped
+exception to the ignore rule on this directory. Everything else you drop in here
+stays ignored.
+
+With no character *selected*, the app falls back to the original SVG mascots in
+`src/components/mascot.tsx`, which are drawn from scratch and themed from design
+tokens. That is still the default look, not a degraded one.
 
 ---
 
@@ -68,6 +72,31 @@ every other pose resolves through the fallback chain above, so a missing file is
 never a 404. Drawing `idle`, `celebrate` and `sad` covers all six sensibly:
 `milestone` borrows `celebrate`, `concerned` borrows `sad`, and `focused`
 borrows `idle`.
+
+## A rendered model instead of images
+
+A character can ship one `model.glb` (or `model.gltf`) rather than pose images.
+Then the poses are **animation clips inside the file**, named exactly as the
+poses are — `idle`, `celebrate`, `milestone`, `sad`, `concerned`, `focused` —
+and a clip that is not there falls back through the same chain a missing image
+would. A model with only an `idle` clip is as valid as a folder with only
+`idle.webp`.
+
+```
+public/characters/
+  my-character/
+    meta.json         required
+    model.glb         poses are clips inside it
+```
+
+A model wins over pose images; the two are not merged. Nothing else changes:
+`meta.json` is validated identically, the credits screen shows the same fields,
+and a character with neither a model nor an `idle` image is skipped.
+
+The renderer (three.js, via `@react-three/fiber`) sits behind a dynamic import
+and is only fetched when the selected character actually has a model — an
+install with no model character never downloads it. See
+`src/components/character-canvas.tsx`.
 
 ## Image requirements
 
