@@ -22,12 +22,20 @@ export const VOICE_KEY = 'jst-voice';
 
 let cachedVoice: boolean | null = null;
 
+/**
+ * Whether replies are read aloud. On unless muted.
+ *
+ * This flipped when the companion became something you talk to rather than
+ * type at: clicking the character is an unambiguous "talk to me", and
+ * answering it silently would be the broken behaviour. Nothing here speaks
+ * outside a conversation the person opened by clicking, and muting sticks.
+ */
 export function getVoice(): boolean {
   if (cachedVoice !== null) return cachedVoice;
   try {
-    cachedVoice = localStorage.getItem(VOICE_KEY) === 'on';
+    cachedVoice = localStorage.getItem(VOICE_KEY) !== 'off';
   } catch {
-    cachedVoice = false;
+    cachedVoice = true;
   }
   return cachedVoice;
 }
@@ -43,7 +51,7 @@ export function setVoice(on: boolean) {
   announce();
 }
 
-export const serverVoice = (): boolean => false;
+export const serverVoice = (): boolean => true;
 
 // -------------------------------------------------------------- speaking
 /**
@@ -52,16 +60,25 @@ export const serverVoice = (): boolean => false;
  * Cancels whatever is queued first: two replies talking over each other is
  * worse than a missed one, and there has to be a way to cut it off.
  */
-export function speak(text: string) {
-  if (!getVoice() || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+export function speak(text: string, onDone?: () => void) {
+  const finish = () => onDone?.();
+  if (!getVoice() || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    // Muted or unsupported still has to hand the turn back, or the loop stops
+    // dead the first time someone mutes it.
+    finish();
+    return;
+  }
   try {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.05;
-    utterance.pitch = 1.15;
+    utterance.rate = 1.04;
+    utterance.pitch = 1.18;
+    utterance.onend = finish;
+    // A synthesis error must not strand the conversation mid-turn either.
+    utterance.onerror = finish;
     window.speechSynthesis.speak(utterance);
   } catch {
-    /* the reply is on screen either way */
+    finish();
   }
 }
 
@@ -117,21 +134,35 @@ export type ListenHandlers = {
 };
 
 /**
- * Starts one dictation. Returns a stop function, or null where the API is not
- * available at all.
+ * Starts one dictation. Always returns a stop function.
+ *
+ * Every outcome — including "this browser cannot do it at all" — is reported
+ * through the handlers rather than through the return value, and always
+ * asynchronously. That is not ceremony: the caller starts this from an effect,
+ * and a failure reported synchronously would be a state change caused by the
+ * render that started it rather than by the microphone.
  *
  * Deliberately one-shot rather than continuous: an always-on microphone is
  * both a battery and a trust problem, and the panel's "stop" has to mean it.
  */
-export function listen(handlers: ListenHandlers): (() => void) | null {
+const NO_OP = () => {};
+
+export function listen(handlers: ListenHandlers): () => void {
+  const unavailable = () => {
+    queueMicrotask(() =>
+      handlers.onError('This browser will not do speech recognition. You can type instead.'),
+    );
+    return NO_OP;
+  };
+
   const Recognition = recognitionConstructor();
-  if (!Recognition) return null;
+  if (!Recognition) return unavailable();
 
   let recognition: RecognitionLike;
   try {
     recognition = new Recognition();
   } catch {
-    return null;
+    return unavailable();
   }
   recognition.lang = typeof navigator !== 'undefined' ? navigator.language || 'en-GB' : 'en-GB';
   recognition.continuous = false;
@@ -156,8 +187,8 @@ export function listen(handlers: ListenHandlers): (() => void) | null {
     recognition.start();
   } catch {
     // Already running, or blocked before it began.
-    handlers.onEnd();
-    return null;
+    queueMicrotask(handlers.onEnd);
+    return NO_OP;
   }
 
   return () => {

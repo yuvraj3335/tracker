@@ -51,6 +51,10 @@ import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
 import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
 import { setupStage } from '../src/lib/setup';
 import {
+  captionFor, isHearing, isTalking, nextTurn, poseForTurn,
+  type Capabilities, type Turn,
+} from '../src/lib/conversation';
+import {
   ANGRY_POKES, ANGRY_WINDOW_MS, clampToViewport, defaultPosition, parsePosition,
   pokeReaction, trimPokes, type Safe,
 } from '../src/lib/companion';
@@ -1223,6 +1227,73 @@ async function main() {
     check('a non-string reply is empty, not a crash', tidyReply(null) === '');
     check('an over-long reply is capped', tidyReply('word. '.repeat(400)).length <= MAX_REPLY_CHARS);
     check('a short reply is untouched', tidyReply('Good going!') === 'Good going!');
+  }
+
+  // -----------------------------------------------------------------------
+  // Whose turn it is. Every bug a spoken loop has is the loop getting stuck —
+  // listening while it talks, talking over you, or ending up somewhere with
+  // no way back — so the transitions are pinned down here rather than left to
+  // a pile of booleans in a component.
+  // -----------------------------------------------------------------------
+  section('Conversation turns');
+  {
+    const BOTH: Capabilities = { canHear: true, canSpeak: true };
+    const DEAF: Capabilities = { canHear: false, canSpeak: true };
+    const MUTE: Capabilities = { canHear: true, canSpeak: false };
+    const NEITHER: Capabilities = { canHear: false, canSpeak: false };
+
+    // The happy loop, all the way round and back to listening.
+    check('opening says hello', nextTurn('closed', 'open', BOTH) === 'greeting');
+    check('after hello it listens', nextTurn('greeting', 'spoke', BOTH) === 'listening');
+    check('hearing something makes it think', nextTurn('listening', 'heard', BOTH) === 'thinking');
+    check('a reply is spoken', nextTurn('thinking', 'reply', BOTH) === 'speaking');
+    check('and then it listens again', nextTurn('speaking', 'spoke', BOTH) === 'listening');
+
+    // Degrading honestly rather than hanging.
+    check('with no microphone it never listens', nextTurn('greeting', 'spoke', DEAF) === 'resting');
+    check('with no voice it opens straight into listening', nextTurn('closed', 'open', MUTE) === 'listening');
+    check('with no voice a reply goes back to listening', nextTurn('thinking', 'reply', MUTE) === 'listening');
+    check('with neither it just rests', nextTurn('closed', 'open', NEITHER) === 'resting');
+    check('and a reply with neither rests too', nextTurn('thinking', 'reply', NEITHER) === 'resting');
+
+    // Stop has to mean stop, from anywhere — including mid-sentence.
+    const everyTurn: Turn[] = ['closed', 'greeting', 'listening', 'thinking', 'speaking', 'resting'];
+    check('stop works from every state',
+      everyTurn.every((t) => nextTurn(t, 'stop', BOTH) === 'resting'));
+    check('an error never strands it',
+      everyTurn.every((t) => nextTurn(t, 'error', BOTH) === 'resting'));
+    check('close works from every state',
+      everyTurn.every((t) => nextTurn(t, 'close', BOTH) === 'closed'));
+
+    // Getting going again.
+    check('resting starts listening on request', nextTurn('resting', 'listen', BOTH) === 'listening');
+    check('resting cannot listen without a microphone', nextTurn('resting', 'listen', DEAF) === 'resting');
+    check('a typed message works from rest', nextTurn('resting', 'heard', DEAF) === 'thinking');
+    check('silence rests rather than looping forever', nextTurn('listening', 'silence', BOTH) === 'resting');
+
+    // Events that do not apply must be inert, not throw the loop somewhere odd.
+    check('a stray reply while listening changes nothing', nextTurn('listening', 'reply', BOTH) === 'listening');
+    check('a stray spoke while thinking changes nothing', nextTurn('thinking', 'spoke', BOTH) === 'thinking');
+    check('opening an open conversation changes nothing', nextTurn('listening', 'open', BOTH) === 'listening');
+
+    // The one invariant that matters: never hearing and talking at once.
+    check('it never listens and talks at the same time',
+      everyTurn.every((t) => !(isHearing(t) && isTalking(t))));
+
+    // The figure is the status indicator, so every turn needs its own.
+    check('talking looks like talking', poseForTurn('speaking') === 'talking' && poseForTurn('greeting') === 'talking');
+    check('listening looks like listening', poseForTurn('listening') === 'listening');
+    check('thinking casts', poseForTurn('thinking') === 'casting');
+    check('closed and resting are at rest',
+      poseForTurn('closed') === 'idle' && poseForTurn('resting') === 'idle');
+
+    check('every active turn says what it is doing',
+      (['greeting', 'listening', 'thinking', 'speaking', 'resting'] as Turn[])
+        .every((t) => captionFor(t, 'Miso').length > 0));
+    check('the caption names the character', captionFor('speaking', 'Miso').includes('Miso'));
+    check('a closed conversation says nothing', captionFor('closed', 'Miso') === '');
+    check('no caption leaks a state name',
+      (everyTurn).every((t) => !/greeting|thinking\b.*state|resting/i.test(captionFor(t, 'Miso').replace('Thinking…', ''))));
   }
 
   section('Keyboard mapping');

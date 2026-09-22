@@ -173,12 +173,18 @@ to land with the tap, not a second later.
   one rig, which is what makes them the same character in six states by
   construction rather than by six drawings agreeing with each other. Pick it
   from the sparkle icon in the nav.
-**The companion.** `Miso` comes loose onto the page:
-drag it anywhere, poke it, or click it to talk. Position is per device and is
-clamped on every read, so a spot saved on a wide window cannot strand it
-off-screen. Arrow keys nudge it, Shift+arrow moves it further and Home sends it
-back to the corner — dragging is never the only way in. Talking needs
-`GROQ_API_KEY`; without one it says so plainly rather than failing.
+**The companion.** `Miso` comes loose onto the page: drag it anywhere, poke it,
+or click it to talk. Position is per device and is clamped on every read, so a
+spot saved on a wide window cannot strand it off-screen. Arrow keys nudge it,
+Shift+arrow moves it further and Home sends it back to the corner — dragging is
+never the only way in.
+
+**Clicking it starts a spoken conversation.** It says hello out loud, listens,
+answers, and listens again, hands-free, until you stop it. The figure is the
+status indicator — it talks while it talks, leans in while it listens, casts
+while it thinks — and every turn is captioned on screen as well. Typing still
+works and is the only path in a browser without speech recognition. Talking
+needs `GROQ_API_KEY`; without one it says so plainly rather than failing.
 
 - **Accessible.** The overlay is `position: fixed` and `pointer-events: none`, so
   it can never block a tap or shift the page, and every message goes through an
@@ -308,7 +314,7 @@ API. Any cell links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 476 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
+| `npm run test` | 507 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
