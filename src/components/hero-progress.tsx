@@ -123,10 +123,10 @@ export function HeroProgress({
             mascot otherwise, and nothing at all for Studio. This is the app's
             resting figure, so it is the only one that preloads. */}
         <span className="sm:hidden">
-          <CharacterFigure pose={pose} size={52} />
+          <CharacterFigure pose={pose} size={64} />
         </span>
         <span className="hidden sm:block">
-          <CharacterFigure pose={pose} size={68} priority />
+          <CharacterFigure pose={pose} size={88} priority />
         </span>
       </div>
     </section>

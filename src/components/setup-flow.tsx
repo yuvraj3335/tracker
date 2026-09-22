@@ -272,7 +272,7 @@ export function SetupFlow({
         <section className="space-y-2 text-center">
           {hasFigure ? (
             <div className="flex justify-center">
-              <CharacterFigure pose="celebrate" size={72} />
+              <CharacterFigure pose="celebrate" size={88} />
             </div>
           ) : (
             <div className="mx-auto grid size-10 place-items-center rounded-full bg-good/15">

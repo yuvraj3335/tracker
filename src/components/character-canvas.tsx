@@ -30,7 +30,7 @@ const FADE_SECONDS = 0.25;
  * box: at rest the mitts stop just inside the bottom edge, and at the top of
  * the milestone jump the crest bead stops just inside the top one.
  */
-const GROUND_OFFSET = -0.21;
+const GROUND_OFFSET = -0.197;
 
 /** Poses that happen once and hold, rather than looping. */
 const ONE_SHOT: ReadonlySet<Pose> = new Set(['celebrate', 'milestone']);
@@ -95,7 +95,7 @@ export function CharacterCanvas({ url, pose, size }: { url: string; pose: Pose; 
       gl={{ alpha: true, antialias: true }}
       // Framed for the figure's whole range of motion, not just its rest pose,
       // so the milestone jump has somewhere to go instead of clipping.
-      camera={{ fov: 30, position: [0, 0, 4.8], near: 0.1, far: 20 }}
+      camera={{ fov: 30, position: [0, 0, 4.72], near: 0.1, far: 20 }}
     >
       {/* A three-point rig plus a sky/ground ambient, rather than one flat
           ambient. An HDRI environment would light the metal better still, but

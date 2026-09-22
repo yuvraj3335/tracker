@@ -51,7 +51,7 @@ export function MoodBanner({
       aria-live="polite"
       className="skin-card flex flex-wrap items-center gap-3 border border-hairline bg-surface p-3 shadow-lift-1 sm:gap-4 sm:p-4"
     >
-      <CharacterFigure pose={moodPose(mood)} size={48} />
+      <CharacterFigure pose={moodPose(mood)} size={60} />
       <div className="min-w-0 flex-1 basis-40">
         <p className="text-sm font-medium text-ink">{headline}</p>
         <p className="mt-0.5 text-xs text-ink-muted">{line}</p>

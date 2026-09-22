@@ -163,7 +163,7 @@ export default async function Dashboard() {
             // the top of the page, and saying it twice on one screen is how a
             // gentle nudge turns into nagging.
             <div className="flex items-center gap-3 px-4 pb-4 sm:px-5 sm:pb-5">
-              <CharacterFigure pose={moodPose(mood)} size={48} />
+              <CharacterFigure pose={moodPose(mood)} size={60} />
               <p className="min-w-0 text-sm text-ink-muted">Nothing yet today.</p>
             </div>
           )}

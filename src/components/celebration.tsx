@@ -123,10 +123,10 @@ const TIERS: Record<
   CelebrationKind,
   { voice: VoiceKind; pose: Pose; size: number; sparks: number; rings: number; big: boolean }
 > = {
-  cheer:     { voice: 'cheer',       pose: 'celebrate', size: 64, sparks: 0,  rings: 0, big: false },
-  milestone: { voice: 'milestone',   pose: 'milestone', size: 84, sparks: 6,  rings: 1, big: false },
-  section:   { voice: 'sectionDone', pose: 'milestone', size: 96, sparks: 10, rings: 2, big: true },
-  area:      { voice: 'finale',      pose: 'milestone', size: 112, sparks: 14, rings: 3, big: true },
+  cheer:     { voice: 'cheer',       pose: 'celebrate', size: 78, sparks: 0,  rings: 0, big: false },
+  milestone: { voice: 'milestone',   pose: 'milestone', size: 100, sparks: 6,  rings: 1, big: false },
+  section:   { voice: 'sectionDone', pose: 'milestone', size: 116, sparks: 10, rings: 2, big: true },
+  area:      { voice: 'finale',      pose: 'milestone', size: 136, sparks: 14, rings: 3, big: true },
 };
 
 /** Fixed offsets rather than random, so the burst looks designed and is stable. */

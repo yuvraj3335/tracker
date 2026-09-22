@@ -462,7 +462,7 @@ export function Sheet({
       {sections.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
-            <CharacterFigure pose="idle" size={56} />
+            <CharacterFigure pose="idle" size={68} />
             <div>
               <p className="text-sm font-medium text-ink">Nothing matches</p>
               <p className="mt-0.5 text-xs text-ink-muted">

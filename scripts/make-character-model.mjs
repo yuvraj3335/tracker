@@ -127,6 +127,35 @@ const MAT = Object.fromEntries(MATERIALS.map((m, i) => [m.name, i]));
  * longer a solid of revolution and its normal picks up a tangential term.
  */
 function lathe(profile, segments = 28, ripple = null) {
+  // Which way round the profile is drawn decides which way its normals face.
+  // (dy, -dr) is outward only for a profile traversed counter-clockwise in the
+  // (radius, height) plane; drawn the other way — top-down, like every limb
+  // here, or around a loop like the hat brim — it points into the surface and
+  // the mesh is lit inside-out. The shoelace area of the profile closed back
+  // on itself says which it is, and it is the one test that works for open
+  // profiles and closed loops alike.
+  let twice = 0;
+  for (let i = 0; i < profile.length; i++) {
+    const [r0, y0] = profile[i];
+    const [r1, y1] = profile[(i + 1) % profile.length];
+    twice += r0 * y1 - r1 * y0;
+  }
+  // An open, nearly-straight profile — every limb here is one — encloses
+  // almost no area, so the shoelace sign is noise off the easing curve rather
+  // than a real winding. Only profiles that genuinely enclose something (a
+  // sphere, the torso, the hat brim's loop) are judged by it; for the rest the
+  // question is simply whether it was drawn bottom-up or top-down.
+  const radii = profile.map((p) => p[0]);
+  const heights = profile.map((p) => p[1]);
+  const span =
+    (Math.max(...radii) - Math.min(...radii)) * (Math.max(...heights) - Math.min(...heights));
+  const facing =
+    Math.abs(twice) > span * 0.25
+      ? Math.sign(twice) || 1
+      : profile[profile.length - 1][1] < profile[0][1]
+        ? -1
+        : 1;
+
   const positions = [];
   const normals = [];
   const indices = [];
@@ -171,7 +200,7 @@ function lathe(profile, segments = 28, ripple = null) {
       } else {
         [nx, ny, nz] = [nx / len, ny / len, nz / len];
       }
-      normals.push(nx, ny, nz);
+      normals.push(nx * facing, ny * facing, nz * facing);
     }
   }
   for (let s = 0; s < segments; s++) {
@@ -222,10 +251,6 @@ const sphereProfile = (r, rings = 16, t0 = 0, t1 = Math.PI) =>
   });
 
 const sphere = (r, segments = 24, rings = 16) => lathe(sphereProfile(r, rings), segments);
-
-/** The part of a sphere above `yFrom` — a skullcap, for hair and hat linings. */
-const dome = (r, yFrom, segments = 28, rings = 12) =>
-  lathe(sphereProfile(r, rings, Math.acos(Math.min(1, Math.max(-1, -yFrom / r))), Math.PI), segments);
 
 /** A tapered tube: `steps` of [radius, y], built straight from two radii. */
 const taper = (r0, r1, y0, y1, steps = 6, segments = 14) =>
@@ -340,193 +365,320 @@ const torus = (R, r, segments = 20, rings = 10) =>
 // ---------------------------------------------------------------------------
 // Pip.
 //
-// Proportions are chibi and the numbers are deliberate: the head is a 0.36
-// sphere on a 1.78-unit figure, so it is roughly two fifths of the total
-// height, and the eyes are 0.17 across on a 0.72 face. At the sizes this is
-// actually drawn — 36 to 112 pixels — that is the difference between a face
-// and a smudge.
+// Proportions are stylised-anime rather than super-deformed: roughly two and
+// three quarter heads tall, with a neck, a waist, jointed arms and visible
+// legs. The first pass was a two-head chibi, which reads as a doll; this reads
+// as a small person. The head is still larger than life because the face is
+// what has to survive being drawn at 60 pixels, but everything below it is
+// built like a figure rather than a cone.
 //
-// Everything below is positioned against the head sphere's own surface rather
-// than by eye, which is why the z coordinates look arbitrary: they are
+// Everything is positioned against the head sphere's own surface rather than
+// by eye, which is why the z coordinates look arbitrary: they are
 // sqrt(r^2 - x^2 - y^2) for the feature's own x and y, pulled back a little so
 // the feature sits in the face instead of floating off it.
 // ---------------------------------------------------------------------------
-const HEAD_R = 0.36;
-const HEAD_Y = 0.27;
-
-/** A flared robe, closed at the hem so there is no hole to see up. */
-const ROBE = [
-  [0.0, -0.66], [0.19, -0.665], [0.31, -0.652], [0.385, -0.612], [0.4, -0.55],
-  [0.382, -0.45], [0.348, -0.34], [0.302, -0.23], [0.262, -0.14], [0.232, -0.06],
-  [0.215, 0.0], [0.2, 0.03],
+/**
+ * The head, as a profile rather than a sphere.
+ *
+ * A sphere gives a perfectly round chin as wide as the skull, and below the
+ * mouth that reads as a pale bar under the face rather than as a jaw. The
+ * lower half tapers instead; the upper half is still spherical, because a
+ * cranium is.
+ */
+const HEAD = [
+  [0.0, -0.3], [0.082, -0.288], [0.148, -0.254], [0.205, -0.2], [0.252, -0.13],
+  [0.292, -0.06], [0.315, 0.0], [0.305, 0.08], [0.274, 0.155], [0.223, 0.222],
+  [0.158, 0.272], [0.079, 0.305], [0.0, 0.315],
 ];
 
-/** A short cape over the shoulders: out, down, and back up its own underside. */
+/**
+ * A profile pushed out along its own normal.
+ *
+ * The hair has to sit on the head by a constant margin, and the head is no
+ * longer a sphere — scaling its radius would leave the crown poking through
+ * while the temples floated off it.
+ */
+function offsetProfile(profile, margin, fromY) {
+  const rows = profile.length;
+  const offset = profile.map(([r, y], i) => {
+    const [r0, y0] = profile[Math.max(0, i - 1)];
+    const [r1, y1] = profile[Math.min(rows - 1, i + 1)];
+    const [dr, dy] = [r1 - r0, y1 - y0];
+    const len = Math.hypot(dr, dy) || 1;
+    return [Math.max(0, r + margin * (dy / len)), y + margin * (-dr / len)];
+  });
+
+  // Cut at exactly `fromY` rather than dropping whole rows. Filtering left the
+  // cap's edge wherever the nearest row happened to fall, which put a band of
+  // bare forehead between the hairline and the bangs hanging below it.
+  const kept = offset.filter(([, y]) => y > fromY);
+  const last = offset.find(([, y]) => y <= fromY);
+  if (last && kept.length) {
+    const first = kept[0];
+    const t = (fromY - last[1]) / (first[1] - last[1]);
+    kept.unshift([last[0] + (first[0] - last[0]) * t, fromY]);
+  }
+  return kept;
+}
+/** Head centre, in body-local space. The body node itself sits at the origin. */
+const HEAD_Y = 0.38;
+const NECK_Y = 0.14;
+
+/** Chest down to waist: shoulders, a ribcage and a taper into the belt. */
+const TORSO = [
+  [0.0, 0.17], [0.12, 0.165], [0.2, 0.145], [0.245, 0.09], [0.25, 0.02],
+  [0.235, -0.06], [0.205, -0.14], [0.195, -0.18],
+];
+
+/** The skirt of the robe, flaring from the waist and closed under the hem. */
+const SKIRT = [
+  [0.195, -0.16], [0.208, -0.25], [0.232, -0.34], [0.268, -0.43], [0.308, -0.51],
+  [0.335, -0.565], [0.255, -0.572], [0.14, -0.576], [0.0, -0.578],
+];
+
+/** A short cape over the shoulders, out and down and back up its underside. */
 const CAPE = [
-  [0.19, 0.055], [0.26, -0.005], [0.33, -0.07], [0.375, -0.135], [0.37, -0.152],
-  [0.318, -0.098], [0.25, -0.032], [0.19, 0.03],
+  [0.19, 0.158], [0.232, 0.118], [0.264, 0.07], [0.282, 0.018], [0.278, 0.002],
+  [0.248, 0.056], [0.214, 0.104], [0.19, 0.142],
 ];
 
 /** The hat brim, curving down to a thin edge and back along its underside. */
 const BRIM = [
-  [0.31, 0.25], [0.4, 0.238], [0.48, 0.218], [0.55, 0.186], [0.585, 0.16],
-  [0.575, 0.146], [0.52, 0.176], [0.44, 0.206], [0.36, 0.226], [0.31, 0.236],
+  [0.25, 0.28], [0.33, 0.268], [0.4, 0.248], [0.455, 0.218], [0.485, 0.192],
+  [0.475, 0.178], [0.425, 0.206], [0.355, 0.236], [0.29, 0.258], [0.25, 0.267],
 ];
 
 /** The cone, slightly bellied rather than straight, so it reads as cloth. */
 const HAT_CONE = [
-  [0.315, 0.245], [0.3, 0.3], [0.265, 0.38], [0.218, 0.46], [0.166, 0.54],
-  [0.116, 0.61], [0.076, 0.665], [0.05, 0.7],
+  [0.255, 0.275], [0.245, 0.33], [0.215, 0.41], [0.178, 0.49], [0.135, 0.565],
+  [0.095, 0.63], [0.062, 0.685], [0.042, 0.72],
 ];
 
 const MESHES = {
   head: {
-    geometry: sphere(HEAD_R, 34, 22),
+    geometry: lathe(HEAD, 36),
     material: MAT.skin,
-    // Deep shadow where the hat sits on it, and a softer one under the chin.
-    tint: shade(sky(HEAD_Y, 0.1), beneath(0.17, 0.34, 0.36), below(-0.36, -0.2, 0.15)),
+    // Deep shadow where the hat sits on it, and a softer one under the jaw.
+    tint: shade(sky(HEAD_Y + NECK_Y, 0.1), beneath(0.15, 0.3, 0.34), below(-0.3, -0.14, 0.24)),
   },
-  hairCap: {
-    geometry: dome(0.385, 0.08, 34, 14),
-    material: MAT.hair,
-    tint: shade(beneath(0.16, 0.3, 0.44)),
+  neck: {
+    geometry: taper(0.088, 0.098, 0, 0.13, 4, 16),
+    material: MAT.skin,
+    // The underside of a jaw is the darkest place on a face, and having a neck
+    // to cast it onto is half of why this reads as a person now.
+    tint: below(0.0, 0.14, 0.42),
   },
-  hairBack: { geometry: sphere(0.3, 28, 18), material: MAT.hair, tint: shade(() => 0.81) },
-  // Hair deepens toward its tips, which is the whole of anime hair shading and
-  // costs nothing here beyond four bytes a vertex.
-  lock: { geometry: taper(0.075, 0.025, 0, -0.34, 8, 14), material: MAT.hair, tint: below(-0.34, 0.0, 0.33) },
-  bang: { geometry: taper(0.062, 0.012, 0, -0.1, 6, 12), material: MAT.hair, tint: below(-0.1, 0.0, 0.26) },
+  ear: { geometry: sphere(0.05, 14, 10), material: MAT.skin, tint: shade(() => 0.9) },
+  nose: { geometry: sphere(0.022, 12, 8), material: MAT.skinShade },
 
-  sclera: { geometry: sphere(0.085, 20, 14), material: MAT.sclera },
-  iris: { geometry: sphere(0.068, 20, 14), material: MAT.iris },
-  pupil: { geometry: sphere(0.036, 16, 10), material: MAT.pupil },
-  glint: { geometry: sphere(0.024, 12, 8), material: MAT.glint },
-  lash: { geometry: sphere(0.075, 16, 10), material: MAT.pupil },
-  brow: { geometry: sphere(0.05, 12, 8), material: MAT.hairDark },
-  blush: { geometry: sphere(0.055, 14, 10), material: MAT.blush },
+  hairCap: { geometry: lathe(offsetProfile(HEAD, 0.028, 0.098), 36), material: MAT.hair, tint: shade(beneath(0.19, 0.3, 0.44)) },
+  hairBack: { geometry: sphere(0.25, 28, 18), material: MAT.hair, tint: shade(() => 0.81) },
+  ponytail: { geometry: taper(0.085, 0.022, 0, -0.34, 9, 14), material: MAT.hair, tint: below(-0.34, 0.0, 0.4) },
+  lock: { geometry: taper(0.058, 0.018, 0, -0.25, 8, 14), material: MAT.hair, tint: below(-0.25, 0.0, 0.33) },
+  bang: { geometry: taper(0.052, 0.008, 0, -0.115, 7, 10), material: MAT.hair, tint: below(-0.115, 0.0, 0.26) },
+
+  sclera: { geometry: sphere(0.075, 20, 14), material: MAT.sclera },
+  iris: { geometry: sphere(0.06, 20, 14), material: MAT.iris },
+  pupil: { geometry: sphere(0.032, 16, 10), material: MAT.pupil },
+  glint: { geometry: sphere(0.021, 12, 8), material: MAT.glint },
+  lash: { geometry: sphere(0.066, 16, 10), material: MAT.pupil },
+  brow: { geometry: sphere(0.044, 12, 8), material: MAT.hairDark },
+  blush: { geometry: sphere(0.048, 14, 10), material: MAT.blush },
   mouthSmile: {
-    geometry: tube([[-0.052, 0.014], [-0.026, -0.004], [0, -0.013], [0.026, -0.004], [0.052, 0.014]], 0.013),
+    geometry: tube([[-0.044, 0.012], [-0.022, -0.004], [0, -0.011], [0.022, -0.004], [0.044, 0.012]], 0.011),
     material: MAT.mouth,
   },
   mouthFrown: {
-    geometry: tube([[-0.046, -0.012], [-0.023, 0.005], [0, 0.011], [0.023, 0.005], [0.046, -0.012]], 0.012),
+    geometry: tube([[-0.039, -0.01], [-0.02, 0.004], [0, 0.009], [0.02, 0.004], [0.039, -0.01]], 0.01),
     material: MAT.mouth,
   },
 
   brim: { geometry: lathe(BRIM, 36), material: MAT.hat },
-  cone: { geometry: lathe(HAT_CONE, 36), material: MAT.hat, tint: below(0.245, 0.5, 0.14) },
-  hatBand: { geometry: torus(0.303, 0.035, 28, 10), material: MAT.gold },
-  star: { geometry: extrude(starOutline(0.078, 0.034), 0.022), material: MAT.gold },
-  tipCone: { geometry: taper(0.05, 0.012, 0, 0.22, 6, 12), material: MAT.hat },
-  tipBall: { geometry: sphere(0.032, 12, 8), material: MAT.gold },
+  cone: { geometry: lathe(HAT_CONE, 36), material: MAT.hat, tint: below(0.275, 0.52, 0.14) },
+  hatBand: { geometry: torus(0.247, 0.03, 28, 10), material: MAT.gold },
+  star: { geometry: extrude(starOutline(0.062, 0.027), 0.02), material: MAT.gold },
+  tipCone: { geometry: taper(0.042, 0.01, 0, 0.2, 6, 12), material: MAT.hat },
+  tipBall: { geometry: sphere(0.028, 12, 8), material: MAT.gold },
 
-  robe: {
-    geometry: lathe(ROBE, 48, {
+  torso: { geometry: lathe(TORSO, 34), material: MAT.robe, tint: shade(sky(0, 0.14), beneath(-0.06, 0.13, 0.3)) },
+  skirt: {
+    geometry: lathe(SKIRT, 48, {
       count: 10,
       // Zero at the waist, widest across the skirt, back to zero at the hem so
       // the pleats close rather than scalloping the bottom edge.
-      amp: (i, _r, y) => (i === 0 ? 0 : 0.026 * smoothstep(0.06, -0.14, y) * smoothstep(-0.66, -0.48, y)),
+      amp: (i, _r, y) => (i === 0 ? 0 : 0.017 * smoothstep(-0.16, -0.3, y) * smoothstep(-0.578, -0.46, y)),
     }),
     material: MAT.robe,
-    tint: shade(sky(0, 0.17), beneath(-0.15, 0.04, 0.27), below(-0.62, -0.42, 0.11)),
+    tint: shade(sky(0, 0.18), below(-0.578, -0.34, 0.14)),
   },
-  cape: { geometry: lathe(CAPE, 36), material: MAT.trim, tint: shade(sky(0, 0.13), below(-0.15, -0.03, 0.18)) },
-  belt: { geometry: torus(0.33, 0.028, 24, 10), material: MAT.gold },
-  hem: { geometry: torus(0.395, 0.024, 26, 10), material: MAT.trim },
-  arm: { geometry: taper(0.075, 0.058, 0, -0.28, 6, 14), material: MAT.robeDark, tint: shade(sky(-0.05, 0.15)) },
-  hand: { geometry: sphere(0.086, 18, 14), material: MAT.skin, tint: shade(sky(-0.33, 0.13)) },
-  boot: { geometry: sphere(0.085, 16, 12), material: MAT.boot },
+  cape: { geometry: lathe(CAPE, 36), material: MAT.trim, tint: shade(sky(0, 0.13), below(-0.07, 0.03, 0.2)) },
+  belt: { geometry: torus(0.208, 0.022, 24, 10), material: MAT.gold },
+  buckle: { geometry: sphere(0.036, 14, 10), material: MAT.gold },
 
-  staff: { geometry: taper(0.026, 0.02, -0.34, 0.46, 5, 12), material: MAT.wood, tint: below(-0.34, 0.3, 0.25) },
-  staffRing: { geometry: torus(0.098, 0.014, 18, 8), material: MAT.gold },
-  orb: { geometry: sphere(0.084, 20, 14), material: MAT.orb },
-  spark: { geometry: sphere(0.016, 10, 6), material: MAT.orb },
+  upperArm: { geometry: taper(0.068, 0.055, 0, -0.26, 6, 14), material: MAT.robeDark, tint: shade(sky(0.08, 0.16), beneath(-0.06, 0.02, 0.24)) },
+  foreArm: { geometry: taper(0.055, 0.046, 0, -0.24, 6, 14), material: MAT.robeDark, tint: shade(sky(-0.2, 0.14)) },
+  hand: { geometry: sphere(0.072, 18, 14), material: MAT.skin, tint: shade(sky(-0.45, 0.12)) },
+  thumb: { geometry: taper(0.022, 0.015, 0, -0.058, 4, 10), material: MAT.skin },
+
+  thigh: { geometry: taper(0.09, 0.075, 0, -0.26, 5, 14), material: MAT.robeDark },
+  shin: { geometry: taper(0.075, 0.06, 0, -0.26, 5, 14), material: MAT.robeDark, tint: shade(sky(-0.6, 0.18)) },
+  boot: { geometry: sphere(0.085, 18, 14), material: MAT.boot, tint: shade(sky(-0.85, 0.2)) },
+
+  staff: { geometry: taper(0.024, 0.019, -0.42, 0.62, 6, 12), material: MAT.wood, tint: below(-0.42, 0.4, 0.24) },
+  staffRing: { geometry: torus(0.104, 0.014, 18, 8), material: MAT.gold },
+  orb: { geometry: sphere(0.074, 20, 14), material: MAT.orb },
+  spark: { geometry: sphere(0.015, 10, 6), material: MAT.orb },
+};
+
+/**
+ * One eye: six stacked pieces, each a squashed sphere a little in front of the
+ * last — sclera, iris, pupil, two catchlights and an upper lid. The lid sits
+ * in front of the iris but behind the highlights, so the glints stay on top
+ * the way a real highlight sits on the wet surface. Scaling the whole group is
+ * a blink; scaling it partly is every squint the six moods need.
+ */
+const eye = (side) => {
+  const s = side < 0 ? 'L' : 'R';
+  return [
+    {
+      name: `eye${s}`,
+      translation: [0.128 * side, -0.05, 0.259],
+      rotation: [0, 20 * side, 0],
+      children: [`sclera${s}`, `iris${s}`, `pupil${s}`, `glintA${s}`, `glintB${s}`, `lash${s}`],
+    },
+    { name: `sclera${s}`, mesh: 'sclera', scale: [1, 1.22, 0.26] },
+    { name: `iris${s}`, mesh: 'iris', translation: [0, -0.005, 0.016], scale: [1, 1.14, 0.26] },
+    { name: `pupil${s}`, mesh: 'pupil', translation: [0, -0.007, 0.027], scale: [1, 1.06, 0.24] },
+    { name: `glintA${s}`, mesh: 'glint', translation: [-0.023, 0.036, 0.038], scale: [1, 1, 0.35] },
+    { name: `glintB${s}`, mesh: 'glint', translation: [0.027, -0.025, 0.038], scale: [0.5, 0.5, 0.18] },
+    { name: `lash${s}`, mesh: 'lash', translation: [0, 0.07, 0.016], scale: [1.32, 0.34, 0.34] },
+  ];
+};
+
+/** One arm: shoulder, elbow, wrist, and a thumb so the hand is not a ball. */
+const arm = (side) => {
+  const s = side < 0 ? 'L' : 'R';
+  return [
+    {
+      name: `upperArm${s}`,
+      mesh: 'upperArm',
+      translation: [0.252 * side, 0.072, 0.012],
+      rotation: [0, 0, 23 * side],
+      children: [`foreArm${s}`],
+    },
+    {
+      name: `foreArm${s}`,
+      mesh: 'foreArm',
+      translation: [0, -0.26, 0],
+      rotation: [-6, 0, 8 * side],
+      children: [`hand${s}`],
+    },
+    {
+      name: `hand${s}`,
+      mesh: 'hand',
+      translation: [0, -0.24, 0],
+      scale: [0.85, 1.05, 0.72],
+      children: side > 0 ? [`thumb${s}`, 'staff'] : [`thumb${s}`],
+    },
+    { name: `thumb${s}`, mesh: 'thumb', translation: [0.055 * side, 0.012, 0.03], rotation: [0, 0, 34 * side] },
+  ];
+};
+
+/** One leg: thigh hidden under the skirt, shin and boot below the hem. */
+const leg = (side) => {
+  const s = side < 0 ? 'L' : 'R';
+  return [
+    { name: `thigh${s}`, mesh: 'thigh', translation: [0.105 * side, -0.3, 0], children: [`shin${s}`] },
+    { name: `shin${s}`, mesh: 'shin', translation: [0, -0.26, 0], children: [`boot${s}`] },
+    { name: `boot${s}`, mesh: 'boot', translation: [0, -0.285, 0.035], scale: [1.02, 0.8, 1.62] },
+  ];
 };
 
 /**
  * The rig.
  *
- * `root` carries the whole figure so a jump or a spin moves everything. `head`
- * hangs off `body` so a slump carries the head with it, and the hat and every
- * facial feature hang off `head` so a tilt takes the face along. The staff is
- * parented to the right hand and counter-rotated, which is why it stays
- * upright while the arm swings and why raising the arm raises the staff for
+ * `root` carries the whole figure so a jump or a spin moves everything. The
+ * head hangs off a neck which hangs off the body, so a slump carries the head
+ * with it and a tilt is the neck's own rotation rather than the head sliding.
+ * The staff is parented to the right hand and counter-rotated, which is why it
+ * stays upright while the arm swings and why raising the arm raises it for
  * free.
- *
- * Each eye is a group of five: sclera, iris, pupil and two catchlights, each
- * one a squashed sphere a little in front of the last. Scaling the group is a
- * blink; scaling it partly is every squint the six moods need.
  */
-const eye = (side) => {
-  const x = 0.145 * side;
-  return [
-    { name: `eye${side < 0 ? 'L' : 'R'}`, translation: [x, -0.06, 0.298], rotation: [0, 20 * side, 0],
-      children: [`sclera${side < 0 ? 'L' : 'R'}`, `iris${side < 0 ? 'L' : 'R'}`, `pupil${side < 0 ? 'L' : 'R'}`, `glintA${side < 0 ? 'L' : 'R'}`, `glintB${side < 0 ? 'L' : 'R'}`, `lash${side < 0 ? 'L' : 'R'}`] },
-    { name: `sclera${side < 0 ? 'L' : 'R'}`, mesh: 'sclera', scale: [1, 1.2, 0.3] },
-    { name: `iris${side < 0 ? 'L' : 'R'}`, mesh: 'iris', translation: [0, -0.006, 0.018], scale: [1, 1.12, 0.26] },
-    { name: `pupil${side < 0 ? 'L' : 'R'}`, mesh: 'pupil', translation: [0, -0.008, 0.03], scale: [1, 1.05, 0.24] },
-    { name: `glintA${side < 0 ? 'L' : 'R'}`, mesh: 'glint', translation: [-0.026, 0.04, 0.042], scale: [1, 1, 0.35] },
-    { name: `glintB${side < 0 ? 'L' : 'R'}`, mesh: 'glint', translation: [0.03, -0.028, 0.042], scale: [0.5, 0.5, 0.18] },
-    // Sits in front of the iris but behind the catchlights, so the highlights
-    // stay on top of it the way a real highlight sits on the wet surface.
-    { name: `lash${side < 0 ? 'L' : 'R'}`, mesh: 'lash', translation: [0, 0.078, 0.018], scale: [1.35, 0.34, 0.34] },
-  ];
-};
-
 const NODES = [
   { name: 'root', children: ['body'] },
-  { name: 'body', mesh: 'robe', children: ['cape', 'belt', 'hem', 'armL', 'armR', 'bootL', 'bootR', 'head'] },
+  {
+    name: 'body',
+    mesh: 'torso',
+    children: ['skirt', 'cape', 'belt', 'buckle', 'upperArmL', 'upperArmR', 'thighL', 'thighR', 'neck'],
+  },
+  { name: 'skirt', mesh: 'skirt' },
   { name: 'cape', mesh: 'cape' },
-  { name: 'belt', mesh: 'belt', translation: [0, -0.22, 0] },
-  { name: 'hem', mesh: 'hem', translation: [0, -0.6, 0] },
-  { name: 'bootL', mesh: 'boot', translation: [-0.135, -0.675, 0.055], scale: [1, 0.72, 1.45] },
-  { name: 'bootR', mesh: 'boot', translation: [0.135, -0.675, 0.055], scale: [1, 0.72, 1.45] },
+  { name: 'belt', mesh: 'belt', translation: [0, -0.15, 0] },
+  { name: 'buckle', mesh: 'buckle', translation: [0, -0.15, 0.195], scale: [1.5, 1, 0.5] },
 
-  { name: 'armL', mesh: 'arm', translation: [-0.215, -0.05, 0.05], rotation: [0, 0, -40], children: ['handL'] },
-  { name: 'handL', mesh: 'hand', translation: [0, -0.28, 0] },
-  { name: 'armR', mesh: 'arm', translation: [0.215, -0.05, 0.05], rotation: [0, 0, 40], children: ['handR'] },
-  { name: 'handR', mesh: 'hand', translation: [0, -0.28, 0], children: ['staff'] },
-  // Counter-rotated out of the arm's swing so it hangs plumb at rest.
-  { name: 'staff', mesh: 'staff', rotation: [-6, 0, -40], children: ['staffRing', 'orb', 'sparkA', 'sparkB', 'sparkC'] },
-  { name: 'staffRing', mesh: 'staffRing', translation: [0, 0.485, 0], rotation: [90, 0, 0] },
-  { name: 'orb', mesh: 'orb', translation: [0, 0.485, 0] },
-  { name: 'sparkA', mesh: 'spark', translation: [0.1, 0.56, 0.02] },
-  { name: 'sparkB', mesh: 'spark', translation: [-0.095, 0.545, -0.03] },
-  { name: 'sparkC', mesh: 'spark', translation: [0.01, 0.62, 0.01] },
+  ...arm(-1),
+  ...arm(1),
+  ...leg(-1),
+  ...leg(1),
 
-  { name: 'head', mesh: 'head', translation: [0, HEAD_Y, 0],
-    children: ['hairBack', 'hairCap', 'lockL', 'lockR', 'bang1', 'bang2', 'bang3',
-      'eyeL', 'eyeR', 'browL', 'browR', 'blushL', 'blushR', 'mouthSmile', 'mouthFrown', 'hat'] },
-  { name: 'hairBack', mesh: 'hairBack', translation: [0, -0.1, -0.14], scale: [1.18, 1.05, 1] },
+  { name: 'staff', mesh: 'staff', rotation: [-6, 0, -26], children: ['staffRing', 'orb', 'sparkA', 'sparkB', 'sparkC'] },
+  { name: 'staffRing', mesh: 'staffRing', translation: [0, 0.64, 0], rotation: [90, 0, 0] },
+  { name: 'orb', mesh: 'orb', translation: [0, 0.655, 0] },
+  { name: 'sparkA', mesh: 'spark', translation: [0.1, 0.74, 0.02] },
+  { name: 'sparkB', mesh: 'spark', translation: [-0.095, 0.725, -0.03] },
+  { name: 'sparkC', mesh: 'spark', translation: [0.01, 0.8, 0.01] },
+
+  { name: 'neck', mesh: 'neck', translation: [0, NECK_Y, 0], children: ['head'] },
+  {
+    name: 'head',
+    mesh: 'head',
+    translation: [0, HEAD_Y - NECK_Y, 0],
+    children: [
+      'hairBack', 'hairCap', 'ponytail', 'lockL', 'lockR',
+      'bang1', 'bang2', 'bang3', 'bang4', 'bang5', 'bang6', 'bang7',
+      'earL', 'earR', 'nose',
+      'eyeL', 'eyeR', 'browL', 'browR', 'blushL', 'blushR',
+      'mouthSmile', 'mouthFrown', 'hat',
+    ],
+  },
+  { name: 'hairBack', mesh: 'hairBack', translation: [0, -0.04, -0.115], scale: [1.12, 1.05, 1] },
   { name: 'hairCap', mesh: 'hairCap' },
-  { name: 'lockL', mesh: 'lock', translation: [-0.31, 0.06, 0.02], rotation: [0, 0, 8] },
-  { name: 'lockR', mesh: 'lock', translation: [0.31, 0.06, 0.02], rotation: [0, 0, -8] },
-  { name: 'bang1', mesh: 'bang', translation: [-0.175, 0.085, 0.275], rotation: [0, 0, 13] },
-  { name: 'bang2', mesh: 'bang', translation: [0.01, 0.095, 0.305], rotation: [0, 0, -6] },
-  { name: 'bang3', mesh: 'bang', translation: [0.175, 0.085, 0.275], rotation: [0, 0, -15] },
+  { name: 'ponytail', mesh: 'ponytail', translation: [0, 0.03, -0.275], rotation: [26, 0, 0] },
+  { name: 'lockL', mesh: 'lock', translation: [-0.268, 0.05, 0.02], rotation: [0, 0, 7] },
+  { name: 'lockR', mesh: 'lock', translation: [0.268, 0.05, 0.02], rotation: [0, 0, -7] },
+  { name: 'bang1', mesh: 'bang', translation: [-0.215, 0.112, 0.212], rotation: [0, 0, 19], scale: [1.55, 1, 0.5] },
+  { name: 'bang2', mesh: 'bang', translation: [-0.145, 0.104, 0.258], rotation: [0, 0, 13], scale: [1.55, 1, 0.5] },
+  { name: 'bang3', mesh: 'bang', translation: [-0.075, 0.098, 0.282], rotation: [0, 0, 7], scale: [1.55, 1, 0.5] },
+  { name: 'bang4', mesh: 'bang', translation: [0.0, 0.096, 0.29], rotation: [0, 0, -2], scale: [1.55, 1, 0.5] },
+  { name: 'bang5', mesh: 'bang', translation: [0.075, 0.098, 0.282], rotation: [0, 0, -8], scale: [1.55, 1, 0.5] },
+  { name: 'bang6', mesh: 'bang', translation: [0.145, 0.104, 0.258], rotation: [0, 0, -14], scale: [1.55, 1, 0.5] },
+  { name: 'bang7', mesh: 'bang', translation: [0.215, 0.112, 0.212], rotation: [0, 0, -20], scale: [1.55, 1, 0.5] },
+  { name: 'earL', mesh: 'ear', translation: [-0.3, -0.02, 0.01], rotation: [0, 0, 9], scale: [0.45, 1, 0.78] },
+  { name: 'earR', mesh: 'ear', translation: [0.3, -0.02, 0.01], rotation: [0, 0, -9], scale: [0.45, 1, 0.78] },
+  { name: 'nose', mesh: 'nose', translation: [0, -0.09, 0.265], scale: [0.95, 0.72, 1.15] },
 
   ...eye(-1),
   ...eye(1),
 
-  { name: 'browL', mesh: 'brow', translation: [-0.15, 0.075, 0.3], rotation: [0, -20, 0], scale: [1.5, 0.22, 0.3] },
-  { name: 'browR', mesh: 'brow', translation: [0.15, 0.075, 0.3], rotation: [0, 20, 0], scale: [1.5, 0.22, 0.3] },
-  { name: 'blushL', mesh: 'blush', translation: [-0.225, -0.15, 0.222], rotation: [0, -35, 0], scale: [1.5, 0.92, 0.22] },
-  { name: 'blushR', mesh: 'blush', translation: [0.225, -0.15, 0.222], rotation: [0, 35, 0], scale: [1.5, 0.92, 0.22] },
+  { name: 'browL', mesh: 'brow', translation: [-0.132, 0.07, 0.267], rotation: [0, -20, 0], scale: [1.24, 0.19, 0.28] },
+  { name: 'browR', mesh: 'brow', translation: [0.132, 0.07, 0.267], rotation: [0, 20, 0], scale: [1.24, 0.19, 0.28] },
+  { name: 'blushL', mesh: 'blush', translation: [-0.185, -0.115, 0.174], rotation: [0, -35, 0], scale: [1.5, 0.92, 0.22] },
+  { name: 'blushR', mesh: 'blush', translation: [0.185, -0.115, 0.174], rotation: [0, 35, 0], scale: [1.5, 0.92, 0.22] },
   // Two mouths, swapped by scaling one of them away. A smile cannot be turned
   // into a frown by scaling it, and node transforms are all a clip can drive.
-  { name: 'mouthSmile', mesh: 'mouthSmile', translation: [0, -0.2, 0.286] },
-  { name: 'mouthFrown', mesh: 'mouthFrown', translation: [0, -0.2, 0.286], scale: [0.001, 0.001, 0.001] },
+  { name: 'mouthSmile', mesh: 'mouthSmile', translation: [0, -0.165, 0.218] },
+  { name: 'mouthFrown', mesh: 'mouthFrown', translation: [0, -0.165, 0.218], scale: [0.001, 0.001, 0.001] },
 
   { name: 'hat', children: ['brim', 'cone', 'hatBand', 'star', 'hatTip'] },
   { name: 'brim', mesh: 'brim' },
   { name: 'cone', mesh: 'cone' },
-  { name: 'hatBand', mesh: 'hatBand', translation: [0, 0.285, 0] },
-  { name: 'star', mesh: 'star', translation: [0, 0.285, 0.335] },
+  { name: 'hatBand', mesh: 'hatBand', translation: [0, 0.312, 0] },
+  { name: 'star', mesh: 'star', translation: [0, 0.312, 0.272] },
   // Its own node so the point can flop — the single most expressive thing on
   // the whole figure, and it costs one rotation track per clip.
-  { name: 'hatTip', translation: [0, 0.7, 0], rotation: [10, 0, -38], children: ['tipCone', 'tipBall'] },
+  { name: 'hatTip', translation: [0, 0.72, 0], rotation: [10, 0, -38], children: ['tipCone', 'tipBall'] },
   { name: 'tipCone', mesh: 'tipCone' },
-  { name: 'tipBall', mesh: 'tipBall', translation: [0, 0.23, 0] },
+  { name: 'tipBall', mesh: 'tipBall', translation: [0, 0.21, 0] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -563,13 +715,25 @@ const brows = (times, values) => [
   turn('browL', times, values.map((z) => [0, -20, z])),
   turn('browR', times, values.map((z) => [0, 20, -z])),
 ];
-/** Arms mirror around the body's centre line. */
-const arms = (times, values) => [
-  turn('armL', times, values.map(([x, z]) => [x, 0, -z])),
-  turn('armR', times, values.map(([x, z]) => [x, 0, z])),
+/**
+ * Symmetric limb pairs, given as [pitch, splay]. Splay is mirrored because a
+ * left arm reaching outward and a right arm reaching outward are opposite
+ * signs about Z; pitch is not, because forward is forward for both.
+ */
+const pair = (left, right) => (times, values) => [
+  turn(left, times, values.map(([x, z]) => [x, 0, -z])),
+  turn(right, times, values.map(([x, z]) => [x, 0, z])),
 ];
+const arms = pair('upperArmL', 'upperArmR');
+const foreArms = pair('foreArmL', 'foreArmR');
+const thighs = pair('thighL', 'thighR');
+const shins = pair('shinL', 'shinR');
+
 const HIDDEN = [0.001, 0.001, 0.001];
 const SHOWN = [1, 1, 1];
+/** Rest angles, so every clip rebases off the same numbers. */
+const ARM_REST = [0, 23];
+const FORE_REST = [-6, 8];
 
 const CLIPS = [
   {
@@ -577,37 +741,51 @@ const CLIPS = [
     // settled, and a blink late in the loop.
     name: 'idle',
     tracks: [
-      move('root', [0, 1.8, 3.6], [[0, 0, 0], [0, 0.035, 0], [0, 0, 0]]),
-      size('body', [0, 0.9, 2.7, 3.6], [SHOWN, [1.012, 0.99, 1.012], [0.995, 1.008, 0.995], SHOWN]),
-      turn('head', [0, 0.9, 1.8, 2.7, 3.6], [[0, 0, 0], [0, 0, 2.5], [0, 0, 0], [0, 0, -2.5], [0, 0, 0]]),
-      turn('hatTip', [0, 0.9, 1.8, 2.7, 3.6],
+      move('root', [0, 1.9, 3.8], [[0, 0, 0], [0, 0.03, 0], [0, 0, 0]]),
+      size('body', [0, 0.95, 2.85, 3.8], [SHOWN, [1.01, 0.992, 1.01], [0.996, 1.012, 0.996], SHOWN]),
+      turn('neck', [0, 0.95, 1.9, 2.85, 3.8], [[0, 0, 0], [0, 0, 2.2], [0, 0, 0], [0, 0, -2.2], [0, 0, 0]]),
+      turn('hatTip', [0, 0.95, 1.9, 2.85, 3.8],
         [[10, 0, -38], [12, 0, -45], [10, 0, -38], [8, 0, -33], [10, 0, -38]]),
-      ...arms([0, 1.8, 3.6], [[0, 40], [0, 35], [0, 40]]),
-      turn('lockL', [0, 1.8, 3.6], [[0, 0, 8], [0, 0, 11], [0, 0, 8]]),
-      turn('lockR', [0, 1.8, 3.6], [[0, 0, -8], [0, 0, -11], [0, 0, -8]]),
-      ...eyes([0, 2.85, 2.93, 3.01, 3.6], [SHOWN, SHOWN, [1, 0.08, 1], SHOWN, SHOWN]),
-      size('orb', [0, 1.2, 2.4, 3.6], [SHOWN, [1.09, 1.09, 1.09], [0.96, 0.96, 0.96], SHOWN]),
-      move('sparkA', [0, 1.8, 3.6], [[0.1, 0.56, 0.02], [0.115, 0.585, -0.02], [0.1, 0.56, 0.02]]),
-      move('sparkB', [0, 1.8, 3.6], [[-0.095, 0.545, -0.03], [-0.08, 0.575, 0.02], [-0.095, 0.545, -0.03]]),
-      move('sparkC', [0, 1.8, 3.6], [[0.01, 0.62, 0.01], [-0.01, 0.645, 0.01], [0.01, 0.62, 0.01]]),
+      ...arms([0, 1.9, 3.8], [ARM_REST, [0, 20], ARM_REST]),
+      ...foreArms([0, 1.9, 3.8], [FORE_REST, [-8, 10], FORE_REST]),
+      turn('lockL', [0, 1.9, 3.8], [[0, 0, 7], [0, 0, 10], [0, 0, 7]]),
+      turn('lockR', [0, 1.9, 3.8], [[0, 0, -7], [0, 0, -10], [0, 0, -7]]),
+      turn('ponytail', [0, 1.9, 3.8], [[26, 0, 0], [30, 0, 3], [26, 0, 0]]),
+      ...eyes([0, 3.0, 3.08, 3.16, 3.8], [SHOWN, SHOWN, [1, 0.08, 1], SHOWN, SHOWN]),
+      size('orb', [0, 1.27, 2.54, 3.8], [SHOWN, [1.09, 1.09, 1.09], [0.96, 0.96, 0.96], SHOWN]),
+      move('sparkA', [0, 1.9, 3.8], [[0.1, 0.74, 0.02], [0.115, 0.765, -0.02], [0.1, 0.74, 0.02]]),
+      move('sparkB', [0, 1.9, 3.8], [[-0.095, 0.725, -0.03], [-0.08, 0.755, 0.02], [-0.095, 0.725, -0.03]]),
+      move('sparkC', [0, 1.9, 3.8], [[0.01, 0.8, 0.01], [-0.01, 0.825, 0.01], [0.01, 0.8, 0.01]]),
     ],
   },
   {
     // One ticked question. The same beat as the jsJump keyframes in
     // globals.css — anticipation, launch, hang, squash on landing — so the
     // rendered character and the SVG mascots celebrate in the same rhythm.
+    // The absolute height is smaller than the first pass because the figure is
+    // taller now: the same fraction of its own height reads as the same jump.
     name: 'celebrate',
     tracks: [
       move('root', [0, 0.13, 0.36, 0.55, 0.78, 1.05],
-        [[0, 0, 0], [0, -0.045, 0], [0, 0.3, 0], [0, 0.34, 0], [0, 0.02, 0], [0, 0, 0]]),
+        [[0, 0, 0], [0, -0.035, 0], [0, 0.13, 0], [0, 0.15, 0], [0, 0.01, 0], [0, 0, 0]]),
       size('body', [0, 0.13, 0.36, 0.55, 0.78, 1.05],
-        [SHOWN, [1.08, 0.9, 1.08], [0.93, 1.1, 0.93], SHOWN, [1.1, 0.88, 1.1], SHOWN]),
+        [SHOWN, [1.06, 0.93, 1.06], [0.95, 1.08, 0.95], SHOWN, [1.07, 0.91, 1.07], SHOWN]),
       ...arms([0, 0.13, 0.36, 0.55, 0.78, 1.05],
-        [[0, 40], [0, 26], [0, 112], [0, 124], [0, 54], [0, 40]]),
-      turn('head', [0, 0.13, 0.36, 0.55, 0.78, 1.05],
+        [ARM_REST, [0, 8], [0, 118], [0, 128], [0, 48], ARM_REST]),
+      ...foreArms([0, 0.13, 0.36, 0.55, 0.78, 1.05],
+        [FORE_REST, [-6, 6], [-10, 26], [-12, 30], [-8, 14], FORE_REST]),
+      // Knees come up at the apex, which is what stops a jump reading as the
+      // whole figure sliding upward.
+      ...thighs([0, 0.13, 0.36, 0.55, 0.78, 1.05],
+        [[0, 0], [0, 0], [-20, 0], [-24, 0], [-5, 0], [0, 0]]),
+      ...shins([0, 0.13, 0.36, 0.55, 0.78, 1.05],
+        [[0, 0], [0, 0], [36, 0], [42, 0], [8, 0], [0, 0]]),
+      turn('neck', [0, 0.13, 0.36, 0.55, 0.78, 1.05],
         [[0, 0, 0], [0, 0, 0], [-8, 0, 0], [-10, 0, 0], [4, 0, 0], [0, 0, 0]]),
       turn('hatTip', [0, 0.13, 0.36, 0.55, 0.78, 1.05],
         [[10, 0, -38], [8, 0, -30], [16, 0, -58], [14, 0, -52], [6, 0, -24], [10, 0, -38]]),
+      turn('ponytail', [0, 0.13, 0.36, 0.55, 0.78, 1.05],
+        [[26, 0, 0], [22, 0, 0], [42, 0, 0], [38, 0, 0], [18, 0, 0], [26, 0, 0]]),
       ...eyes([0, 0.13, 0.36, 0.55, 0.78, 1.05],
         [SHOWN, SHOWN, [1.06, 0.42, 1], [1.06, 0.42, 1], [1, 0.9, 1], SHOWN]),
       ...brows([0, 0.13, 0.36, 0.78, 1.05], [0, -6, -11, -4, 0]),
@@ -621,21 +799,29 @@ const CLIPS = [
     ],
   },
   {
-    // A finished heading or section: the same jump, higher, with a full turn.
-    // Four 90-degree keys rather than one 360, because a rotation track
-    // interpolates the short way round and would otherwise not turn at all.
+    // A finished heading or section: the same jump with a full turn. Four
+    // 90-degree keys rather than one 360, because a rotation track interpolates
+    // the short way round and would otherwise not turn at all.
     name: 'milestone',
     tracks: [
       move('root', [0, 0.2, 0.5, 0.82, 1.12, 1.45, 1.7],
-        [[0, 0, 0], [0, -0.055, 0], [0, 0.3, 0], [0, 0.34, 0], [0, 0.28, 0], [0, 0.02, 0], [0, 0, 0]]),
+        [[0, 0, 0], [0, -0.045, 0], [0, 0.13, 0], [0, 0.15, 0], [0, 0.125, 0], [0, 0.01, 0], [0, 0, 0]]),
       turn('root', [0, 0.2, 0.5, 0.82, 1.12, 1.45, 1.7],
         [[0, 0, 0], [0, 0, 0], [0, 90, 0], [0, 180, 0], [0, 270, 0], [0, 360, 0], [0, 360, 0]]),
       size('body', [0, 0.2, 0.5, 0.82, 1.45, 1.7],
-        [SHOWN, [1.09, 0.89, 1.09], [0.92, 1.12, 0.92], SHOWN, [1.11, 0.87, 1.11], SHOWN]),
+        [SHOWN, [1.07, 0.92, 1.07], [0.94, 1.1, 0.94], SHOWN, [1.08, 0.9, 1.08], SHOWN]),
       ...arms([0, 0.2, 0.5, 0.82, 1.12, 1.45, 1.7],
-        [[0, 40], [0, 24], [0, 124], [0, 134], [0, 124], [0, 54], [0, 40]]),
+        [ARM_REST, [0, 6], [0, 126], [0, 136], [0, 126], [0, 50], ARM_REST]),
+      ...foreArms([0, 0.2, 0.5, 0.82, 1.12, 1.45, 1.7],
+        [FORE_REST, [-6, 4], [-12, 30], [-14, 34], [-12, 30], [-8, 14], FORE_REST]),
+      ...thighs([0, 0.2, 0.5, 0.82, 1.12, 1.45, 1.7],
+        [[0, 0], [0, 0], [-24, 0], [-28, 0], [-24, 0], [-6, 0], [0, 0]]),
+      ...shins([0, 0.2, 0.5, 0.82, 1.12, 1.45, 1.7],
+        [[0, 0], [0, 0], [42, 0], [48, 0], [42, 0], [10, 0], [0, 0]]),
       turn('hatTip', [0, 0.2, 0.5, 0.82, 1.12, 1.45, 1.7],
         [[10, 0, -38], [6, 0, -26], [20, 0, -66], [18, 0, -60], [16, 0, -56], [4, 0, -22], [10, 0, -38]]),
+      turn('ponytail', [0, 0.2, 0.5, 0.82, 1.45, 1.7],
+        [[26, 0, 0], [20, 0, 0], [46, 0, 0], [40, 0, 0], [16, 0, 0], [26, 0, 0]]),
       ...eyes([0, 0.2, 0.5, 1.12, 1.45, 1.7],
         [SHOWN, SHOWN, [1.08, 0.38, 1], [1.08, 0.38, 1], [1, 0.9, 1], SHOWN]),
       ...brows([0, 0.2, 0.5, 1.45, 1.7], [0, -8, -13, -5, 0]),
@@ -649,18 +835,20 @@ const CLIPS = [
     ],
   },
   {
-    // Coming back after a run has lapsed. Slumped, head down, hat point almost
-    // folded over, arms hanging, and the mouth swapped for the frown. Gentle —
-    // it is meant to be recognised, not obeyed.
+    // Coming back after a run has lapsed. Slumped from the waist, head down on
+    // the neck, hat point almost folded over, arms hanging, mouth swapped for
+    // the frown. Gentle — it is meant to be recognised, not obeyed.
     name: 'sad',
     tracks: [
-      move('root', [0, 1.5, 3.0], [[0, -0.06, 0], [0, -0.09, 0], [0, -0.06, 0]]),
-      turn('body', [0, 1.5, 3.0], [[7, 0, 0], [8.5, 0, 0], [7, 0, 0]]),
-      turn('head', [0, 1.5, 3.0], [[14, 0, 0], [16, 0, -2], [14, 0, 0]]),
+      move('root', [0, 1.5, 3.0], [[0, -0.05, 0], [0, -0.075, 0], [0, -0.05, 0]]),
+      turn('body', [0, 1.5, 3.0], [[8, 0, 0], [9.5, 0, 0], [8, 0, 0]]),
+      turn('neck', [0, 1.5, 3.0], [[16, 0, 0], [18, 0, -2], [16, 0, 0]]),
       turn('hatTip', [0, 1.5, 3.0], [[18, 0, -64], [21, 0, -71], [18, 0, -64]]),
-      ...arms([0, 1.5, 3.0], [[0, 22], [0, 20], [0, 22]]),
-      turn('lockL', [0, 3.0], [[0, 0, 13], [0, 0, 13]]),
-      turn('lockR', [0, 3.0], [[0, 0, -13], [0, 0, -13]]),
+      ...arms([0, 1.5, 3.0], [[3, 8], [3, 6], [3, 8]]),
+      ...foreArms([0, 1.5, 3.0], [[-4, 4], [-4, 3], [-4, 4]]),
+      turn('lockL', [0, 3.0], [[0, 0, 12], [0, 0, 12]]),
+      turn('lockR', [0, 3.0], [[0, 0, -12], [0, 0, -12]]),
+      turn('ponytail', [0, 1.5, 3.0], [[14, 0, 0], [12, 0, 0], [14, 0, 0]]),
       ...brows([0, 1.5, 3.0], [17, 19, 17]),
       ...eyes([0, 3.0], [[1, 0.92, 1], [1, 0.92, 1]]),
       size('mouthSmile', [0, 3.0], [HIDDEN, HIDDEN]),
@@ -673,17 +861,21 @@ const CLIPS = [
   },
   {
     // The softer one: nothing has broken, the pace has just dropped. A slow
-    // head tilt, a hand up near the chin, brows only half as worried as `sad`
-    // and a smaller frown — visibly not sad, and visibly not fine either.
+    // head tilt, a hand brought up to the chin, brows only half as worried as
+    // `sad` and a smaller frown — visibly not sad, and visibly not fine.
     name: 'concerned',
     tracks: [
-      move('root', [0, 1.6, 3.2], [[0, -0.015, 0], [0, 0.012, 0], [0, -0.015, 0]]),
-      turn('head', [0, 0.8, 1.6, 2.4, 3.2],
+      move('root', [0, 1.6, 3.2], [[0, -0.012, 0], [0, 0.01, 0], [0, -0.012, 0]]),
+      turn('neck', [0, 0.8, 1.6, 2.4, 3.2],
         [[3, 0, 7], [3, 0, 0], [3, 0, -7], [3, 0, 0], [3, 0, 7]]),
       turn('hatTip', [0, 0.8, 1.6, 2.4, 3.2],
         [[12, 0, -50], [14, 0, -58], [12, 0, -44], [14, 0, -52], [12, 0, -50]]),
-      turn('armL', [0, 1.6, 3.2], [[0, 0, 64], [0, 0, 68], [0, 0, 64]]),
-      turn('armR', [0, 1.6, 3.2], [[0, 0, 36], [0, 0, 34], [0, 0, 36]]),
+      // Asymmetric, so the mirroring helper does not apply: the left hand
+      // comes up to the chin while the right keeps hold of the staff.
+      turn('upperArmL', [0, 1.6, 3.2], [[10, 0, -13], [12, 0, -15], [10, 0, -13]]),
+      turn('foreArmL', [0, 1.6, 3.2], [[-98, 0, -14], [-102, 0, -16], [-98, 0, -14]]),
+      turn('upperArmR', [0, 1.6, 3.2], [[0, 0, 22], [0, 0, 20], [0, 0, 22]]),
+      turn('foreArmR', [0, 1.6, 3.2], [[-8, 0, 9], [-9, 0, 8], [-8, 0, 9]]),
       ...brows([0, 1.6, 3.2], [10, 12, 10]),
       ...eyes([0, 3.2], [[1, 0.88, 1], [1, 0.88, 1]]),
       size('mouthSmile', [0, 3.2], [HIDDEN, HIDDEN]),
@@ -692,27 +884,29 @@ const CLIPS = [
     ],
   },
   {
-    // A focus session is running. Staff held out, orb on a steady pulse, eyes
-    // narrowed and brows drawn in, mouth flattened to a line. The one pose that
-    // means "right now" rather than "lately", so it has to read as
-    // concentration rather than as either mood.
+    // A focus session is running. Staff held out in front, orb on a steady
+    // pulse, eyes narrowed and brows drawn in, mouth flattened to a line. The
+    // one pose that means "right now" rather than "lately", so it has to read
+    // as concentration rather than as either mood.
     name: 'focused',
     tracks: [
-      move('root', [0, 2.3, 4.6], [[0, 0, 0], [0, 0.018, 0], [0, 0, 0]]),
-      turn('head', [0, 2.3, 4.6], [[4, 0, 0], [4, 0, 1.5], [4, 0, 0]]),
+      move('root', [0, 2.3, 4.6], [[0, 0, 0], [0, 0.016, 0], [0, 0, 0]]),
+      turn('neck', [0, 2.3, 4.6], [[4, 0, 0], [4, 0, 1.5], [4, 0, 0]]),
       turn('hatTip', [0, 1.15, 2.3, 3.45, 4.6],
         [[10, 0, -40], [11, 0, -44], [10, 0, -40], [9, 0, -36], [10, 0, -40]]),
-      turn('armL', [0, 4.6], [[0, 0, 34], [0, 0, 34]]),
-      turn('armR', [0, 2.3, 4.6], [[-22, 0, 48], [-24, 0, 50], [-22, 0, 48]]),
+      turn('upperArmL', [0, 4.6], [[0, 0, -16], [0, 0, -16]]),
+      turn('foreArmL', [0, 4.6], [[-8, 0, -8], [-8, 0, -8]]),
+      turn('upperArmR', [0, 2.3, 4.6], [[-36, 0, 25], [-38, 0, 26], [-36, 0, 25]]),
+      turn('foreArmR', [0, 2.3, 4.6], [[-16, 0, 10], [-17, 0, 11], [-16, 0, 10]]),
       ...brows([0, 4.6], [-7, -7]),
       ...eyes([0, 3.55, 3.63, 3.71, 4.6],
         [[1, 0.7, 1], [1, 0.7, 1], [1, 0.08, 1], [1, 0.7, 1], [1, 0.7, 1]]),
       size('mouthSmile', [0, 4.6], [[0.72, 0.3, 1], [0.72, 0.3, 1]]),
       size('orb', [0, 1.15, 2.3, 3.45, 4.6],
         [SHOWN, [1.2, 1.2, 1.2], SHOWN, [1.14, 1.14, 1.14], SHOWN]),
-      move('sparkA', [0, 2.3, 4.6], [[0.1, 0.56, 0.02], [0.05, 0.59, 0.09], [0.1, 0.56, 0.02]]),
-      move('sparkB', [0, 2.3, 4.6], [[-0.095, 0.545, -0.03], [-0.05, 0.59, -0.09], [-0.095, 0.545, -0.03]]),
-      move('sparkC', [0, 2.3, 4.6], [[0.01, 0.62, 0.01], [0.02, 0.66, 0.0], [0.01, 0.62, 0.01]]),
+      move('sparkA', [0, 2.3, 4.6], [[0.1, 0.74, 0.02], [0.05, 0.77, 0.09], [0.1, 0.74, 0.02]]),
+      move('sparkB', [0, 2.3, 4.6], [[-0.095, 0.725, -0.03], [-0.05, 0.77, -0.09], [-0.095, 0.725, -0.03]]),
+      move('sparkC', [0, 2.3, 4.6], [[0.01, 0.8, 0.01], [0.02, 0.84, 0.0], [0.01, 0.8, 0.01]]),
     ],
   },
 ];

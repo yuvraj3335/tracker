@@ -152,7 +152,7 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
   }
 
   const ringSize = isFullscreen ? 'min(60vmin, 420px)' : 'min(52vw, 228px)';
-  const figureSize = isFullscreen ? 128 : 96;
+  const figureSize = isFullscreen ? 190 : 140;
   // Remaining, not elapsed: a countdown ring should empty as the time does.
   const left = live || status === 'done' ? 1 - elapsedFraction(remaining, total) : 1;
 
