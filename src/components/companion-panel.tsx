@@ -22,6 +22,7 @@ import {
   getVoice,
   getVoiceName,
   listVoices,
+  cutSentences,
   listen,
   loadEngine,
   naturalVoice,
@@ -121,16 +122,86 @@ export function CompanionPanel({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: next, characterId: character?.id ?? null }),
         });
-        const data = (await res.json().catch(() => null)) as
-          | { ok?: boolean; reply?: string; message?: string }
-          | null;
 
-        if (data?.ok && data.reply) {
-          setMessages((m) => [...m, { role: 'assistant', content: data.reply as string }]);
-          advance('reply');
-          speak(data.reply, () => advance('spoke'));
+        // Anything that went wrong is JSON; the reply itself is a plain text
+        // stream. The content type is the test, rather than guessing from the
+        // shape of what arrives.
+        const streamed = res.ok && res.body && !(res.headers.get('content-type') ?? '').includes('json');
+
+        if (streamed && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let whole = '';
+          let started = false;
+
+          // Every sentence is spoken the moment it is complete — nothing is
+          // held back waiting to find out which one is last, because holding
+          // the first sentence until the second arrives costs exactly the
+          // delay this whole change exists to remove.
+          //
+          // Which one is last is worked out by counting instead: the turn is
+          // handed on once the stream has ended AND everything queued from it
+          // has finished being said, whichever of those happens second.
+          let queued = 0;
+          let spokenThrough = 0;
+          let ended = false;
+          const utter = (line: string) => {
+            queued += 1;
+            speak(
+              line,
+              () => {
+                spokenThrough += 1;
+                if (ended && spokenThrough === queued) advance('spoke');
+              },
+              true,
+            );
+          };
+
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const piece = decoder.decode(value, { stream: true });
+            if (!piece) continue;
+            buffer += piece;
+            whole += piece;
+
+            if (!started) {
+              // The dots go the moment there are words, not when the whole
+              // reply has landed.
+              started = true;
+              advance('reply');
+              setMessages((m) => [...m, { role: 'assistant', content: whole }]);
+            } else {
+              setMessages((m) => {
+                const copy = [...m];
+                copy[copy.length - 1] = { role: 'assistant', content: whole };
+                return copy;
+              });
+            }
+
+            const [sentences, rest] = cutSentences(buffer);
+            buffer = rest;
+            for (const sentence of sentences) utter(sentence);
+          }
+
+          const tail = buffer.trim();
+          if (tail) utter(tail);
+
+          if (!started) {
+            setProblem('Your companion did not have anything to say to that. Try asking another way.');
+            advance('error');
+            return;
+          }
+
+          ended = true;
+          // Everything may already have been said while the stream was still
+          // open, in which case the last callback has been and gone.
+          if (spokenThrough === queued) advance('spoke');
           return;
         }
+
+        const data = (await res.json().catch(() => null)) as { message?: string } | null;
         setProblem(
           res.status === 401
             ? 'Your session has ended. Sign in again to keep talking.'

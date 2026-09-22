@@ -62,8 +62,10 @@ import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate
 import { buildSnapshot } from '../src/lib/companion-context';
 import {
   SPEECH_START_MS, SPEECH_WATCHDOG_MS,
-  pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
+  cutSentences, pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
 } from '../src/lib/speech';
+import { getPersona, hasPersona, personaPrompt } from '../src/lib/persona';
+import { splitEvents, textOfEvent } from '../src/lib/anthropic-stream';
 import { KOKORO_PREFIX, KOKORO_VOICES, MODEL_MEGABYTES, kokoroVoice, shouldAutoLoad } from '../src/lib/kokoro';
 import { fixtures } from '../src/lib/fixtures';
 import {
@@ -1439,6 +1441,42 @@ async function main() {
       Array.from({ length: 24 }, (_, i) => prosody(i % 2 ? 'Wow!' : 'Really?', i)).every(
         (p) => p.rate >= 0.85 && p.rate <= 1.2 && p.pitch >= 0.9 && p.pitch <= 1.25));
 
+    // ---- cutting a reply that is still arriving
+    // The reply streams in a few characters at a time and the whole point is
+    // to start speaking before it has finished, so what counts as a finished
+    // sentence has to be right on a half-written buffer.
+    {
+      const [done, rest] = cutSentences('I am fine. How are y');
+      check('a complete sentence comes out', done.length === 1 && done[0] === 'I am fine.');
+      check('the half-written one waits', rest.trim() === 'How are y');
+    }
+    {
+      const [done, rest] = cutSentences('Nine of them so far. Want to keep going? Sure.');
+      check('several come out at once', done.length === 2);
+      check('the question mark is kept', done[1].endsWith('?'));
+      // The last one is held deliberately: nothing says the stream has
+      // finished, and "Sure." may yet turn out to be "Sure, if you want to."
+      check('the final sentence is held back for more', rest.trim() === 'Sure.');
+    }
+    // A full stop at the very end of the buffer is not a finished sentence —
+    // there is no character after it yet, which is the only evidence there is.
+    check('a number is not a full stop',
+      cutSentences('You have done 3.5 hours of this today.')[0].length === 0);
+    check('but a decimal mid-buffer does not split either',
+      cutSentences('You have done 3.5 hours of this today. And more.')[0].length === 1);
+    check('an unfinished sentence yields nothing', cutSentences('I was just about to')[0].length === 0);
+    check('nothing is lost between the halves',
+      (() => { const [d, r] = cutSentences('Alpha beta gamma. Delta epsi'); return d.join(' ') + ' ' + r.trim(); })()
+        === 'Alpha beta gamma. Delta epsi');
+    check('trailing punctuation stays together',
+      cutSentences('Are you seriously asking me that?! Yes.')[0][0] === 'Are you seriously asking me that?!');
+    // A two-word fragment said on its own is a gap with a word in it, so it
+    // rides along with whatever follows instead.
+    check('a stray short fragment is not its own utterance',
+      (() => { const [d] = cutSentences('Oh. That is a much longer sentence here. Next.');
+               return d.length === 1 && d[0] === 'Oh. That is a much longer sentence here.'; })());
+    check('an empty buffer is not a sentence', cutSentences('')[0].length === 0);
+
     // ---- not being stranded by an engine that says nothing
     // A refused utterance fires no events at all, which on a phone means the
     // conversation stops at hello and never opens the microphone again.
@@ -1493,6 +1531,97 @@ async function main() {
       !shouldAutoLoad({ effectiveType: '4g', deviceMemory: 2 }));
     check('Data Saver beats a fast connection', !shouldAutoLoad({ saveData: true, effectiveType: '4g' }));
     check('the download size is quoted honestly', MODEL_MEGABYTES > 0 && MODEL_MEGABYTES < 200);
+  }
+
+  // -----------------------------------------------------------------------
+  // Who the companion is. This repository is public, so none of it is in the
+  // source — it comes from the environment or it does not exist, and the
+  // default has to be a working companion that gives nothing away.
+  // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Unwrapping the reply as it arrives. A stream that silently yields nothing
+  // looks exactly like a model with nothing to say, so this is worth pinning
+  // down against the real wire format rather than trusting it in production.
+  // -----------------------------------------------------------------------
+  section('Streaming replies');
+  {
+    const ev = (type: string, body: Record<string, unknown>) =>
+      `event: ${type}\ndata: ${JSON.stringify({ type, ...body })}`;
+    const delta = (text: string) =>
+      ev('content_block_delta', { index: 0, delta: { type: 'text_delta', text } });
+
+    check('a text delta is the text', textOfEvent(delta('Oh no.')) === 'Oh no.');
+    check('a ping says nothing', textOfEvent(ev('ping', {})) === '');
+    check('message_start says nothing', textOfEvent(ev('message_start', { message: {} })) === '');
+    check('content_block_stop says nothing', textOfEvent(ev('content_block_stop', { index: 0 })) === '');
+    check('malformed JSON is skipped, not thrown',
+      textOfEvent('event: content_block_delta\ndata: {oops') === '');
+    check('[DONE] is not spoken', textOfEvent('data: [DONE]') === '');
+    // Reading delta.text without checking the type would one day splice tool
+    // arguments into the middle of a sentence.
+    check('a non-text delta is not spoken',
+      textOfEvent(ev('content_block_delta', { delta: { type: 'input_json_delta', partial_json: '{\"a\":1}' } })) === '');
+    check('whitespace in a delta is preserved', textOfEvent(delta(' really draining. ')) === ' really draining. ');
+
+    // Events arrive split across TCP reads at arbitrary points.
+    {
+      const [events, rest] = splitEvents(`${delta('Hello')}\n\n${delta(' there')}\n\nevent: cont`);
+      check('whole events come out', events.length === 2);
+      check('a half-arrived event waits for the rest of itself', rest === 'event: cont');
+      check('and the words are in order',
+        events.map(textOfEvent).join('') === 'Hello there');
+    }
+    check('an empty buffer yields no events', splitEvents('')[0].length === 0);
+    check('a buffer with no boundary yet yields nothing',
+      splitEvents('event: content_block_delta')[0].length === 0);
+
+    // The whole thing, byte by byte, the way it actually arrives.
+    {
+      const wire = [delta('Oh no. '), delta('Have you eaten? '), delta('Toast counts.')].join('\n\n') + '\n\n';
+      let buffer = '';
+      let out = '';
+      for (const ch of wire) {
+        buffer += ch;
+        const [events, rest] = splitEvents(buffer);
+        buffer = rest;
+        for (const e of events) out += textOfEvent(e);
+      }
+      check('one character at a time still reassembles exactly',
+        out === 'Oh no. Have you eaten? Toast counts.');
+    }
+  }
+
+  section('Persona');
+  {
+    const empty = { person: '', style: '', openers: [] as string[] };
+    check('an unconfigured deployment has no persona', !hasPersona(empty));
+    check('and adds nothing to the prompt', personaPrompt(empty) === '');
+    check('any one field is enough to count',
+      hasPersona({ ...empty, person: 'someone' }) &&
+      hasPersona({ ...empty, style: 'warmly' }) &&
+      hasPersona({ ...empty, openers: ['hey'] }));
+
+    const full = { person: 'Ada, who is often tired', style: 'short, warm, lowercase', openers: ['hey', 'oh no'] };
+    const prompt = personaPrompt(full);
+    check('who it is talking to reaches the prompt', prompt.includes('Ada, who is often tired'));
+    check('and how to talk', prompt.includes('short, warm, lowercase'));
+    check('openers are offered as a feel, not a script',
+      prompt.includes('hey') && prompt.includes('rather than to be repeated'));
+    check('style is marked as outranking the generic warmth',
+      prompt.includes('matters more than anything else'));
+
+    // Read from the environment, so a stray value cannot quietly grow every
+    // request, and nothing personal is ever the default.
+    const before = process.env.COMPANION_PERSON;
+    delete process.env.COMPANION_PERSON;
+    check('nothing set means nothing read', getPersona().person === '');
+    process.env.COMPANION_PERSON = 'x'.repeat(5000);
+    check('a runaway value is capped', getPersona().person.length <= 2000);
+    if (before === undefined) delete process.env.COMPANION_PERSON;
+    else process.env.COMPANION_PERSON = before;
+
+    const openers = { ...empty, openers: [] as string[] };
+    check('an empty opener list is not a persona', !hasPersona(openers));
   }
 
   section('Keyboard mapping');

@@ -187,6 +187,40 @@ export function prosody(sentence: string, index: number): { rate: number; pitch:
   return { rate: clamp(rate, 0.85, 1.2), pitch: clamp(pitch, 0.9, 1.25) };
 }
 
+/**
+ * Pulls finished sentences out of a buffer that is still being written to.
+ *
+ * The reply arrives a few characters at a time, and the whole point is to
+ * start speaking before it has finished arriving. This returns the sentences
+ * that are definitely complete and whatever is left over, so the leftover can
+ * wait for the rest of itself.
+ *
+ * A sentence is only complete when something follows the full stop — without
+ * that rule "3." in "3.5" would be a sentence, and so would every half-typed
+ * abbreviation. `min` keeps a stray "Oh." from becoming its own utterance
+ * with all the gap that implies, while still being short enough that the
+ * first thing said arrives quickly.
+ */
+export function cutSentences(buffer: string, min = 10): [string[], string] {
+  const out: string[] = [];
+  let start = 0;
+  for (let i = 0; i < buffer.length - 1; i++) {
+    const c = buffer[i];
+    if (c !== '.' && c !== '!' && c !== '?' && c !== '\n') continue;
+    // Run past "?!" and "..." so they stay with the sentence they belong to.
+    let end = i;
+    while (end + 1 < buffer.length && '.!?'.includes(buffer[end + 1])) end++;
+    const after = buffer[end + 1];
+    if (after !== undefined && !/\s/.test(after)) continue;
+    const sentence = buffer.slice(start, end + 1).trim();
+    if (sentence.length < min) continue;
+    out.push(sentence);
+    start = end + 1;
+    i = end;
+  }
+  return [out, buffer.slice(start)];
+}
+
 export function splitForSpeech(text: string, max = 180): string[] {
   const clean = sayable(text);
   if (!clean) return [];
@@ -348,6 +382,44 @@ export function primeAudio() {
     /* an engine that refuses is an engine we fall back from anyway */
   }
   primeKokoroAudio();
+  primeMicrophone();
+}
+
+/**
+ * Whether the microphone has been granted, as far as we have been told.
+ *
+ * `null` means nobody has asked yet.
+ */
+let micReady: boolean | null = null;
+
+/**
+ * Gets the microphone permission out of the way up front.
+ *
+ * Speech recognition asks for the microphone the moment it starts, and while
+ * that prompt is on screen it reports `not-allowed` — which the conversation
+ * was treating as a real refusal and resting on. The result is the bug where
+ * opening it does nothing and you have to press the microphone button
+ * yourself afterwards, by which time permission has been granted and it
+ * works. Asking here, inside the tap, means the prompt happens once, before
+ * anything depends on the answer.
+ *
+ * Deliberately not awaited: the tap must not block on a dialogue, and the
+ * conversation copes either way.
+ */
+export function primeMicrophone() {
+  if (micReady !== null) return;
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return;
+  navigator.mediaDevices
+    .getUserMedia({ audio: true })
+    .then((stream) => {
+      // The permission is the point; the stream itself is not wanted, and
+      // leaving it open would light the recording indicator for the session.
+      stream.getTracks().forEach((track) => track.stop());
+      micReady = true;
+    })
+    .catch(() => {
+      micReady = false;
+    });
 }
 
 /**
@@ -524,6 +596,19 @@ export const canListen = (): boolean => recognitionConstructor() !== null;
  */
 export const END_OF_THOUGHT_MS = 1100;
 
+/**
+ * How many refusals to sit through before believing one.
+ *
+ * The microphone permission prompt reports a refusal for as long as it is on
+ * screen, so the first few mean "nobody has answered the dialogue yet" rather
+ * than "no". Reading them literally is what made opening the panel appear to
+ * do nothing at all.
+ */
+export const PATIENCE = 4;
+
+/** Long enough that a refusal loop is not a spin, short enough to feel instant. */
+export const RETRY_MS = 400;
+
 export type ListenHandlers = {
   /** Fires as they speak, for the live caption. Never final. */
   onPartial: (text: string) => void;
@@ -563,6 +648,8 @@ export function listen(handlers: ListenHandlers): () => void {
   let stopped = false;
   let pending = '';
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let retry: ReturnType<typeof setTimeout> | null = null;
+  let failures = 0;
 
   const flush = () => {
     const text = pending.trim();
@@ -603,23 +690,47 @@ export function listen(handlers: ListenHandlers): () => void {
     recognition.onerror = (event) => {
       // Quiet is not a failure when the microphone is meant to stay open.
       if (event.error === 'no-speech' || event.error === 'aborted') return;
-      handlers.onError(recognitionMessage(event.error));
-      stopped = true;
+
+      // A permission prompt that is still on screen reports exactly this, and
+      // treating it as a refusal is what made opening the panel do nothing.
+      // It is only a real refusal once we have asked a few times and kept
+      // being told no.
+      const fatal = event.error === 'not-allowed' || event.error === 'service-not-allowed';
+      failures += 1;
+      if (!fatal || failures > PATIENCE) {
+        handlers.onError(recognitionMessage(event.error));
+        stopped = true;
+        return;
+      }
+      // Otherwise say nothing and let `onend` try again in a moment.
     };
 
-    // Browsers end a session on their own after a stretch of quiet. Reopening
-    // is what makes "it keeps listening" actually true.
+    // Browsers end a session on their own after a stretch of quiet, and a
+    // refused one ends immediately. Reopening is what makes "it keeps
+    // listening" true; the delay is what keeps a refusal from becoming a spin.
     recognition.onend = () => {
       if (stopped) return;
-      open();
+      reopen(failures ? RETRY_MS : 0);
     };
 
     try {
       recognition.start();
+      // A session that starts is a session that works; anything that went
+      // wrong before this does not count against the next one.
+      failures = 0;
     } catch {
-      // Already running: the previous session had not finished tearing down.
-      // Its own onend will reopen.
+      // Already running, or refused outright. Either way `onend` may never
+      // come, so the retry has to be armed here as well.
+      reopen(RETRY_MS);
     }
+  };
+
+  const reopen = (delay: number) => {
+    if (stopped || retry) return;
+    retry = setTimeout(() => {
+      retry = null;
+      open();
+    }, delay);
   };
 
   open();
@@ -627,6 +738,7 @@ export function listen(handlers: ListenHandlers): () => void {
   return () => {
     stopped = true;
     if (timer) clearTimeout(timer);
+    if (retry) clearTimeout(retry);
     try {
       recognition?.abort();
     } catch {

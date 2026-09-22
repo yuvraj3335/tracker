@@ -5,7 +5,9 @@ import { discoverCharacters } from '@/lib/characters.server';
 import { resolveCharacter } from '@/lib/characters';
 import { createRateLimiter, retryAfterSeconds } from '@/lib/rate-limit';
 import { buildSnapshot } from '@/lib/companion-context';
-import { sanitiseHistory, systemPrompt, tidyReply } from '@/lib/companion-prompt';
+import { MAX_REPLY_CHARS, sanitiseHistory, systemPrompt } from '@/lib/companion-prompt';
+import { getPersona, personaPrompt } from '@/lib/persona';
+import { splitEvents, textOfEvent } from '@/lib/anthropic-stream';
 
 export const runtime = 'nodejs';
 /** A conversation, so it either answers quickly or it has not answered. */
@@ -134,8 +136,14 @@ export async function POST(req: Request) {
         model: MODEL,
         max_tokens: MAX_TOKENS,
         temperature: 1,
-        system: systemPrompt(character, snapshot),
+        system: systemPrompt(character, snapshot, personaPrompt(getPersona())),
         messages,
+        // Streamed, because the wait that matters is the wait before the
+        // first word is heard. The voice is generated a sentence at a time on
+        // the listener's machine, so the moment one sentence is complete it
+        // can start being spoken while the rest is still being written.
+        // Waiting for the whole reply first stacked the two waits end to end.
+        stream: true,
       }),
     });
 
@@ -147,16 +155,86 @@ export async function POST(req: Request) {
       return fail(502, res.status === 429 ? COPY.tooMany : COPY.upstream);
     }
 
-    const data = (await res.json()) as { content?: { type?: string; text?: unknown }[] };
-    const spoken = data.content?.find((block) => block.type === 'text')?.text;
-    const reply = tidyReply(spoken);
-    if (!reply) return fail(502, COPY.empty);
-    return NextResponse.json<Reply>({ ok: true, reply });
+    if (!res.body) return fail(502, COPY.upstream);
+
+    // Past this point the answer is a stream of text and nothing else. Errors
+    // before it are JSON, which is how the client tells the two apart — it
+    // reads the content type rather than guessing from the shape.
+    clearTimeout(timer);
+    return new Response(textOf(res.body, abort), {
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'cache-control': 'no-store',
+        // Proxies that buffer would undo the entire point of streaming.
+        'x-accel-buffering': 'no',
+      },
+    });
   } catch (e) {
+    clearTimeout(timer);
     const aborted = (e as Error)?.name === 'AbortError';
     if (!aborted) console.error('[companion] request failed:', (e as Error)?.message);
     return fail(504, aborted ? COPY.slow : COPY.upstream);
-  } finally {
-    clearTimeout(timer);
   }
+}
+
+/**
+ * Anthropic's event stream, turned into plain text on the wire.
+ *
+ * The parsing itself lives in `anthropic-stream.ts` so it can be tested
+ * without a network or a key. This is the pump around it: read, split on
+ * event boundaries, write out whatever words came back.
+ *
+ * Capped at the same reply length as before. A model that runs away mid
+ * sentence is a model reading aloud for a minute, and the cap is enforced
+ * where the bytes are rather than trusted to the prompt.
+ */
+function textOf(body: ReadableStream<Uint8Array>, abort: AbortController): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+  let written = 0;
+
+  return new ReadableStream({
+    async start(controller) {
+      const reader = body.getReader();
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const [events, rest] = splitEvents(buffer);
+          buffer = rest;
+
+          for (const event of events) {
+            const text = textOfEvent(event);
+            if (!text) continue;
+
+            const room = MAX_REPLY_CHARS - written;
+            if (room <= 0) {
+              abort.abort();
+              controller.close();
+              return;
+            }
+            const piece = text.slice(0, room);
+            written += piece.length;
+            controller.enqueue(encoder.encode(piece));
+          }
+        }
+        controller.close();
+      } catch (e) {
+        // A stream that dies mid-sentence has still said something, and the
+        // client speaks what it got rather than throwing the turn away.
+        console.error('[companion] stream ended early:', (e as Error)?.message);
+        controller.close();
+      } finally {
+        reader.releaseLock();
+      }
+    },
+    cancel() {
+      // The listener closed the panel or interrupted. Stop paying for tokens
+      // nobody is going to hear.
+      abort.abort();
+    },
+  });
 }
