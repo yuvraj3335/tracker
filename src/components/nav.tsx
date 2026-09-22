@@ -44,7 +44,13 @@ export function Nav({ username }: { username: string | null }) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-hairline bg-plane/85 backdrop-blur-md">
+      <header
+        // Marked so the sheet can measure it rather than assume its height.
+        // The two used to agree only by a comment, and a comment does not
+        // notice when a row of filters wraps onto a second line.
+        data-chrome="nav"
+        className="sticky top-0 z-30 border-b border-hairline bg-plane/85 backdrop-blur-md"
+      >
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-1 px-4">
           <Link href="/" className="mr-2 flex items-center gap-2 font-semibold tracking-tight">
             <span className="grid size-6 place-items-center rounded-md bg-accent text-meta text-accent-ink">

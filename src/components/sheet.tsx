@@ -34,6 +34,16 @@ import { cn } from '@/lib/utils';
  *    query on change. No per-row refs, observers or timers — there is exactly
  *    one keydown listener for the whole sheet.
  */
+/**
+ * What to assume before anything has been measured.
+ *
+ * Only ever used for the first paint and for server rendering, where there is
+ * no layout to measure. Close enough that nothing jumps; wrong often enough
+ * that it must not be the final word.
+ */
+const NAV_GUESS = 56;
+const CHROME_GUESS = 146;
+
 export function Sheet({
   topics,
   tasks,
@@ -52,6 +62,7 @@ export function Sheet({
   const density = useSyncExternalStore(subscribe, getDensity, serverDensity);
   const searchBox = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
 
   // Typing stays on the urgent path; re-filtering 456 rows happens at lower
   // priority, so the input never stutters.
@@ -338,23 +349,63 @@ export function Sheet({
 
   const compact = density === 'compact';
 
+  /**
+   * How far down the page the sticky chrome reaches, measured.
+   *
+   * This used to be the literal string "146px", arrived at by measuring once
+   * on one screen. It is the nav plus the search bar, and the search bar
+   * wraps: on a narrow phone the filters take a second line and the bar is
+   * taller, so bands stuck too high and hid behind it; on a wide laptop it is
+   * shorter, so bands stuck too low and floated in the middle of the list
+   * over the rows. Wrong in both directions at once, which is why it looked
+   * broken on both.
+   *
+   * Observed rather than calculated, because the thing that changes it is
+   * text wrapping, and nothing can predict that from a viewport width.
+   */
+  useEffect(() => {
+    const host = root.current;
+    const node = bar.current;
+    if (!host || !node) return;
+
+    const nav = document.querySelector('[data-chrome="nav"]');
+    const measure = () => {
+      const above = nav ? nav.getBoundingClientRect().height : NAV_GUESS;
+      host.style.setProperty(
+        '--sheet-chrome',
+        `${Math.round(above + node.getBoundingClientRect().height)}px`,
+      );
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    if (nav) observer.observe(nav);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div
       ref={root}
       className="space-y-3"
       // Declared on the root because custom properties inherit downwards and
-      // the bands and rows are siblings of the bar, not its children.
-      style={{ ['--sheet-chrome' as string]: '146px' }}
+      // the bands and rows are siblings of the bar, not its children. This is
+      // only the starting guess — the effect above measures the real thing on
+      // mount and whenever it changes shape.
+      style={{ ['--sheet-chrome' as string]: `${CHROME_GUESS}px` }}
     >
       {/* Search and filters stay put while the list scrolls — on a page this
           long, having to scroll back to the top to search is the whole
           problem. `top-14` clears the sticky nav bar.
 
           --sheet-chrome is how far down the page is covered by sticky chrome:
-          the 56px nav plus this bar. Heading bands stick below it and keyboard
+          the nav plus this bar. Heading bands stick below it and keyboard
           navigation scrolls rows clear of it, so the three cannot drift apart.
-          Measured at 146px; the bar is 90px tall. */}
-      <div className="sticky top-14 z-20 -mx-3 space-y-2 border-b border-hairline bg-plane/90 px-3 pt-2 pb-2 backdrop-blur-md sm:-mx-4 sm:px-4">
+          It is measured rather than written down — see the effect above. */}
+      <div
+        ref={bar}
+        className="sticky top-14 z-20 -mx-3 space-y-2 border-b border-hairline bg-plane/90 px-3 pt-2 pb-2 backdrop-blur-md sm:-mx-4 sm:px-4"
+      >
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-muted" />
