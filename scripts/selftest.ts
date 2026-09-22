@@ -63,7 +63,7 @@ import { buildSnapshot } from '../src/lib/companion-context';
 import {
   SPEECH_START_MS, SPEECH_WATCHDOG_MS,
   cutSentences, endOfThought, pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
-  GOOD_VOICE_SCORE,
+  isLocalNeuralVoice,
 } from '../src/lib/speech';
 import { BASE_SPEED, LEAD_MAX, LEAD_MIN, headStartMs, leadCut, pauseAfter, speedFor } from '../src/lib/speech-shape';
 import { getPersona, hasPersona, personaPrompt } from '../src/lib/persona';
@@ -1527,19 +1527,33 @@ async function main() {
       modelBuild({ deviceMemory: 16, effectiveType: '3g' }).dtype === 'q8');
     check('the size quoted matches the build chosen',
       modelBuild({ deviceMemory: 16 }).megabytes > modelBuild({ deviceMemory: 2 }).megabytes);
+    // Safari does not report memory at all, so "unknown" is mostly a phone.
+    check('a machine that will not say gets the small build',
+      modelBuild({}).dtype === 'q8');
 
     // ---- when a download is not worth it at all
     // A machine with a modern system voice already has a neural voice, and it
     // starts speaking immediately. Downloading another one to answer a second
     // later would be a worse product, not a better one.
-    check('a natural system voice clears the bar',
-      voiceScore({ name: 'Microsoft Aria Online (Natural) - English (United States)', lang: 'en-US' }, 'en-US') >= GOOD_VOICE_SCORE);
+    check('a local natural voice clears the bar',
+      isLocalNeuralVoice({ name: 'Microsoft Aria (Natural) - English (United States)', lang: 'en-US', localService: true }));
     check('Siri clears the bar',
-      voiceScore({ name: 'Siri Voice 4', lang: 'en-GB' }, 'en-GB') >= GOOD_VOICE_SCORE);
+      isLocalNeuralVoice({ name: 'Siri Voice 4', lang: 'en-GB', localService: true }));
+    check("Apple's enhanced download clears it",
+      isLocalNeuralVoice({ name: 'Samantha (Enhanced)', lang: 'en-US', localService: true }));
     check('the formant synthesiser does not',
-      voiceScore({ name: 'eSpeak English', lang: 'en-GB' }, 'en-GB') < GOOD_VOICE_SCORE);
+      !isLocalNeuralVoice({ name: 'eSpeak English', lang: 'en-GB', localService: true }));
     check('nor does a plain desktop voice',
-      voiceScore({ name: 'Microsoft David Desktop - English (United States)', lang: 'en-US' }, 'en-US') < GOOD_VOICE_SCORE);
+      !isLocalNeuralVoice({ name: 'Microsoft David Desktop - English (United States)', lang: 'en-US', localService: true }));
+    // The privacy half of the rule, and the reason this is not just a score.
+    // A voice synthesised on somebody's server sends every word said out loud
+    // to them, which is the exact thing running the model here avoids.
+    check('a cloud voice is not this machine having a good voice',
+      !isLocalNeuralVoice({ name: 'Google UK English Female', lang: 'en-GB', localService: false }));
+    check('not even a cloud voice that says it is natural',
+      !isLocalNeuralVoice({ name: 'Microsoft Aria Online (Natural)', lang: 'en-US', localService: false }));
+    check('an engine that does not say where it runs is taken at its word',
+      isLocalNeuralVoice({ name: 'Ava (Premium)', lang: 'en-US' }));
 
     // ---- cutting a reply that is still arriving
     // The reply streams in a few characters at a time and the whole point is
@@ -1576,6 +1590,17 @@ async function main() {
       (() => { const [d] = cutSentences('Oh. That is a much longer sentence here. Next.');
                return d.length === 1 && d[0] === 'Oh. That is a much longer sentence here.'; })());
     check('an empty buffer is not a sentence', cutSentences('')[0].length === 0);
+    // The buffer is still being written to, so a terminator sitting on the
+    // very end has nothing after it yet — and might never have whitespace.
+    check('a full stop at the end of the buffer is not a finished sentence',
+      cutSentences('You have done a lot today.')[0].length === 0);
+    check('the decimal that proves it',
+      (() => { const [done, rest] = cutSentences('You have been at this for 3.');
+        return done.length === 0 && rest === 'You have been at this for 3.'; })());
+    check('it is a sentence as soon as anything follows it',
+      cutSentences('You have done a lot today. ')[0].length === 1);
+    check('an ellipsis at the end of the buffer waits too',
+      cutSentences('That is a lot...')[0].length === 0);
 
     // ---- deciding they have finished talking
     // One fixed pause is wrong both ways at once: long enough not to cut
@@ -1840,6 +1865,37 @@ async function main() {
     check('cmd-j does not open the palette', !isPaletteShortcut(k('j', { metaKey: true })));
 
     check('every shortcut in the overlay has a label', SHORTCUTS.every((s) => s.label && s.keys.length));
+  }
+
+  section('Talking over it');
+  {
+    const both: Capabilities = { canHear: true, canSpeak: true };
+    const mute: Capabilities = { canHear: true, canSpeak: false };
+
+    // Saying something while it is still talking interrupts it. Dropping the
+    // event left the turn in `speaking` with a reply already on its way: no
+    // thinking dots, and the microphone opening under the second reply when
+    // the first one finally finished.
+    check('a message sent mid-sentence interrupts it',
+      nextTurn('speaking', 'heard', both) === 'thinking');
+    check('so does one sent over the greeting',
+      nextTurn('greeting', 'heard', both) === 'thinking');
+    check('finishing a sentence still hands the turn on',
+      nextTurn('speaking', 'spoke', both) === 'listening');
+    check('nothing else moves it',
+      nextTurn('speaking', 'reply', both) === 'speaking' &&
+      nextTurn('speaking', 'silence', both) === 'speaking' &&
+      nextTurn('speaking', 'listen', both) === 'speaking');
+    check('a browser that cannot hear still answers a typed interruption',
+      nextTurn('speaking', 'heard', mute) === 'thinking');
+
+    // Having chosen to type, the loop must not route back through the
+    // microphone. The panel says so by answering `canHear: false` for as long
+    // as the keyboard is up.
+    check('typing keeps the microphone shut when a reply ends',
+      nextTurn('speaking', 'spoke', { canHear: false, canSpeak: true }) === 'resting');
+    check('and there is still a way back to it',
+      nextTurn('resting', 'listen', both) === 'listening');
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

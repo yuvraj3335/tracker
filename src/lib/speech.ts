@@ -226,8 +226,13 @@ export function cutSentences(buffer: string, min = 10): [string[], string] {
     // Run past "?!" and "..." so they stay with the sentence they belong to.
     let end = i;
     while (end + 1 < buffer.length && '.!?'.includes(buffer[end + 1])) end++;
+    // Something has to follow it, and whitespace is the only thing that
+    // counts. A buffer that stops dead on the terminator has not finished the
+    // sentence — it has stopped mid-arrival, and "You have done 3." is the
+    // shape that proves it: cut there and the "5 hours" that was coming next
+    // becomes a sentence of its own.
     const after = buffer[end + 1];
-    if (after !== undefined && !/\s/.test(after)) continue;
+    if (after === undefined || !/\s/.test(after)) continue;
     const sentence = buffer.slice(start, end + 1).trim();
     if (sentence.length < min) continue;
     out.push(sentence);
@@ -309,37 +314,86 @@ export const serverVoiceName = (): string => '';
 export function naturalVoice(): string | null {
   const preference = getVoiceName();
   if (preference) return kokoroVoice(preference);
-  // A modern system voice is not a compromise — it is a neural voice too, it
-  // is already installed, and it starts speaking in a tenth of a second
-  // instead of two seconds. Downloading 155 MB to sound slightly different
-  // and answer a second and a half later would be a worse product, so the
-  // download only happens where the installed voices are the flat formant
-  // synthesisers this feature exists to escape.
+  // Before the browser has said which voices it has, the honest answer is
+  // "not yet". `getVoices()` is empty for the first tick or two in Chrome, and
+  // reading that emptiness as "nothing good is installed" is how a laptop that
+  // already had a neural voice on it ends up fetching a hundred and fifty
+  // megabytes it will never play. Until the list lands, the browser's own
+  // voice answers — which is what it was going to do anyway.
+  if (!voicesAreKnown()) return null;
   if (hasGoodSystemVoice()) return null;
   return autoNatural();
 }
 
-/** The score a voice has to clear to be worth using instead of downloading. */
-export const GOOD_VOICE_SCORE = 50;
-
 /**
  * Whether this machine already has a voice worth listening to.
  *
- * Deliberately a high bar. `voiceScore` awards 60 for a voice that says
- * "natural" or "neural" in its own name and 50 for Siri, both of which are
- * genuinely good; 45 for one of Apple's enhanced downloads, which is close.
- * Everything below that is the OS synthesiser, and no ranking rescues it.
+ * Two conditions, and the second one is not about quality.
+ *
+ * It has to sound like a person: the modern engines say "natural" or "neural"
+ * in their own name, Siri says Siri, and Apple ships a plain and a good
+ * version of the same voice distinguished only by an "(Enhanced)" suffix.
+ * Everything else is the formant synthesiser this feature exists to escape.
+ *
+ * And it has to run *here*. A voice reporting `localService: false` is
+ * synthesised on somebody's server, which means every word the companion says
+ * is sent to them. Kokoro's whole argument is that nothing said out loud
+ * leaves the device, and swapping that away to save a download would be
+ * trading the point of the feature for the cost of it.
  */
+export function isLocalNeuralVoice(voice: VoiceLike): boolean {
+  if (voice.localService === false) return false;
+  return /natural|neural|siri|\(enhanced\)|\(premium\)/i.test(voice.name);
+}
+
 export function hasGoodSystemVoice(): boolean {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
   try {
-    const lang = navigator?.language || 'en-GB';
+    const want = (navigator?.language || 'en-GB').toLowerCase().slice(0, 2);
     return window.speechSynthesis
       .getVoices()
-      .some((voice) => voiceScore(voice, lang) >= GOOD_VOICE_SCORE);
+      .some((voice) => isLocalNeuralVoice(voice) && (voice.lang || '').toLowerCase().startsWith(want));
   } catch {
     return false;
   }
+}
+
+/**
+ * How long to wait for the browser to admit which voices it has.
+ *
+ * Chrome populates the list a tick or two after load and fires
+ * `voiceschanged`. Some engines never fire it and genuinely have none — which
+ * is an answer too, and the machines it describes are exactly the ones that
+ * need the download most, so waiting for an event that is not coming cannot be
+ * allowed to mean waiting for ever.
+ */
+export const VOICE_LIST_MS = 750;
+
+let listKnown = false;
+const waiting: (() => void)[] = [];
+
+export const voicesAreKnown = (): boolean => listKnown;
+
+function settleVoiceList() {
+  if (listKnown) return;
+  listKnown = true;
+  for (const run of waiting.splice(0)) run();
+}
+
+/**
+ * Runs something once the installed-voice list is final, or now if it already
+ * is. Returns a function that cancels the wait, for a caller that unmounts.
+ */
+export function whenVoicesKnown(run: () => void): () => void {
+  if (listKnown || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    run();
+    return () => {};
+  }
+  waiting.push(run);
+  return () => {
+    const at = waiting.indexOf(run);
+    if (at >= 0) waiting.splice(at, 1);
+  };
 }
 
 /**
@@ -387,17 +441,26 @@ function refreshVoice() {
 
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   refreshVoice();
+  // Already populated — some engines answer the first call.
+  try {
+    if (window.speechSynthesis.getVoices().length) settleVoiceList();
+  } catch {
+    /* an engine that throws here has nothing to offer anyway */
+  }
   try {
     // Chrome populates the list after a tick and fires this; without it the
     // first reply of a session gets the default robotic voice.
     window.speechSynthesis.addEventListener('voiceschanged', () => {
       refreshVoice();
+      settleVoiceList();
       // The picker is rendered from this list, so it has to hear about it.
       announce();
     });
   } catch {
     /* older engines expose no event; the eager read above is all there is */
   }
+  // An event that never comes is not a reason to never decide.
+  setTimeout(settleVoiceList, VOICE_LIST_MS);
 }
 
 /**
@@ -644,12 +707,59 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
   let ended = 0;
   let closed = false;
   let index = 0;
-  // A refused utterance fires nothing at all, which on mobile Safari is the
-  // normal outcome once the gesture is over. Without this the conversation
-  // stops dead in `speaking` and the microphone never reopens.
+  let everStarted = false;
+  /** How much speech is queued and not yet heard, roughly, in milliseconds. */
+  let outstanding = 0;
+
+  /**
+   * Nothing has made a sound yet, so the engine may have refused outright.
+   *
+   * A refused utterance fires no events at all, which on mobile Safari is the
+   * normal outcome once the gesture is over — without a backstop the
+   * conversation stops dead in `speaking` and the microphone never reopens.
+   *
+   * Armed once, and only while nothing has *ever* started. It used to be
+   * re-armed on every push as long as nothing had *ended*, which is a
+   * different and much more common condition: a second sentence arriving
+   * three hundred milliseconds into a five-second first one armed a 1.8
+   * second timer that the first sentence could not clear, and the turn was
+   * handed on mid-reply. On screen that is the microphone opening while the
+   * voice is still talking, and the companion transcribing itself.
+   */
   let silent: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * It started and then stopped saying anything.
+   *
+   * `speechSynthesis.cancel()` is only required to fire `end` for the
+   * utterance actually being spoken; WebKit drops the rest silently. A tab
+   * backgrounded mid-sentence does the same. Either way `ended` never catches
+   * up with `spoken` and the turn is never handed back, which is the whole
+   * reason `SPEECH_WATCHDOG_MS` exists — the streamed path just never had one.
+   */
+  let watchdog: ReturnType<typeof setTimeout> | null = null;
+
+  const clear = () => {
+    if (silent) clearTimeout(silent);
+    if (watchdog) clearTimeout(watchdog);
+    silent = null;
+    watchdog = null;
+  };
+  const done = () => {
+    clear();
+    finish();
+  };
+  const guard = () => {
+    if (watchdog) clearTimeout(watchdog);
+    watchdog = setTimeout(done, SPEECH_WATCHDOG_MS + outstanding);
+  };
   const settle = () => {
-    if (closed && ended >= spoken) finish();
+    if (closed && ended >= spoken) done();
+  };
+  const finished = (cost: number) => {
+    ended += 1;
+    outstanding = Math.max(0, outstanding - cost);
+    guard();
+    settle();
   };
 
   return {
@@ -657,39 +767,36 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
       const parts = splitForSpeech(line);
       if (!parts.length) return;
       for (const part of parts) {
+        const cost = speakingTime(part);
         const utterance = new SpeechSynthesisUtterance(part);
         if (chosenVoice) utterance.voice = chosenVoice;
         const { rate, pitch } = prosody(part, index++);
         utterance.rate = rate;
         utterance.pitch = pitch;
         utterance.onstart = () => {
+          everStarted = true;
           if (silent) clearTimeout(silent);
           silent = null;
         };
-        utterance.onend = () => {
-          ended += 1;
-          settle();
-        };
-        utterance.onerror = () => {
-          ended += 1;
-          settle();
-        };
+        utterance.onend = () => finished(cost);
+        utterance.onerror = () => finished(cost);
         spoken += 1;
+        outstanding += cost;
         try {
           window.speechSynthesis.speak(utterance);
         } catch {
-          ended += 1;
-          settle();
+          finished(cost);
         }
       }
-      if (!silent && ended === 0) silent = setTimeout(finish, SPEECH_START_MS);
+      if (!everStarted && !silent) silent = setTimeout(done, SPEECH_START_MS);
+      guard();
     },
     end() {
       if (closed) return;
       closed = true;
       // Nothing was ever pushed, or the engine had already finished.
       settle();
-      if (spoken === 0) finish();
+      if (spoken === 0) done();
     },
   };
 }

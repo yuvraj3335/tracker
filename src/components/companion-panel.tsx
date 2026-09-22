@@ -36,6 +36,7 @@ import {
   speak,
   speakStream,
   stopSpeaking,
+  whenVoicesKnown,
 } from '@/lib/speech';
 import { captionFor, isHearing, isTalking, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
 import { MAX_MESSAGE_CHARS, type ChatMessage } from '@/lib/companion-prompt';
@@ -84,8 +85,36 @@ export function CompanionPanel({
   const log = useRef<HTMLDivElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
   const stopHearing = useRef<(() => void) | null>(null);
+  /**
+   * The transcript, kept where a callback can read the current one.
+   *
+   * `messages` is what renders; this is what is true right now. A reply
+   * streams in over several seconds and a second message can be sent in the
+   * middle of it, at which point every closure created before that point is
+   * holding a transcript that is missing a turn. Writing to the array by
+   * position, from a closure, is how a typed message vanished from the screen
+   * *and* from the history posted to the model.
+   */
+  const thread = useRef<ChatMessage[]>([{ role: 'assistant', content: hello }]);
+  /** Whichever reply is still arriving, so it can be called off. */
+  const inFlight = useRef<AbortController | null>(null);
+  /**
+   * Whether the microphone is wanted at all.
+   *
+   * A ref as well as state because `advance` must not be rebuilt when it
+   * changes — it is a dependency of the effect that owns the microphone, and
+   * rebuilding it there would tear the microphone down mid-sentence.
+   */
+  const typingRef = useRef(false);
+  /** The completed reply, for a screen reader. See the live region below. */
+  const [spoken, setSpoken] = useState('');
 
   const name = character?.name ?? 'Your companion';
+
+  const commit = useCallback((next: ChatMessage[]) => {
+    thread.current = next;
+    setMessages(next);
+  }, []);
 
   /**
    * The single way the turn ever changes.
@@ -94,11 +123,25 @@ export function CompanionPanel({
    * arrive from callbacks — a finished utterance, a closed microphone, a reply
    * — that fire long after the render they were created in and would otherwise
    * decide from a stale turn.
+   *
+   * `canHear` is asked about the moment rather than the browser. Having
+   * chosen to type, the machine must not route back through `listening` when
+   * a reply finishes — that opened the microphone under a text box, with no
+   * level meter and nothing on screen saying it was on.
    */
   const advance = useCallback(
-    (event: TurnEvent) => setTurn((from) => nextTurn(from, event, { canHear, canSpeak: canTalk })),
+    (event: TurnEvent) =>
+      setTurn((from) =>
+        nextTurn(from, event, { canHear: canHear && !typingRef.current, canSpeak: canTalk }),
+      ),
     [canHear, canTalk],
   );
+
+  /** Calls off whatever reply is still arriving. Safe to call at any time. */
+  const abandon = useCallback(() => {
+    inFlight.current?.abort();
+    inFlight.current = null;
+  }, []);
 
   const say = useCallback(
     (text: string) => {
@@ -116,18 +159,26 @@ export function CompanionPanel({
       if (!trimmed) return;
       stopHearing.current?.();
       stopHearing.current = null;
+      // Talking over it is an interruption, not a queue. Saying something
+      // while it is still reading a reply should stop the reply, not leave
+      // two of them to be got through in order.
+      abandon();
+      stopSpeaking();
       setHeard('');
       setDraft('');
       setProblem('');
       advance('heard');
 
-      const next: ChatMessage[] = [...messages, { role: 'user', content: trimmed }];
-      setMessages(next);
+      const mine = new AbortController();
+      inFlight.current = mine;
+      const next: ChatMessage[] = [...thread.current, { role: 'user', content: trimmed }];
+      commit(next);
       try {
         const res = await fetch('/api/companion/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: next, characterId: character?.id ?? null }),
+          signal: mine.signal,
         });
 
         // Anything that went wrong is JSON; the reply itself is a plain text
@@ -141,6 +192,8 @@ export function CompanionPanel({
           let buffer = '';
           let whole = '';
           let started = false;
+          /** Where this reply's bubble lives. Never `length - 1`. */
+          let at = -1;
 
           // One utterance for the whole reply, written to as it arrives.
           //
@@ -156,50 +209,73 @@ export function CompanionPanel({
             voice.push(line);
           };
 
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const piece = decoder.decode(value, { stream: true });
-            if (!piece) continue;
-            buffer += piece;
-            whole += piece;
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const piece = decoder.decode(value, { stream: true });
+              if (!piece) continue;
+              buffer += piece;
+              whole += piece;
 
-            if (!started) {
-              // The dots go the moment there are words, not when the whole
-              // reply has landed.
-              started = true;
-              advance('reply');
-              setMessages((m) => [...m, { role: 'assistant', content: whole }]);
-            } else {
-              setMessages((m) => {
-                const copy = [...m];
-                copy[copy.length - 1] = { role: 'assistant', content: whole };
-                return copy;
-              });
+              if (!started) {
+                // The dots go the moment there are words, not when the whole
+                // reply has landed.
+                started = true;
+                advance('reply');
+                at = thread.current.length;
+                commit([...thread.current, { role: 'assistant', content: whole }]);
+              } else {
+                const copy = [...thread.current];
+                copy[at] = { role: 'assistant', content: whole };
+                commit(copy);
+              }
+
+              // The first thing said is cut at the first clause rather than the
+              // first full stop, because the wait before anything is heard is
+              // the cost of generating that one line and nothing else. "Nice,
+              // that is four today." can start being said at the comma.
+              if (!said) {
+                const lead = leadCut(buffer);
+                if (lead) {
+                  utter(lead[0]);
+                  buffer = lead[1];
+                }
+              }
+
+              const [sentences, rest] = cutSentences(buffer);
+              buffer = rest;
+              for (const sentence of sentences) utter(sentence);
             }
 
-            // The first thing said is cut at the first clause rather than the
-            // first full stop, because the wait before anything is heard is
-            // the cost of generating that one line and nothing else. "Nice,
-            // that is four today." can start being said at the comma.
-            if (!said) {
-              const lead = leadCut(buffer);
-              if (lead) {
-                utter(lead[0]);
-                buffer = lead[1];
+            // Whatever is left of a multi-byte character at the very end of
+            // the stream. Without this a reply can lose its last letter.
+            const rest = decoder.decode();
+            if (rest) {
+              buffer += rest;
+              whole += rest;
+              if (at >= 0) {
+                const copy = [...thread.current];
+                copy[at] = { role: 'assistant', content: whole };
+                commit(copy);
               }
             }
-
-            const [sentences, rest] = cutSentences(buffer);
-            buffer = rest;
-            for (const sentence of sentences) utter(sentence);
+            const tail = buffer.trim();
+            if (tail) utter(tail);
+            setSpoken(whole.trim());
+          } finally {
+            // Whatever happened — the reply ended, the connection dropped, the
+            // reader threw — this utterance has to be closed.
+            //
+            // An open one sits at the head of the speech queue for ever: the
+            // queue is serial and it waits for more text that is never coming,
+            // so every reply after it is silent and the turn never comes back.
+            // A dropped connection mid-reply used to break the companion for
+            // the rest of the session, and it took a reload to get it back.
+            voice.end();
           }
 
-          const tail = buffer.trim();
-          if (tail) utter(tail);
-
           if (!started) {
-            voice.end();
             setProblem('Your companion did not have anything to say to that. Try asking another way.');
             advance('error');
             return;
@@ -207,7 +283,6 @@ export function CompanionPanel({
 
           // Nothing more is coming; the turn is handed back once the last of
           // it has actually been heard.
-          voice.end();
           return;
         }
 
@@ -218,11 +293,17 @@ export function CompanionPanel({
             : (data?.message ?? 'Could not reach your companion just now.'),
         );
       } catch {
+        // Called off on purpose — the panel was closed, or they went back to
+        // typing. That is not a failure and must not be reported as one.
+        if (mine.signal.aborted) return;
         setProblem('Could not reach your companion just now. Check your connection and try again.');
+      } finally {
+        if (inFlight.current === mine) inFlight.current = null;
       }
+      if (mine.signal.aborted) return;
       advance('error');
     },
-    [messages, character, advance],
+    [character, advance, abandon, commit],
   );
 
   // ---- the microphone, open the whole time the loop says to ---------------
@@ -261,13 +342,28 @@ export function CompanionPanel({
   // They never change, they are short, and the second conversation of a
   // session then starts talking immediately instead of pausing on hello.
   useEffect(() => {
-    const id = naturalVoice();
-    if (!id) return;
-    void loadEngine(id).then((ok) => {
-      if (!ok) return;
-      const openers = character?.lines?.idle ?? [];
-      void warm([hello, ...openers].slice(0, 6), id);
+    let gone = false;
+    // Waited for on purpose. Which voices the browser has arrives a tick or
+    // two after load, and that answer is what decides whether there is
+    // anything to download at all — asking before it lands means fetching the
+    // model onto a machine that already had a better voice installed.
+    const stop = whenVoicesKnown(() => {
+      const id = naturalVoice();
+      if (!id || gone) return;
+      void loadEngine(id).then((ok) => {
+        if (!ok || gone) return;
+        // Just the greeting. There is one model behind one worker, so a
+        // warm-up still running when a reply arrives is a reply waiting
+        // behind it — the exact wait this was meant to remove. `hello` is
+        // picked deterministically, so warming that one line is what makes
+        // the next conversation open without a pause.
+        void warm([hello], id);
+      });
     });
+    return () => {
+      gone = true;
+      stop();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -279,6 +375,12 @@ export function CompanionPanel({
     return () => {
       stopHearing.current?.();
       stopHearing.current = null;
+      // Both halves. Silencing the voice without calling off the reply that
+      // is still arriving meant closing the panel mid-question and then
+      // hearing the answer read out with nothing on screen and no way to
+      // stop it.
+      inFlight.current?.abort();
+      inFlight.current = null;
       stopSpeaking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -289,9 +391,49 @@ export function CompanionPanel({
     onTurn(turn);
   }, [turn, onTurn]);
 
+  /**
+   * And tells it the conversation is over.
+   *
+   * Nothing dispatches `close` — the panel simply unmounts — so without this
+   * the figure kept whatever pose it was last in: a talking loop with the
+   * panel shut, driven by a `requestAnimationFrame` callback that rescheduled
+   * itself for the rest of the page's life.
+   */
+  useEffect(() => () => onTurn('closed'), [onTurn]);
+
+  /**
+   * Focus goes into the panel when it opens and back where it came from when
+   * it closes.
+   *
+   * Opening it moved focus nowhere, so a keyboard user's next Tab carried on
+   * from wherever they were on the page behind. Switching between talking and
+   * typing unmounts the control that was focused, which dropped focus to the
+   * body and restarted tabbing from the top of the document.
+   */
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    // Unless something inside has already taken it. The message box
+    // autofocuses when the panel opens straight into typing, and pulling
+    // focus back to the dialog would close the keyboard on a phone the
+    // instant it opened.
+    if (!box.current?.contains(document.activeElement)) {
+      box.current?.focus({ preventScroll: true });
+    }
+    return () => {
+      if (before?.isConnected) before.focus({ preventScroll: true });
+    };
+  }, []);
+
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) onClose();
+      const target = e.target as Element | null;
+      if (!box.current || box.current.contains(target as Node)) return;
+      // The character is the control that opens this, so it is also the one
+      // that closes it. Treating a tap on it as "clicked outside" shut the
+      // panel here and let the figure's own double-tap timer reopen it a
+      // moment later — with a new greeting and the conversation gone.
+      if (target?.closest?.('[data-companion-figure]')) return;
+      onClose();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -332,6 +474,9 @@ export function CompanionPanel({
     <div
       ref={box}
       role="dialog"
+      // Focusable but not in the tab order: the panel takes focus when it
+      // opens so tabbing starts inside it, and gives it back when it closes.
+      tabIndex={-1}
       aria-label={`Talk to ${name}`}
       className={cn(
         'js-panel-in fixed z-40 flex flex-col overflow-hidden bg-surface shadow-lift-3',
@@ -371,7 +516,7 @@ export function CompanionPanel({
             {caption || ' '}
           </span>
         </span>
-        {canTalk && voice ? <VoicePicker name={name} /> : null}
+        {canTalk && voice ? <VoicePicker name={name} onSpoke={() => advance('spoke')} /> : null}
         {canTalk ? (
           <IconButton
             label={voice ? 'Mute' : 'Unmute'}
@@ -404,7 +549,10 @@ export function CompanionPanel({
         >
           {messages.map((m, i) => (
           <Bubble
-            key={`${i}-${m.content.slice(0, 12)}`}
+            // By position. Keying on the text remounted the bubble every time
+            // the streamed reply grew past the slice, which restarted its
+            // entry animation two or three times at the start of every reply.
+            key={i}
             role={m.role}
             first={m.role !== messages[i - 1]?.role}
           >
@@ -429,6 +577,15 @@ export function CompanionPanel({
             {heard}
           </p>
         ) : null}
+        {/* The reply itself, once, when it is complete.
+            The status line above announces whose turn it is, which is the
+            cheap half; the half worth hearing is what was actually said, and
+            it was being announced to nobody. Not the log itself, because that
+            is rewritten on every streamed chunk and would be read out a
+            syllable at a time. */}
+        <span className="sr-only" role="status" aria-live="polite">
+          {spoken}
+        </span>
         </div>
       </div>
 
@@ -492,6 +649,9 @@ export function CompanionPanel({
                 label="Talk instead"
                 big
                 onClick={() => {
+                  // The ref before the state: `advance` reads it synchronously
+                  // and would otherwise decide from the previous mode.
+                  typingRef.current = false;
                   setTyping(false);
                   setProblem('');
                   advance('listen');
@@ -529,6 +689,12 @@ export function CompanionPanel({
               big
               className={turn === 'resting' ? '' : 'ml-auto'}
               onClick={() => {
+                // Calling off the reply as well as the voice. Stopping only
+                // the voice left a reply already on its way, which arrived a
+                // second later and was read out over a panel that said
+                // "Paused".
+                typingRef.current = true;
+                abandon();
                 stopSpeaking();
                 advance('stop');
                 setTyping(true);
@@ -672,7 +838,7 @@ function Level({ turn }: { turn: Turn }) {
  * hand over the list, best first, and say the name out loud on change so the
  * choice is made by ear in one click rather than by reading voice names.
  */
-function VoicePicker({ name }: { name: string }) {
+function VoicePicker({ name, onSpoke }: { name: string; onSpoke: () => void }) {
   const voices = useSyncExternalStore(subscribe, listVoices, serverVoiceList);
   const chosen = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
   const state = useSyncExternalStore(subscribe, engineState, serverEngineState);
@@ -696,8 +862,13 @@ function VoicePicker({ name }: { name: string }) {
         state === 'loading' && 'text-accent',
       )}
     >
+      {/* Shown, never announced. This is a live region no more: `announce`
+          fires on every whole percent, so a screen reader read out a bare
+          number up to ninety-nine times during the download. The state is on
+          the control's own label instead, where it is read when it is asked
+          for. */}
       {state === 'loading' ? (
-        <span className="text-micro tabular-nums" role="status" aria-live="polite">
+        <span className="text-micro tabular-nums" aria-hidden>
           {percent}
         </span>
       ) : (
@@ -705,13 +876,18 @@ function VoicePicker({ name }: { name: string }) {
       )}
       <select
         value={chosen}
-        aria-label="Voice"
+        aria-label={state === 'loading' ? `Voice — downloading, ${percent} per cent` : 'Voice'}
         onChange={(e) => {
           setVoiceName(e.target.value);
           // Heard immediately, in the voice just picked. Choosing by ear is
           // the entire point of the control — and for a natural voice this is
           // also what the download is for, so it plays the moment it lands.
-          speak(`Hi, I'm ${name}.`);
+          //
+          // It carries the turn, because it takes it. Picking a voice mid-
+          // reply cuts that reply off, and a preview with no callback left
+          // nothing to hand the conversation back — the panel sat on "…is
+          // talking…" with the microphone shut until it was closed.
+          speak(`Hi, I'm ${name}.`, onSpoke);
         }}
         className="absolute inset-0 cursor-pointer appearance-none opacity-0 focus:outline-none"
       >

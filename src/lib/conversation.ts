@@ -65,7 +65,13 @@ export function nextTurn(turn: Turn, event: TurnEvent, can: Capabilities): Turn 
 
     case 'greeting':
     case 'speaking':
-      return event === 'spoke' ? afterTalking(can) : turn;
+      if (event === 'spoke') return afterTalking(can);
+      // Saying something while it is still talking interrupts it. This used
+      // to be dropped on the floor, which left the turn in `speaking` with a
+      // reply already on its way: no thinking dots, and when the first reply
+      // finally finished the microphone opened underneath the second one.
+      if (event === 'heard') return 'thinking';
+      return turn;
 
     case 'listening':
       if (event === 'heard') return 'thinking';

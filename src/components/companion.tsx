@@ -217,7 +217,20 @@ export function Companion({
 
   // ---- keyboard ----------------------------------------------------------
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') primeAudio();
+    if (e.key === 'Enter' || e.key === ' ') {
+      // Everything else here is driven by pointer events, and a keyboard never
+      // sends any — pressing Enter on a button synthesises a click and nothing
+      // else. So this was a control that announced `aria-haspopup="dialog"`
+      // and could not be opened from a keyboard at all.
+      //
+      // `preventDefault` is what keeps that synthesised click from arriving
+      // afterwards and opening it a second time, and it also stops Space
+      // scrolling the page.
+      e.preventDefault();
+      primeAudio();
+      onOpen?.();
+      return;
+    }
     if (!position || !viewport) return;
     const step = e.shiftKey ? NUDGE_FAR : NUDGE;
     const delta: Record<string, Point> = {
@@ -258,6 +271,11 @@ export function Companion({
     >
       <button
         type="button"
+        // The panel closes on a click outside itself, and this is outside it.
+        // Without a way to recognise the figure, tapping it to dismiss the
+        // panel closed it and then reopened it a moment later on the
+        // double-tap timer — losing the whole conversation in between.
+        data-companion-figure=""
         aria-label="Your companion. Click to talk, drag or use the arrow keys to move it, Home to send it back to the corner."
         aria-haspopup="dialog"
         onPointerDown={onPointerDown}

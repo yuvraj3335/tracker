@@ -90,7 +90,12 @@ export type DeviceHints = { saveData?: boolean; effectiveType?: string; deviceMe
 export type Build = { dtype: 'fp16' | 'q8'; megabytes: number };
 
 export function modelBuild(hints: DeviceHints): Build {
-  const roomy = typeof hints.deviceMemory !== 'number' || hints.deviceMemory >= 8;
+  // A machine that has not said how much memory it has does not get the big
+  // build. `deviceMemory` is Chrome-only, so "unknown" is mostly Safari — and
+  // mostly, therefore, an iPhone, which is the last place to send 155 MB and
+  // then ask it to hold the whole thing in memory. Taking silence for
+  // permission is how that decision gets made by accident.
+  const roomy = typeof hints.deviceMemory === 'number' && hints.deviceMemory >= 8;
   const metered = hints.saveData || /^(slow-2g|2g|3g)$/.test(hints.effectiveType ?? '');
   return roomy && !metered ? { dtype: 'fp16', megabytes: 155 } : { dtype: 'q8', megabytes: 88 };
 }
@@ -129,7 +134,6 @@ export function deviceHints(): DeviceHints {
 
 /** How big the download is, for the one place that says so out loud. */
 export const modelMegabytes = (): number => modelBuild(deviceHints()).megabytes;
-export const serverModelMegabytes = (): number => 155;
 
 /** True when a natural voice should be used without anyone having picked one. */
 export const autoNatural = (): string | null =>
@@ -156,9 +160,21 @@ function settle(next: EngineState) {
 }
 
 /** Generations in flight, by the id they were sent with. */
-type Pending = { resolve: (clip: Clip | null) => void; chars: number; sent: number };
+type Pending = { resolve: (clip: Clip | null) => void; chars: number };
 const pending = new Map<number, Pending>();
 let nextId = 1;
+
+/**
+ * The longest one line may take to generate before it is written off.
+ *
+ * Deliberately generous — this is not a performance budget. It is there
+ * because a worker that dies without saying so, which is what a tab under
+ * memory pressure does, would otherwise leave behind a promise nothing can
+ * ever settle. The speech queue is serial, so exactly one of those makes the
+ * companion mute until the page is reloaded.
+ */
+const CEILING_MS = 8_000;
+const CEILING_PER_CHAR_MS = 400;
 
 export type Clip = { audio: Float32Array; sampleRate: number; genMs: number };
 
@@ -187,14 +203,15 @@ export const generationCostPerChar = (): number => msPerChar;
 function onMessage(event: MessageEvent<FromWorker>) {
   const message = event.data;
   if (message.type === 'audio') {
+    // Gone from the map means it was already given up on; the clip is late
+    // rather than wanted, and counting its cost would poison the average the
+    // head start is computed from.
     const job = pending.get(message.id);
-    pending.delete(message.id);
-    observe(job?.chars ?? 0, message.ms);
-    job?.resolve({ audio: message.audio, sampleRate: message.sampleRate, genMs: message.ms });
+    if (!job) return;
+    observe(job.chars, message.ms);
+    job.resolve({ audio: message.audio, sampleRate: message.sampleRate, genMs: message.ms });
   } else if (message.type === 'error') {
-    const job = pending.get(message.id);
-    pending.delete(message.id);
-    job?.resolve(null);
+    pending.get(message.id)?.resolve(null);
   }
 }
 
@@ -272,7 +289,19 @@ export function loadEngine(voice: string): Promise<boolean> {
       if (state !== 'ready') {
         settle('failed');
         resolve(false);
+        return;
       }
+      // It died mid-session — out of memory, usually. Everything waiting on
+      // it has to be told: `render` awaits a promise only the worker can
+      // settle, and an unsettled one holds the speech queue open for the rest
+      // of the session. Answering null makes the caller skip that line, and
+      // dropping back to `failed` puts the next reply on the browser's own
+      // voice rather than on a worker that is not there.
+      worker = null;
+      settle('failed');
+      const stranded = [...pending.values()];
+      pending.clear();
+      for (const job of stranded) job.resolve(null);
     });
 
     const build = modelBuild(deviceHints());
@@ -290,7 +319,21 @@ function generate(text: string, voice: string, speed: number): Promise<Clip | nu
   const id = nextId++;
   const message: ToWorker = { type: 'generate', id, text, voice, speed };
   return new Promise<Clip | null>((resolve) => {
-    pending.set(id, { resolve, chars: text.length, sent: performance.now() });
+    let done = false;
+    const settle = (clip: Clip | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(ceiling);
+      pending.delete(id);
+      resolve(clip);
+    };
+    // Declared after `settle` and closed over by it, so it cannot fire before
+    // the statement that creates it has finished running.
+    const ceiling = setTimeout(
+      () => settle(null),
+      CEILING_MS + text.length * CEILING_PER_CHAR_MS,
+    );
+    pending.set(id, { resolve: settle, chars: text.length });
     worker?.postMessage(message);
   });
 }
@@ -547,12 +590,35 @@ async function run(say: Say): Promise<void> {
   if (say.cancelled || !last) return;
   // The turn is handed on when the last thing said has actually finished
   // being said, not when the last thing was handed to the audio clock.
+  //
+  // The clock is the authority and the event is the optimisation, not the
+  // other way round. Waiting on `ended` alone is a deadlock waiting to
+  // happen: the loop above can sit waiting for more text for longer than the
+  // clip takes to play, and a listener attached to a source that has already
+  // finished never fires at all — which would leave this job at the head of a
+  // serial queue for ever, and every reply after it silent.
+  const source = last;
+  const endsAt = cursor;
   await new Promise<void>((resolve) => {
-    const source = last as AudioBufferSourceNode;
-    const settled = () => resolve();
-    source.addEventListener('ended', settled, { once: true });
-    // A source that was stopped fires `ended` too, so there is no watchdog
-    // here; `stopKokoro` cancelling the job is what ends this early.
+    // It can already be over: the loop above sits waiting for more text, and
+    // on a slow machine generating the next line outlasts playing the last
+    // one. `ended` is a one-shot event, so attaching to it now would wait for
+    // ever. `live` is emptied by the same handler that fires it.
+    if (!live.has(source)) {
+      resolve();
+      return;
+    }
+    let done = false;
+    const settle = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    // Declared after `settle` and closed over by it: the timer cannot fire
+    // before the statement that creates it has finished running.
+    const timer = setTimeout(settle, Math.max(0, (endsAt - ctx.currentTime) * 1000) + 80);
+    source.addEventListener('ended', settle, { once: true });
   });
 }
 
@@ -562,7 +628,13 @@ async function drain() {
   while (queue.length) {
     const say = queue[0];
     await run(say);
-    queue.shift();
+    // By identity, never by position. `cancelAll` replaces the array outright,
+    // so anything pushed while this job was still generating is now at index
+    // zero — and shifting would throw away a job that has never run and whose
+    // turn has never been handed back. Closing the panel mid-reply and opening
+    // it again was enough to do it.
+    const at = queue.indexOf(say);
+    if (at >= 0) queue.splice(at, 1);
     if (!say.cancelled) say.onDone?.();
   }
   draining = false;
