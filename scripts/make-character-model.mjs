@@ -56,14 +56,14 @@ const rgba = (hex, a = 1) => [...linear(hex), a];
  * against one of them.
  */
 const PALETTE = {
-  skin: '#ffddc2',
+  skin: '#ffe4cd',
   skinShade: '#f0bf9e',
-  hair: '#f2a65a',
+  hair: '#f9b86f',
   hairDark: '#c97e3c',
-  robe: '#6c63c4',
+  robe: '#7a71d2',
   robeDark: '#4f489b',
   trim: '#a89cf0',
-  hat: '#463c96',
+  hat: '#4d43a4',
   gold: '#ffd166',
   iris: '#2fb3cc',
   pupil: '#14202b',
@@ -89,7 +89,7 @@ const MATERIALS = [
   { name: 'trim', ...pbr(PALETTE.trim, 0, 0.7) },
   // Thin shells, seen from underneath as often as from above.
   { name: 'hat', ...pbr(PALETTE.hat, 0, 0.8), doubleSided: true },
-  { name: 'gold', ...pbr(PALETTE.gold, 0.55, 0.3, { emissiveFactor: linear(PALETTE.gold).map((c) => c * 0.12) }) },
+  { name: 'gold', ...pbr(PALETTE.gold, 0.25, 0.32, { emissiveFactor: linear(PALETTE.gold).map((c) => c * 0.12) }) },
   { name: 'iris', ...pbr(PALETTE.iris, 0.1, 0.28) },
   { name: 'pupil', ...pbr(PALETTE.pupil, 0.05, 0.25) },
   { name: 'sclera', ...pbr(PALETTE.white, 0, 0.42) },
@@ -116,34 +116,62 @@ const MAT = Object.fromEntries(MATERIALS.map((m, i) => [m.name, i]));
 /**
  * Revolve a profile of [radius, height] pairs around Y.
  *
- * Normals are computed analytically from the profile's own tangent rather than
- * by averaging face normals. That matters for a smooth surface: averaging
+ * Normals are computed analytically from the surface's own partial derivatives
+ * rather than by averaging face normals. That matters twice over: averaging
  * leaves a visible crease down the seam, because the duplicated ring of
- * vertices at 0 and 2π only ever receives contributions from one side of it.
+ * vertices at 0 and 2π only ever receives contributions from one side of it —
+ * and it cannot see the angular ripple below at all.
+ *
+ * `ripple` modulates the radius around the sweep, which is what turns a cone
+ * into a pleated skirt. r(θ, s) = R(s) + A(s)·cos(nθ), so the surface is no
+ * longer a solid of revolution and its normal picks up a tangential term.
  */
-function lathe(profile, segments = 28) {
+function lathe(profile, segments = 28, ripple = null) {
   const positions = [];
   const normals = [];
   const indices = [];
   const rows = profile.length;
+  const count = ripple ? ripple.count : 0;
+  const amp = profile.map((p, i) => (ripple ? ripple.amp(i, p[0], p[1], rows) : 0));
 
-  // Profile-space normal at each row: the tangent turned a quarter turn.
-  const flat = profile.map((_, i) => {
-    const [r0, y0] = profile[Math.max(0, i - 1)];
-    const [r1, y1] = profile[Math.min(rows - 1, i + 1)];
-    const [dr, dy] = [r1 - r0, y1 - y0];
-    const len = Math.hypot(dr, dy) || 1;
-    return [dy / len, -dr / len];
+  // Central differences along the profile: how radius, height and ripple
+  // amplitude each change as we walk it.
+  const slope = profile.map((_, i) => {
+    const lo = Math.max(0, i - 1);
+    const hi = Math.min(rows - 1, i + 1);
+    return [profile[hi][0] - profile[lo][0], profile[hi][1] - profile[lo][1], amp[hi] - amp[lo]];
   });
 
   for (let s = 0; s <= segments; s++) {
     const a = (s / segments) * Math.PI * 2;
     const [cos, sin] = [Math.cos(a), Math.sin(a)];
+    const [rippleCos, rippleSin] = [Math.cos(count * a), Math.sin(count * a)];
+
     for (let i = 0; i < rows; i++) {
-      const [r, y] = profile[i];
-      const [nr, ny] = flat[i];
+      const [R, y] = profile[i];
+      const [dR, dY, dA] = slope[i];
+      const r = R + amp[i] * rippleCos;
+      const rTheta = -count * amp[i] * rippleSin;
+      const rS = dR + dA * rippleCos;
+
       positions.push(r * cos, y, -r * sin);
-      normals.push(nr * cos, ny, -nr * sin);
+
+      // dP/dθ × dP/ds, with dP/dθ having no Y component.
+      const ax = rTheta * cos - r * sin;
+      const az = -rTheta * sin - r * cos;
+      const [bx, by, bz] = [rS * cos, dY, -rS * sin];
+      let [nx, ny, nz] = [-az * by, az * bx - ax * bz, ax * by];
+
+      const len = Math.hypot(nx, ny, nz);
+      if (len < 1e-9) {
+        // A lathe pole: the sweep derivative vanishes there, so fall back to
+        // the profile tangent turned a quarter turn.
+        const t = Math.hypot(dR, dY) || 1;
+        [nx, ny, nz] = [(dY / t) * cos, -dR / t, -(dY / t) * sin];
+      } else {
+        [nx, ny, nz] = [nx / len, ny / len, nz / len];
+      }
+      normals.push(nx, ny, nz);
     }
   }
   for (let s = 0; s < segments; s++) {
@@ -155,6 +183,36 @@ function lathe(profile, segments = 28) {
   }
   return { positions, normals, indices };
 }
+
+// ---------------------------------------------------------------------------
+// Baked occlusion.
+//
+// Written into COLOR_0, which glTF multiplies into the base colour — so the
+// crevices a light cannot reach are dark in the asset itself rather than being
+// left to the renderer. This is the single biggest difference between "some
+// shapes lit from above" and something that looks built: the shadow under the
+// hat brim, the dark band where the cape lies on the robe, the underside of
+// the chin, and hair that deepens toward its tips.
+//
+// Stored as normalized unsigned bytes, four per vertex rather than sixteen.
+// ---------------------------------------------------------------------------
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const smoothstep = (edge0, edge1, v) => {
+  const t = clamp01((v - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+};
+
+/** Less open sky lower down the figure, in world terms. */
+const sky = (worldY, strength = 0.26) => (_x, y) =>
+  1 - strength * (1 - smoothstep(-0.8, 0.9, worldY + y));
+
+/** Darkens what sits above a line — the underside of an overhang. */
+const beneath = (y0, y1, strength) => (_x, y) => 1 - strength * smoothstep(y0, y1, y);
+
+/** Darkens what sits below a line — a tip, a hem, a chin. */
+const below = (y0, y1, strength) => (_x, y) => 1 - strength * (1 - smoothstep(y0, y1, y));
+
+const shade = (...fns) => (x, y, z) => clamp01(fns.reduce((acc, f) => acc * f(x, y, z), 1));
 
 /** A sphere, as a profile swept from the bottom pole to the top. */
 const sphereProfile = (r, rings = 16, t0 = 0, t1 = Math.PI) =>
@@ -322,11 +380,22 @@ const HAT_CONE = [
 ];
 
 const MESHES = {
-  head: { geometry: sphere(HEAD_R, 30, 20), material: MAT.skin },
-  hairCap: { geometry: dome(0.385, 0.08, 30, 14), material: MAT.hair },
-  hairBack: { geometry: sphere(0.3, 26, 16), material: MAT.hair },
-  lock: { geometry: taper(0.075, 0.025, 0, -0.34, 7, 12), material: MAT.hair },
-  bang: { geometry: taper(0.062, 0.012, 0, -0.1, 6, 10), material: MAT.hair },
+  head: {
+    geometry: sphere(HEAD_R, 34, 22),
+    material: MAT.skin,
+    // Deep shadow where the hat sits on it, and a softer one under the chin.
+    tint: shade(sky(HEAD_Y, 0.1), beneath(0.17, 0.34, 0.36), below(-0.36, -0.2, 0.15)),
+  },
+  hairCap: {
+    geometry: dome(0.385, 0.08, 34, 14),
+    material: MAT.hair,
+    tint: shade(beneath(0.16, 0.3, 0.44)),
+  },
+  hairBack: { geometry: sphere(0.3, 28, 18), material: MAT.hair, tint: shade(() => 0.81) },
+  // Hair deepens toward its tips, which is the whole of anime hair shading and
+  // costs nothing here beyond four bytes a vertex.
+  lock: { geometry: taper(0.075, 0.025, 0, -0.34, 8, 14), material: MAT.hair, tint: below(-0.34, 0.0, 0.33) },
+  bang: { geometry: taper(0.062, 0.012, 0, -0.1, 6, 12), material: MAT.hair, tint: below(-0.1, 0.0, 0.26) },
 
   sclera: { geometry: sphere(0.085, 20, 14), material: MAT.sclera },
   iris: { geometry: sphere(0.068, 20, 14), material: MAT.iris },
@@ -344,22 +413,31 @@ const MESHES = {
     material: MAT.mouth,
   },
 
-  brim: { geometry: lathe(BRIM, 32), material: MAT.hat },
-  cone: { geometry: lathe(HAT_CONE, 32), material: MAT.hat },
+  brim: { geometry: lathe(BRIM, 36), material: MAT.hat },
+  cone: { geometry: lathe(HAT_CONE, 36), material: MAT.hat, tint: below(0.245, 0.5, 0.14) },
   hatBand: { geometry: torus(0.303, 0.035, 28, 10), material: MAT.gold },
   star: { geometry: extrude(starOutline(0.078, 0.034), 0.022), material: MAT.gold },
   tipCone: { geometry: taper(0.05, 0.012, 0, 0.22, 6, 12), material: MAT.hat },
   tipBall: { geometry: sphere(0.032, 12, 8), material: MAT.gold },
 
-  robe: { geometry: lathe(ROBE, 28), material: MAT.robe },
-  cape: { geometry: lathe(CAPE, 28), material: MAT.trim },
+  robe: {
+    geometry: lathe(ROBE, 48, {
+      count: 10,
+      // Zero at the waist, widest across the skirt, back to zero at the hem so
+      // the pleats close rather than scalloping the bottom edge.
+      amp: (i, _r, y) => (i === 0 ? 0 : 0.026 * smoothstep(0.06, -0.14, y) * smoothstep(-0.66, -0.48, y)),
+    }),
+    material: MAT.robe,
+    tint: shade(sky(0, 0.17), beneath(-0.15, 0.04, 0.27), below(-0.62, -0.42, 0.11)),
+  },
+  cape: { geometry: lathe(CAPE, 36), material: MAT.trim, tint: shade(sky(0, 0.13), below(-0.15, -0.03, 0.18)) },
   belt: { geometry: torus(0.33, 0.028, 24, 10), material: MAT.gold },
   hem: { geometry: torus(0.395, 0.024, 26, 10), material: MAT.trim },
-  arm: { geometry: taper(0.075, 0.058, 0, -0.28, 6, 12), material: MAT.robeDark },
-  hand: { geometry: sphere(0.086, 16, 12), material: MAT.skin },
+  arm: { geometry: taper(0.075, 0.058, 0, -0.28, 6, 14), material: MAT.robeDark, tint: shade(sky(-0.05, 0.15)) },
+  hand: { geometry: sphere(0.086, 18, 14), material: MAT.skin, tint: shade(sky(-0.33, 0.13)) },
   boot: { geometry: sphere(0.085, 16, 12), material: MAT.boot },
 
-  staff: { geometry: taper(0.026, 0.02, -0.34, 0.46, 5, 10), material: MAT.wood },
+  staff: { geometry: taper(0.026, 0.02, -0.34, 0.46, 5, 12), material: MAT.wood, tint: below(-0.34, 0.3, 0.25) },
   staffRing: { geometry: torus(0.098, 0.014, 18, 8), material: MAT.gold },
   orb: { geometry: sphere(0.084, 20, 14), material: MAT.orb },
   spark: { geometry: sphere(0.016, 10, 6), material: MAT.orb },
@@ -644,6 +722,7 @@ const CLIPS = [
 // ---------------------------------------------------------------------------
 const FLOAT = 5126;
 const UNSIGNED_SHORT = 5123;
+const UNSIGNED_BYTE = 5121;
 const ARRAY_BUFFER = 34962;
 const ELEMENT_ARRAY_BUFFER = 34963;
 const COMPONENTS = { SCALAR: 1, VEC3: 3, VEC4: 4 };
@@ -670,9 +749,10 @@ function buildGltf() {
   }
 
   /** `bounds` is required by the spec for POSITION and for animation inputs. */
-  function accessor(typed, type, componentType, target, bounds = false) {
+  function accessor(typed, type, componentType, target, bounds = false, normalized = false) {
     const stride = COMPONENTS[type];
     const a = { bufferView: view(typed, target), componentType, count: typed.length / stride, type };
+    if (normalized) a.normalized = true;
     if (bounds) {
       const min = new Array(stride).fill(Infinity);
       const max = new Array(stride).fill(-Infinity);
@@ -690,13 +770,31 @@ function buildGltf() {
 
   const meshes = [];
   const meshIndex = {};
-  for (const [name, { geometry, material }] of Object.entries(MESHES)) {
-    if (geometry.positions.length / 3 > 65535) throw new Error(`${name} needs 32-bit indices`);
-    const position = accessor(new Float32Array(geometry.positions), 'VEC3', FLOAT, ARRAY_BUFFER, true);
-    const normal = accessor(new Float32Array(geometry.normals), 'VEC3', FLOAT, ARRAY_BUFFER);
+  for (const [name, { geometry, material, tint }] of Object.entries(MESHES)) {
+    const vertexCount = geometry.positions.length / 3;
+    if (vertexCount > 65535) throw new Error(`${name} needs 32-bit indices`);
+    const attributes = {
+      POSITION: accessor(new Float32Array(geometry.positions), 'VEC3', FLOAT, ARRAY_BUFFER, true),
+      NORMAL: accessor(new Float32Array(geometry.normals), 'VEC3', FLOAT, ARRAY_BUFFER),
+    };
+    if (tint) {
+      // Greyscale, so it only ever darkens the material's own colour. Four
+      // normalized bytes a vertex rather than sixteen floats.
+      const colors = new Uint8Array(vertexCount * 4);
+      for (let v = 0; v < vertexCount; v++) {
+        const shadeAt = Math.round(
+          clamp01(tint(geometry.positions[v * 3], geometry.positions[v * 3 + 1], geometry.positions[v * 3 + 2])) * 255,
+        );
+        colors[v * 4] = shadeAt;
+        colors[v * 4 + 1] = shadeAt;
+        colors[v * 4 + 2] = shadeAt;
+        colors[v * 4 + 3] = 255;
+      }
+      attributes.COLOR_0 = accessor(colors, 'VEC4', UNSIGNED_BYTE, ARRAY_BUFFER, false, true);
+    }
     const indices = accessor(new Uint16Array(geometry.indices), 'SCALAR', UNSIGNED_SHORT, ELEMENT_ARRAY_BUFFER);
     meshIndex[name] = meshes.length;
-    meshes.push({ name, primitives: [{ attributes: { POSITION: position, NORMAL: normal }, indices, material }] });
+    meshes.push({ name, primitives: [{ attributes, indices, material }] });
   }
 
   const nodeIndex = Object.fromEntries(NODES.map((n, i) => [n.name, i]));

@@ -97,11 +97,20 @@ export function CharacterCanvas({ url, pose, size }: { url: string; pose: Pose; 
       // so the milestone jump has somewhere to go instead of clipping.
       camera={{ fov: 30, position: [0, 0, 4.8], near: 0.1, far: 20 }}
     >
-      {/* Plain lights rather than an environment map: an HDRI would be a
-          network fetch at first render, and this app does not fetch artwork. */}
-      <ambientLight intensity={1.1} />
-      <directionalLight position={[2.5, 3.5, 2.5]} intensity={2.4} />
-      <directionalLight position={[-3, 1, -2.5]} intensity={1} color="#bcd7e8" />
+      {/* A three-point rig plus a sky/ground ambient, rather than one flat
+          ambient. An HDRI environment would light the metal better still, but
+          every preset is a network fetch at first render and this app does not
+          fetch artwork — so the hemisphere stands in for one, and the gold is
+          kept at low metalness because there is nothing for it to reflect. */}
+      <hemisphereLight args={['#dceaff', '#5a4c40', 1.3]} />
+      <ambientLight intensity={0.3} />
+      {/* Key, from above and camera-right. */}
+      <directionalLight position={[2.6, 3.4, 2.6]} intensity={2.35} />
+      {/* Cool rim from behind, which is what separates the figure from a dark
+          surface without needing an outline. */}
+      <directionalLight position={[-3, 1.6, -2.6]} intensity={1.25} color="#b7d4ea" />
+      {/* A warm bounce from below, standing in for light off the page. */}
+      <directionalLight position={[0, -2.2, 1.8]} intensity={0.42} color="#ffd6bb" />
       <Suspense fallback={null}>
         <Figure url={url} pose={pose} />
       </Suspense>
