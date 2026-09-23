@@ -577,8 +577,17 @@ async function hosted(text: string, speed: number): Promise<Clip | null> {
 async function render(voice: string, text: string, speed: number): Promise<Clip | null> {
   const cached = warmed.get(key(voice, text, speed));
   if (cached) return cached;
-  if (voice === HOSTED_VOICE) return hosted(text, speed);
-  return generate(text, voice, speed);
+  if (voice !== HOSTED_VOICE) return generate(text, voice, speed);
+
+  const clip = await hosted(text, speed);
+  if (clip) return clip;
+  // The hosted engine has just taken itself out of service. Nothing can be
+  // done for this line — the model in the browser was never loaded, because
+  // there was no reason to — but starting it now is what puts the *next*
+  // reply back on its feet instead of leaving the companion mute for the rest
+  // of the session.
+  void loadEngine(DEFAULT_VOICE);
+  return null;
 }
 
 /**

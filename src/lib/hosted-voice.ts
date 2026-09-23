@@ -57,6 +57,22 @@ export function checkHosted(): Promise<boolean> {
 }
 
 /**
+ * Gives up on the hosted engine for the rest of the session.
+ *
+ * One failed line could be bad luck. The same failure on every line is a
+ * setting that is wrong, and the important thing then is that the companion
+ * keeps talking: `naturalVoice` reads this, so the next reply is routed to the
+ * model in the browser instead. Without it a mistyped voice name in an
+ * environment variable made the companion silent, permanently, with nothing on
+ * screen to say why.
+ */
+function unavailable() {
+  if (configured === false) return;
+  configured = false;
+  announce();
+}
+
+/**
  * One line, as audio, or null.
  *
  * Null rather than throwing: the caller is a speech queue, and a line it
@@ -71,15 +87,23 @@ export async function hostedAudio(text: string, speed: number): Promise<ArrayBuf
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, speed }),
     });
-    if (!res.ok) return null;
-    if ((res.headers.get('content-type') ?? '').includes('json')) {
-      configured = false;
-      announce();
+    // A 200 carrying JSON is "no key after all"; anything else that is not OK
+    // is a configuration or a provider that is not going to start working
+    // between one sentence and the next — a voice name the model does not
+    // have, a model name the provider does not have, a key that has been
+    // revoked, a quota that has run out.
+    if (!res.ok || (res.headers.get('content-type') ?? '').includes('json')) {
+      unavailable();
       return null;
     }
     const bytes = await res.arrayBuffer();
-    return bytes.byteLength ? bytes : null;
+    if (!bytes.byteLength) {
+      unavailable();
+      return null;
+    }
+    return bytes;
   } catch {
+    unavailable();
     return null;
   }
 }
