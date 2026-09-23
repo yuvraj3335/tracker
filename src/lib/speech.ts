@@ -619,6 +619,29 @@ export const SPEECH_START_MS = 1_800;
  */
 const owed = new Set<() => void>();
 
+/**
+ * Streams that will keep queueing speech unless they are told the floor is
+ * gone.
+ *
+ * Being *stopped* and being *superseded* are different, and only the first one
+ * hands the turn back: whatever replaced the old utterance will hand it on
+ * when it finishes, and two of them doing it opens the microphone under a live
+ * voice. `cancelAll(notify)` in kokoro.ts has always drawn that distinction.
+ * The browser voice had no equivalent, so a `speechSynthesis.cancel()` from a
+ * new utterance silenced what was playing and nothing else — and a reply still
+ * streaming in went on queueing its remaining sentences behind the new one.
+ *
+ * Measured by picking a voice from the dropdown mid-reply: the preview played,
+ * handed the turn back, opened the microphone, and then the second half of the
+ * interrupted reply started up over it.
+ */
+const streams = new Set<() => void>();
+
+/** Everything still writing to the browser voice stops writing. No turn moves. */
+function silenceStreams() {
+  for (const quiet of [...streams]) quiet();
+}
+
 /** Roughly how long something will take to say, in milliseconds. */
 export function speakingTime(text: string): number {
   // About three words a second, plus a beat per sentence, plus headroom.
@@ -658,6 +681,11 @@ export function speak(text: string, onDone?: () => void, queue = false) {
     finish();
     return;
   }
+
+  // Replacing whatever is being said, so nothing may go on writing to the
+  // engine underneath this. Not a stop — `onDone` here carries the turn, and
+  // settling the old one as well would hand the same turn on twice.
+  if (!queue) silenceStreams();
 
   // Until the model is ready the browser's own voice answers, so the natural
   // one never costs anyone a silent conversation while it downloads.
@@ -756,6 +784,8 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
     };
   }
 
+  if (!queue) silenceStreams();
+
   const natural = naturalVoice();
   if (natural && voiceReady(natural)) return openKokoroStream(natural, finish, queue);
   if (natural) void loadEngine(natural);
@@ -822,15 +852,26 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
     silent = null;
     watchdog = null;
   };
-  const done = () => {
+  /**
+   * Stop writing, and stop owing anybody a turn.
+   *
+   * Leaving the entry in `owed` after it has been superseded would mean a
+   * later `stopSpeaking` handing on a turn that something else already owns.
+   */
+  const quiet = () => {
     killed = true;
     clear();
     owed.delete(done);
+    streams.delete(quiet);
+  };
+  const done = () => {
+    quiet();
     finish();
   };
   // Registered for the whole life of the stream, so being silenced from
   // outside hands the turn straight back instead of waiting out the watchdog.
   owed.add(done);
+  streams.add(quiet);
   const guard = () => {
     if (watchdog) clearTimeout(watchdog);
     watchdog = setTimeout(done, SPEECH_WATCHDOG_MS + outstanding);
