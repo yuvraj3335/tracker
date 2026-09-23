@@ -118,3 +118,47 @@ export function headStartMs(bufferedMs: number, generationLeftMs: number, cap = 
   if (deficit <= 0 || deficit > cap) return 0;
   return deficit;
 }
+
+/**
+ * Where the speech actually starts and stops inside a generated clip.
+ *
+ * Kokoro pads every clip: measured across sentences of every length it is
+ * about 320 ms of silence at the front and 500 ms at the back, near enough
+ * regardless of what was said. Played as-is that is eight hundred
+ * milliseconds of nothing at every sentence boundary — before any of the
+ * waiting-for-the-next-one silence is added to it — and it is the single
+ * largest part of "it stops for ages after every full stop".
+ *
+ * Pure, and on a plain array, so the thresholds can be tested without an
+ * audio context. A guard band is kept at each end rather than cutting hard
+ * against the first loud sample, because a stop consonant starts quietly and
+ * clipping its onset is how a trimmed voice starts sounding chewed.
+ */
+export const SILENCE_FLOOR = 0.02;
+export const GUARD_MS = 30;
+
+export function trimBounds(
+  audio: ArrayLike<number>,
+  sampleRate: number,
+  floor = SILENCE_FLOOR,
+): [number, number] {
+  const window = Math.max(1, Math.round(sampleRate * 0.01));
+  const guard = Math.round((GUARD_MS / 1000) * sampleRate);
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i + window <= audio.length; i += window) {
+    let peak = 0;
+    for (let j = i; j < i + window; j++) {
+      const v = audio[j] < 0 ? -audio[j] : audio[j];
+      if (v > peak) peak = v;
+    }
+    if (peak > floor) {
+      if (first < 0) first = i;
+      last = i + window;
+    }
+  }
+  // Nothing above the floor anywhere: it is silence, and saying so is better
+  // than handing back a zero-length buffer the caller has to special-case.
+  if (first < 0) return [0, 0];
+  return [Math.max(0, first - guard), Math.min(audio.length, last + guard)];
+}

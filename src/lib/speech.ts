@@ -659,7 +659,13 @@ export function speakingTime(text: string): number {
  */
 export { loadEngine };
 
-export function speak(text: string, onDone?: () => void, queue = false) {
+export function speak(text: string, onDone?: () => void, queue = false, onStart?: () => void) {
+  let begun = false;
+  const begins = () => {
+    if (begun) return;
+    begun = true;
+    onStart?.();
+  };
   // Whichever comes first — the engine saying it is done, or the clock
   // deciding it never will. Called at most once either way, because handing
   // the same turn on twice would open the microphone under a live voice.
@@ -669,6 +675,7 @@ export function speak(text: string, onDone?: () => void, queue = false) {
     if (handed) return;
     handed = true;
     owed.delete(finish);
+    saidNothing();
     if (watchdog) clearTimeout(watchdog);
     onDone?.();
   };
@@ -693,7 +700,8 @@ export function speak(text: string, onDone?: () => void, queue = false) {
   if (natural) {
     if (voiceReady(natural)) {
       guard();
-      speakKokoro(sayable(text), natural, splitForSpeech, finish, queue);
+      nowSaying(sayable(text));
+      speakKokoro(sayable(text), natural, splitForSpeech, finish, queue, begins);
       return;
     }
     void loadEngine(natural);
@@ -721,11 +729,13 @@ export function speak(text: string, onDone?: () => void, queue = false) {
     // and is not going to say so. Cleared the moment anything starts.
     let began: ReturnType<typeof setTimeout> | null = setTimeout(finish, SPEECH_START_MS);
     const started = () => {
+      begins();
       if (began) clearTimeout(began);
       began = null;
     };
 
     parts.forEach((part, i) => {
+      nowSaying(part);
       const utterance = new SpeechSynthesisUtterance(part);
       if (chosenVoice) utterance.voice = chosenVoice;
       utterance.onstart = started;
@@ -762,7 +772,17 @@ export function speak(text: string, onDone?: () => void, queue = false) {
  */
 export type Utterance = { push(line: string): void; end(): void };
 
-export function speakStream(onDone?: () => void, queue = false): Utterance {
+export function speakStream(
+  onDone?: () => void,
+  queue = false,
+  onStart?: () => void,
+): Utterance {
+  let begun = false;
+  const begins = () => {
+    if (begun) return;
+    begun = true;
+    onStart?.();
+  };
   let handed = false;
   const finish = () => {
     if (handed) return;
@@ -787,7 +807,16 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
   if (!queue) silenceStreams();
 
   const natural = naturalVoice();
-  if (natural && voiceReady(natural)) return openKokoroStream(natural, finish, queue);
+  if (natural && voiceReady(natural)) {
+    const stream = openKokoroStream(natural, finish, queue, begins);
+    return {
+      push: (line: string) => {
+        nowSaying(line);
+        stream.push(line);
+      },
+      end: stream.end,
+    };
+  }
   if (natural) void loadEngine(natural);
 
   if (!('speechSynthesis' in window)) {
@@ -863,6 +892,7 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
     clear();
     owed.delete(done);
     streams.delete(quiet);
+    saidNothing();
   };
   const done = () => {
     quiet();
@@ -891,6 +921,7 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
       if (killed || closed) return;
       const parts = splitForSpeech(line);
       if (!parts.length) return;
+      nowSaying(line);
       for (const part of parts) {
         const cost = speakingTime(part);
         const utterance = new SpeechSynthesisUtterance(part);
@@ -900,6 +931,7 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
         utterance.pitch = pitch;
         utterance.onstart = () => {
           everStarted = true;
+          begins();
           if (silent) clearTimeout(silent);
           silent = null;
         };
@@ -926,6 +958,114 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
   };
 }
 
+// ------------------------------------------------------------ interrupting
+/**
+ * What the companion is saying out loud right now, and since when.
+ *
+ * The microphone stays open while it talks, so that you can talk over it. The
+ * price of that is that the recogniser hears the companion too — on a laptop
+ * with speakers it hears it very clearly — and the only thing that tells the
+ * two apart is that we know exactly what the companion is saying.
+ */
+let saidAloud = '';
+let saidSince = 0;
+
+function nowSaying(text: string) {
+  if (!saidAloud) saidSince = Date.now();
+  // Bounded: a long reply is several sentences and nothing older than the
+  // current turn is worth comparing against.
+  saidAloud = `${saidAloud} ${text}`.slice(-1200);
+}
+
+function saidNothing() {
+  saidAloud = '';
+  saidSince = 0;
+}
+
+/** How long it must have been talking before anything is taken as an interruption. */
+export const BARGE_IN_AFTER_MS = 600;
+
+/** The fewest words worth cutting a sentence off for. */
+export const BARGE_IN_WORDS = 2;
+
+const words = (text: string): string[] =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s']/gu, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+
+/**
+ * Whether what was heard is the companion's own voice coming back.
+ *
+ * Pure, and over plain strings, so the thresholds can be argued about in a
+ * test rather than by talking at a laptop.
+ *
+ * It is deliberately biased towards deciding yes. Being wrong that way means a
+ * genuine interruption is missed and has to be repeated, which is mildly
+ * annoying; being wrong the other way means the companion hears itself, stops
+ * mid-sentence and answers its own words, which is the failure that made the
+ * microphone get closed during speech in the first place.
+ */
+export const ECHO_RUN = 0.5;
+export const ECHO_OVERLAP = 0.8;
+
+/** The longest run of words the two have in a row, in order. */
+function longestRun(a: readonly string[], b: readonly string[]): number {
+  let best = 0;
+  let previous = new Array<number>(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    const row = new Array<number>(b.length + 1).fill(0);
+    for (let j = 1; j <= b.length; j++) {
+      if (a[i - 1] !== b[j - 1]) continue;
+      row[j] = previous[j - 1] + 1;
+      if (row[j] > best) best = row[j];
+    }
+    previous = row;
+  }
+  return best;
+}
+
+export function isEcho(heard: string, spoken: string): boolean {
+  const mine = words(heard);
+  // Too little to judge. While a voice is playing, that is almost always the
+  // tail of it rather than somebody starting a sentence.
+  if (mine.length < BARGE_IN_WORDS) return true;
+  const theirs = words(spoken);
+  if (!theirs.length) return false;
+
+  // Word order is the signal, not word choice. A recogniser hearing the
+  // speaker produces a RUN of what was said, in order; a person answering
+  // reuses the same handful of ordinary words in a sentence of their own.
+  // Counting shared words alone cannot tell those apart — "it has been like
+  // that since I moved house" shares five words out of nine with "how long
+  // has it been like that", which is a majority, and it is plainly a person.
+  if (longestRun(mine, theirs) / mine.length > ECHO_RUN) return true;
+
+  // And a backstop for a mishearing that scrambles the order enough to break
+  // every run: almost every word being one of its own is still its own.
+  const pool = new Set(theirs);
+  let shared = 0;
+  for (const word of mine) if (pool.has(word)) shared += 1;
+  return shared / mine.length > ECHO_OVERLAP;
+}
+
+/**
+ * Whether something heard should cut the companion off.
+ *
+ * Three tests, all of which have to pass: it has been talking long enough that
+ * this is not the tail of the last thing said, there are enough words to be a
+ * thought, and those words are not its own coming back.
+ */
+export function shouldBargeIn(heard: string, now = Date.now()): boolean {
+  if (!saidAloud) return true;
+  if (now - saidSince < BARGE_IN_AFTER_MS) return false;
+  return !isEcho(heard, saidAloud);
+}
+
+/** Exposed so a test can drive the real thing rather than a copy of it. */
+export const speakingAloud = (): string => saidAloud;
+
 /** Cuts off whatever is being said, including everything still queued. */
 export function stopSpeaking() {
   stopKokoro();
@@ -940,6 +1080,7 @@ export function stopSpeaking() {
   // and handing it on while the engine is still speaking would open the
   // microphone underneath a live voice.
   for (const settle of [...owed]) settle();
+  saidNothing();
 }
 
 export const canSpeak = (): boolean =>

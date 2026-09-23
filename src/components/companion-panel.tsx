@@ -13,6 +13,7 @@ import {
   engineKind,
   engineProgress,
   engineState,
+  countConversation,
   modelMegabytes,
   serverEngineKind,
   serverEngineProgress,
@@ -28,6 +29,8 @@ import {
 import {
   FIRST_MIN,
   SENTENCE_MIN,
+  shouldBargeIn,
+  speakingAloud,
   canListen,
   canSpeak,
   getVoice,
@@ -49,9 +52,9 @@ import {
   stopSpeaking,
   whenVoicesKnown,
 } from '@/lib/speech';
-import { captionFor, isHearing, isTalking, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
+import { captionFor, isHearing, isTalking, micOpen, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
 import type { EngineKind } from '@/lib/kokoro';
-import { MAX_HISTORY, MAX_MESSAGE_CHARS, type ChatMessage } from '@/lib/companion-prompt';
+import { MAX_HISTORY, MAX_MESSAGE_CHARS, readable, type ChatMessage } from '@/lib/companion-prompt';
 import { cn } from '@/lib/utils';
 
 /** How tall the message box is allowed to grow before it scrolls instead. */
@@ -72,6 +75,22 @@ const MAX_FIELD_PX = 120;
  * character means the connection, not the model.
  */
 const STREAM_STALL_MS = 8_000;
+
+/**
+ * What was said last time the panel was open, for as long as this page lives.
+ *
+ * Closing it used to throw the conversation away, so glancing at something
+ * else and coming back meant starting again from hello with no memory of what
+ * you had just told it. Deliberately module state rather than storage: a
+ * conversation is a thing you are in the middle of, not a document, and it
+ * should not still be there tomorrow — a reload is a fresh start, as it was.
+ */
+let carried: ChatMessage[] = [];
+
+/** Testing seam, and what a sign-out would call if one ever needed to. */
+export function forgetConversation() {
+  carried = [];
+}
 
 /**
  * A conversation you have out loud.
@@ -102,8 +121,19 @@ export function CompanionPanel({
   // Mounted only while open, so the opening turn and the greeting are the
   // initial state rather than something an effect has to set afterwards.
   const [hello] = useState(() => pickCharacterLine(character, 'idle', THEMES[skin], 0));
-  const [turn, setTurn] = useState<Turn>(() => nextTurn('closed', 'open', { canHear: canListen(), canSpeak: canSpeak() }));
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [{ role: 'assistant', content: hello }]);
+  /** Picking up where it left off, if it was left somewhere. */
+  const [resumed] = useState(() => carried.length > 0);
+  const [turn, setTurn] = useState<Turn>(() =>
+    // Resuming does not say hello again. Greeting somebody you were already
+    // talking to thirty seconds ago is the tell that nothing was remembered.
+    nextTurn('closed', 'open', {
+      canHear: canListen(),
+      canSpeak: canSpeak() && carried.length === 0,
+    }),
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>(() =>
+    carried.length ? carried : [{ role: 'assistant', content: hello }],
+  );
   const [heard, setHeard] = useState('');
   const [draft, setDraft] = useState('');
   const [typing, setTyping] = useState(false);
@@ -123,7 +153,9 @@ export function CompanionPanel({
    * position, from a closure, is how a typed message vanished from the screen
    * *and* from the history posted to the model.
    */
-  const thread = useRef<ChatMessage[]>([{ role: 'assistant', content: hello }]);
+  const thread = useRef<ChatMessage[]>(
+    carried.length ? carried : [{ role: 'assistant', content: hello }],
+  );
   /** Whichever reply is still arriving, so it can be called off. */
   const inFlight = useRef<AbortController | null>(null);
   /**
@@ -136,11 +168,26 @@ export function CompanionPanel({
   const typingRef = useRef(false);
   /** The completed reply, for a screen reader. See the live region below. */
   const [spoken, setSpoken] = useState('');
+  /**
+   * Whether a voice has actually started, as opposed to a reply having begun
+   * to arrive.
+   *
+   * The turn moves to `speaking` on the first byte, because that is when the
+   * dots should go and the bubble should start filling. But the caption read
+   * "…is talking…" from that instant, and on the natural voice the first sound
+   * is seconds later — measured at 4.4 s on a machine where the model runs at
+   * twice real time. A caption that says it is talking while it is silent is
+   * the thing that makes people wonder whether it broke.
+   */
+  const [voiced, setVoiced] = useState(false);
 
   const name = character?.name ?? 'Your companion';
+  /** The keyboard is up — either by choice, or because there is no other way. */
+  const composing = typing || !canHear;
 
   const commit = useCallback((next: ChatMessage[]) => {
     thread.current = next;
+    carried = next;
     setMessages(next);
   }, []);
 
@@ -194,10 +241,13 @@ export function CompanionPanel({
 
   const say = useCallback(
     (text: string) => {
+      // No reset here: this is only ever called from the mount effect, where
+      // `voiced` is already false, and setting state synchronously in an
+      // effect body is a cascading render.
       // `speak` calls back even when muted or unsupported, so the loop hands
       // the turn on either way rather than stopping dead the first time
       // someone mutes it.
-      speak(text, () => advance('spoke'));
+      speak(text, () => advance('spoke'), false, () => setVoiced(true));
     },
     [advance],
   );
@@ -272,7 +322,8 @@ export function CompanionPanel({
           // them was two schedules meeting by luck, and that luck was bad. A
           // stream is a single timeline: the pause after a full stop is the
           // one `pauseAfter` asked for and nothing else.
-          const voice = speakStream(() => advance('spoke'), true);
+          setVoiced(false);
+          const voice = speakStream(() => advance('spoke'), true, () => setVoiced(true));
           let said = 0;
           const utter = (line: string) => {
             said += 1;
@@ -399,17 +450,41 @@ export function CompanionPanel({
   );
 
   // ---- the microphone, open the whole time the loop says to ---------------
-  // It closes only while something is being said aloud, so it never hears the
-  // companion and answers itself.
+  // Including while the companion is talking, which is what makes talking over
+  // it possible. What keeps it from hearing itself is `shouldBargeIn`, not a
+  // closed microphone: we know exactly what it is saying, so anything coming
+  // back that matches is thrown away rather than acted on.
+  // Keyed on whether the microphone is wanted at all, never on the turn
+  // itself. Going from speaking to listening must not tear the session down
+  // and open a new one — that is the exact moment somebody is mid-word, and
+  // a new session starts with an empty buffer.
+  // Not while they are typing, and not in a browser that cannot listen. The
+  // turn alone used to imply both — `listening` was unreachable with the
+  // keyboard up — but `micOpen` is wider than `listening` now, so having
+  // chosen to type must be said out loud here or the microphone opens under
+  // the text box with nothing on screen saying it is on.
+  const wantMic = canHear && !composing && micOpen(turn);
   useEffect(() => {
-    if (!isHearing(turn)) {
+    if (!wantMic) {
       stopHearing.current?.();
       stopHearing.current = null;
       return;
     }
     const stop = listen({
-      onPartial: setHeard,
-      onUtterance: (text) => void send(text),
+      onPartial: (text) => {
+        // `shouldBargeIn` answers yes outright when nothing is being said, so
+        // this is the ordinary live caption the rest of the time. While a
+        // voice IS playing it is the gate: the companion's own words coming
+        // back are discarded, and anything that is plainly not them cuts it
+        // off so they are being listened to rather than talked over.
+        if (!shouldBargeIn(text)) return;
+        if (speakingAloud()) cutIn();
+        setHeard(text);
+      },
+      onUtterance: (text) => {
+        if (!shouldBargeIn(text)) return;
+        void send(text);
+      },
       onError: (message) => {
         if (message) setProblem(message);
         advance('error');
@@ -420,10 +495,9 @@ export function CompanionPanel({
       stop();
       stopHearing.current = null;
     };
-    // `send` changes with every message, which would tear the microphone down
-    // mid-sentence; the turn is what should drive it.
+    // `send`, `cutIn` and `advance` are all stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turn]);
+  }, [wantMic]);
 
   // The voice downloads itself when a conversation starts, rather than when
   // somebody finds the dropdown. Until it lands the browser's own voice
@@ -440,6 +514,10 @@ export function CompanionPanel({
     // arrives a tick or two after load, and whether this deployment has a
     // hosted voice is a round trip — and guessing at either is how a machine
     // that needed no download at all starts a 155 MB one.
+    // Counted on the way in, before anything decides whether to download. The
+    // first conversation on a device never fetches the model; see
+    // `CONVERSATIONS_BEFORE_DOWNLOAD`.
+    countConversation();
     void checkHosted().then(() => {
       if (gone) return;
       stop = whenVoicesKnown(() => {
@@ -472,7 +550,7 @@ export function CompanionPanel({
   // Says hello on mount. Only an external call — the turn it hands back
   // arrives through `speak`'s callback, not from this effect's body.
   useEffect(() => {
-    say(hello);
+    if (!resumed) say(hello);
     return () => {
       stopHearing.current?.();
       stopHearing.current = null;
@@ -525,6 +603,49 @@ export function CompanionPanel({
     };
   }, []);
 
+  /**
+   * On a phone the panel is a sheet across the whole screen, and a sheet you
+   * can tab out of into a page you cannot see is a trap of the other kind.
+   *
+   * Only there. On a laptop it is a panel beside the figure with the page
+   * plainly visible around it — genuinely non-modal — and trapping focus in a
+   * non-modal dialog is its own bug. So the media query decides, and it is the
+   * same breakpoint the layout uses.
+   */
+  const [sheet, setSheet] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const read = () => setSheet(mq.matches);
+    read();
+    mq.addEventListener('change', read);
+    return () => mq.removeEventListener('change', read);
+  }, []);
+
+  useEffect(() => {
+    if (!sheet) return;
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !box.current) return;
+      const stops = [...box.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), select, textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      )].filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (!stops.length) return;
+      const first = stops[0];
+      const last = stops[stops.length - 1];
+      const here = document.activeElement;
+      // Wrapping, rather than blocking: the order inside is untouched, it
+      // simply has no way out while the sheet is covering everything.
+      if (!e.shiftKey && (here === last || !box.current.contains(here))) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && (here === first || !box.current.contains(here))) {
+        e.preventDefault();
+        last.focus();
+      }
+    };
+    document.addEventListener('keydown', onTab);
+    return () => document.removeEventListener('keydown', onTab);
+  }, [sheet]);
+
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       const target = e.target as Element | null;
@@ -568,8 +689,10 @@ export function CompanionPanel({
   }, [draft, typing]);
 
   const busy = turn === 'thinking';
-  const caption = problem || captionFor(turn, name);
-  const composing = typing || !canHear;
+  // While it is lining up a voice there is nothing true to say, and the reply
+  // filling in on screen is the feedback. Same silence `thinking` uses, and
+  // for the same reason.
+  const caption = problem || (isTalking(turn) && !voiced ? '' : captionFor(turn, name));
   /** There is something in flight worth cutting off. */
   const interruptible = isTalking(turn) || turn === 'thinking';
 
@@ -577,6 +700,11 @@ export function CompanionPanel({
     <div
       ref={box}
       role="dialog"
+      // True only where it actually is one. On a phone the sheet covers the
+      // page and focus is trapped inside it; on a laptop it sits beside the
+      // figure with everything still reachable, and claiming modality there
+      // would tell a screen reader the page had gone away when it had not.
+      aria-modal={sheet || undefined}
       // Focusable but not in the tab order: the panel takes focus when it
       // opens so tabbing starts inside it, and gives it back when it closes.
       tabIndex={-1}
@@ -659,7 +787,12 @@ export function CompanionPanel({
             role={m.role}
             first={m.role !== messages[i - 1]?.role}
           >
-            {m.content}
+            {/* The model is told not to use markdown and sometimes does it
+                anyway. `sayable` already strips it for the voice, so the
+                screen was the one place where ignoring the instruction
+                showed — as literal asterisks and backticks. Only what they
+                typed is left exactly as they typed it. */}
+            {m.role === 'assistant' ? readable(m.content) : m.content}
           </Bubble>
         ))}
         {turn === 'thinking' ? (
@@ -965,6 +1098,9 @@ const ENGINE_LABEL: Record<EngineKind, string> = {
   webgpu: 'on your GPU',
   wasm: 'on this machine',
   none: 'browser voice',
+  // Measured, and it cannot generate speech as fast as speech is spoken here,
+  // so Auto does not use it. Choosing one below still works.
+  slow: 'browser voice — this machine is too slow for the natural one',
 };
 
 /**

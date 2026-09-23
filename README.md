@@ -185,13 +185,16 @@ status indicator — it talks while it talks, leans in while it listens, casts
 while it thinks — and every turn is captioned on screen as well. Typing still
 works and is the only path in a browser without speech recognition.
 
-**You can cut it off.** The microphone is deliberately shut while it is
-speaking, so that it never hears itself and answers it — which means
-interrupting has to be something you do rather than something you talk over.
-**Stop** silences it and reopens the microphone in the same press, so cutting
-it off short does not also mean giving up talking. There is no true barge-in:
-the browser's speech recognition takes whatever the microphone hears, and on a
-laptop with speakers that includes the companion.
+**You can talk over it.** The microphone stays open while it speaks, and what
+stops it hearing itself is not a closed microphone but knowing exactly what it
+is saying: anything coming back that repeats its own words in its own order is
+discarded, and anything that plainly is not cuts it off mid-sentence and
+listens. Biased towards discarding, deliberately — a missed interruption has to
+be repeated, while a false one means it stops and answers itself. There is a
+**Stop** control too, for a room where talking is not the thing to do.
+
+**Closing it does not throw the conversation away.** Reopening picks up where
+you left off, without greeting you again. A reload is still a fresh start.
 
 **It can see your tracker.** Ask how many you have done, how the hard ones are
 going, what you are part-way through, what is next — it answers from the real
@@ -203,6 +206,18 @@ slow or down the conversation still works, it just says it cannot see.
 
 Talking needs `ANTHROPIC_API_KEY` (Claude Haiku); without one it says so
 plainly rather than failing.
+
+**The natural voice is measured before it is used.** Kokoro runs on the
+listener's own machine, and whether that machine can generate speech as fast as
+speech is spoken decides whether a reply flows or stops dead after every
+sentence. Measured on a four-core laptop it runs at about 1.7x real time, which
+is four and a half seconds of silence between sentences — so the engine times
+itself on load and, past a ceiling, the browser's own voice is used instead and
+the verdict is remembered rather than re-learned with another download. Picking
+a natural voice by hand is still honoured. Nothing is downloaded at all until a
+second conversation on that device: the browser reports the same connection
+type for wi-fi and mobile data, so the only unambiguous signal that somebody
+wants this is that they came back.
 
 - **Accessible.** The overlay is `position: fixed` and `pointer-events: none`, so
   it can never block a tap or shift the page, and every message goes through an
@@ -332,7 +347,7 @@ API. Any cell links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 715 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
+| `npm run test` | 748 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |

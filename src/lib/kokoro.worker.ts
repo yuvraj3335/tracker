@@ -21,6 +21,7 @@
  */
 import type { KokoroTTS } from 'kokoro-js';
 import { adapterHints, shouldUseGPU } from './gpu';
+import { trimBounds } from './speech-shape';
 
 /** The library types its voice list as a literal union; this is that union. */
 type GenerateOptions = NonNullable<Parameters<KokoroTTS['generate']>[1]>;
@@ -34,7 +35,7 @@ export type Device = 'webgpu' | 'wasm';
 
 export type FromWorker =
   | { type: 'progress'; loaded: number; total: number; file: string }
-  | { type: 'ready'; device: Device; rtf: number }
+  | { type: 'ready'; device: Device; rtf: number; msPerChar: number }
   | { type: 'failed'; message: string }
   | { type: 'audio'; id: number; audio: Float32Array; sampleRate: number; ms: number }
   | { type: 'error'; id: number };
@@ -64,7 +65,7 @@ let engine: KokoroTTS | null = null;
 const post = (message: FromWorker, transfer?: Transferable[]) =>
   scope.postMessage(message, transfer ?? []);
 
-type Loaded = { tts: KokoroTTS; rtf: number };
+type Loaded = { tts: KokoroTTS; rtf: number; msPerChar: number };
 
 /**
  * Loads the model on one device and reports how fast it actually is.
@@ -88,8 +89,27 @@ async function bring(dtype: string, device: Device, voice: VoiceId): Promise<Loa
   await tts.generate('Okay.', { voice });
   const started = performance.now();
   const raw = await tts.generate(YARDSTICK, { voice });
-  const spokenMs = (raw.audio.length / raw.sampling_rate) * 1000;
-  return { tts, rtf: (performance.now() - started) / spokenMs };
+  const genMs = performance.now() - started;
+  // Against the duration that will actually be HEARD, not the one the model
+  // handed back. Kokoro pads every clip with about 320 ms of silence at the
+  // front and 500 ms at the back, and every one of those milliseconds is
+  // trimmed off before playback — so timing against the raw length credits
+  // the engine with nearly a second of audio per sentence that nobody hears.
+  // Measured on a four-core machine: 1.13 against the padded length, 1.58
+  // against the real one, while the panel was audibly leaving four and a half
+  // seconds of silence between sentences. The yardstick was the reason a
+  // machine that cannot keep up looked like one that could.
+  const audio = raw.audio as unknown as Float32Array;
+  const [from, to] = trimBounds(audio, raw.sampling_rate);
+  const heardMs = ((to - from) / raw.sampling_rate) * 1000;
+  return {
+    tts,
+    rtf: heardMs > 0 ? genMs / heardMs : Infinity,
+    // Reported rather than reconstructed. It used to be rebuilt on the other
+    // side from the ratio and two constants describing this sentence, which is
+    // three places for the units to stop agreeing.
+    msPerChar: genMs / YARDSTICK.length,
+  };
 }
 
 function discard(tts: KokoroTTS) {
@@ -112,7 +132,7 @@ async function load({ dtype, voice }: LoadMessage) {
         const gpu = await bring('fp16', 'webgpu', id);
         if (gpu.rtf <= GPU_CEILING) {
           engine = gpu.tts;
-          post({ type: 'ready', device: 'webgpu', rtf: gpu.rtf });
+          post({ type: 'ready', device: 'webgpu', rtf: gpu.rtf, msPerChar: gpu.msPerChar });
           return;
         }
         // It works and it is not worth it. The file is already cached, so
@@ -125,7 +145,7 @@ async function load({ dtype, voice }: LoadMessage) {
 
     const cpu = await bring(dtype, 'wasm', id);
     engine = cpu.tts;
-    post({ type: 'ready', device: 'wasm', rtf: cpu.rtf });
+    post({ type: 'ready', device: 'wasm', rtf: cpu.rtf, msPerChar: cpu.msPerChar });
   } catch (e) {
     engine = null;
     post({ type: 'failed', message: e instanceof Error ? e.message : 'unknown' });

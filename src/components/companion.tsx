@@ -24,7 +24,7 @@ import {
   type Point,
   type Safe,
 } from '@/lib/companion';
-import { speechLevel } from '@/lib/kokoro';
+import { hasSpeechLevel, speechLevel } from '@/lib/kokoro';
 import { primeAudio } from '@/lib/speech';
 import { cn } from '@/lib/utils';
 
@@ -102,9 +102,28 @@ export function Companion({
    * the panel.
    */
   const talking = overridePose === 'talking';
+  /**
+   * Whether the voice is one this can actually measure.
+   *
+   * Only the neural and hosted voices go through this file's audio graph. The
+   * browser's own `speechSynthesis` cannot be captured, so on that voice the
+   * level is a flat zero — and the frame loop below was running for the whole
+   * length of every reply to write `--voice: 0.000` sixty times a second.
+   */
+  const [metered, setMetered] = useState(false);
+  useEffect(() => {
+    if (!talking) return;
+    // Asked repeatedly rather than once: on the neural voice the first clip
+    // can be a second or two behind the turn changing. The answer is not reset
+    // when it stops talking — it is asked again within a frame or two of the
+    // next reply starting, and nothing reads it in between.
+    const id = setInterval(() => setMetered(hasSpeechLevel()), 120);
+    return () => clearInterval(id);
+  }, [talking]);
+
   useEffect(() => {
     const node = shell.current;
-    if (!node || !talking) return;
+    if (!node || !talking || !metered) return;
     // The reduced-motion rule in globals.css can shorten an animation but it
     // cannot tell a transform written from JavaScript every frame to stop
     // asking for one, so this has to check for itself — the same reason the
@@ -126,7 +145,7 @@ export function Companion({
       cancelAnimationFrame(frame);
       node.style.removeProperty('--voice');
     };
-  }, [talking]);
+  }, [talking, metered]);
 
   const safe = viewport && viewport.width < 640 ? SAFE_PHONE : SAFE_DESKTOP;
   // Clamped on every read, not only on write: a position saved on a wider
@@ -308,7 +327,11 @@ export function Companion({
             // it is covering for, which is the wrong trade at exactly the
             // wrong moment.
             thinking && 'js-think',
-            talking && 'js-voice',
+            // Two different claims. With a level to read, the figure moves
+            // with the syllables. Without one — the browser's own voice, which
+            // cannot be measured — it breathes instead, which says "talking"
+            // without pretending to know when the mouth opens.
+            talking && (metered ? 'js-voice' : 'js-speak'),
           )}
         >
           <CharacterFigure pose={pose} size={SIZE} />

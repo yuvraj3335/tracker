@@ -119,6 +119,33 @@ export function systemPrompt(
 }
 
 /**
+ * Strips the layout a model reaches for even when told not to.
+ *
+ * `sayable` already does this for the voice, but it is a speech cleaner: it
+ * drops emoji, turns dashes into commas and flattens quotes, all of which are
+ * wrong on screen. So the bubble was showing raw asterisks and backticks
+ * whenever the model ignored the instruction — the one place the instruction
+ * being ignored is visible.
+ *
+ * Deliberately not a markdown renderer. This is a spoken conversation; the
+ * answer to emphasis markers here is to remove them, not to bold something.
+ */
+export function readable(text: string): string {
+  return text
+    .replace(/```(?:[a-z]*\n)?([\s\S]*?)```/gi, '$1')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    // Emphasis cannot open or close on whitespace — that is what keeps
+    // "a * b * c" and "5 * 6" from being read as italics and silently losing
+    // their asterisks.
+    .replace(/(^|[\s(])\*(\S|\S[^*\n]*?\S)\*(?=[\s).,!?]|$)/g, '$1$2')
+    .replace(/(^|[\s(])_(\S|\S[^_\n]*?\S)_(?=[\s).,!?]|$)/g, '$1$2')
+    .replace(/^[ \t]*#{1,6}[ \t]+/gm, '')
+    .replace(/^[ \t]*>[ \t]?/gm, '')
+    .replace(/^[ \t]*[*-][ \t]+/gm, '');
+}
+
+/**
  * Validates and trims what the client sent.
  *
  * Returns null rather than throwing for anything unusable: this reads straight

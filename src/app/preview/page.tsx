@@ -14,8 +14,8 @@ import { ProgressBar } from '@/components/progress-bar';
 import { Heatmap } from '@/components/heatmap';
 import { VelocityChart } from '@/components/velocity-chart';
 import { TaskRow } from '@/components/task-row';
-import { CharacterBadge, CharacterFigure } from '@/components/character-figure';
-import { POSES } from '@/lib/characters';
+import { CharacterBadge } from '@/components/character-figure';
+import { PoseGallery } from './pose-gallery';
 import { DashboardSkeleton, SheetSkeleton } from '@/components/skeletons';
 import { Sheet } from '@/components/sheet';
 
@@ -195,20 +195,17 @@ export default function PreviewPage() {
 
       {/* Every figure on this page is a live WebGL canvas, and browsers cap
           those at about sixteen per document — this harness renders roughly
-          nineteen, so the last few come up blank with "Too many active WebGL
-          contexts" in the console. That is this page showing everything at
-          once, not a bug in the figures: the real routes peak at four (the
-          hero, a mood figure, the celebration overlay and the companion). */}
+          nineteen. Showing all fourteen at once spent the lot, and the ones
+          the browser evicted included the companion's own figure and the
+          panel's avatar — so the harness broke the thing it exists to review.
+          One figure with a pose selector costs one context and shows the
+          transitions a still grid never could. The real routes peak at four
+          (the hero, a mood figure, the celebration overlay and the
+          companion). */}
       <Section title="Character poses">
         <Card>
           <CardContent className="flex flex-wrap items-end gap-6 pt-4">
-            {POSES.map((pose) => (
-              <div key={pose} className="flex flex-col items-center gap-1.5">
-                <CharacterFigure pose={pose} size={64} />
-                <span className="text-micro tracking-wide text-ink-muted uppercase">{pose}</span>
-              </div>
-            ))}
-
+            <PoseGallery />
           </CardContent>
         </Card>
       </Section>

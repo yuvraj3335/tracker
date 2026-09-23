@@ -40,7 +40,7 @@
  * all three have the same problem once the samples exist.
  */
 import { announce } from './appearance';
-import { headStartMs, pauseAfter, speedFor } from './speech-shape';
+import { headStartMs, pauseAfter, speedFor, trimBounds } from './speech-shape';
 import { HOSTED_VOICE, hostedAudio, hostedConfigured } from './hosted-voice';
 import type { Device, FromWorker, ToWorker } from './kokoro.worker';
 
@@ -94,6 +94,24 @@ export type DeviceHints = { saveData?: boolean; effectiveType?: string; deviceMe
  * memory to spare and a connection that is not being counted, and is not
  * worth it on a phone on a train — which is the same judgement
  * `shouldAutoLoad` already makes, so it is made from the same hints.
+ *
+ * Re-measured on a different four-core machine, headless Chromium, four
+ * sentences each, and it does not agree:
+ *
+ *   q8    2 threads   2.02x real time
+ *   q8    4 threads   2.64x
+ *   fp16  2 threads   2.16x
+ *   fp16  4 threads   2.57x
+ *
+ * Two things follow. More threads is worse, not better, so the default of
+ * `hardwareConcurrency / 2` is already right and is left alone. And on that
+ * machine fp16 is both 67 MB larger AND slower, which is the opposite of the
+ * reason it is chosen — but one contradicting machine is not enough to flip a
+ * default whose other stated argument is fidelity, which cannot be measured
+ * from here. So the choice stands and the disagreement is written down.
+ *
+ * What the second set of numbers really says is that neither build keeps up
+ * with speech on a machine like this. See `WASM_CEILING`.
  */
 export type Build = { dtype: 'fp16' | 'q8'; megabytes: number };
 
@@ -143,9 +161,107 @@ export function deviceHints(): DeviceHints {
 /** How big the download is, for the one place that says so out loud. */
 export const modelMegabytes = (): number => modelBuild(deviceHints()).megabytes;
 
+/**
+ * How much slower than real time the CPU build may be and still be used
+ * without being asked for.
+ *
+ * The GPU branch has always had this test — anything that cannot beat
+ * `GPU_CEILING` is torn down and replaced. The CPU build had none, so whatever
+ * it managed was kept, and what it manages is the whole of whether a spoken
+ * reply flows or stops dead after every sentence.
+ *
+ * Where the number comes from. The pauses this file schedules are about 210 ms
+ * after a full stop, and `headStartMs` will hold the first line back by up to
+ * 900 ms to let the rest catch up. Over a ten-second reply that is roughly
+ * 1.5 s of slack, so generation can run about 1.15x real time and still sound
+ * continuous — which is exactly the design point the comments elsewhere here
+ * quote. 1.4 leaves a margin on top of it rather than sitting on the edge.
+ *
+ * Measured past it, on the real panel and the real audio clock, with the model
+ * running at 2.0x: first sound 4.4 s after the reply was asked for, then
+ * "Nice one." for 710 ms, then 4,747 ms of silence, then 1,841 ms of silence.
+ * Against a designed 210 ms. That is not a good voice with a flaw, it is the
+ * exact failure this file was written to remove, and on that machine the
+ * browser's own voice is the better answer.
+ *
+ * It gates the automatic choice only. Picking a natural voice by hand is still
+ * honoured, stalls and all, because it was asked for.
+ */
+export const WASM_CEILING = 1.4;
+
+/** What this device turned out to manage, remembered between sessions. */
+export const SPEED_KEY = 'jst-voice-speed';
+
+/**
+ * Whether the model has already been judged too slow here.
+ *
+ * Remembered, because the judgement costs a download to reach. Finding out
+ * once is the price of measuring; finding out again on every visit is just
+ * spending someone's data to re-learn something this device already knows.
+ */
+export function knownTooSlow(): boolean {
+  try {
+    const seen = Number(localStorage.getItem(SPEED_KEY));
+    return Number.isFinite(seen) && seen > WASM_CEILING;
+  } catch {
+    return false;
+  }
+}
+
+function rememberSpeed(rtf: number) {
+  try {
+    localStorage.setItem(SPEED_KEY, String(Math.round(rtf * 100) / 100));
+  } catch {
+    /* ignore — it still applies for this session */
+  }
+}
+
+/**
+ * How many conversations before the voice downloads itself.
+ *
+ * Nought meant the very first tap on the character — someone finding out what
+ * it does — cost 88 MB of somebody's data before they had heard a word. The
+ * browser reports `effectiveType: '4g'` for wi-fi and for mobile data alike,
+ * so there is no way to tell a train from a sofa; `saveData` is the only
+ * explicit signal and most people never set it.
+ *
+ * So it waits for the one signal that is unambiguous: coming back. A second
+ * conversation on this device is a person who has decided they want this, and
+ * the first one still gets a voice — the browser's — exactly as it does today
+ * while the model is downloading.
+ */
+export const CONVERSATIONS_BEFORE_DOWNLOAD = 1;
+export const VISITS_KEY = 'jst-voice-visits';
+
+/** Counted once per conversation, by the panel, on the way in. */
+export function countConversation(): number {
+  try {
+    const next = (Number(localStorage.getItem(VISITS_KEY)) || 0) + 1;
+    localStorage.setItem(VISITS_KEY, String(next));
+    return next;
+  } catch {
+    // No storage means no memory of a first visit, so nothing is ever a
+    // second one and the download never starts unasked. Choosing by hand
+    // still works.
+    return 0;
+  }
+}
+
+export function conversations(): number {
+  try {
+    return Number(localStorage.getItem(VISITS_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** True when a natural voice should be used without anyone having picked one. */
-export const autoNatural = (): string | null =>
-  shouldAutoLoad(deviceHints()) ? DEFAULT_VOICE : null;
+export const autoNatural = (): string | null => {
+  if (!shouldAutoLoad(deviceHints())) return null;
+  if (knownTooSlow()) return null;
+  if (conversations() <= CONVERSATIONS_BEFORE_DOWNLOAD) return null;
+  return DEFAULT_VOICE;
+};
 
 // ------------------------------------------------------------------ loading
 export type EngineState = 'off' | 'loading' | 'ready' | 'failed';
@@ -155,14 +271,12 @@ let state: EngineState = 'off';
 let loaded = 0;
 let loading: Promise<boolean> | null = null;
 let device: Device | null = null;
+/** Measured, and past `WASM_CEILING`. See there for what that means. */
+let tooSlow = false;
 
-/**
- * The yardstick the worker times itself against, in characters and in
- * milliseconds of speech, so its answer can be turned back into the
- * per-character cost the head start is computed from.
- */
-const YARDSTICK_CHARS = 50;
-const YARDSTICK_MS = 3_400;
+/** Whether this machine turned out to be too slow to use the model unasked. */
+export const engineTooSlow = (): boolean => tooSlow || knownTooSlow();
+export const serverEngineTooSlow = (): boolean => false;
 
 /**
  * What is making the sound. Three engines, one queue.
@@ -172,10 +286,13 @@ const YARDSTICK_MS = 3_400;
  * hardware, and which one it ended up on is only known after the worker has
  * measured them.
  */
-export type EngineKind = 'hosted' | Device | 'none';
+export type EngineKind = 'hosted' | Device | 'none' | 'slow';
 
 export function engineKind(): EngineKind {
   if (hostedConfigured()) return 'hosted';
+  // Loaded but not used unasked, so saying "on this machine" would be a lie
+  // about what Auto is doing.
+  if (engineTooSlow()) return 'slow';
   if (state !== 'ready') return 'none';
   return device ?? 'wasm';
 }
@@ -308,13 +425,25 @@ export function loadEngine(voice: string): Promise<boolean> {
         return;
       }
       if (message.type === 'ready') {
+        // Only the CPU build is judged here. The GPU path already measured
+        // itself against `GPU_CEILING` in the worker and would have been torn
+        // down there if it could not clear it.
+        if (message.device === 'wasm') rememberSpeed(message.rtf);
+        if (message.device === 'wasm' && message.rtf > WASM_CEILING) {
+          // It works, and it cannot keep up with speech. Kept loaded, because
+          // a voice chosen by hand is still honoured — `tooSlow` only takes it
+          // out of the automatic choice.
+          tooSlow = true;
+        }
         worker = spawned;
         loaded = 100;
         device = message.device;
         // Measured on this machine, on the device it actually ended up using,
         // so the head start is priced from the truth rather than from an
-        // average of every machine this has ever run on.
-        msPerChar = (message.rtf * YARDSTICK_MS) / YARDSTICK_CHARS;
+        // average of every machine this has ever run on. Taken as reported:
+        // rebuilding it here from a ratio and two constants describing the
+        // worker's own test sentence was three places for the units to drift.
+        msPerChar = message.msPerChar;
         settle('ready');
         resolve(true);
         return;
@@ -432,6 +561,19 @@ function audio(): AudioContext | null {
  * difference between a mouth that moves while there is a voice and a mouth
  * that moves in time with nothing.
  */
+/**
+ * Whether anything is actually routed through the meter.
+ *
+ * `speechLevel` reads an analyser on this file's own audio graph, and the
+ * browser's `speechSynthesis` does not go through it — its output is not
+ * capturable at all. So on the browser voice the level is a flat zero, and the
+ * figure was being driven every frame by a number that could not change.
+ *
+ * The honest answer is not to fake a level. It is to say there isn't one, and
+ * let the caller fall back to something that claims less.
+ */
+export const hasSpeechLevel = (): boolean => live.size > 0;
+
 export function speechLevel(): number {
   if (!meter || !meterData) return 0;
   meter.getFloatTimeDomainData(meterData);
@@ -468,48 +610,11 @@ function toBuffer(ctx: AudioContext, clip: Clip): AudioBuffer | null {
 }
 
 /**
- * Where the speech actually starts and stops inside a generated clip.
- *
- * Kokoro pads every clip: measured across sentences of every length it is
- * about 320 ms of silence at the front and 500 ms at the back, near enough
- * regardless of what was said. Played as-is that is eight hundred
- * milliseconds of nothing at every sentence boundary — before any of the
- * waiting-for-the-next-one silence is added to it — and it is the single
- * largest part of "it stops for ages after every full stop".
- *
- * Pure, and on a plain array, so the thresholds can be tested without an
- * audio context. A guard band is kept at each end rather than cutting hard
- * against the first loud sample, because a stop consonant starts quietly and
- * clipping its onset is how a trimmed voice starts sounding chewed.
+ * Trimming lives in speech-shape.ts, with the rest of the pure vocabulary, so
+ * the worker can import it too — it has to measure itself against the duration
+ * that will actually be heard, not the one the model padded.
  */
-export const SILENCE_FLOOR = 0.02;
-export const GUARD_MS = 30;
-
-export function trimBounds(
-  audio: ArrayLike<number>,
-  sampleRate: number,
-  floor = SILENCE_FLOOR,
-): [number, number] {
-  const window = Math.max(1, Math.round(sampleRate * 0.01));
-  const guard = Math.round((GUARD_MS / 1000) * sampleRate);
-  let first = -1;
-  let last = -1;
-  for (let i = 0; i + window <= audio.length; i += window) {
-    let peak = 0;
-    for (let j = i; j < i + window; j++) {
-      const v = audio[j] < 0 ? -audio[j] : audio[j];
-      if (v > peak) peak = v;
-    }
-    if (peak > floor) {
-      if (first < 0) first = i;
-      last = i + window;
-    }
-  }
-  // Nothing above the floor anywhere: it is silence, and saying so is better
-  // than handing back a zero-length buffer the caller has to special-case.
-  if (first < 0) return [0, 0];
-  return [Math.max(0, first - guard), Math.min(audio.length, last + guard)];
-}
+export { SILENCE_FLOOR, GUARD_MS, trimBounds } from './speech-shape';
 
 // ------------------------------------------------------------------ speaking
 type Piece = { text: string; index: number };
@@ -522,6 +627,8 @@ type Say = {
   /** Woken when a piece is pushed or the stream is closed. */
   wake: (() => void) | null;
   onDone?: () => void;
+  /** Fires once, when the first clip actually reaches the speaker. */
+  onStart?: () => void;
   /** Characters pushed but not yet generated. Drives the head start. */
   waitingChars: number;
 };
@@ -658,6 +765,12 @@ async function run(say: Say): Promise<void> {
       // been managing, against what we already hold. See `headStartMs`.
       const lead = headStartMs(buffer.duration * 1000, say.waitingChars * msPerChar);
       at = now + 0.06 + lead / 1000;
+      // A buffer source has no `start` event, so the clock it was scheduled
+      // against is the thing to ask. This is what tells the caption a voice
+      // has actually begun rather than that bytes have.
+      const begins = say.onStart;
+      say.onStart = undefined;
+      if (begins) setTimeout(begins, Math.max(0, (at - ctx.currentTime) * 1000));
     } else {
       at = Math.max(cursor, now + 0.02);
     }
@@ -745,6 +858,7 @@ export function openKokoroStream(
   voice: string,
   onDone?: () => void,
   queued = false,
+  onStart?: () => void,
 ): KokoroStream {
   if (!voiceReady(voice)) {
     onDone?.();
@@ -759,6 +873,7 @@ export function openKokoroStream(
     cancelled: false,
     wake: null,
     onDone,
+    onStart,
     waitingChars: 0,
   };
   queue.push(say);
@@ -799,12 +914,13 @@ export function speakKokoro(
   split: (text: string) => string[],
   onDone?: () => void,
   queued = false,
+  onStart?: () => void,
 ) {
   if (!voiceReady(voice) || !text) {
     onDone?.();
     return;
   }
-  const stream = openKokoroStream(voice, onDone, queued);
+  const stream = openKokoroStream(voice, onDone, queued, onStart);
   for (const line of split(text)) stream.push(line);
   stream.end();
 }

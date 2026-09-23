@@ -53,6 +53,7 @@ import { setupStage } from '../src/lib/setup';
 import {
   captionFor, isHearing, isTalking, nextTurn, poseForTurn,
   type Capabilities, type Turn,
+  micOpen,
 } from '../src/lib/conversation';
 import {
   ANGRY_POKES, ANGRY_WINDOW_MS, clampToViewport, defaultPosition, parsePosition,
@@ -62,7 +63,7 @@ import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate
 import { buildSnapshot } from '../src/lib/companion-context';
 import {
   SPEECH_START_MS, SPEECH_WATCHDOG_MS,
-  FIRST_MIN, SENTENCE_MIN,
+  BARGE_IN_WORDS, ECHO_OVERLAP, ECHO_RUN, FIRST_MIN, SENTENCE_MIN, isEcho,
   cutSentences, endOfThought, pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
   isLocalNeuralVoice,
 } from '../src/lib/speech';
@@ -70,12 +71,12 @@ import { BASE_SPEED, LEAD_MAX, LEAD_MIN, headStartMs, leadCut, pauseAfter, speed
 import { getPersona, hasPersona, personaPrompt } from '../src/lib/persona';
 import { splitEvents, textOfEvent } from '../src/lib/anthropic-stream';
 import { FRESH_MS, STALE_MS, PATIENCE_MS, clearSnapshots, snapshotFor, within } from '../src/lib/companion-cache';
-import { GUARD_MS, KOKORO_PREFIX, KOKORO_VOICES, modelBuild, modelMegabytes, kokoroVoice, shouldAutoLoad, trimBounds } from '../src/lib/kokoro';
+import { CONVERSATIONS_BEFORE_DOWNLOAD, GUARD_MS, KOKORO_PREFIX, KOKORO_VOICES, WASM_CEILING, modelBuild, modelMegabytes, kokoroVoice, shouldAutoLoad, trimBounds } from '../src/lib/kokoro';
 import { shouldUseGPU } from '../src/lib/gpu';
 import { fixtures } from '../src/lib/fixtures';
 import {
   MAX_HISTORY, MAX_MESSAGE_CHARS,
-  sanitiseHistory, systemPrompt,
+  readable, sanitiseHistory, systemPrompt,
 } from '../src/lib/companion-prompt';
 import {
   CRITICAL_MS, HOUR, MAX_DURATION_MS, MINUTE, SECOND, WARNING_MS,
@@ -1962,6 +1963,73 @@ async function main() {
       nextTurn('speaking', 'spoke', { canHear: false, canSpeak: true }) === 'resting');
     check('and there is still a way back to it',
       nextTurn('resting', 'listen', both) === 'listening');
+  }
+
+  section('Talking over it, out loud');
+  {
+    // The microphone is open through the speaking turns now. That is the only
+    // way to interrupt by talking; the thing that keeps it from hearing itself
+    // is `isEcho`, not a closed microphone.
+    check('the microphone is open while it talks', micOpen('speaking') && micOpen('greeting'));
+    check('and while it waits for you', micOpen('listening'));
+    check('but not while it is working out a reply', !micOpen('thinking'));
+    check('nor when the loop is paused, or shut', !micOpen('resting') && !micOpen('closed'));
+    check('the halo and the level still mean "waiting for you" only',
+      isHearing('listening') && !isHearing('speaking'));
+
+    // Echo rejection. Biased towards deciding yes on purpose: a missed
+    // interruption has to be repeated, while a false one means the companion
+    // stops mid-sentence and answers its own words.
+    const line = 'Oof, that is rough. How long has it been like that?';
+    check('its own words coming back are not an interruption',
+      isEcho('how long has it been like that', line));
+    check('nor a fragment of them', isEcho('that is rough', line));
+    check('nor a mishearing of most of them', isEcho('how long has it been like this', line));
+    check('somebody actually talking is', !isEcho('since about march I think', line));
+    check('even when a word or two happens to overlap',
+      !isEcho('it has been like that since I moved house', line));
+    check('one word is never enough to cut a sentence off', isEcho('yeah', line));
+    check('nor is silence', isEcho('', line));
+    check('two words is the floor', BARGE_IN_WORDS === 2);
+    check('with nothing being said, nothing is an echo', !isEcho('anything at all', ''));
+    check('punctuation and case do not matter',
+      isEcho('HOW LONG, has it been like that!!', line));
+    check('a garbled repeat that breaks every run is still caught',
+      isEcho('rough that is how long', line));
+    check('the run threshold is a majority of what was heard', ECHO_RUN === 0.5);
+    check('and the scrambled backstop is nearly all of it', ECHO_OVERLAP === 0.8);
+    check('a long sentence sharing a short phrase is not an echo',
+      !isEcho('that is rough but I have been dealing with it all week honestly', line));
+  }
+
+  section('What reaches the screen');
+  {
+    check('bold markers are not shown either', readable('**Nice** work') === 'Nice work');
+    check('inline code keeps its words', readable('Use `map` here') === 'Use map here');
+    check('a heading loses its hashes', readable('# Heading') === 'Heading');
+    check('a bullet loses its bullet', readable('- one') === 'one');
+    check('a quote loses its chevron', readable('> quoted') === 'quoted');
+    // Unlike `sayable`, which is for speech, this must not touch anything a
+    // person would want to read.
+    check('emoji survive, unlike in speech', readable('nice 🎉') === 'nice 🎉');
+    check('an em dash survives, unlike in speech',
+      readable('well \u2014 really well') === 'well \u2014 really well');
+    check('multiplication is not italics', readable('a * b * c') === 'a * b * c');
+    check('and neither is arithmetic', readable('5*6 = 30') === '5*6 = 30');
+    check('snake_case is left alone', readable('snake_case_name') === 'snake_case_name');
+    check('plain text is untouched', readable('just a sentence.') === 'just a sentence.');
+  }
+
+  section('When the model is too slow to use');
+  {
+    // The GPU branch has always been measured against a ceiling and torn down
+    // if it could not clear it. The CPU build had none, and on a four-core
+    // machine it runs at about twice real time — which is 4.7 seconds of
+    // silence between sentences, measured on the real audio clock.
+    check('the ceiling is above the design point of 1.15', WASM_CEILING > 1.15);
+    check('and below what a four-core machine was measured at', WASM_CEILING < 2.0);
+    check('the first conversation on a device never downloads anything',
+      CONVERSATIONS_BEFORE_DOWNLOAD >= 1);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

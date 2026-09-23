@@ -105,8 +105,28 @@ export function nextTurn(turn: Turn, event: TurnEvent, can: Capabilities): Turn 
   }
 }
 
-/** True while the microphone should actually be open. */
+/** True while the conversation is waiting for you — the halo, the level meter. */
 export const isHearing = (turn: Turn): boolean => turn === 'listening';
+
+/**
+ * True while the microphone should be open at all.
+ *
+ * Wider than `isHearing`, and that difference is what makes talking over it
+ * possible. The microphone used to be shut for the whole time the companion
+ * spoke, so that it could never hear itself and answer it — which also meant
+ * there was no way to interrupt by talking, only by pressing something.
+ *
+ * It stays open through the speaking turns now, and what stops it hearing
+ * itself is `isEcho` in speech.ts rather than a closed microphone: we know
+ * exactly what the companion is saying, so anything that comes back matching
+ * it is discarded instead of acted on.
+ *
+ * Not during `thinking`. There is nothing to interrupt — nothing is being
+ * said — and whatever is heard there is a new thought, which `listening`
+ * already handles once the reply lands.
+ */
+export const micOpen = (turn: Turn): boolean =>
+  turn === 'listening' || turn === 'greeting' || turn === 'speaking';
 
 /** True while something is being read aloud. */
 export const isTalking = (turn: Turn): boolean => turn === 'greeting' || turn === 'speaking';
