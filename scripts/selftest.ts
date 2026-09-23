@@ -62,6 +62,7 @@ import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate
 import { buildSnapshot } from '../src/lib/companion-context';
 import {
   SPEECH_START_MS, SPEECH_WATCHDOG_MS,
+  FIRST_MIN, SENTENCE_MIN,
   cutSentences, endOfThought, pickVoice, prosody, sayable, speakingTime, splitForSpeech, voiceScore, type VoiceLike,
   isLocalNeuralVoice,
 } from '../src/lib/speech';
@@ -73,8 +74,8 @@ import { GUARD_MS, KOKORO_PREFIX, KOKORO_VOICES, modelBuild, modelMegabytes, kok
 import { shouldUseGPU } from '../src/lib/gpu';
 import { fixtures } from '../src/lib/fixtures';
 import {
-  MAX_HISTORY, MAX_MESSAGE_CHARS, MAX_REPLY_CHARS,
-  sanitiseHistory, systemPrompt, tidyReply,
+  MAX_HISTORY, MAX_MESSAGE_CHARS,
+  sanitiseHistory, systemPrompt,
 } from '../src/lib/companion-prompt';
 import {
   CRITICAL_MS, HOUR, MAX_DURATION_MS, MINUTE, SECOND, WARNING_MS,
@@ -1248,12 +1249,6 @@ async function main() {
     check('and it keeps the newest, not the oldest', trimmed?.[trimmed.length - 1].content === 'last');
 
     // ---- what comes back
-    check('markdown emphasis is stripped for speech', tidyReply('**Nice** _work_!') === 'Nice work!');
-    check('code fences are removed', tidyReply('Try this ```let x = 1``` ok').includes('let x') === false);
-    check('layout whitespace collapses', tidyReply('one\n\n  two') === 'one two');
-    check('a non-string reply is empty, not a crash', tidyReply(null) === '');
-    check('an over-long reply is capped', tidyReply('word. '.repeat(400)).length <= MAX_REPLY_CHARS);
-    check('a short reply is untouched', tidyReply('Good going!') === 'Good going!');
   }
 
   // -----------------------------------------------------------------------
@@ -1402,8 +1397,19 @@ async function main() {
 
     // ---- sentence chunking, which is where the pauses come from
     check('one sentence stays one', splitForSpeech('Hello there.').length === 1);
+    // This used to assert `=== 1`, under the name "sentences are split apart",
+    // because the glue rule asked whether the two TOGETHER still fitted in 180
+    // characters rather than whether the fragment was too short to stand up.
+    // Everything short of a paragraph came back as one utterance, which is one
+    // rate and one pitch for the whole reply and one pause at the end of it.
     check('sentences are split apart',
-      splitForSpeech('Nice one. How did that go? Tell me.').length === 1);
+      splitForSpeech('Nice one. How did that go? Tell me.').length === 2);
+    check('a short opener is not swallowed by the sentence after it',
+      splitForSpeech('Nice one. How did that go? Tell me.')[0] === 'Nice one.');
+    check('a fragment too short to stand up rides along with what came before',
+      splitForSpeech('How did that go? Tell me.').length === 1);
+    check('two full sentences are never merged',
+      splitForSpeech('That is a lot to be carrying around. What happened this morning?').length === 2);
     check('a long reply is broken up',
       splitForSpeech('This is a sentence. '.repeat(20)).length > 1);
     check('layout whitespace is collapsed', splitForSpeech('one\n\n  two.')[0] === 'one two.');
@@ -1627,6 +1633,21 @@ async function main() {
       cutSentences('You have done a lot today. ')[0].length === 1);
     check('an ellipsis at the end of the buffer waits too',
       cutSentences('That is a lot...')[0].length === 0);
+    // The first sentence of a reply is the entire wait before anything is
+    // heard, and the prompt asks every reply to open with a two-to-five word
+    // reaction. Under the ordinary minimum those are held back until the
+    // sentence AFTER them has finished arriving, which was measured at a
+    // second of extra silence on exactly the replies the prompt produces.
+    check('a short opener is held back at the ordinary minimum',
+      cutSentences('Nice one. That is four today.', SENTENCE_MIN)[0].length === 0);
+    check('but the first sentence is allowed to be short',
+      cutSentences('Nice one. That is four today.', FIRST_MIN)[0][0] === 'Nice one.');
+    check('the rest of the buffer still waits its turn',
+      cutSentences('Nice one. That is four today.', FIRST_MIN)[1].trim() === 'That is four today.');
+    check('the first minimum still needs a real sentence',
+      cutSentences('a. b', FIRST_MIN)[0].length === 0);
+    check('a decimal is still not a sentence, even first',
+      cutSentences('You have done 3.5 hours today. Yes.', FIRST_MIN)[0].length === 1);
 
     // ---- deciding they have finished talking
     // One fixed pause is wrong both ways at once: long enough not to cut
@@ -1911,9 +1932,28 @@ async function main() {
     check('nothing else moves it',
       nextTurn('speaking', 'reply', both) === 'speaking' &&
       nextTurn('speaking', 'silence', both) === 'speaking' &&
-      nextTurn('speaking', 'listen', both) === 'speaking');
+      nextTurn('greeting', 'reply', both) === 'greeting');
     check('a browser that cannot hear still answers a typed interruption',
       nextTurn('speaking', 'heard', mute) === 'thinking');
+
+    // Cutting it off to say something instead. The microphone is shut while it
+    // talks, so this is a deliberate act — and it has to land in `listening`,
+    // not in `resting`. Stopping it and then having to press a second button
+    // before it will hear you is two interruptions, not one.
+    check('cutting it off mid-sentence goes straight back to listening',
+      nextTurn('speaking', 'listen', both) === 'listening');
+    check('so does cutting off the greeting',
+      nextTurn('greeting', 'listen', both) === 'listening');
+    check('and calling off a reply that has not arrived yet',
+      nextTurn('thinking', 'listen', both) === 'listening');
+    check('a browser that cannot listen rests instead of pretending',
+      nextTurn('speaking', 'listen', { canHear: false, canSpeak: true }) === 'resting');
+    // `stopSpeaking` settles the utterance, which dispatches `spoke`, and it
+    // can land either side of the `listen` that caused it. Both orders have to
+    // reach the same place or interrupting would be a coin flip.
+    check('the stop and the settled utterance commute',
+      nextTurn(nextTurn('speaking', 'listen', both), 'spoke', both) ===
+      nextTurn(nextTurn('speaking', 'spoke', both), 'listen', both));
 
     // Having chosen to type, the loop must not route back through the
     // microphone. The panel says so by answering `canHear: false` for as long

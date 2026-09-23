@@ -205,6 +205,27 @@ export {
 } from './speech-shape';
 
 /**
+ * Shortest sentence worth saying on its own, once the voice is already going.
+ *
+ * A two-word fragment mid-reply is a gap with a word in it, so it waits for
+ * whatever follows it.
+ */
+export const SENTENCE_MIN = 10;
+
+/**
+ * ...except the first one, which is the entire wait.
+ *
+ * Nothing is heard until the first sentence is complete, so holding a finished
+ * "Nice one." back until the sentence after it arrives is paying the whole
+ * cost of the reply to avoid one short utterance. Measured on the streamed
+ * path: an eleven-character opener starts being said 100 ms after the first
+ * byte, a nine-character one 1,051 ms after it. The prompt asks for a
+ * two-to-five word reaction on every single reply, so that was the common
+ * case rather than the edge.
+ */
+export const FIRST_MIN = 3;
+
+/**
  * Pulls finished sentences out of a buffer that is still being written to.
  *
  * The reply arrives a few characters at a time, and the whole point is to
@@ -214,11 +235,11 @@ export {
  *
  * A sentence is only complete when something follows the full stop — without
  * that rule "3." in "3.5" would be a sentence, and so would every half-typed
- * abbreviation. `min` keeps a stray "Oh." from becoming its own utterance
- * with all the gap that implies, while still being short enough that the
- * first thing said arrives quickly.
+ * abbreviation. `min` keeps a stray "Oh." from becoming its own utterance with
+ * all the gap that implies; the caller lowers it for the first sentence of a
+ * reply, where that gap is the thing being avoided rather than the cost.
  */
-export function cutSentences(buffer: string, min = 10): [string[], string] {
+export function cutSentences(buffer: string, min = SENTENCE_MIN): [string[], string] {
   const out: string[] = [];
   let start = 0;
   for (let i = 0; i < buffer.length - 1; i++) {
@@ -243,6 +264,20 @@ export function cutSentences(buffer: string, min = 10): [string[], string] {
   return [out, buffer.slice(start)];
 }
 
+/**
+ * A fragment shorter than this lands as a clipped bark on its own, so it rides
+ * along with whatever came before it instead.
+ *
+ * The test used to be whether the two together still fitted in `max`, which is
+ * a different question entirely: it merged every sentence of a reply into one
+ * 180-character utterance. That is one rate and one pitch for the whole thing
+ * — `prosody` is computed per utterance, so a question buried inside a merged
+ * block never lifted — and in the natural voice it is one `pauseAfter`, read
+ * off whatever the last sentence happened to end with, standing in for all of
+ * them. Both halves of "it sounds like a robot", from one comparison.
+ */
+export const GLUE_UNDER = 12;
+
 export function splitForSpeech(text: string, max = 180): string[] {
   const clean = sayable(text);
   if (!clean) return [];
@@ -252,10 +287,14 @@ export function splitForSpeech(text: string, max = 180): string[] {
     const sentence = raw.trim();
     if (!sentence) continue;
     const last = out[out.length - 1];
-    // Glue short fragments back together — one-word sentences said alone
-    // sound clipped.
-    if (last && last.length + sentence.length + 1 <= max) out[out.length - 1] = `${last} ${sentence}`;
-    else out.push(sentence);
+    // Only backwards, and only for a fragment too short to carry a sentence's
+    // worth of intonation. A short opener with nothing before it stays where
+    // it is: saying "Nice one." on its own is the whole point of the opener.
+    if (last && sentence.length < GLUE_UNDER && last.length + sentence.length + 1 <= max) {
+      out[out.length - 1] = `${last} ${sentence}`;
+    } else {
+      out.push(sentence);
+    }
   }
   return out;
 }
@@ -562,6 +601,24 @@ export const SPEECH_WATCHDOG_MS = 6_000;
  */
 export const SPEECH_START_MS = 1_800;
 
+/**
+ * Turns the browser's own voice has not handed back yet.
+ *
+ * `speechSynthesis.cancel()` is only required to fire `end` for the utterance
+ * actually being spoken; everything else queued behind it is dropped in
+ * silence. So a reply cut off mid-flow leaves its `onend` count permanently
+ * short of its `speak` count, the stream never settles, and the only thing
+ * that ever hands the turn back is the watchdog — measured at 10.7 seconds of
+ * a panel saying "Miso is talking…" with the microphone shut, after muting
+ * mid-reply.
+ *
+ * `stopKokoro` has always notified its own queue on the way down (`cancelAll`
+ * with `notify`). This is the same thing for the engine that has no queue of
+ * its own to notify: being stopped is not being superseded, and the turn has
+ * to come back either way.
+ */
+const owed = new Set<() => void>();
+
 /** Roughly how long something will take to say, in milliseconds. */
 export function speakingTime(text: string): number {
   // About three words a second, plus a beat per sentence, plus headroom.
@@ -588,10 +645,12 @@ export function speak(text: string, onDone?: () => void, queue = false) {
   const finish = () => {
     if (handed) return;
     handed = true;
+    owed.delete(finish);
     if (watchdog) clearTimeout(watchdog);
     onDone?.();
   };
   const guard = () => {
+    owed.add(finish);
     watchdog = setTimeout(finish, SPEECH_WATCHDOG_MS + speakingTime(text));
   };
 
@@ -714,6 +773,17 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
   let spoken = 0;
   let ended = 0;
   let closed = false;
+  /**
+   * It was silenced from outside, so nothing more is to be said at all.
+   *
+   * `closed` means the reply has finished arriving; this means it has been
+   * called off. The distinction matters because a reply is still streaming in
+   * while it is being read out: muting mid-reply silenced the sentence being
+   * spoken and then queued every sentence that arrived after it, so the second
+   * half of the reply was read out over a microphone that had just reopened —
+   * and the companion transcribed itself.
+   */
+  let killed = false;
   let index = 0;
   let everStarted = false;
   /** How much speech is queued and not yet heard, roughly, in milliseconds. */
@@ -753,9 +823,14 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
     watchdog = null;
   };
   const done = () => {
+    killed = true;
     clear();
+    owed.delete(done);
     finish();
   };
+  // Registered for the whole life of the stream, so being silenced from
+  // outside hands the turn straight back instead of waiting out the watchdog.
+  owed.add(done);
   const guard = () => {
     if (watchdog) clearTimeout(watchdog);
     watchdog = setTimeout(done, SPEECH_WATCHDOG_MS + outstanding);
@@ -772,6 +847,7 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
 
   return {
     push(line: string) {
+      if (killed || closed) return;
       const parts = splitForSpeech(line);
       if (!parts.length) return;
       for (const part of parts) {
@@ -812,12 +888,17 @@ export function speakStream(onDone?: () => void, queue = false): Utterance {
 /** Cuts off whatever is being said, including everything still queued. */
 export function stopSpeaking() {
   stopKokoro();
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-  try {
-    window.speechSynthesis.cancel();
-  } catch {
-    /* ignore */
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      /* ignore */
+    }
   }
+  // After the cancel, never before: these callbacks hand the conversation on,
+  // and handing it on while the engine is still speaking would open the
+  // microphone underneath a live voice.
+  for (const settle of [...owed]) settle();
 }
 
 export const canSpeak = (): boolean =>
@@ -855,16 +936,6 @@ function recognitionConstructor(): (new () => RecognitionLike) | null {
 export const canListen = (): boolean => recognitionConstructor() !== null;
 
 /**
- * How long a pause has to be before it counts as "they have finished".
- *
- * Long enough to think mid-sentence without being cut off, short enough that
- * a finished sentence does not sit there. Chrome's own endpointing fires at
- * every natural pause, which is far too eager for a conversation — "so, um" on
- * its own is not a question.
- */
-export const END_OF_THOUGHT_MS = 1100;
-
-/**
  * How long to wait after they stop before deciding they have finished.
  *
  * A single fixed pause is wrong in both directions at once: long enough not
@@ -883,17 +954,30 @@ export function endOfThought(text: string): number {
 }
 
 /**
- * How many refusals to sit through before believing one.
+ * How long a run of refusals can still be the permission prompt.
  *
- * The microphone permission prompt reports a refusal for as long as it is on
- * screen, so the first few mean "nobody has answered the dialogue yet" rather
- * than "no". Reading them literally is what made opening the panel appear to
- * do nothing at all.
+ * The microphone prompt reports `not-allowed` for as long as it is on screen,
+ * so an early refusal means "nobody has answered the dialogue yet" rather than
+ * "no" — reading it literally is what made opening the panel appear to do
+ * nothing at all. But waiting for ever is the worse failure, and it was the
+ * one that shipped: this used to be a count of four, reset to zero every time
+ * `start()` returned. `start()` returns before the refusal arrives, so the
+ * count was cleared before it could ever be reached. Measured with the
+ * microphone blocked outright: 26 sessions opened and refused in 15 seconds,
+ * no message shown, the caption still reading "Listening", and no end to it
+ * short of closing the page.
+ *
+ * A deadline instead of a count, because what it is really waiting for is a
+ * person reaching for a dialogue box, and that is measured in seconds rather
+ * than in attempts.
  */
-export const PATIENCE = 4;
+export const MIC_PATIENCE_MS = 10_000;
 
 /** Long enough that a refusal loop is not a spin, short enough to feel instant. */
 export const RETRY_MS = 400;
+
+/** And it backs off, so ten seconds of waiting is not twenty-five attempts. */
+export const RETRY_MAX_MS = 2_000;
 
 export type ListenHandlers = {
   /** Fires as they speak, for the live caption. Never final. */
@@ -935,7 +1019,9 @@ export function listen(handlers: ListenHandlers): () => void {
   let pending = '';
   let timer: ReturnType<typeof setTimeout> | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
-  let failures = 0;
+  /** When the current run of refusals started, or 0 if it is not refusing. */
+  let refusingSince = 0;
+  let attempts = 0;
 
   const flush = () => {
     const text = pending.trim();
@@ -963,6 +1049,11 @@ export function listen(handlers: ListenHandlers): () => void {
     recognition.interimResults = true;
 
     recognition.onresult = (event) => {
+      // It heard something, so the microphone is working: whatever the earlier
+      // refusals were, they are over. This is the only evidence that actually
+      // proves it — `start()` returning does not, which is the bug above.
+      refusingSince = 0;
+      attempts = 0;
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
@@ -980,16 +1071,18 @@ export function listen(handlers: ListenHandlers): () => void {
 
       // A permission prompt that is still on screen reports exactly this, and
       // treating it as a refusal is what made opening the panel do nothing.
-      // It is only a real refusal once we have asked a few times and kept
-      // being told no.
+      // It is only a real refusal once it has gone on longer than anyone takes
+      // to answer a dialogue box.
       const fatal = event.error === 'not-allowed' || event.error === 'service-not-allowed';
-      failures += 1;
-      if (!fatal || failures > PATIENCE) {
-        handlers.onError(recognitionMessage(event.error));
-        stopped = true;
-        return;
+      if (fatal) {
+        const now = Date.now();
+        if (!refusingSince) refusingSince = now;
+        // Still inside the window where this is a dialogue box rather than an
+        // answer: say nothing and let `onend` try again in a moment.
+        if (now - refusingSince < MIC_PATIENCE_MS) return;
       }
-      // Otherwise say nothing and let `onend` try again in a moment.
+      handlers.onError(recognitionMessage(event.error));
+      stopped = true;
     };
 
     // Browsers end a session on their own after a stretch of quiet, and a
@@ -997,20 +1090,22 @@ export function listen(handlers: ListenHandlers): () => void {
     // listening" true; the delay is what keeps a refusal from becoming a spin.
     recognition.onend = () => {
       if (stopped) return;
-      reopen(failures ? RETRY_MS : 0);
+      reopen(refusingSince ? backoff() : 0);
     };
 
     try {
+      attempts += 1;
       recognition.start();
-      // A session that starts is a session that works; anything that went
-      // wrong before this does not count against the next one.
-      failures = 0;
     } catch {
       // Already running, or refused outright. Either way `onend` may never
       // come, so the retry has to be armed here as well.
-      reopen(RETRY_MS);
+      reopen(backoff());
     }
   };
+
+  /** Flat while it is working, widening while it is being refused. */
+  const backoff = () =>
+    refusingSince ? Math.min(RETRY_MAX_MS, RETRY_MS * attempts) : RETRY_MS;
 
   const reopen = (delay: number) => {
     if (stopped || retry) return;

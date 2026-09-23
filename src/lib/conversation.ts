@@ -71,6 +71,13 @@ export function nextTurn(turn: Turn, event: TurnEvent, can: Capabilities): Turn 
       // reply already on its way: no thinking dots, and when the first reply
       // finally finished the microphone opened underneath the second one.
       if (event === 'heard') return 'thinking';
+      // Cutting it off to say something instead. The microphone is shut while
+      // it talks — it would otherwise hear the companion and answer it — so
+      // interrupting is a deliberate act rather than a barge-in, and it has to
+      // land straight back in `listening` rather than in `resting`. Stopping
+      // it and then having to press a second button to be heard is not an
+      // interruption, it is two interruptions.
+      if (event === 'listen') return can.canHear ? 'listening' : 'resting';
       return turn;
 
     case 'listening':
@@ -82,7 +89,10 @@ export function nextTurn(turn: Turn, event: TurnEvent, can: Capabilities): Turn 
       return turn;
 
     case 'thinking':
-      return event === 'reply' ? (can.canSpeak ? 'speaking' : afterTalking(can)) : turn;
+      if (event === 'reply') return can.canSpeak ? 'speaking' : afterTalking(can);
+      // Changed their mind before the reply landed. Same rule as above.
+      if (event === 'listen') return can.canHear ? 'listening' : 'resting';
+      return turn;
 
     case 'resting':
       if (event === 'listen') return can.canHear ? 'listening' : 'resting';

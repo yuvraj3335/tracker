@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowUp, AudioLines, Keyboard, Mic, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowUp, AudioLines, Keyboard, Mic, Square, Volume2, VolumeX, X } from 'lucide-react';
 import { useActiveCharacter } from './character-provider';
 import { CharacterThumb } from './character-figure';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
@@ -26,6 +26,8 @@ import {
   serverHostedConfigured,
 } from '@/lib/hosted-voice';
 import {
+  FIRST_MIN,
+  SENTENCE_MIN,
   canListen,
   canSpeak,
   getVoice,
@@ -43,16 +45,33 @@ import {
   setVoiceName,
   speak,
   speakStream,
+  splitForSpeech,
   stopSpeaking,
   whenVoicesKnown,
 } from '@/lib/speech';
 import { captionFor, isHearing, isTalking, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
 import type { EngineKind } from '@/lib/kokoro';
-import { MAX_MESSAGE_CHARS, type ChatMessage } from '@/lib/companion-prompt';
+import { MAX_HISTORY, MAX_MESSAGE_CHARS, type ChatMessage } from '@/lib/companion-prompt';
 import { cn } from '@/lib/utils';
 
 /** How tall the message box is allowed to grow before it scrolls instead. */
 const MAX_FIELD_PX = 120;
+
+/**
+ * How long a reply may go without delivering a byte before it is given up on.
+ *
+ * A connection that drops raises an error and is handled. A connection that
+ * simply stops — a phone walking out of signal, a proxy that holds the socket
+ * open with nothing on it — raises nothing at all, and `reader.read()` waits
+ * for ever. Measured: bytes stop arriving and thirty seconds later the panel
+ * still reads "Miso is talking…", the microphone is still shut, and nothing
+ * has been said. That is the reload-to-recover state this must not have.
+ *
+ * Generous, because it is a deadline on silence rather than on the reply: the
+ * model streams continuously once it starts, so eight seconds without a single
+ * character means the connection, not the model.
+ */
+const STREAM_STALL_MS = 8_000;
 
 /**
  * A conversation you have out loud.
@@ -152,6 +171,27 @@ export function CompanionPanel({
     inFlight.current = null;
   }, []);
 
+  /**
+   * Cuts it off and listens instead.
+   *
+   * The microphone is shut while it talks, so that it never hears itself and
+   * answers it — which means interrupting cannot be a barge-in and has to be
+   * something you do. There was no way to do it: the only control on screen
+   * while it talked was "Type instead", so cutting it off short also meant
+   * giving up talking and reaching for a keyboard. This is the missing half.
+   */
+  const cutIn = useCallback(() => {
+    typingRef.current = false;
+    abandon();
+    setProblem('');
+    advance('listen');
+    // After the turn, not before: `stopSpeaking` settles the utterance, which
+    // dispatches `spoke`, and `spoke` out of `listening` is a no-op — the
+    // other order works too, but only by accident of both landing on the same
+    // state.
+    stopSpeaking();
+  }, [abandon, advance]);
+
   const say = useCallback(
     (text: string) => {
       // `speak` calls back even when muted or unsupported, so the loop hands
@@ -186,7 +226,14 @@ export function CompanionPanel({
         const res = await fetch('/api/companion/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: next, characterId: character?.id ?? null }),
+          // Only the turns the model will actually be given. `sanitiseHistory`
+          // keeps the last `MAX_HISTORY` and drops the rest, so sending the
+          // whole transcript uploaded an ever-growing body for the server to
+          // throw away — on a phone, on every single thing you say.
+          body: JSON.stringify({
+            messages: next.slice(-MAX_HISTORY),
+            characterId: character?.id ?? null,
+          }),
           signal: mine.signal,
         });
 
@@ -203,6 +250,20 @@ export function CompanionPanel({
           let started = false;
           /** Where this reply's bubble lives. Never `length - 1`. */
           let at = -1;
+          /** The connection went quiet rather than ending. */
+          let stalled = false;
+          let deadline: ReturnType<typeof setTimeout> | null = null;
+          // Cancelling the reader rather than aborting the request, because
+          // the two mean different things here: an abort is the person
+          // stopping it and must say nothing more, while this is the network
+          // giving up and should still say whatever already arrived.
+          const armStall = () => {
+            if (deadline) clearTimeout(deadline);
+            deadline = setTimeout(() => {
+              stalled = true;
+              void reader.cancel().catch(() => {});
+            }, STREAM_STALL_MS);
+          };
 
           // One utterance for the whole reply, written to as it arrives.
           //
@@ -219,9 +280,16 @@ export function CompanionPanel({
           };
 
           try {
+            armStall();
             for (;;) {
               const { done, value } = await reader.read();
               if (done) break;
+              // Called off — the panel closed, or they went back to typing.
+              // `abort()` does not stop a read that has already resolved, so
+              // without this the reply carried on being spoken to a panel that
+              // was no longer on screen, with nothing left to stop it.
+              if (mine.signal.aborted) break;
+              armStall();
               const piece = decoder.decode(value, { stream: true });
               if (!piece) continue;
               buffer += piece;
@@ -240,10 +308,20 @@ export function CompanionPanel({
                 commit(copy);
               }
 
-              // The first thing said is cut at the first clause rather than the
-              // first full stop, because the wait before anything is heard is
-              // the cost of generating that one line and nothing else. "Nice,
-              // that is four today." can start being said at the comma.
+              // Finished sentences first. The first one is allowed to be
+              // short — it is the reaction the prompt asks every reply to
+              // open with, and holding it back until the sentence after it
+              // arrives is paying the whole wait to avoid a brief utterance.
+              const [sentences, rest] = cutSentences(buffer, said ? SENTENCE_MIN : FIRST_MIN);
+              buffer = rest;
+              for (const sentence of sentences) utter(sentence);
+
+              // Only if the first sentence has not finished arriving. Then the
+              // wait is the cost of generating one line and nothing else, so
+              // it is cut at the first clause instead: "Nice, that is four
+              // today." can start being said at the comma. Running this before
+              // the split above made it cut ACROSS a full stop — "Nice one.
+              // That is four today," went out as a single utterance.
               if (!said) {
                 const lead = leadCut(buffer);
                 if (lead) {
@@ -251,10 +329,6 @@ export function CompanionPanel({
                   buffer = lead[1];
                 }
               }
-
-              const [sentences, rest] = cutSentences(buffer);
-              buffer = rest;
-              for (const sentence of sentences) utter(sentence);
             }
 
             // Whatever is left of a multi-byte character at the very end of
@@ -269,10 +343,13 @@ export function CompanionPanel({
                 commit(copy);
               }
             }
-            const tail = buffer.trim();
-            if (tail) utter(tail);
             setSpoken(whole.trim());
           } finally {
+            if (deadline) clearTimeout(deadline);
+            // Whatever is left over is still worth saying, unless they stopped
+            // it on purpose.
+            const tail = buffer.trim();
+            if (tail && !mine.signal.aborted) utter(tail);
             // Whatever happened — the reply ended, the connection dropped, the
             // reader threw — this utterance has to be closed.
             //
@@ -284,8 +361,14 @@ export function CompanionPanel({
             voice.end();
           }
 
+          if (mine.signal.aborted) return;
+
           if (!started) {
-            setProblem('Your companion did not have anything to say to that. Try asking another way.');
+            setProblem(
+              stalled
+                ? 'The connection went quiet before your companion could answer. Try again.'
+                : 'Your companion did not have anything to say to that. Try asking another way.',
+            );
             advance('error');
             return;
           }
@@ -369,7 +452,12 @@ export function CompanionPanel({
           // behind it — the exact wait this was meant to remove. `hello` is
           // picked deterministically, so warming that one line is what makes
           // the next conversation open without a pause.
-          void warm([hello], id);
+          //
+          // Split first. The cache is keyed on the exact text and speed the
+          // queue will ask for, and the queue asks per sentence — warming the
+          // raw line cached something nothing would ever look up the moment
+          // the greeting was more than one sentence long.
+          void warm(splitForSpeech(hello), id);
         });
       });
     });
@@ -482,6 +570,8 @@ export function CompanionPanel({
   const busy = turn === 'thinking';
   const caption = problem || captionFor(turn, name);
   const composing = typing || !canHear;
+  /** There is something in flight worth cutting off. */
+  const interruptible = isTalking(turn) || turn === 'thinking';
 
   return (
     <div
@@ -676,11 +766,25 @@ export function CompanionPanel({
           </form>
         ) : (
           <div className="flex items-center gap-2 pl-1">
-            {/* No Talk button and no Stop button. The microphone is open for
-                as long as the conversation is, and the cross in the corner is
-                how it ends — which is what "just talk to it" has to mean.
-                What is left is the live level and a way out to the keyboard. */}
+            {/* No Talk button: the microphone is open for as long as the
+                conversation is, and the cross in the corner is how it ends —
+                which is what "just talk to it" has to mean. What is here is
+                the level while it listens, a way to cut it off while it
+                talks, and a way out to the keyboard at any point. */}
             <Level turn={turn} />
+            {interruptible ? (
+              <button
+                type="button"
+                onClick={cutIn}
+                className={cn(
+                  'inline-flex h-10 items-center gap-2 rounded-full border border-control pr-4 pl-3.5 text-sm font-medium text-ink',
+                  'transition hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                )}
+              >
+                <Square className="size-3.5 fill-current" strokeWidth={0} />
+                {isTalking(turn) ? 'Stop' : 'Never mind'}
+              </button>
+            ) : null}
             {turn === 'resting' ? (
               <button
                 type="button"
@@ -689,7 +793,7 @@ export function CompanionPanel({
                   advance('listen');
                 }}
                 className={cn(
-                  'ml-auto inline-flex h-10 items-center gap-2 rounded-full bg-accent px-4 text-sm font-medium text-accent-ink',
+                  'inline-flex h-10 items-center gap-2 rounded-full bg-accent px-4 text-sm font-medium text-accent-ink',
                   'transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                 )}
               >
@@ -700,7 +804,7 @@ export function CompanionPanel({
             <IconButton
               label="Type instead"
               big
-              className={turn === 'resting' ? '' : 'ml-auto'}
+              className="ml-auto"
               onClick={() => {
                 // Calling off the reply as well as the voice. Stopping only
                 // the voice left a reply already on its way, which arrived a
@@ -823,6 +927,9 @@ const BARS = [0.45, 0.75, 1, 0.7, 0.4];
 
 function Level({ turn }: { turn: Turn }) {
   const active = isHearing(turn);
+  // Five flat dots and no label is not a resting state, it is debris. The row
+  // keeps its height from the controls either side of it.
+  if (!active) return null;
   return (
     <span className="flex items-center gap-2.5" aria-hidden>
       <span className="flex h-6 items-center gap-[3px]">
@@ -837,7 +944,11 @@ function Level({ turn }: { turn: Turn }) {
           />
         ))}
       </span>
-      <span className="text-xs text-ink-muted">{active ? 'Just talk' : 'Tap to talk, or type'}</span>
+      {/* It used to read "Tap to talk, or type" in every other state, including
+          while the companion was talking — beside five flat bars, neither of
+          which is a control, and at the one moment when tapping is not what to
+          do. A label that is wrong is worse than no label. */}
+      <span className="text-xs text-ink-muted">Just talk</span>
     </span>
   );
 }

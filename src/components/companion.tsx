@@ -203,16 +203,20 @@ export function Companion({
 
     const now = Date.now();
     if (now - lastTap.current < DOUBLE_TAP_MS) {
+      // The second tap of a double-tap is the poke, and only the poke. It no
+      // longer toggles the panel, so poking the thing you are talking to
+      // cannot close the conversation by accident.
       lastTap.current = 0;
       poke();
       return;
     }
     lastTap.current = now;
-    // A single tap must not open the panel until the double-tap window has
-    // closed, or every double-tap would also open it underneath itself.
-    setTimeout(() => {
-      if (lastTap.current === now) onOpen?.();
-    }, DOUBLE_TAP_MS);
+    // Immediately. This used to wait out the whole double-tap window before
+    // opening, so every single tap cost 320 ms of nothing happening — paid by
+    // everyone who only ever wanted to talk to it, to keep a double-tap from
+    // opening the panel underneath itself. It cannot open underneath itself
+    // any more, because the second tap does not open anything.
+    onOpen?.();
   }
 
   // ---- keyboard ----------------------------------------------------------

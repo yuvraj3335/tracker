@@ -164,10 +164,6 @@ let device: Device | null = null;
 const YARDSTICK_CHARS = 50;
 const YARDSTICK_MS = 3_400;
 
-/** Which device the model ended up on, once it is loaded. */
-export const engineDevice = (): Device | null => device;
-export const serverEngineDevice = (): Device | null => null;
-
 /**
  * What is making the sound. Three engines, one queue.
  *
@@ -238,9 +234,6 @@ function observe(chars: number, genMs: number) {
   // and one fast one should not erase what the machine has been doing.
   msPerChar = msPerChar * 0.7 + sample * 0.3;
 }
-
-/** Exposed for the bench, and so a test can pin it. */
-export const generationCostPerChar = (): number => msPerChar;
 
 function onMessage(event: MessageEvent<FromWorker>) {
   const message = event.data;
@@ -599,12 +592,15 @@ async function render(voice: string, text: string, speed: number): Promise<Clip 
  */
 export async function warm(lines: readonly string[], voice: string) {
   if (!voiceReady(voice)) return;
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     // Real speech always wins. There is one model and one worker behind it, so
     // a warm-up still running when a reply arrives is a reply waiting behind
     // it — which is the exact wait this was supposed to remove.
     if (queue.length || warmed.size >= WARM_LIMIT) return;
-    const speed = speedFor(line, 0);
+    // The same index the queue will hand this line, because `speedFor` drifts
+    // with it and the speed is part of the cache key. Warming every line at
+    // index 0 cached a speed nothing would ever ask for past the first one.
+    const speed = speedFor(line, index);
     if (warmed.has(key(voice, line, speed))) continue;
     const clip = await render(voice, line, speed);
     if (clip) warmed.set(key(voice, line, speed), clip);
@@ -850,6 +846,3 @@ function cancelAll(notify: boolean) {
 export function stopKokoro() {
   cancelAll(true);
 }
-
-/** True only when something can actually be said right now. */
-export const kokoroReady = (): boolean => state === 'ready';

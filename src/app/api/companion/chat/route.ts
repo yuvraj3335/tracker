@@ -27,6 +27,18 @@ const MAX_TOKENS = 260;
 const TIMEOUT_MS = 20_000;
 
 /**
+ * The whole answer, start to finish.
+ *
+ * `TIMEOUT_MS` only covers getting the response headers back — once the body
+ * starts arriving it was cleared and nothing bounded the stream at all, so an
+ * upstream that opened a connection and then went quiet held this function,
+ * and the tokens behind it, until the platform killed it. Under `maxDuration`
+ * so the deadline is ours rather than the platform's, and the client keeps its
+ * own shorter one on silence.
+ */
+const STREAM_MS = 25_000;
+
+/**
  * Twenty messages in five minutes, per user.
  *
  * This guards a billed key against a loop in the client or someone leaning on
@@ -161,16 +173,21 @@ export async function POST(req: Request) {
       // models, quotas and internal mechanics, and is written for whoever is
       // integrating rather than whoever is talking to a cartoon wizard.
       console.error('[companion] anthropic responded', res.status, (await res.text()).slice(0, 300));
+      clearTimeout(timer);
       return fail(502, res.status === 429 ? COPY.tooMany : COPY.upstream);
     }
 
-    if (!res.body) return fail(502, COPY.upstream);
+    if (!res.body) {
+      clearTimeout(timer);
+      return fail(502, COPY.upstream);
+    }
 
     // Past this point the answer is a stream of text and nothing else. Errors
     // before it are JSON, which is how the client tells the two apart — it
     // reads the content type rather than guessing from the shape.
     clearTimeout(timer);
-    return new Response(textOf(res.body, abort), {
+    const overall = setTimeout(() => abort.abort(), STREAM_MS);
+    return new Response(textOf(res.body, abort, () => clearTimeout(overall)), {
       headers: {
         'content-type': 'text/plain; charset=utf-8',
         'cache-control': 'no-store',
@@ -197,7 +214,11 @@ export async function POST(req: Request) {
  * sentence is a model reading aloud for a minute, and the cap is enforced
  * where the bytes are rather than trusted to the prompt.
  */
-function textOf(body: ReadableStream<Uint8Array>, abort: AbortController): ReadableStream<Uint8Array> {
+function textOf(
+  body: ReadableStream<Uint8Array>,
+  abort: AbortController,
+  release: () => void,
+): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffer = '';
@@ -221,6 +242,7 @@ function textOf(body: ReadableStream<Uint8Array>, abort: AbortController): Reada
 
             const room = MAX_REPLY_CHARS - written;
             if (room <= 0) {
+              release();
               abort.abort();
               controller.close();
               return;
@@ -237,12 +259,14 @@ function textOf(body: ReadableStream<Uint8Array>, abort: AbortController): Reada
         console.error('[companion] stream ended early:', (e as Error)?.message);
         controller.close();
       } finally {
+        release();
         reader.releaseLock();
       }
     },
     cancel() {
       // The listener closed the panel or interrupted. Stop paying for tokens
       // nobody is going to hear.
+      release();
       abort.abort();
     },
   });

@@ -185,6 +185,14 @@ status indicator — it talks while it talks, leans in while it listens, casts
 while it thinks — and every turn is captioned on screen as well. Typing still
 works and is the only path in a browser without speech recognition.
 
+**You can cut it off.** The microphone is deliberately shut while it is
+speaking, so that it never hears itself and answers it — which means
+interrupting has to be something you do rather than something you talk over.
+**Stop** silences it and reopens the microphone in the same press, so cutting
+it off short does not also mean giving up talking. There is no true barge-in:
+the browser's speech recognition takes whatever the microphone hears, and on a
+laptop with speakers that includes the companion.
+
 **It can see your tracker.** Ask how many you have done, how the hard ones are
 going, what you are part-way through, what is next — it answers from the real
 numbers, derived through `derive.ts` so what it says out loud and what the
@@ -324,7 +332,7 @@ API. Any cell links to that day's list.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 541 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
+| `npm run test` | 715 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |

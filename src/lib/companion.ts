@@ -148,28 +148,19 @@ export function setCompanionPosition(point: Point) {
   announce();
 }
 
-/** Forgets the stored spot, so the next render falls back to the default corner. */
-export function resetCompanionPosition() {
-  cachedPosition = null;
-  try {
-    localStorage.removeItem(COMPANION_POSITION_KEY);
-  } catch {
-    /* ignore */
-  }
-  announce();
-}
-
 let cachedDismissed: boolean | undefined;
 
+/**
+ * Whether it has been sent away for good, on this device.
+ *
+ * Read only. Nothing in the app writes this — there is no "hide the
+ * companion" control and never has been — but the key is honoured because
+ * somebody may have set it by hand, and resurrecting a companion somebody
+ * deliberately turned off is a worse outcome than a setting with no switch.
+ */
 export function getCompanionDismissed(): boolean {
   if (cachedDismissed === undefined) cachedDismissed = read(COMPANION_DISMISSED_KEY) === 'yes';
   return cachedDismissed;
-}
-
-export function setCompanionDismissed(dismissed: boolean) {
-  cachedDismissed = dismissed;
-  write(COMPANION_DISMISSED_KEY, dismissed ? 'yes' : 'no');
-  announce();
 }
 
 /** The server knows neither, and these are the answers that render nothing. */

@@ -143,26 +143,3 @@ export function sanitiseHistory(value: unknown): ChatMessage[] | null {
   if (out[out.length - 1].role !== 'user') return null;
   return out.slice(-MAX_HISTORY);
 }
-
-/**
- * Tidies a reply for the screen and for being read aloud.
- *
- * Collapses the whitespace a model uses for layout, strips the markdown
- * emphasis it reaches for anyway despite being asked not to, and caps the
- * length so speech synthesis cannot start a monologue there is no way to
- * skip past.
- */
-export function tidyReply(raw: unknown): string {
-  if (typeof raw !== 'string') return '';
-  const text = raw
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/[*_`#>]+/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  if (text.length <= MAX_REPLY_CHARS) return text;
-  // Cut at a sentence end where there is one nearby, so it does not stop
-  // mid-word.
-  const cut = text.slice(0, MAX_REPLY_CHARS);
-  const stop = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
-  return (stop > MAX_REPLY_CHARS * 0.6 ? cut.slice(0, stop + 1) : cut.trimEnd()) + '';
-}
