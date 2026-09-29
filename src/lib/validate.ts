@@ -55,3 +55,15 @@ export function safeNextPath(raw: unknown): string {
   if (/^\/[^/]*:/.test(normalized)) return '/';
   return normalized;
 }
+
+/**
+ * The `?next=` a sign-in redirect carries: the page that was asked for, query
+ * included, so a shared `/daily?d=…` or `/jobs?stage=…` link survives the
+ * detour. Null when there is nowhere worth returning to — the dashboard is
+ * where sign-in lands anyway, and an unsafe path is not repeated in a URL.
+ */
+export function returnPathFor(pathname: string, search: string): string | null {
+  if (pathname === '/') return null;
+  const path = safeNextPath(pathname + search);
+  return path === '/' ? null : path;
+}

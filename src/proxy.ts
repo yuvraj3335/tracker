@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, readSessionCookie } from '@/lib/session';
+import { returnPathFor } from '@/lib/validate';
 
 /**
  * Front door. Runs before any page or route handler.
@@ -83,7 +84,8 @@ export default async function proxy(req: NextRequest) {
   const url = req.nextUrl.clone();
   url.pathname = '/login';
   url.search = '';
-  if (pathname !== '/') url.searchParams.set('next', pathname);
+  const next = returnPathFor(pathname, req.nextUrl.search);
+  if (next) url.searchParams.set('next', next);
 
   const res = NextResponse.redirect(url);
   if (req.cookies.has(SESSION_COOKIE)) {

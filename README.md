@@ -500,7 +500,7 @@ recording is the job.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 941 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, MCP, board readers, career sites, job writes |
+| `npm run test` | 945 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, MCP, board readers, career sites, job writes |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |

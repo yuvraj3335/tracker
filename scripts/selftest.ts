@@ -48,7 +48,7 @@ import {
   isFilter,
 } from '../src/lib/search';
 import { mapSheetKey, isPaletteShortcut, SHORTCUTS } from '../src/lib/keys';
-import { safeNextPath, checkUsername, checkPassword } from '../src/lib/validate';
+import { safeNextPath, returnPathFor, checkUsername, checkPassword } from '../src/lib/validate';
 import { setupStage } from '../src/lib/setup';
 import {
   captionFor, isHearing, isTalking, nextTurn, poseForTurn,
@@ -881,6 +881,13 @@ async function main() {
     check('a plain path is kept', safeNextPath('/areas/dsa') === '/areas/dsa');
     check('a path with a query is kept', safeNextPath('/daily?d=2026-09-21') === '/daily?d=2026-09-21');
     check('root is kept', safeNextPath('/') === '/');
+
+    // The sign-in redirect used to carry only the path, so a shared
+    // /jobs?stage=applied came back from sign-in as plain /jobs.
+    check('sign-in returns to the page with its query', returnPathFor('/jobs', '?stage=applied') === '/jobs?stage=applied');
+    check('sign-in returns to a plain path', returnPathFor('/jobs/new', '') === '/jobs/new');
+    check('the dashboard needs no return path', returnPathFor('/', '') === null && returnPathFor('/', '?x=1') === null);
+    check('an unsafe return path is not repeated', returnPathFor('//evil.example', '') === null);
 
     // Refused: everything that leaves the site.
     check('protocol-relative is refused', safeNextPath('//evil.example') === '/');
