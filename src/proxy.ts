@@ -28,6 +28,14 @@ const PUBLIC_PREFIXES = [
   '/characters/',
   // Dev-only component preview, and only in development — see below.
   '/preview',
+  // The MCP endpoint authenticates every request itself, with a personal key
+  // rather than the session cookie — AI tools have no cookie to send.
+  '/api/mcp',
+  // The Job Hunt connector's half of a board search. Same personal key.
+  '/api/connector',
+  // OAuth discovery probes from MCP clients. There is no OAuth here; letting
+  // them 404 says so, where a redirect to /login would hand them an HTML page.
+  '/.well-known/',
 ];
 
 /**

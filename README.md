@@ -8,6 +8,11 @@ Ticking a question stamps `Completed On`, and that single date produces the Dail
 Tracker entry, the activity heatmap cell, the streak, and the rollup into overall
 Job Switch progress. There is never a second place to log.
 
+It also runs the job hunt itself: **any AI tool you use — Claude Code, Codex,
+Gemini CLI, Cursor, Claude Desktop, claude.ai — can search the job boards, save
+the good postings with how-to-apply steps, and record every application, reply
+and interview**, all into the same Notion. See [Job applications](#job-applications).
+
 ---
 
 ## ⚠️ The question count is 456, not 474
@@ -49,8 +54,11 @@ separate pattern-based sheet not mixed in.
 ## Architecture
 
 ```
-  browser ──► Next.js on Vercel ──┬──► Postgres   accounts + encrypted tokens
-                                  └──► Notion     ALL tracker content (per user)
+  browser ────────────► Next.js on Vercel ──┬──► Postgres   accounts, encrypted tokens, key hashes
+  AI tools (MCP) ─────►   /api/mcp          └──► Notion     ALL tracker content (per user)
+  Job Hunt connector ─►   /api/connector
+        │
+        └──► Crawl4AI in Docker on your own computer (job boards)
 ```
 
 **Postgres holds only what Notion cannot:** usernames, password hashes, and each
@@ -75,7 +83,10 @@ another's data.
 | Sessions | HMAC-SHA256 signed cookie, `httpOnly`, 30-day expiry |
 | User enumeration | A missing username verifies a decoy hash, so timing matches |
 | Open redirects | one `safeNextPath` for every caller; `//host`, `/\host` and tab/newline-smuggled variants all collapse to `/`, and POST redirects are 303 so a form body is never replayed |
-| Write scope | Task writes verify the page belongs to that tenant's Tasks table |
+| Write scope | Task writes verify the page belongs to that tenant's Tasks table; job writes verify the page belongs to that tenant's Job Applications |
+| AI tool keys | 256-bit random, shown once, stored only as SHA-256; revocable; scoped to jobs and profile; rate-limited per key |
+| Key in a URL | Only for apps that cannot send a header (claude.ai, ChatGPT); the connect page says so and suggests a separate key |
+| Crawler | Crawl4AI listens on `127.0.0.1` only, behind its own token; the tracker never reaches it |
 | Fail closed | A missing `SESSION_SECRET` rejects every session rather than allowing all |
 
 Rotating `SESSION_SECRET` signs everybody out. Rotating `ENCRYPTION_KEY` makes
@@ -341,13 +352,120 @@ API. Any cell links to that day's list.
 
 ---
 
+## Job applications
+
+`/jobs` is a pipeline for the job switch itself: every posting you are
+considering, where each application stands, and what needs a follow-up.
+
+### One field moves, the rest is stamped
+
+Status runs **Found → Shortlisted → Applied → Assessment → Interviewing →
+Offer**, with **Rejected, Ghosted, Withdrawn and Skipped** to close. Moving a job
+stamps what the move implies: anything past Applied stamps `Applied On`, any
+answer from the company stamps `Heard Back On`, every change stamps `Last
+Update`. Stamps are set once and never cleared, so a mis-click back to
+Shortlisted cannot erase the day you actually applied.
+
+Logging an event — *applied*, *followed up*, *they replied*, *call*,
+*assessment*, *interview*, *rejected*, *offer*, *note* — writes a line into the
+job's timeline and moves the status when it implies one. An interview moves
+Applied to Interviewing, while logging "applied" on something already
+interviewing never demotes it. The timeline lives in the Notion page body and
+is only ever appended to, so an update from the tracker and one from an AI tool
+at the same moment both land.
+
+Follow-ups are derived, not entered:
+- **Due**: a follow-up date that has arrived.
+- **Nudge**: a week since applying with no reply.
+- **Probably ghosted**: three weeks of silence.
+
+### In Notion
+
+Setting up (one click on `/jobs`) adds two databases to the page your tracker
+lives in:
+- **Job Applications**: role, company, status, source, links, match, why it
+  fits, how to apply, salary, experience, skills, dates, referral, contact and
+  notes, with Pipeline, Applied and Follow-ups views.
+- **Job Profile**: target roles, experience, locations, work modes, skills,
+  must-haves, deal-breakers, target and avoided companies, and your resume.
+
+It is resumable the same way the original setup is: ids are saved the moment
+they exist, and a database made by an attempt that died is adopted rather than
+duplicated.
+
+Duplicates are refused on write:
+- **The same posting**: board ids survive tracking parameters, country
+  subdomains and `/apply` suffixes.
+- **The same role at the same company in the same city**: this catches one job
+  cross-posted on LinkedIn and Naukri.
+
+### Finding jobs
+
+Search comes from two places, because no single place reaches everything:
+
+| Where | How | Runs |
+| --- | --- | --- |
+| **LinkedIn, Naukri, foundit (Monster India), Glassdoor, Wellfound** | Crawl4AI opens each board's own search page in a real browser and reads the cards | on your computer |
+| **Workday, Greenhouse, Lever, Ashby** career sites | their public job APIs, for 78 companies hiring in India (`data/career-sites.json`, each entry checked live) plus the target companies in your profile | on the tracker |
+
+Each board was measured before it was added. One Software Engineer search in
+Bengaluru took 14 s and returned:
+
+| Board | Listings | Notes |
+| --- | --- | --- |
+| LinkedIn | 60 | the public, signed-out job search page, one page per search, never paged through |
+| Naukri | 20 | |
+| foundit | 15 | foundit blocks automated visits to posting pages, so its links open in your own browser |
+| Wellfound | 12 | these were in India |
+| Glassdoor | 0 | intermittently answers with a "Humans only" check, reported as blocked |
+
+**Cutshort** renders nothing to an automated browser and is not searched.
+
+Blocked or empty pages are **reported, never guessed at**, and nothing tries to
+get past a sign-in wall or a bot check.
+
+The tracker plans which page to open on each board and reads what comes back
+(`src/lib/job-search.ts`, with extraction selectors per board). The connector
+only carries pages between Crawl4AI and the tracker. `npm run check:boards`
+runs the whole path live and flags a board whose layout has changed.
+
+### Using it from any AI tool
+
+The tracker is an **MCP server** (`/api/mcp`), and every AI tool here speaks
+MCP. The same playbook travels with it (`get_job_hunt_playbook`), so every
+tool searches, scores, writes how-to-apply steps and records progress the same
+way.
+
+1. **Jobs → Connect AI → Create key.** Copy it, then save it where the
+   connector reads it:
+   `pbpaste > ~/.config/job-tracker/key && chmod 600 ~/.config/job-tracker/key`
+2. **`npm run crawler:setup`** starts Crawl4AI in Docker on `127.0.0.1:11235`,
+   with its own token in `~/.config/job-tracker`.
+3. **Connect your tools:**
+   - Claude Code: already set up in this folder through `.mcp.json` (approve
+     "job-hunt").
+   - Everything else: `npm run connect` prints the config for Codex, Gemini
+     CLI, Cursor and Claude Desktop, with your real paths.
+   - claude.ai and phones: they cannot run the connector, so they use
+     `/api/mcp/<key>` as a custom connector. You get tracking and
+     company-site search, but not the job boards.
+
+Then ask: *"Find SDE-1 jobs in Bengaluru or remote, posted this week"*, *"I
+applied to the Visa role through a referral from Ravi"*, *"Stripe sent an OA,
+due Friday"*, *"What should I follow up on?"*.
+
+AI tools never apply, send messages or sign in for you. Finding, ranking and
+recording is the job.
+
+---
+
 ## Scripts
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 748 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters |
+| `npm run test` | 923 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, MCP, board readers, career sites, job writes |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
@@ -356,6 +474,9 @@ API. Any cell links to that day's list.
 | `npm run check:schema` | upgrades a database built from the original schema and checks writes still land |
 | `npm run fixtures:characters` | placeholder characters for exercising the character pipeline (`clean` removes them) |
 | `npm run make:character` | regenerates the shipped character's model and `meta.json` from source |
+| `npm run crawler:setup` | starts Crawl4AI in Docker for the Job Hunt connector (localhost only, with its own token) |
+| `npm run check:boards` | live check of every job board through Crawl4AI: plan, crawl, read |
+| `npm run connect` | prints the connector config for Codex, Gemini CLI, Cursor and Claude Desktop |
 
 `npm run test` is timezone-sensitive by design — it passes from UTC−11 to UTC+14.
 `check:schema` needs a `DATABASE_URL` it may create a scratch database on; it

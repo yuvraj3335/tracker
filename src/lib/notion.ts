@@ -119,7 +119,7 @@ async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
 }
 
 /** Walks every page of a data source query. */
-async function queryAll(client: Client, dataSourceId: string, body: Record<string, unknown> = {}) {
+export async function queryAll(client: Client, dataSourceId: string, body: Record<string, unknown> = {}) {
   const out: any[] = [];
   let cursor: string | undefined;
   let guard = 0;

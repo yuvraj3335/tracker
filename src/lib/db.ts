@@ -43,6 +43,23 @@ export type Connection = {
   provisionState: ProvisionState;
   provisionCursor: number;
   provisionError: string | null;
+  /** Job Applications data source, once job tracking has been set up. */
+  jobsDs: string | null;
+  /** The one-row Job Profile data source, and its one row. */
+  jobsProfileDs: string | null;
+  jobsProfilePageId: string | null;
+};
+
+/** A personal key an AI tool uses to reach the tracker. Never the key itself. */
+export type ApiKey = {
+  id: string;
+  userId: string;
+  name: string;
+  /** The first few characters, so a person can tell their keys apart. */
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
 };
 
 export function hasDatabase(): boolean {
@@ -169,6 +186,32 @@ export async function ensureSchema(): Promise<void> {
       add column if not exists provision_lock timestamptz
   `;
 
+  // Job tracking. Added to existing connections rather than set up with them,
+  // because every account that already exists was built before it did.
+  await q`alter table notion_connections add column if not exists jobs_ds text`;
+  await q`alter table notion_connections add column if not exists jobs_profile_ds text`;
+  await q`alter table notion_connections add column if not exists jobs_profile_page_id text`;
+  // Held while one request creates the job databases or adds a batch of jobs,
+  // for the same reason as provision_lock: two at once would both write.
+  await q`alter table notion_connections add column if not exists jobs_lock timestamptz`;
+
+  // Personal keys for AI tools. Only a SHA-256 of each key is kept — a key is
+  // 256 random bits, so a fast hash is enough, and a leaked table cannot be
+  // replayed against the API.
+  await q`
+    create table if not exists api_keys (
+      id            uuid primary key default gen_random_uuid(),
+      user_id       uuid not null references users(id) on delete cascade,
+      name          text not null,
+      prefix        text not null,
+      key_hash      text not null unique,
+      created_at    timestamptz not null default now(),
+      last_used_at  timestamptz,
+      revoked_at    timestamptz
+    )
+  `;
+  await q`create index if not exists api_keys_user_idx on api_keys (user_id)`;
+
   migrated = true;
 }
 
@@ -262,6 +305,12 @@ function toConnection(row: any): Connection {
     provisionState: row.provision_state,
     provisionCursor: row.provision_cursor,
     provisionError: row.provision_error,
+    // `?? null` because these columns do not exist until ensureSchema has run
+    // once on a database created before job tracking, and `select *` then
+    // simply leaves them out.
+    jobsDs: row.jobs_ds ?? null,
+    jobsProfileDs: row.jobs_profile_ds ?? null,
+    jobsProfilePageId: row.jobs_profile_page_id ?? null,
   };
 }
 
@@ -457,4 +506,149 @@ export async function closePool(): Promise<void> {
 export async function deleteConnection(userId: string): Promise<void> {
   const q = sql();
   await q`delete from notion_connections where user_id = ${userId}::uuid`;
+}
+
+// ---------------------------------------------------------------------------
+// Job tracking
+// ---------------------------------------------------------------------------
+
+const isUuid = (v: string) => /^[0-9a-f-]{36}$/i.test(v);
+
+/**
+ * Records each job database the moment Notion returns it, for the same reason
+ * saveDatabaseShells does: one that exists in Notion but not here is orphaned,
+ * and the retry would build a second. Only the fields passed are written.
+ */
+export async function saveJobsShells(
+  userId: string,
+  d: { jobsDs?: string; jobsProfileDs?: string; jobsProfilePageId?: string },
+): Promise<void> {
+  const q = sql();
+  await q`
+    update notion_connections set
+      jobs_ds              = coalesce(${d.jobsDs ?? null}::text, jobs_ds),
+      jobs_profile_ds      = coalesce(${d.jobsProfileDs ?? null}::text, jobs_profile_ds),
+      jobs_profile_page_id = coalesce(${d.jobsProfilePageId ?? null}::text, jobs_profile_page_id),
+      updated_at           = now()
+    where user_id = ${userId}::uuid
+  `;
+}
+
+/**
+ * Claims the right to make a structural change to someone's jobs — creating
+ * the databases, or adding a batch — and returns false when another request
+ * already holds it. The same single conditional UPDATE as claimSeedingLease:
+ * two AI tools adding the same posting at once would otherwise both see it
+ * missing and both write it.
+ */
+export async function claimJobsLease(userId: string, staleAfterSeconds = 90): Promise<boolean> {
+  if (!isUuid(userId)) return false;
+  const q = sql();
+  const rows = (await q`
+    update notion_connections
+       set jobs_lock = now()
+     where user_id = ${userId}::uuid
+       and (
+         jobs_lock is null
+         or jobs_lock < now() - (${staleAfterSeconds}::int * interval '1 second')
+       )
+    returning user_id
+  `) as any[];
+  return rows.length > 0;
+}
+
+export async function releaseJobsLease(userId: string): Promise<void> {
+  if (!isUuid(userId)) return;
+  const q = sql();
+  await q`update notion_connections set jobs_lock = null where user_id = ${userId}::uuid`;
+}
+
+// ---------------------------------------------------------------------------
+// API keys
+// ---------------------------------------------------------------------------
+
+function toApiKey(row: any): ApiKey {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    name: row.name,
+    prefix: row.prefix,
+    createdAt: new Date(row.created_at).toISOString(),
+    lastUsedAt: row.last_used_at ? new Date(row.last_used_at).toISOString() : null,
+    revokedAt: row.revoked_at ? new Date(row.revoked_at).toISOString() : null,
+  };
+}
+
+export async function createApiKey(
+  userId: string,
+  k: { name: string; prefix: string; hash: string },
+): Promise<ApiKey> {
+  const q = sql();
+  const rows = (await q`
+    insert into api_keys (user_id, name, prefix, key_hash)
+    values (${userId}::uuid, ${k.name}, ${k.prefix}, ${k.hash})
+    returning *
+  `) as any[];
+  return toApiKey(rows[0]);
+}
+
+/** Every key, revoked ones included, newest first — revoking is visible. */
+export async function listApiKeys(userId: string): Promise<ApiKey[]> {
+  if (!isUuid(userId)) return [];
+  const q = sql();
+  const rows = (await q`
+    select * from api_keys where user_id = ${userId}::uuid order by created_at desc limit 50
+  `) as any[];
+  return rows.map(toApiKey);
+}
+
+export async function countActiveApiKeys(userId: string): Promise<number> {
+  const q = sql();
+  const rows = (await q`
+    select count(*)::int as n from api_keys where user_id = ${userId}::uuid and revoked_at is null
+  `) as any[];
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * Revokes one key. Scoped by user as well as id: the id comes from a form, and
+ * without the user in the WHERE clause anyone could revoke anyone's key.
+ */
+export async function revokeApiKey(userId: string, id: string): Promise<boolean> {
+  if (!isUuid(userId) || !isUuid(id)) return false;
+  const q = sql();
+  const rows = (await q`
+    update api_keys set revoked_at = now()
+     where id = ${id}::uuid and user_id = ${userId}::uuid and revoked_at is null
+    returning id
+  `) as any[];
+  return rows.length > 0;
+}
+
+/** The live key with this hash, and its owner. Revoked keys never match. */
+export async function findApiKeyByHash(hash: string): Promise<(ApiKey & { username: string }) | null> {
+  if (!/^[0-9a-f]{64}$/.test(hash)) return null;
+  const q = sql();
+  const rows = (await q`
+    select k.*, u.username
+      from api_keys k join users u on u.id = k.user_id
+     where k.key_hash = ${hash} and k.revoked_at is null
+     limit 1
+  `) as any[];
+  return rows.length ? { ...toApiKey(rows[0]), username: rows[0].username } : null;
+}
+
+/**
+ * Marks a key as used. Throttled in the query itself: an AI tool makes several
+ * calls a minute, and a write per call would be a write per call for a
+ * timestamp nobody reads to the second.
+ */
+export async function touchApiKey(id: string): Promise<void> {
+  if (!isUuid(id)) return;
+  const q = sql();
+  await q`
+    update api_keys set last_used_at = now()
+     where id = ${id}::uuid
+       and (last_used_at is null or last_used_at < now() - interval '5 minutes')
+  `;
 }

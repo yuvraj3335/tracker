@@ -167,3 +167,23 @@ export function AnalyticsSkeleton() {
     </LoadingRegion>
   );
 }
+
+/** The job pipeline: header, tabs, four tiles, then grouped rows. */
+export function JobsSkeleton() {
+  return (
+    <LoadingRegion label="Loading your jobs">
+      <div className="space-y-4">
+        <Header />
+        <div className="flex gap-1.5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-20 rounded-full" />
+          ))}
+        </div>
+        <TileRow />
+        <Card>
+          <Rows n={6} />
+        </Card>
+      </div>
+    </LoadingRegion>
+  );
+}

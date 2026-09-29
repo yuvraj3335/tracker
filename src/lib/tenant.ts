@@ -12,8 +12,18 @@ import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE, readSessionCookie } from './session';
-import { findUserById, getConnection, hasDatabase, type Connection, type User } from './db';
+import {
+  ensureSchema,
+  findApiKeyByHash,
+  findUserById,
+  getConnection,
+  hasDatabase,
+  touchApiKey,
+  type Connection,
+  type User,
+} from './db';
 import { openToken } from './crypto';
+import { hashApiKey } from './api-keys';
 
 export type Tenant = {
   userId: string;
@@ -23,7 +33,29 @@ export type Tenant = {
   topicsDs: string;
   tasksDs: string;
   dailyDs: string | null;
+  /** Null until job tracking is set up — it is added to accounts, not built with them. */
+  jobsDs: string | null;
+  jobsProfileDs: string | null;
+  jobsProfilePageId: string | null;
+  /** Where Notion builds new databases for this account. */
+  parentPageId: string | null;
 };
+
+function tenantOf(user: Pick<User, 'id' | 'username'>, connection: Connection, token: string): Tenant {
+  return {
+    userId: user.id,
+    username: user.username,
+    token,
+    areasDs: connection.areasDs!,
+    topicsDs: connection.topicsDs!,
+    tasksDs: connection.tasksDs!,
+    dailyDs: connection.dailyDs,
+    jobsDs: connection.jobsDs,
+    jobsProfileDs: connection.jobsProfileDs,
+    jobsProfilePageId: connection.jobsProfilePageId,
+    parentPageId: connection.parentPageId,
+  };
+}
 
 /**
  * The signed-in user, or null. Does not touch Notion.
@@ -91,18 +123,60 @@ export async function tenantStatus(): Promise<TenantStatus> {
     return { kind: 'needs_token', user };
   }
 
+  return { kind: 'ready', user, tenant: tenantOf(user, connection, token) };
+}
+
+export type KeyTenant =
+  | { ok: true; tenant: Tenant; keyId: string; keyName: string }
+  | { ok: false; status: 401 | 409 | 503; message: string };
+
+/**
+ * Resolves a personal key into a tenant, for AI tools calling the API.
+ *
+ * The key stands in for the session cookie and nothing else: it resolves to the
+ * same Tenant a signed-in page gets, so every Notion read and write below it is
+ * scoped exactly as it would be for that person in the browser. The messages
+ * are written for whoever reads them in a chat with an AI tool.
+ */
+export async function tenantForApiKey(key: string): Promise<KeyTenant> {
+  if (!hasDatabase()) {
+    return { ok: false, status: 503, message: 'The tracker is not available right now. Try again shortly.' };
+  }
+  await ensureSchema();
+  const found = await findApiKeyByHash(hashApiKey(key));
+  if (!found) {
+    return {
+      ok: false,
+      status: 401,
+      message: 'That key is not valid, or it was revoked. Create a new one in the tracker under Jobs → Connect AI.',
+    };
+  }
+  const connection = await getConnection(found.userId);
+  const wired = connection?.areasDs && connection.topicsDs && connection.tasksDs;
+  if (!connection || !wired || connection.provisionState !== 'ready') {
+    return {
+      ok: false,
+      status: 409,
+      message: 'This account has not finished connecting Notion. Finish setup in the tracker first.',
+    };
+  }
+  let token: string;
+  try {
+    token = tokenOf(connection);
+  } catch {
+    return {
+      ok: false,
+      status: 409,
+      message: 'The tracker can no longer read this account’s Notion connection. Reconnect Notion in the tracker.',
+    };
+  }
+  // Best effort: a failed timestamp must never fail the request it describes.
+  void touchApiKey(found.id).catch(() => undefined);
   return {
-    kind: 'ready',
-    user,
-    tenant: {
-      userId: user.id,
-      username: user.username,
-      token,
-      areasDs: connection.areasDs!,
-      topicsDs: connection.topicsDs!,
-      tasksDs: connection.tasksDs!,
-      dailyDs: connection.dailyDs,
-    },
+    ok: true,
+    tenant: tenantOf({ id: found.userId, username: found.username }, connection, token),
+    keyId: found.id,
+    keyName: found.name,
   };
 }
 

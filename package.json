@@ -14,7 +14,10 @@
     "check:schema": "tsx scripts/check-schema.ts",
     "check:color": "tsx scripts/check-color.ts",
     "fixtures:characters": "node scripts/make-character-fixtures.mjs",
-    "make:character": "node scripts/make-character-model.mjs"
+    "make:character": "node scripts/make-character-model.mjs",
+    "crawler:setup": "bash scripts/crawler-setup.sh",
+    "connect": "node scripts/connect-ai.mjs",
+    "check:boards": "tsx scripts/check-boards.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

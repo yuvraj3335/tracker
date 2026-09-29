@@ -132,10 +132,10 @@ function tokenKey(token: string): string {
   return String(h);
 }
 
-type Caller = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
+export type Caller = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
 
 /** Binds the throttle queue for one integration token. */
-function callerFor(token: string): Caller {
+export function callerFor(token: string): Caller {
   const key = tokenKey(token);
   return (label, fn) => call(label, fn, 1, key);
 }
@@ -257,7 +257,7 @@ export type CreatedDatabases = {
   headingIsSelect: boolean;
 };
 
-async function createDb(
+export async function createDb(
   run: Caller,
   client: Client,
   parentPageId: string,
@@ -278,7 +278,7 @@ async function createDb(
   return ds;
 }
 
-async function propertyIds(
+export async function propertyIds(
   run: Caller,
   client: Client,
   ds: string,

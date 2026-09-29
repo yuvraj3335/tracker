@@ -86,6 +86,7 @@ import {
 import { usableAccent, contrastRatio, readableInk } from '../src/lib/contrast';
 import { resolveDatabaseUrl } from '../src/lib/env';
 import type { Area, Task } from '../src/lib/notion';
+import { jobTests } from './selftest-jobs';
 
 let pass = 0;
 let fail = 0;
@@ -2031,6 +2032,9 @@ async function main() {
     check('the first conversation on a device never downloads anything',
       CONVERSATIONS_BEFORE_DOWNLOAD >= 1);
   }
+
+  // Job applications: domain rules, MCP, boards, career sites, Notion writes.
+  await jobTests(check, section);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   if (fail) process.exit(1);

@@ -73,6 +73,10 @@ export function CommandPalette() {
       { id: 'go:daily', label: 'Daily tracker', group: 'Go', run: () => router.push('/daily') },
       { id: 'go:analytics', label: 'Analytics', group: 'Go', run: () => router.push('/analytics') },
       { id: 'go:focus', label: 'Focus timer', group: 'Go', run: () => router.push('/focus') },
+      { id: 'go:jobs', label: 'Job applications', group: 'Go', run: () => router.push('/jobs') },
+      { id: 'go:jobs-new', label: 'Add a job', group: 'Go', run: () => router.push('/jobs/new') },
+      { id: 'go:jobs-profile', label: 'Job search profile', group: 'Go', run: () => router.push('/jobs/profile') },
+      { id: 'go:jobs-connect', label: 'Connect an AI tool', group: 'Go', run: () => router.push('/jobs/connect') },
       { id: 'go:setup', label: 'Notion connection', group: 'Go', run: () => router.push('/setup') },
 
       { id: 'mode:light', label: 'Light mode', group: 'Appearance', run: () => setMode('light') },

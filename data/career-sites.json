@@ -1,0 +1,464 @@
+{
+  "verifiedOn": "2026-09-29",
+  "source": "each entry answered its public job API and listed at least one job in India or remote on that date",
+  "sites": [
+    {
+      "name": "Adobe",
+      "ats": "workday",
+      "host": "adobe.wd5.myworkdayjobs.com",
+      "tenant": "adobe",
+      "site": "external_experienced"
+    },
+    {
+      "name": "Airbnb",
+      "ats": "greenhouse",
+      "slug": "airbnb"
+    },
+    {
+      "name": "Analog Devices",
+      "ats": "workday",
+      "host": "analogdevices.wd1.myworkdayjobs.com",
+      "tenant": "analogdevices",
+      "site": "External"
+    },
+    {
+      "name": "Anthropic",
+      "ats": "greenhouse",
+      "slug": "anthropic"
+    },
+    {
+      "name": "Autodesk",
+      "ats": "workday",
+      "host": "autodesk.wd1.myworkdayjobs.com",
+      "tenant": "autodesk",
+      "site": "Ext"
+    },
+    {
+      "name": "Broadcom",
+      "ats": "workday",
+      "host": "broadcom.wd1.myworkdayjobs.com",
+      "tenant": "broadcom",
+      "site": "External_Career"
+    },
+    {
+      "name": "Cadence",
+      "ats": "workday",
+      "host": "cadence.wd1.myworkdayjobs.com",
+      "tenant": "cadence",
+      "site": "External_Careers"
+    },
+    {
+      "name": "Carelon Global Solutions",
+      "ats": "workday",
+      "host": "elevancehealth.wd1.myworkdayjobs.com",
+      "tenant": "elevancehealth",
+      "site": "carelonglobal_in"
+    },
+    {
+      "name": "Citi",
+      "ats": "workday",
+      "host": "citi.wd5.myworkdayjobs.com",
+      "tenant": "citi",
+      "site": "2"
+    },
+    {
+      "name": "Cloudflare",
+      "ats": "greenhouse",
+      "slug": "cloudflare"
+    },
+    {
+      "name": "Coinbase",
+      "ats": "greenhouse",
+      "slug": "coinbase"
+    },
+    {
+      "name": "Commvault",
+      "ats": "greenhouse",
+      "slug": "commvault"
+    },
+    {
+      "name": "Confluent",
+      "ats": "ashby",
+      "slug": "confluent"
+    },
+    {
+      "name": "CRED",
+      "ats": "lever",
+      "slug": "cred"
+    },
+    {
+      "name": "Databricks",
+      "ats": "greenhouse",
+      "slug": "databricks"
+    },
+    {
+      "name": "Datadog",
+      "ats": "greenhouse",
+      "slug": "datadog"
+    },
+    {
+      "name": "Deutsche Bank",
+      "ats": "workday",
+      "host": "db.wd3.myworkdayjobs.com",
+      "tenant": "db",
+      "site": "DBWebSite"
+    },
+    {
+      "name": "Diligent",
+      "ats": "greenhouse",
+      "slug": "diligentcorporation"
+    },
+    {
+      "name": "Disney",
+      "ats": "workday",
+      "host": "disney.wd5.myworkdayjobs.com",
+      "tenant": "disney",
+      "site": "disneycareer"
+    },
+    {
+      "name": "Druva",
+      "ats": "greenhouse",
+      "slug": "druva"
+    },
+    {
+      "name": "Elastic",
+      "ats": "greenhouse",
+      "slug": "elastic"
+    },
+    {
+      "name": "Fi Money",
+      "ats": "lever",
+      "slug": "fi"
+    },
+    {
+      "name": "Fidelity Investments",
+      "ats": "workday",
+      "host": "fmr.wd1.myworkdayjobs.com",
+      "tenant": "fmr",
+      "site": "FidelityCareers"
+    },
+    {
+      "name": "Figma",
+      "ats": "greenhouse",
+      "slug": "figma"
+    },
+    {
+      "name": "Fivetran",
+      "ats": "greenhouse",
+      "slug": "fivetran"
+    },
+    {
+      "name": "GitLab",
+      "ats": "greenhouse",
+      "slug": "gitlab"
+    },
+    {
+      "name": "Glance",
+      "ats": "greenhouse",
+      "slug": "glance"
+    },
+    {
+      "name": "Groww",
+      "ats": "greenhouse",
+      "slug": "groww"
+    },
+    {
+      "name": "Guidewire",
+      "ats": "workday",
+      "host": "guidewire.wd5.myworkdayjobs.com",
+      "tenant": "guidewire",
+      "site": "external"
+    },
+    {
+      "name": "HackerRank",
+      "ats": "greenhouse",
+      "slug": "hackerrank"
+    },
+    {
+      "name": "HP",
+      "ats": "workday",
+      "host": "hp.wd5.myworkdayjobs.com",
+      "tenant": "hp",
+      "site": "ExternalCareerSite"
+    },
+    {
+      "name": "InMobi",
+      "ats": "greenhouse",
+      "slug": "inmobi"
+    },
+    {
+      "name": "Intel",
+      "ats": "workday",
+      "host": "intel.wd1.myworkdayjobs.com",
+      "tenant": "intel",
+      "site": "External"
+    },
+    {
+      "name": "KLA",
+      "ats": "workday",
+      "host": "kla.wd1.myworkdayjobs.com",
+      "tenant": "kla",
+      "site": "Search"
+    },
+    {
+      "name": "LSEG",
+      "ats": "workday",
+      "host": "lseg.wd3.myworkdayjobs.com",
+      "tenant": "lseg",
+      "site": "Careers"
+    },
+    {
+      "name": "Marvell",
+      "ats": "workday",
+      "host": "marvell.wd1.myworkdayjobs.com",
+      "tenant": "marvell",
+      "site": "MarvellCareers"
+    },
+    {
+      "name": "Mastercard",
+      "ats": "workday",
+      "host": "mastercard.wd1.myworkdayjobs.com",
+      "tenant": "mastercard",
+      "site": "CorporateCareers"
+    },
+    {
+      "name": "Meesho",
+      "ats": "lever",
+      "slug": "meesho"
+    },
+    {
+      "name": "Micron",
+      "ats": "workday",
+      "host": "micron.wd1.myworkdayjobs.com",
+      "tenant": "micron",
+      "site": "External"
+    },
+    {
+      "name": "Mindtickle",
+      "ats": "lever",
+      "slug": "mindtickle"
+    },
+    {
+      "name": "MongoDB",
+      "ats": "greenhouse",
+      "slug": "mongodb"
+    },
+    {
+      "name": "Morgan Stanley",
+      "ats": "workday",
+      "host": "ms.wd5.myworkdayjobs.com",
+      "tenant": "ms",
+      "site": "External"
+    },
+    {
+      "name": "Nasdaq",
+      "ats": "workday",
+      "host": "nasdaq.wd1.myworkdayjobs.com",
+      "tenant": "nasdaq",
+      "site": "Global_External_Site"
+    },
+    {
+      "name": "Navi",
+      "ats": "ashby",
+      "slug": "navi"
+    },
+    {
+      "name": "Netskope",
+      "ats": "greenhouse",
+      "slug": "netskope"
+    },
+    {
+      "name": "New Relic",
+      "ats": "greenhouse",
+      "slug": "newrelic"
+    },
+    {
+      "name": "NVIDIA",
+      "ats": "workday",
+      "host": "nvidia.wd5.myworkdayjobs.com",
+      "tenant": "nvidia",
+      "site": "NVIDIAExternalCareerSite"
+    },
+    {
+      "name": "NXP Semiconductors",
+      "ats": "workday",
+      "host": "nxp.wd3.myworkdayjobs.com",
+      "tenant": "nxp",
+      "site": "careers"
+    },
+    {
+      "name": "Observe.AI",
+      "ats": "greenhouse",
+      "slug": "observeai"
+    },
+    {
+      "name": "Okta",
+      "ats": "greenhouse",
+      "slug": "okta"
+    },
+    {
+      "name": "Omnissa",
+      "ats": "workday",
+      "host": "omnissa.wd501.myworkdayjobs.com",
+      "tenant": "omnissa",
+      "site": "Omnissa_External_Career_Site"
+    },
+    {
+      "name": "OneTrust",
+      "ats": "greenhouse",
+      "slug": "onetrust"
+    },
+    {
+      "name": "PayPal",
+      "ats": "workday",
+      "host": "paypal.wd1.myworkdayjobs.com",
+      "tenant": "paypal",
+      "site": "jobs"
+    },
+    {
+      "name": "Philips",
+      "ats": "workday",
+      "host": "philips.wd3.myworkdayjobs.com",
+      "tenant": "philips",
+      "site": "jobs-and-careers"
+    },
+    {
+      "name": "Plaid",
+      "ats": "ashby",
+      "slug": "plaid"
+    },
+    {
+      "name": "Pure Storage",
+      "ats": "greenhouse",
+      "slug": "purestorage"
+    },
+    {
+      "name": "PwC",
+      "ats": "workday",
+      "host": "pwc.wd3.myworkdayjobs.com",
+      "tenant": "pwc",
+      "site": "Global_Experienced_Careers"
+    },
+    {
+      "name": "Red Hat",
+      "ats": "workday",
+      "host": "redhat.wd5.myworkdayjobs.com",
+      "tenant": "redhat",
+      "site": "jobs"
+    },
+    {
+      "name": "Rubrik",
+      "ats": "greenhouse",
+      "slug": "rubrik"
+    },
+    {
+      "name": "Salesforce",
+      "ats": "workday",
+      "host": "salesforce.wd12.myworkdayjobs.com",
+      "tenant": "salesforce",
+      "site": "External_Career_Site"
+    },
+    {
+      "name": "Samsara",
+      "ats": "greenhouse",
+      "slug": "samsara"
+    },
+    {
+      "name": "Sarvam AI",
+      "ats": "ashby",
+      "slug": "sarvam"
+    },
+    {
+      "name": "Scale AI",
+      "ats": "greenhouse",
+      "slug": "scaleai"
+    },
+    {
+      "name": "slice",
+      "ats": "greenhouse",
+      "slug": "slice"
+    },
+    {
+      "name": "Smartsheet",
+      "ats": "greenhouse",
+      "slug": "smartsheet"
+    },
+    {
+      "name": "Sprinklr",
+      "ats": "workday",
+      "host": "sprinklr.wd1.myworkdayjobs.com",
+      "tenant": "sprinklr",
+      "site": "careers"
+    },
+    {
+      "name": "State Street",
+      "ats": "workday",
+      "host": "statestreet.wd1.myworkdayjobs.com",
+      "tenant": "statestreet",
+      "site": "Global"
+    },
+    {
+      "name": "Stripe",
+      "ats": "greenhouse",
+      "slug": "stripe"
+    },
+    {
+      "name": "Talkdesk",
+      "ats": "greenhouse",
+      "slug": "talkdesk2"
+    },
+    {
+      "name": "Target",
+      "ats": "workday",
+      "host": "target.wd5.myworkdayjobs.com",
+      "tenant": "target",
+      "site": "targetcareers"
+    },
+    {
+      "name": "Tekion",
+      "ats": "ashby",
+      "slug": "tekion"
+    },
+    {
+      "name": "Twilio",
+      "ats": "greenhouse",
+      "slug": "twilio"
+    },
+    {
+      "name": "Verifone",
+      "ats": "greenhouse",
+      "slug": "verifone"
+    },
+    {
+      "name": "Visa",
+      "ats": "workday",
+      "host": "visa.wd5.myworkdayjobs.com",
+      "tenant": "visa",
+      "site": "Visa"
+    },
+    {
+      "name": "Warner Bros. Discovery",
+      "ats": "workday",
+      "host": "warnerbros.wd5.myworkdayjobs.com",
+      "tenant": "warnerbros",
+      "site": "global"
+    },
+    {
+      "name": "Workday",
+      "ats": "workday",
+      "host": "workday.wd5.myworkdayjobs.com",
+      "tenant": "workday",
+      "site": "Workday"
+    },
+    {
+      "name": "Zeta",
+      "ats": "lever",
+      "slug": "zeta"
+    },
+    {
+      "name": "Zscaler",
+      "ats": "greenhouse",
+      "slug": "zscaler"
+    }
+  ]
+}

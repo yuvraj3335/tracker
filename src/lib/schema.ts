@@ -62,6 +62,51 @@ export const P = {
     hours: 'Hours',
     mood: 'Mood',
   },
+  job: {
+    role: 'Role',
+    company: 'Company',
+    status: 'Status',
+    source: 'Source',
+    location: 'Location',
+    workMode: 'Work Mode',
+    jobUrl: 'Job URL',
+    applyUrl: 'Apply URL',
+    match: 'Match',
+    fit: 'Why It Fits',
+    howToApply: 'How To Apply',
+    salary: 'Salary',
+    experience: 'Experience',
+    skills: 'Skills',
+    postedOn: 'Posted On',
+    foundOn: 'Found On',
+    appliedOn: 'Applied On',
+    appliedVia: 'Applied Via',
+    resume: 'Resume Used',
+    referral: 'Referral',
+    contact: 'Contact',
+    nextStep: 'Next Step',
+    followUpOn: 'Follow Up On',
+    lastUpdate: 'Last Update',
+    heardBackOn: 'Heard Back On',
+    addedBy: 'Added By',
+    notes: 'Notes',
+    key: 'Dedupe Key',
+  },
+  profile: {
+    name: 'Name',
+    targetRoles: 'Target Roles',
+    experience: 'Experience',
+    locations: 'Locations',
+    workModes: 'Work Modes',
+    skills: 'Skills',
+    salary: 'Salary',
+    noticePeriod: 'Notice Period',
+    mustHaves: 'Must Haves',
+    dealBreakers: 'Deal Breakers',
+    targetCompanies: 'Target Companies',
+    avoidCompanies: 'Avoid Companies',
+    resume: 'Resume',
+  },
 } as const;
 
 export const AREA_STATUS = ['Active', 'Planned', 'Paused', 'Done'] as const;
@@ -69,6 +114,61 @@ export const DIFFICULTY = ['Easy', 'Medium', 'Hard'] as const;
 export const MOOD = ['Great', 'Good', 'Okay', 'Rough'] as const;
 
 export type Difficulty = (typeof DIFFICULTY)[number];
+
+/**
+ * An application's whole life, in order. `Status` is the one field that moves;
+ * Applied On, Heard Back On and Last Update are stamped from it, the same way
+ * a tick stamps Completed On, so nobody has to remember to fill them in.
+ */
+export const JOB_STATUS = [
+  'Found',
+  'Shortlisted',
+  'Applied',
+  'Assessment',
+  'Interviewing',
+  'Offer',
+  'Rejected',
+  'Ghosted',
+  'Withdrawn',
+  'Skipped',
+] as const;
+export type JobStatus = (typeof JOB_STATUS)[number];
+
+export const JOB_SOURCES = [
+  'LinkedIn',
+  'Naukri',
+  'Glassdoor',
+  'Workday',
+  'foundit',
+  'Wellfound',
+  'Instahyre',
+  'Cutshort',
+  'Greenhouse',
+  'Lever',
+  'Ashby',
+  'Company site',
+  'Referral',
+  'Other',
+] as const;
+export type JobSource = (typeof JOB_SOURCES)[number];
+
+export const WORK_MODES = ['Remote', 'Hybrid', 'On-site'] as const;
+export type WorkMode = (typeof WORK_MODES)[number];
+
+export const APPLIED_VIA = [
+  'Company site',
+  'LinkedIn Easy Apply',
+  'Naukri',
+  'Referral',
+  'Email',
+  'Recruiter',
+  'Other',
+] as const;
+export type AppliedVia = (typeof APPLIED_VIA)[number];
+
+/** Who put a row there: you from the tracker, or an AI tool through the API. */
+export const ADDED_BY = ['You', 'AI'] as const;
+export type AddedBy = (typeof ADDED_BY)[number];
 
 // ---------------------------------------------------------------------------
 // Property builders (thin wrappers so the seeder stays readable)
@@ -89,6 +189,8 @@ const select = (options: readonly string[], colors?: Record<string, string>) =>
       })),
     },
   }) as any;
+const multiSelect = (options: readonly string[] = []) =>
+  ({ multi_select: { options: options.map((name) => ({ name })) } }) as any;
 const relation = (dataSourceId: string, syncedName: string) =>
   ({
     relation: {
@@ -199,5 +301,83 @@ export function dailyProperties() {
     [P.daily.note]: text(),
     [P.daily.hours]: num('number'),
     [P.daily.mood]: select(MOOD, { Great: 'green', Good: 'blue', Okay: 'yellow', Rough: 'red' }),
+  };
+}
+
+/**
+ * Job Applications. One row per posting, whether an AI tool found it or you
+ * added it by hand.
+ *
+ * The description and the timeline live in the page body rather than in
+ * properties: a timeline entry is appended, never rewritten, so an update from
+ * the tracker and one from an AI tool at the same moment both land. A text
+ * property would have been read-modify-write, and one of the two would lose.
+ */
+export function jobsProperties() {
+  return {
+    [P.job.role]: title(),
+    [P.job.company]: text(),
+    [P.job.status]: select(JOB_STATUS, {
+      Found: 'gray',
+      Shortlisted: 'purple',
+      Applied: 'blue',
+      Assessment: 'yellow',
+      Interviewing: 'orange',
+      Offer: 'green',
+      Rejected: 'red',
+      Ghosted: 'brown',
+      Withdrawn: 'default',
+      Skipped: 'default',
+    }),
+    [P.job.source]: select(JOB_SOURCES),
+    [P.job.location]: text(),
+    [P.job.workMode]: select(WORK_MODES, { Remote: 'green', Hybrid: 'blue', 'On-site': 'gray' }),
+    [P.job.jobUrl]: url(),
+    [P.job.applyUrl]: url(),
+    [P.job.match]: num('number'),
+    [P.job.fit]: text(),
+    [P.job.howToApply]: text(),
+    [P.job.salary]: text(),
+    [P.job.experience]: text(),
+    [P.job.skills]: multiSelect(),
+    [P.job.postedOn]: date(),
+    [P.job.foundOn]: date(),
+    [P.job.appliedOn]: date(),
+    [P.job.appliedVia]: select(APPLIED_VIA),
+    [P.job.resume]: text(),
+    [P.job.referral]: text(),
+    [P.job.contact]: text(),
+    [P.job.nextStep]: text(),
+    [P.job.followUpOn]: date(),
+    [P.job.lastUpdate]: date(),
+    [P.job.heardBackOn]: date(),
+    [P.job.addedBy]: select(ADDED_BY, { You: 'blue', AI: 'purple' }),
+    [P.job.notes]: text(),
+    [P.job.key]: text(),
+  };
+}
+
+/**
+ * The job search profile, as a one-row database.
+ *
+ * A database rather than a plain page because a page has no properties, and
+ * every field here has to be readable and writable in one call. A page body
+ * would have meant deleting and re-appending blocks on every save.
+ */
+export function jobProfileProperties() {
+  return {
+    [P.profile.name]: title(),
+    [P.profile.targetRoles]: text(),
+    [P.profile.experience]: text(),
+    [P.profile.locations]: text(),
+    [P.profile.workModes]: multiSelect(WORK_MODES),
+    [P.profile.skills]: text(),
+    [P.profile.salary]: text(),
+    [P.profile.noticePeriod]: text(),
+    [P.profile.mustHaves]: text(),
+    [P.profile.dealBreakers]: text(),
+    [P.profile.targetCompanies]: text(),
+    [P.profile.avoidCompanies]: text(),
+    [P.profile.resume]: text(),
   };
 }
