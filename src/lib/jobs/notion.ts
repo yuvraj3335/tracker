@@ -7,10 +7,10 @@
  * a Tenant explicitly — there is no ambient token.
  */
 import { Client } from '@notionhq/client';
-import { P, jobProfileProperties, jobsProperties, type AddedBy, type JobStatus } from './schema';
-import { callerFor, createDb, propertyIds, type Caller } from './provision';
-import { claimJobsLease, ensureSchema, getConnection, releaseJobsLease, saveJobsShells } from './db';
-import { todayKey, type DayKey } from './date';
+import { P, type AddedBy, type JobStatus } from '../schema';
+import { callerFor, type Caller } from '../provision';
+import { claimJobsLease, releaseJobsLease } from '../db';
+import { todayKey, type DayKey } from '../date';
 import {
   EMPTY_PROFILE,
   EVENT_LABEL,
@@ -29,8 +29,8 @@ import {
   type JobPatch,
   type JobProfile,
   type NewJob,
-} from './jobs';
-import type { Tenant } from './tenant';
+} from '.';
+import type { Tenant } from '../tenant';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -44,7 +44,7 @@ import type { Tenant } from './tenant';
  * serverless function answering an AI tool is a request that simply times out.
  */
 const clients = new Map<string, Client>();
-function clientFor(token: string): Client {
+export function clientFor(token: string): Client {
   let c = clients.get(token);
   if (!c) {
     c = new Client({ auth: token, retry: false, timeoutMs: 20_000 });
@@ -53,6 +53,9 @@ function clientFor(token: string): Client {
   }
   return c;
 }
+
+/** Reads retry like writes, but skip the write queue — see callerFor. */
+const readerFor = (token: string) => callerFor(token, { throttle: false });
 
 /** Who made a change. Lands on the row as Added By and in the timeline. */
 export type Actor = { kind: AddedBy; name: string };
@@ -291,9 +294,9 @@ export async function getJobs(t: Tenant, opts: { fresh?: boolean } = {}): Promis
   const ds = requireJobs(t);
   const hit = listCache.get(t.userId);
   if (!opts.fresh && hit && Date.now() - hit.at < JOBS_TTL_MS) return hit.jobs;
-  // Paged by hand so each page goes through callerFor, which retries a 429 —
+  // Paged by hand so each page goes through the caller, which retries a 429 —
   // this client has the SDK's own retry off.
-  const run = callerFor(t.token);
+  const run = readerFor(t.token);
   const rows: any[] = [];
   let cursor: string | undefined;
   for (let guard = 0; guard < 20; guard++) {
@@ -341,21 +344,34 @@ async function jobPage(t: Tenant, run: Caller, id: string): Promise<any | null> 
 
 export type JobDetail = { job: Job; description: BodyBlock[]; timeline: JobEvent[] };
 
-export async function getJob(t: Tenant, id: string): Promise<JobDetail | null> {
-  const run = callerFor(t.token);
-  const page = await jobPage(t, run, id);
-  if (!page) return null;
+async function readBody(t: Tenant, run: Caller, pageId: string): Promise<any[]> {
   const blocks: any[] = [];
   let cursor: string | undefined;
   for (let i = 0; i < 3; i++) {
     const res: any = await run('read job body', () =>
-      clientFor(t.token).blocks.children.list({ block_id: page.id, page_size: 100, start_cursor: cursor }),
+      clientFor(t.token).blocks.children.list({ block_id: pageId, page_size: 100, start_cursor: cursor }),
     );
     blocks.push(...(res.results ?? []));
     if (!res.has_more) break;
     cursor = res.next_cursor ?? undefined;
   }
-  return { job: mapJob(page), ...splitBody(blocks) };
+  return blocks;
+}
+
+/**
+ * One job with its description and timeline. The page and its body are read
+ * at the same time; the body is thrown away unless the page turns out to be
+ * one of this tenant's jobs, so the ownership check costs no extra wait.
+ */
+export async function getJob(t: Tenant, id: string): Promise<JobDetail | null> {
+  if (!isNotionId(id)) return null;
+  const run = readerFor(t.token);
+  const [page, blocks] = await Promise.all([
+    jobPage(t, run, id),
+    readBody(t, run, id.trim()).catch(() => null),
+  ]);
+  if (!page) return null;
+  return { job: mapJob(page), ...splitBody(blocks ?? (await readBody(t, run, page.id))) };
 }
 
 // ---------------------------------------------------------------------------
@@ -588,7 +604,7 @@ export function mapProfile(page: any): JobProfile & { updatedAt: string | null }
 export async function getProfile(t: Tenant): Promise<(JobProfile & { updatedAt: string | null }) | null> {
   requireJobs(t);
   if (!t.jobsProfilePageId) return null;
-  const page: any = await callerFor(t.token)('read profile', () =>
+  const page: any = await readerFor(t.token)('read profile', () =>
     clientFor(t.token).pages.retrieve({ page_id: t.jobsProfilePageId! }),
   );
   return mapProfile(page);
@@ -608,151 +624,4 @@ export async function saveProfile(t: Tenant, profile: Partial<JobProfile>): Prom
     clientFor(t.token).pages.update({ page_id: t.jobsProfilePageId!, properties } as any),
   );
   return mapProfile(page);
-}
-
-// ---------------------------------------------------------------------------
-// Setup
-// ---------------------------------------------------------------------------
-
-export const JOBS_DB_NAME = 'Job Applications';
-export const PROFILE_DB_NAME = 'Job Profile';
-
-/**
- * Finds a database the app made on an earlier attempt, so a retry adopts it
- * instead of building a second one. Matched on title AND on a property only
- * this schema has, so a database the user happened to name the same is left
- * alone.
- */
-async function adoptDatabase(
-  run: Caller,
-  client: Client,
-  parentPageId: string,
-  title: string,
-  mustHave: string,
-): Promise<string | null> {
-  let cursor: string | undefined;
-  for (let i = 0; i < 5; i++) {
-    const res: any = await run('list tracker page', () =>
-      client.blocks.children.list({ block_id: parentPageId, page_size: 100, start_cursor: cursor }),
-    );
-    for (const b of res.results ?? []) {
-      if (b?.type !== 'child_database' || b.child_database?.title !== title) continue;
-      const db: any = await run('read database', () => client.databases.retrieve({ database_id: b.id }));
-      const ds = db?.data_sources?.[0]?.id;
-      if (!ds) continue;
-      const props = await propertyIds(run, client, ds).catch(() => ({}) as Record<string, string>);
-      if (props[mustHave]) return ds;
-    }
-    if (!res.has_more) break;
-    cursor = res.next_cursor ?? undefined;
-  }
-  return null;
-}
-
-/** Views are a nicety in Notion itself; a failure here never blocks setup. */
-async function buildJobViews(run: Caller, client: Client, jobsDs: string) {
-  const ids = await propertyIds(run, client, jobsDs).catch(() => ({}) as Record<string, string>);
-  const safe = async (body: Record<string, any>) => {
-    try {
-      await run(`view ${body.name}`, () => (client as any).views.create(body));
-    } catch {
-      /* cosmetic */
-    }
-  };
-  if (ids[P.job.status]) {
-    await safe({
-      data_source_id: jobsDs,
-      name: 'Pipeline',
-      type: 'board',
-      configuration: {
-        type: 'board',
-        group_by: { type: 'select', property_id: ids[P.job.status], sort: { type: 'manual' } },
-      },
-    });
-  }
-  await safe({
-    data_source_id: jobsDs,
-    name: 'Applied',
-    type: 'table',
-    filter: { property: P.job.appliedOn, date: { is_not_empty: true } },
-    sorts: [{ property: P.job.appliedOn, direction: 'descending' }],
-  });
-  await safe({
-    data_source_id: jobsDs,
-    name: 'Follow-ups',
-    type: 'table',
-    filter: { property: P.job.followUpOn, date: { is_not_empty: true } },
-    sorts: [{ property: P.job.followUpOn, direction: 'ascending' }],
-  });
-}
-
-export type JobsSetup = { jobsDs: string; jobsProfileDs: string; jobsProfilePageId: string };
-
-/**
- * Adds job tracking to a connected account: a Job Applications database, a
- * Job Profile database with its one row, and a few Notion views — all under
- * the same page the tracker was built in.
- *
- * Resumable the same way the original setup is: each id is saved the moment it
- * exists, anything already recorded is skipped, and a database made by an
- * attempt that died before saving is adopted rather than duplicated.
- */
-export async function setupJobs(t: Tenant): Promise<JobsSetup> {
-  await ensureSchema();
-  if (!(await claimJobsLease(t.userId))) {
-    throw new JobsError('Setup is already running. Give it a few seconds.', 'busy');
-  }
-  try {
-    const connection = await getConnection(t.userId);
-    const parent = connection?.parentPageId;
-    if (!connection || !parent) {
-      throw new JobsError('The tracker does not know which Notion page it was built in. Reconnect Notion.', 'no_parent');
-    }
-    const client = clientFor(t.token);
-    const run = callerFor(t.token);
-
-    let jobsDs = connection.jobsDs;
-    let fresh = false;
-    if (!jobsDs) {
-      jobsDs = await adoptDatabase(run, client, parent, JOBS_DB_NAME, P.job.key);
-      if (!jobsDs) {
-        jobsDs = await createDb(run, client, parent, JOBS_DB_NAME, '💼', jobsProperties());
-        fresh = true;
-      }
-      await saveJobsShells(t.userId, { jobsDs });
-    }
-
-    let profileDs = connection.jobsProfileDs;
-    if (!profileDs) {
-      profileDs =
-        (await adoptDatabase(run, client, parent, PROFILE_DB_NAME, P.profile.resume)) ??
-        (await createDb(run, client, parent, PROFILE_DB_NAME, '🧭', jobProfileProperties()));
-      await saveJobsShells(t.userId, { jobsProfileDs: profileDs });
-    }
-
-    let profilePage = connection.jobsProfilePageId;
-    if (!profilePage) {
-      const existing: any = await run('read profile', () =>
-        client.dataSources.query({ data_source_id: profileDs!, page_size: 1 } as any),
-      );
-      profilePage = existing?.results?.[0]?.id ?? null;
-      if (!profilePage) {
-        const page: any = await run('create profile', () =>
-          client.pages.create({
-            parent: { type: 'data_source_id', data_source_id: profileDs! },
-            icon: { type: 'emoji', emoji: '🧭' },
-            properties: { [P.profile.name]: { title: runs('My job search profile') } },
-          } as any),
-        );
-        profilePage = page.id as string;
-      }
-      await saveJobsShells(t.userId, { jobsProfilePageId: profilePage! });
-    }
-
-    if (fresh) await buildJobViews(run, client, jobsDs);
-    invalidateJobs(t.userId);
-    return { jobsDs, jobsProfileDs: profileDs, jobsProfilePageId: profilePage! };
-  } finally {
-    await releaseJobsLease(t.userId);
-  }
 }

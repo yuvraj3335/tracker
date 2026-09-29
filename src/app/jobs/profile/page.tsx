@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { requireReady } from '@/lib/tenant';
-import { getProfile } from '@/lib/jobs-notion';
+import { getProfile } from '@/lib/jobs/notion';
 import { EMPTY_PROFILE } from '@/lib/jobs';
 import { PageHeader } from '@/components/page-header';
 import { JobsNav } from '@/components/jobs/jobs-nav';

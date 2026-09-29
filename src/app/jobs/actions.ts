@@ -3,17 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireTenant, type Tenant } from '@/lib/tenant';
-import {
-  addJobs,
-  logJobEvent,
-  saveProfile,
-  setupJobs,
-  trashJob,
-  updateJob,
-  JobsError,
-  type Actor,
-} from '@/lib/jobs-notion';
-import { coerceStatus, parseEventInput, parseJobPatch, parseNewJob, parseProfile } from '@/lib/jobs';
+import { addJobs, logJobEvent, saveProfile, trashJob, updateJob, JobsError, type Actor } from '@/lib/jobs/notion';
+import { setupJobs } from '@/lib/jobs/setup';
+import { LOGGABLE_KINDS, coerceStatus, parseEventInput, parseJobPatch, parseNewJob, parseProfile, type JobEventKind } from '@/lib/jobs';
+import { shiftKey, todayKey } from '@/lib/date';
 import { countActiveApiKeys, createApiKey, ensureSchema, revokeApiKey } from '@/lib/db';
 import { MAX_ACTIVE_KEYS, cleanKeyName, generateApiKey } from '@/lib/api-keys';
 
@@ -99,6 +92,55 @@ export async function logJobEventAction(id: string, _prev: ActionState, form: Fo
   } catch (e) {
     return problem(e);
   }
+}
+
+/**
+ * One-tap events from the pipeline and the job page: "I applied", "They
+ * replied", "Got an offer". Same path as the timeline form, with no text.
+ */
+export async function quickEventAction(id: string, kind: string, text = ''): Promise<ActionState> {
+  if (!(LOGGABLE_KINDS as readonly string[]).includes(kind)) return { ok: false, message: 'Unknown event.' };
+  try {
+    const t = await requireTenant();
+    const r = await logJobEvent(t, id, { kind: kind as JobEventKind, text: String(text).slice(0, 300), date: null, moveStatus: true }, you(t));
+    if (!r) return { ok: false, message: 'That job is no longer in your tracker.' };
+    revalidateJobs(id);
+    return { ok: true, message: r.warning ?? (r.movedTo ? `Moved to ${r.movedTo}.` : 'Logged.') };
+  } catch (e) {
+    return problem(e);
+  }
+}
+
+/**
+ * "Followed up": logs it, and schedules the next nudge a week out. Without the
+ * date the nudge would stay, since a week of silence after applying is still
+ * a week of silence.
+ */
+export async function followedUpAction(id: string): Promise<ActionState> {
+  try {
+    const t = await requireTenant();
+    const r = await logJobEvent(t, id, { kind: 'followup', text: '', date: null, moveStatus: false }, you(t));
+    if (!r) return { ok: false, message: 'That job is no longer in your tracker.' };
+    await updateJob(t, id, { followUpOn: shiftKey(todayKey(), 7) }, you(t));
+    revalidateJobs(id);
+    return { ok: true, message: 'Logged. You will be reminded again in a week.' };
+  } catch (e) {
+    return problem(e);
+  }
+}
+
+/** Pushes a follow-up out by `days` without logging anything. */
+export async function snoozeAction(id: string, days = 7): Promise<ActionState> {
+  const n = Math.max(1, Math.min(60, Math.round(days)));
+  try {
+    const t = await requireTenant();
+    const job = await updateJob(t, id, { followUpOn: shiftKey(todayKey(), n) }, you(t));
+    if (!job) return { ok: false, message: 'That job is no longer in your tracker.' };
+  } catch (e) {
+    return problem(e);
+  }
+  revalidateJobs(id);
+  return { ok: true, message: `Follow-up moved to ${n} day${n === 1 ? '' : 's'} from now.` };
 }
 
 export async function addJobAction(_prev: ActionState, form: FormData): Promise<ActionState> {

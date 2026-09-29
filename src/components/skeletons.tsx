@@ -168,21 +168,100 @@ export function AnalyticsSkeleton() {
   );
 }
 
-/** The job pipeline: header, tabs, four tiles, then grouped rows. */
+/** The job pipeline: header, tabs, the funnel card, then the board. */
 export function JobsSkeleton() {
   return (
     <LoadingRegion label="Loading your jobs">
       <div className="space-y-4">
         <Header />
-        <div className="flex gap-1.5">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-7 w-20 rounded-full" />
+        <Skeleton className="h-8 w-80 max-w-full rounded-full" />
+        <Card>
+          <CardContent className="space-y-3.5 pt-4 sm:pt-5">
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="h-2.5 w-full rounded-full" />
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i}>
+                  <Skeleton className="h-2.5 w-14" />
+                  <Skeleton className="mt-1.5 h-5 w-8" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <div className="hidden gap-2.5 lg:grid lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, c) => (
+            <div key={c} className="space-y-2 rounded-xl bg-surface-2/60 p-2">
+              <Skeleton className="h-3 w-20" />
+              {Array.from({ length: 3 - (c % 2) }).map((_, i) => (
+                <div key={i} className="skin-card space-y-2 border border-hairline bg-surface p-3">
+                  <div className="flex gap-2.5">
+                    <Skeleton className="size-7 shrink-0 rounded-lg" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-2.5 w-2/3" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-4 w-24 rounded-full" />
+                </div>
+              ))}
+            </div>
           ))}
         </div>
-        <TileRow />
-        <Card>
+        <Card className="lg:hidden">
           <Rows n={6} />
         </Card>
+      </div>
+    </LoadingRegion>
+  );
+}
+
+/** One job: header with the stepper, then the two columns. */
+export function JobDetailSkeleton() {
+  return (
+    <LoadingRegion label="Loading the job">
+      <div className="space-y-4">
+        <Skeleton className="h-3 w-20" />
+        <Card>
+          <CardContent className="space-y-4 pt-4 sm:pt-5">
+            <div className="flex gap-3.5">
+              <Skeleton className="size-13 shrink-0 rounded-xl" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-6 w-2/3" />
+                <Skeleton className="h-3 w-1/2" />
+                <div className="flex gap-1.5">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-5 w-14 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+              </div>
+            </div>
+            <Skeleton className="h-8 w-40 rounded-full" />
+            <div className="flex justify-between gap-2 border-t border-hairline pt-3.5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="size-6 rounded-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <Card>
+            <CardContent className="space-y-2.5 pt-4 sm:pt-5">
+              <Skeleton className="h-3.5 w-28" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-3" style={{ width: `${70 + ((i * 11) % 25)}%` }} />
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="space-y-2.5 pt-4 sm:pt-5">
+              <Skeleton className="h-3.5 w-24" />
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-3 w-full" />
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </LoadingRegion>
   );

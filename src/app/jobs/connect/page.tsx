@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import { requireReady } from '@/lib/tenant';
 import { ensureSchema, listApiKeys } from '@/lib/db';
+import { requestTime } from '@/lib/date';
 import { PageHeader } from '@/components/page-header';
 import { JobsNav } from '@/components/jobs/jobs-nav';
 import { ConnectAI } from '@/components/jobs/connect-ai';
@@ -27,7 +28,7 @@ export default async function ConnectPage() {
         sub="Use the tracker from Claude Code, Codex, Gemini CLI, Cursor, Claude Desktop, claude.ai or your phone."
       />
       <JobsNav />
-      <ConnectAI origin={base} keys={keys} />
+      <ConnectAI origin={base} keys={keys} now={requestTime()} />
     </div>
   );
 }

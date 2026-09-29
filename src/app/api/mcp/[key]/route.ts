@@ -1,4 +1,4 @@
-import { mcpNotAllowed, mcpOptions, serveMcp } from '@/lib/mcp-http';
+import { mcpNotAllowed, mcpOptions, serveMcp } from '@/lib/mcp/http';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;

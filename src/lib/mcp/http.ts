@@ -10,11 +10,11 @@
  * logs. It exists because those clients offer no way to send a header; the
  * connect page says so and recommends a separate key for them.
  */
-import { bearerKey, looksLikeApiKey } from './api-keys';
-import { tenantForApiKey } from './tenant';
-import { clientIp, createRateLimiter, retryAfterSeconds } from './rate-limit';
-import { MAX_BATCH, RPC, errorResult, handleBody, rpcError, type ServerDef } from './mcp';
-import { JOB_TRACKER_SERVER, type ToolContext } from './job-tools';
+import { bearerKey, looksLikeApiKey } from '../api-keys';
+import { tenantForApiKey } from '../tenant';
+import { clientIp, createRateLimiter, retryAfterSeconds } from '../rate-limit';
+import { MAX_BATCH, RPC, errorResult, handleBody, rpcError, type ServerDef } from './protocol';
+import { JOB_TRACKER_SERVER, type ToolContext } from './tools';
 
 /** A message that big is not a tool call; it is a mistake or an attack. */
 const MAX_BODY = 1_000_000;

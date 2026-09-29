@@ -134,10 +134,17 @@ function tokenKey(token: string): string {
 
 export type Caller = <T>(label: string, fn: () => Promise<T>) => Promise<T>;
 
-/** Binds the throttle queue for one integration token. */
-export function callerFor(token: string): Caller {
+/**
+ * Binds the throttle queue for one integration token.
+ *
+ * `throttle: false` keeps the retries but skips the queue — for reads, which
+ * are few, and where waiting a third of a second before each one is the whole
+ * difference between a page that opens and a page that loads.
+ */
+export function callerFor(token: string, opts: { throttle?: boolean } = {}): Caller {
   const key = tokenKey(token);
-  return (label, fn) => call(label, fn, 1, key);
+  const throttled = opts.throttle ?? true;
+  return (label, fn) => call(label, fn, 1, key, throttled);
 }
 
 async function call<T>(
@@ -145,15 +152,16 @@ async function call<T>(
   fn: () => Promise<T>,
   attempt = 1,
   key = 'default',
+  throttled = true,
 ): Promise<T> {
-  await throttle(key);
+  if (throttled) await throttle(key);
   try {
     return await fn();
   } catch (e) {
     const status = (e as any)?.status;
     if ((status === 429 || status === 502 || status === 503 || status === 504) && attempt <= 4) {
       await new Promise((r) => setTimeout(r, (status === 429 ? 1200 : 600) * attempt));
-      return call(label, fn, attempt + 1, key);
+      return call(label, fn, attempt + 1, key, throttled);
     }
     console.error(`[notion] ${label} failed:`, (e as any)?.message ?? e);
     // `label` stays out of the message: it names an internal step.

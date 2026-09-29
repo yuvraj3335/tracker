@@ -12,15 +12,15 @@
  * entry checked against its API before it was added) and adds the companies in
  * the user's own profile on top.
  */
-import sites from '../../data/career-sites.json';
+import sites from '../../../data/career-sites.json';
 
 // The four job APIs answer with untyped JSON; each reader narrows it at once.
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { shiftKey, todayKey, type DayKey } from './date';
-import { findDuplicate, own, type Job } from './jobs';
-import { normalize } from './search';
-import { INDIAN_PLACES, foldPlace, postedFromText, seniorityOf, keepForLevel, type Listing, type LevelWanted } from './job-search';
-import type { JobSource } from './schema';
+import { shiftKey, todayKey, type DayKey } from '../date';
+import { findDuplicate, own, type Job } from '../jobs';
+import { normalize } from '../search';
+import { INDIAN_PLACES, foldPlace, keepForLevel, postedFromText, seniorityOf, type LevelWanted, type Listing } from './text';
+import type { JobSource } from '../schema';
 
 export type Ats = 'greenhouse' | 'lever' | 'ashby' | 'workday';
 

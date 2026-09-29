@@ -1,9 +1,10 @@
 import { bearerKey } from '@/lib/api-keys';
 import { tenantForApiKey } from '@/lib/tenant';
 import { clientIp, createRateLimiter, retryAfterSeconds } from '@/lib/rate-limit';
-import { getJobs } from '@/lib/jobs-notion';
+import { getJobs } from '@/lib/jobs/notion';
 import { BOARD_IDS, MAX_PAGE_CHARS, parseCrawl, planBoardSearch, readPostingPage, type BoardId, type CrawledPage, type LevelWanted } from '@/lib/job-search';
 import { todayKey } from '@/lib/date';
+import { clampInt } from '@/lib/utils';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
   }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { error: 'Send a JSON object.' });
 
-  const days = clamp(body.posted_within_days, 0, 30, 14);
+  const days = clampInt(body.posted_within_days, 0, 30, 14);
   const boards = (Array.isArray(body.boards) ? body.boards.map(String) : BOARD_IDS).filter((b): b is BoardId =>
     (BOARD_IDS as readonly string[]).includes(b),
   );
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
   if (body.action === 'plan') {
     const role = String(body.role ?? '').trim().slice(0, 120);
     if (!role) return json(400, { error: 'Give a role to search for.' });
-    const years = body.experience_years === undefined || body.experience_years === null ? null : clamp(body.experience_years, 0, 30, 0);
+    const years = body.experience_years === undefined || body.experience_years === null ? null : clampInt(body.experience_years, 0, 30, 0);
     return json(200, {
       pages: planBoardSearch(
         { role, location: String(body.location ?? 'India').slice(0, 120), postedWithinDays: days, minYears: years },
@@ -98,10 +99,4 @@ export async function POST(req: Request) {
   }
 
   return json(400, { error: 'Unknown action.' });
-}
-
-function clamp(v: unknown, min: number, max: number, fallback: number): number {
-  const n = typeof v === 'number' ? v : Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.round(n)));
 }

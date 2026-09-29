@@ -5,6 +5,15 @@ import { env } from './env';
 /** A calendar day key, `yyyy-MM-dd`, in the app's configured timezone. */
 export type DayKey = string;
 
+/**
+ * The clock, read once per server render. Server components render once per
+ * request, so this is the request's moment — handed to client components as a
+ * prop, so their "12m ago" matches the server's and hydration agrees.
+ */
+export function requestTime(): number {
+  return Date.now();
+}
+
 export function todayKey(tz: string = env.timezone): DayKey {
   return formatInTimeZone(new Date(), tz, 'yyyy-MM-dd');
 }

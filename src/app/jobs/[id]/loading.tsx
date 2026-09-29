@@ -1,5 +1,5 @@
-import { JobsSkeleton } from '@/components/skeletons';
+import { JobDetailSkeleton } from '@/components/skeletons';
 
 export default function Loading() {
-  return <JobsSkeleton />;
+  return <JobDetailSkeleton />;
 }

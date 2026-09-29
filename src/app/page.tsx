@@ -15,6 +15,9 @@ import { MoodBanner } from '@/components/mood-banner';
 import { ProgressBar } from '@/components/progress-bar';
 import { Heatmap } from '@/components/heatmap';
 import { TaskRow } from '@/components/task-row';
+import { JobSearchCard } from '@/components/jobs/job-search-card';
+import { getJobs } from '@/lib/jobs/notion';
+import { pipelineSummary } from '@/lib/jobs';
 
 // Per-user data: must never be prerendered at build time or cached across
 // users. The Notion layer's own 60s cache is what keeps this fast.
@@ -22,8 +25,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function Dashboard() {
   const tenant = await requireReady();
-  const { areas, topics, tasks } = await getEverything(tenant);
+  // The job list is read alongside the tracker, and never allowed to take the
+  // dashboard down with it: a Notion hiccup on jobs just hides the card.
+  const [{ areas, topics, tasks }, jobs] = await Promise.all([
+    getEverything(tenant),
+    tenant.jobsDs ? getJobs(tenant).catch(() => null) : Promise.resolve(null),
+  ]);
   const today = todayKey();
+  const jobSummary = jobs ? pipelineSummary(jobs, today) : null;
   const stats = summarize(areas, tasks);
   const byDay = activityByDay(tasks);
   const todayTasks = byDay.get(today) ?? [];
@@ -59,6 +68,8 @@ export default async function Dashboard() {
       />
 
       <MoodBanner mood={mood} next={nextAction} />
+
+      {tenant.jobsDs && !jobs ? null : <JobSearchCard summary={jobSummary} />}
 
       {/* ---- Job Switch progress, with DSA folded in automatically ---- */}
       <Card>

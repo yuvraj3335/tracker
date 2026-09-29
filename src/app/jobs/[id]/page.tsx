@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { requireReady } from '@/lib/tenant';
-import { getJob, isNotionId } from '@/lib/jobs-notion';
+import { getJob, isNotionId } from '@/lib/jobs/notion';
 import { todayKey } from '@/lib/date';
 import { JobDetail } from '@/components/jobs/job-detail';
 

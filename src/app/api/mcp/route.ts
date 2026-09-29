@@ -1,4 +1,4 @@
-import { mcpNotAllowed, mcpOptions, serveMcp } from '@/lib/mcp-http';
+import { mcpNotAllowed, mcpOptions, serveMcp } from '@/lib/mcp/http';
 
 export const runtime = 'nodejs';
 /** A tool call can search eleven boards or write twenty Notion pages. */

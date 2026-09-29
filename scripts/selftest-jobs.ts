@@ -30,8 +30,9 @@ import {
   type Job,
 } from '../src/lib/jobs';
 import { bearerKey, generateApiKey, hashApiKey, looksLikeApiKey, cleanKeyName } from '../src/lib/api-keys';
-import { MAX_BATCH, PROTOCOL_VERSIONS, ToolError, errorResult, handleBody, handleMessage, jsonResult, type ServerDef } from '../src/lib/mcp';
-import { INSTRUCTIONS, JOB_TRACKER_SERVER, PLAYBOOK } from '../src/lib/job-tools';
+import { MAX_BATCH, PROTOCOL_VERSIONS, ToolError, errorResult, handleBody, handleMessage, jsonResult, type ServerDef } from '../src/lib/mcp/protocol';
+import { JOB_TRACKER_SERVER } from '../src/lib/mcp/tools';
+import { INSTRUCTIONS, PLAYBOOK } from '../src/lib/mcp/playbook';
 import {
   BOARD_IDS,
   blockedReason,
@@ -47,11 +48,12 @@ import {
   salaryFromText,
   seniorityOf,
 } from '../src/lib/job-search';
-import { CAREER_SITES, companiesFrom, locationMatches, titleMatches, workdayPosted } from '../src/lib/career-sites';
-import { eventBlock, initialBody, jobProperties, logJobEvent, mapJob, splitBody, updateJob } from '../src/lib/jobs-notion';
+import { CAREER_SITES, companiesFrom, locationMatches, titleMatches, workdayPosted } from '../src/lib/job-search/career-sites';
+import { eventBlock, initialBody, jobProperties, logJobEvent, mapJob, splitBody, updateJob } from '../src/lib/jobs/notion';
 import { BOARD_IDS as CONNECTOR_BOARDS, refuseUrl } from '../connector/job-hunt.mjs';
 import { P } from '../src/lib/schema';
 import type { Tenant } from '../src/lib/tenant';
+import { clampInt, cn } from '../src/lib/utils';
 
 type Check = (name: string, cond: boolean, detail?: string) => void;
 
@@ -401,6 +403,13 @@ export async function jobTests(check: Check, section: (s: string) => void) {
     check('or the local network', (await refused('http://192.168.1.1/')) && (await refused('http://10.0.0.8/')) && (await refused('http://host.docker.internal/')) && (await refused('http://printer.local/')));
     check('or a VPN\'s private range', await refused('http://198.18.24.247/'));
     check('or anything that is not the web', (await refused('file:///etc/passwd')) && (await refused('ftp://example.com/')) && (await refused('https://user:pw@example.com/')));
+  }
+
+  section('Class merging keeps the type scale');
+  {
+    check('a custom size survives a colour (cn)', cn('text-micro', 'text-ink-2') === 'text-micro text-ink-2' && cn('text-display', 'text-ink') === 'text-display text-ink');
+    check('two sizes still resolve to the last', cn('text-micro', 'text-xs') === 'text-xs');
+    check('clampInt bounds and falls back', clampInt('7', 1, 5, 3) === 5 && clampInt('x', 1, 5, 3) === 3 && clampInt(2.6, 1, 5, 3) === 3);
   }
 
   // -----------------------------------------------------------------------

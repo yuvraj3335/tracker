@@ -135,7 +135,7 @@ const TOOLS: Tool[] = [
   },
 ];
 
-export function ConnectAI({ origin, keys }: { origin: string; keys: ApiKey[] }) {
+export function ConnectAI({ origin, keys, now }: { origin: string; keys: ApiKey[]; now: number }) {
   const [state, action, pending] = useActionState<NewKeyState, FormData>(createApiKeyAction, null);
   const [tool, setTool] = useState(TOOLS[0].id);
   const created = state?.ok ? state : null;
@@ -177,7 +177,7 @@ export function ConnectAI({ origin, keys }: { origin: string; keys: ApiKey[] }) 
           {active.length ? (
             <ul className="divide-y divide-[var(--border)] rounded-lg border border-hairline">
               {active.map((k) => (
-                <KeyRow key={k.id} k={k} />
+                <KeyRow key={k.id} k={k} now={now} />
               ))}
             </ul>
           ) : null}
@@ -246,16 +246,34 @@ export function ConnectAI({ origin, keys }: { origin: string; keys: ApiKey[] }) 
   );
 }
 
-function KeyRow({ k }: { k: ApiKey }) {
+/** "just now", "12m ago", "3h ago", "2d ago" — how recently a tool used this key. */
+function since(iso: string, now: number): string {
+  const mins = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.round(mins / 60);
+  if (h < 36) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+/** `now` comes from the server render, so both renders agree on "12m ago". */
+function KeyRow({ k, now }: { k: ApiKey; now: number }) {
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const used = k.lastUsedAt ? `used ${new Date(k.lastUsedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : 'never used';
+  // "Active" is what the page can honestly say: a tool used this key recently.
+  // Whether a tool is open right now is not something the tracker can see.
+  const active = k.lastUsedAt ? now - new Date(k.lastUsedAt).getTime() < 24 * 3_600_000 : false;
   return (
-    <li className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs">
+    <li className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-xs">
+      <span
+        aria-hidden
+        className="size-2 shrink-0 rounded-full"
+        style={{ background: active ? 'var(--good)' : 'var(--axis)' }}
+      />
       <span className="font-medium text-ink">{k.name}</span>
       <code className="text-ink-muted">{k.prefix}…</code>
-      <span className="text-ink-muted">· {used}</span>
+      <span className="text-ink-muted">· {k.lastUsedAt ? `${active ? 'active, ' : ''}used ${since(k.lastUsedAt, now)}` : 'not used yet'}</span>
       <span className="ml-auto flex items-center gap-2">
         {message ? <span className="text-ink-muted">{message}</span> : null}
         {confirming ? (

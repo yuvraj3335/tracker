@@ -1,17 +1,23 @@
-import { CheckCircle2, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ExternalLink, TriangleAlert } from 'lucide-react';
 import { daysBetween, formatKey, type DayKey } from '@/lib/date';
-import type { JobStatus } from '@/lib/schema';
+import { JOB_STATUS, type JobStatus } from '@/lib/schema';
 import type { FollowUp } from '@/lib/jobs';
 import { cn } from '@/lib/utils';
 
 /**
- * Pieces every job screen shares.
+ * The pieces every job screen is built from.
  *
- * Status is shown as a coloured dot beside neutral ink, never as coloured text
- * on a coloured chip: the skins' accents are tuned for controls, and a ten-way
- * palette of tinted chips would have to clear contrast against six skin-mode
- * surfaces each. The dot carries identity; the word carries meaning.
+ * Colour carries identity, never meaning on its own: a status is a dot beside
+ * its name, a fit score is a ring beside its number. The skins' accents are
+ * tuned for controls, and a ten-way palette of tinted text would have to clear
+ * contrast against six skin-mode surfaces each — so text stays in ink, and the
+ * colour sits in shapes, which need only 3:1.
  */
+
+// ---------------------------------------------------------------------------
+// Status
+// ---------------------------------------------------------------------------
+
 export const STATUS_COLOR: Record<JobStatus, string> = {
   Found: 'var(--ink-muted)',
   Shortlisted: 'var(--series-1)',
@@ -25,44 +31,165 @@ export const STATUS_COLOR: Record<JobStatus, string> = {
   Skipped: 'var(--axis)',
 };
 
+/** The pipeline groups' colours, in the same roles as the statuses inside them. */
+export const GROUP_COLOR: Record<string, string> = {
+  review: 'var(--ink-muted)',
+  apply: 'var(--series-1)',
+  applied: 'var(--accent)',
+  process: 'var(--series-2)',
+  offer: 'var(--good)',
+  closed: 'var(--axis)',
+};
+
 export function StatusDot({ status, className }: { status: JobStatus; className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn('inline-block size-2 shrink-0 rounded-full', className)}
-      style={{ background: STATUS_COLOR[status] }}
-    />
-  );
+  return <Dot color={STATUS_COLOR[status]} className={className} />;
+}
+
+export function Dot({ color, className }: { color: string; className?: string }) {
+  return <span aria-hidden className={cn('inline-block size-2 shrink-0 rounded-full', className)} style={{ background: color }} />;
 }
 
 export function StatusBadge({ status }: { status: JobStatus }) {
   return (
-    <span className="skin-pill inline-flex items-center gap-1.5 border border-hairline px-2 py-0.5 text-micro font-medium text-ink-2">
+    <span className="skin-pill inline-flex items-center gap-1.5 border border-hairline bg-surface px-2 py-0.5 text-micro font-medium text-ink-2">
       <StatusDot status={status} />
       {status}
     </span>
   );
 }
 
-/** Match as a plain number with a short bar — the bar reinforces, the number carries it. */
-export function MatchBadge({ match }: { match: number | null }) {
-  if (match === null) return null;
-  const tone = match >= 75 ? 'var(--good)' : match >= 55 ? 'var(--accent)' : 'var(--axis)';
+/**
+ * The status control: a real <select>, dressed as a pill with the status dot.
+ * Native on purpose — keyboard and screen-reader correct for free, and the
+ * platform picker on a phone — with the dot drawn beside it, not inside it.
+ */
+export function StatusSelect({
+  value,
+  onChange,
+  label,
+  disabled,
+  size = 'sm',
+}: {
+  value: JobStatus;
+  onChange: (next: JobStatus) => void;
+  label: string;
+  disabled?: boolean;
+  size?: 'sm' | 'md';
+}) {
   return (
-    <span className="inline-flex items-center gap-1 text-micro font-semibold text-ink-2 tnum" title={`Match ${match} of 100`}>
-      <span className="relative h-1 w-6 overflow-hidden rounded-full bg-surface-2" aria-hidden>
-        <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${match}%`, background: tone }} />
-      </span>
-      {match}
+    <span className="relative inline-flex shrink-0 items-center">
+      <StatusDot status={value} className="pointer-events-none absolute left-2.5" />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as JobStatus)}
+        aria-label={label}
+        disabled={disabled}
+        className={cn(
+          'skin-pill cursor-pointer appearance-none border border-hairline bg-surface font-medium text-ink-2 transition-colors',
+          'hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:opacity-60',
+          size === 'md' ? 'py-1.5 pr-8 pl-7 text-sm' : 'py-1 pr-7 pl-6 text-xs',
+        )}
+      >
+        {JOB_STATUS.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2 size-3 text-ink-muted" aria-hidden />
     </span>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Company, chips, fit
+// ---------------------------------------------------------------------------
+
+const TINTS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'];
+
+function hash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+/** Initials of the name that matter: "Walmart Global Tech" → "WG", "CRED" → "CR". */
+export function initials(name: string): string {
+  const words = name
+    .replace(/\b(pvt|private|ltd|limited|inc|llc|technologies|solutions)\b\.?/gi, '')
+    .split(/[\s\-–—&/,.()]+/)
+    .filter((w) => /[A-Za-z0-9]/.test(w));
+  if (!words.length) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/**
+ * A company's mark: its initials on a tint picked from the company name, so the
+ * same company always wears the same colour and a list is easier to scan. The
+ * tint is mixed toward the surface, so the ink on it keeps full contrast.
+ */
+export function CompanyMark({ name, size = 36, className }: { name: string; size?: number; className?: string }) {
+  const tint = TINTS[hash(name.toLowerCase()) % TINTS.length];
+  return (
+    <span
+      aria-hidden
+      className={cn('grid shrink-0 place-items-center rounded-[min(var(--radius-card),10px)] font-semibold tracking-tight text-ink select-none', className)}
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.round(size * 0.36),
+        background: `color-mix(in oklab, ${tint} 17%, var(--surface))`,
+        boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${tint} 32%, transparent)`,
+      }}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+export function Chip({ children, icon, className, title }: { children: React.ReactNode; icon?: React.ReactNode; className?: string; title?: string }) {
+  return (
+    <span
+      title={title}
+      className={cn('skin-pill inline-flex max-w-full items-center gap-1 border border-hairline bg-surface px-2 py-0.5 text-micro text-ink-2', className)}
+    >
+      {icon}
+      <span className="truncate">{children}</span>
+    </span>
+  );
+}
+
+/** A fit score: the number, with a ring that reinforces it. */
+export function MatchBadge({ match, className }: { match: number | null; className?: string }) {
+  if (match === null) return null;
+  const tone = match >= 75 ? 'var(--good)' : match >= 55 ? 'var(--accent)' : 'var(--axis)';
+  const r = 5;
+  const c = 2 * Math.PI * r;
+  return (
+    <span
+      className={cn('skin-pill inline-flex items-center gap-1 border border-hairline bg-surface px-1.5 py-0.5 text-micro font-semibold text-ink-2 tnum', className)}
+      title={`Fits your profile ${match} out of 100`}
+    >
+      <svg viewBox="0 0 14 14" className="size-3 -rotate-90" aria-hidden>
+        <circle cx="7" cy="7" r={r} fill="none" stroke="var(--grid)" strokeWidth="2.5" />
+        <circle cx="7" cy="7" r={r} fill="none" stroke={tone} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - match / 100)} />
+      </svg>
+      {match}% fit
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Time and follow-ups
+// ---------------------------------------------------------------------------
 
 /** "today", "yesterday", "5d ago", "3w ago", then a date. */
 export function ago(day: DayKey | null, today: DayKey): string {
   if (!day) return '';
   const d = daysBetween(day, today);
-  if (d <= 0) return 'today';
+  if (d < 0) return `in ${-d}d`;
+  if (d === 0) return 'today';
   if (d === 1) return 'yesterday';
   if (d < 14) return `${d}d ago`;
   if (d < 60) return `${Math.floor(d / 7)}w ago`;
@@ -71,23 +198,29 @@ export function ago(day: DayKey | null, today: DayKey): string {
 
 export function followUpLabel(f: FollowUp): string {
   if (f.kind === 'due') return f.days === 0 ? 'Follow up today' : `Follow-up ${f.days}d overdue`;
-  if (f.kind === 'stale') return `${f.days}d, no reply — ghosted?`;
-  return `${f.days}d, no reply — nudge`;
+  if (f.kind === 'stale') return `${f.days}d silent — ghosted?`;
+  return `${f.days}d, no reply`;
 }
 
 export function FollowUpBadge({ followUp }: { followUp: FollowUp | null }) {
   if (!followUp) return null;
+  const due = followUp.kind === 'due';
   return (
     <span
       className={cn(
-        'skin-pill inline-flex items-center gap-1 border px-2 py-0.5 text-micro font-medium',
-        followUp.kind === 'due' ? 'border-transparent bg-accent text-accent-ink' : 'border-hairline text-ink-2',
+        'skin-pill inline-flex items-center gap-1 px-2 py-0.5 text-micro font-medium',
+        due ? 'bg-accent text-accent-ink' : 'border border-hairline bg-surface text-ink-2',
       )}
     >
+      {due ? null : <Dot color={followUp.kind === 'stale' ? 'var(--critical)' : 'var(--warning)'} />}
       {followUpLabel(followUp)}
     </span>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Forms
+// ---------------------------------------------------------------------------
 
 /** A form's answer, announced: politely when it worked, assertively when it did not. */
 export function FormMessage({ state }: { state: { ok: boolean; message: string } | null }) {
@@ -95,23 +228,16 @@ export function FormMessage({ state }: { state: { ok: boolean; message: string }
   return (
     <p
       role={state.ok ? 'status' : 'alert'}
-      className={cn(
-        'flex items-start gap-1.5 rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-xs',
-        state.ok ? 'text-ink-2' : 'text-critical',
-      )}
+      className={cn('flex items-start gap-1.5 rounded-lg border border-hairline bg-surface-2 px-3 py-2 text-xs', state.ok ? 'text-ink-2' : 'text-critical')}
     >
-      {state.ok ? (
-        <CheckCircle2 className="mt-px size-3.5 shrink-0 text-good-text" aria-hidden />
-      ) : (
-        <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-      )}
+      {state.ok ? <CheckCircle2 className="mt-px size-3.5 shrink-0 text-good-text" aria-hidden /> : <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />}
       <span>{state.message}</span>
     </p>
   );
 }
 
 export const inputClass =
-  'w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-muted/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
+  'w-full rounded-lg border border-hairline bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted/70 hover:border-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent';
 
 export function Label({ htmlFor, children, hint }: { htmlFor: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -182,14 +308,7 @@ export function TextArea({
       <Label htmlFor={name} hint={hint}>
         {label}
       </Label>
-      <textarea
-        id={name}
-        name={name}
-        rows={rows}
-        defaultValue={defaultValue ?? ''}
-        placeholder={placeholder}
-        className={cn(inputClass, 'resize-y leading-relaxed')}
-      />
+      <textarea id={name} name={name} rows={rows} defaultValue={defaultValue ?? ''} placeholder={placeholder} className={cn(inputClass, 'resize-y leading-relaxed')} />
     </div>
   );
 }
@@ -225,5 +344,91 @@ export function SelectField({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Text
+// ---------------------------------------------------------------------------
+
 /** Only http(s) links are ever rendered as hrefs — a row edited by hand in Notion could hold anything. */
 export const safeHref = (u: string | null | undefined) => (u && /^https?:\/\//i.test(u) ? u : null);
+
+const URL_IN_TEXT = /(https?:\/\/[^\s)]{1,2048})/g;
+
+/** A link named by its site — "visa.wd5.myworkdayjobs.com" — rather than its whole path. */
+function linkLabel(u: string): string {
+  try {
+    const url = new URL(u);
+    return url.hostname.replace(/^www\./, '') + (url.pathname.length > 1 ? '/…' : '');
+  } catch {
+    return u.slice(0, 40);
+  }
+}
+
+/** Plain text with its links made clickable, and nothing else interpreted. */
+export function Linkified({ text }: { text: string }) {
+  const parts = text.split(URL_IN_TEXT);
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 === 1 && safeHref(p) ? (
+          <a key={i} href={p} target="_blank" rel="noreferrer noopener" title={p} className="inline-flex items-baseline gap-0.5 font-medium text-accent underline-offset-2 hover:underline">
+            {linkLabel(p)}
+            <ExternalLink className="size-2.5 self-center" aria-hidden />
+          </a>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/**
+ * Steps written as "1. … 2. …" rendered as a real ordered list, bullets as a
+ * list, and everything else as paragraphs. AI tools write how-to-apply steps
+ * this way, and a wall of pre-wrapped text hid the order that mattered.
+ */
+export function RichSteps({ text }: { text: string }) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const blocks: { kind: 'ol' | 'ul' | 'p'; items: string[] }[] = [];
+  for (const l of lines) {
+    const numbered = /^(\d{1,2})[.)]\s+(.*)$/.exec(l);
+    const bullet = /^[-•*]\s+(.*)$/.exec(l);
+    const kind = numbered ? 'ol' : bullet ? 'ul' : 'p';
+    const body = numbered ? numbered[2] : bullet ? bullet[1] : l;
+    const last = blocks[blocks.length - 1];
+    if (last && last.kind === kind && kind !== 'p') last.items.push(body);
+    else blocks.push({ kind, items: [body] });
+  }
+  return (
+    <div className="space-y-2 text-sm leading-relaxed text-ink-2">
+      {blocks.map((b, i) =>
+        b.kind === 'ol' ? (
+          <ol key={i} className="space-y-2">
+            {b.items.map((it, j) => (
+              <li key={j} className="flex gap-2.5">
+                <span className="grid size-5 shrink-0 place-items-center rounded-full bg-surface-2 text-micro font-semibold text-ink tnum" aria-hidden>
+                  {j + 1}
+                </span>
+                <span className="min-w-0 pt-px">
+                  <Linkified text={it} />
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : b.kind === 'ul' ? (
+          <ul key={i} className="list-disc space-y-1 pl-5">
+            {b.items.map((it, j) => (
+              <li key={j}>
+                <Linkified text={it} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p key={i}>
+            <Linkified text={b.items[0]} />
+          </p>
+        ),
+      )}
+    </div>
+  );
+}

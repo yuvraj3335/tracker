@@ -133,8 +133,10 @@ floor; Blossom's violet sits above the dark lightness band at L 0.681 vs 0.67).
 
 `npm run dev` then open **`/preview`** — every component with sample data, in
 whichever skin and mode you pick. It is how the UI gets reviewed without a live
-Notion workspace. The route returns 404 when `NODE_ENV` is production, so it is
-not part of the shipped app.
+Notion workspace. **`/preview/jobs`** does the same for the job screens, and
+`?only=pipeline` (or `detail`, `profile`, `connect`, …) shows just one. Both
+routes return 404 when `NODE_ENV` is production, so neither is part of the
+shipped app.
 
 ---
 
@@ -379,6 +381,39 @@ Follow-ups are derived, not entered:
 - **Nudge**: a week since applying with no reply.
 - **Probably ghosted**: three weeks of silence.
 
+### In the tracker
+
+- **Pipeline.** A board with a column per stage (to review, to apply, applied,
+  in process, offers), or the same groups as a list. Drag a card to another
+  column to move it. The move shows at once, saves to Notion behind it, and
+  can be undone for six seconds. Closed jobs fold away below the board. Search
+  covers role, company, city, source, skills and notes; sort by newest, best
+  fit or last update.
+- **Funnel.** One bar showing where every job stands, with applied, this
+  week, interviewing, heard back and to follow up beside it. Each stage links
+  to the pipeline filtered to it.
+- **Needs attention.** Due follow-ups and quiet applications, each with the
+  action that clears it. *Followed up* logs it and sets the next follow-up a
+  week out. The others are *Mark ghosted* and *Snooze a week*.
+- **The job page.** A stage stepper, the actions that fit the stage (*I
+  applied*, *They replied*, *Got an assessment*, *Interview scheduled*…), how
+  to apply, why it fits, the posting's own description, and the timeline with
+  a form to log to it.
+- **Dashboard.** A card with the count at each stage and the next follow-ups.
+
+The code is in three folders:
+- `src/lib/jobs/`: the model, pipeline rules, dedupe, input parsing, and the
+  Notion reads and writes.
+- `src/lib/job-search/`: the board plans, page readers and career-site
+  search.
+- `src/lib/mcp/`: the protocol, the HTTP endpoint, the tools and the
+  playbook.
+
+In the first two, `index.ts` exports only the pure parts, so client
+components and the self-tests can import them without pulling in Notion or
+the network. The server-only files (`jobs/notion.ts`, `jobs/setup.ts`,
+`job-search/career-sites.ts`) are imported by path.
+
 ### In Notion
 
 Setting up (one click on `/jobs`) adds two databases to the page your tracker
@@ -425,7 +460,7 @@ Blocked or empty pages are **reported, never guessed at**, and nothing tries to
 get past a sign-in wall or a bot check.
 
 The tracker plans which page to open on each board and reads what comes back
-(`src/lib/job-search.ts`, with extraction selectors per board). The connector
+(`src/lib/job-search/`, with extraction selectors per board). The connector
 only carries pages between Crawl4AI and the tracker. `npm run check:boards`
 runs the whole path live and flags a board whose layout has changed.
 
@@ -465,7 +500,7 @@ recording is the job.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 938 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, MCP, board readers, career sites, job writes |
+| `npm run test` | 941 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, MCP, board readers, career sites, job writes |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
