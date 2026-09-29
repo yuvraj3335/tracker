@@ -31,6 +31,8 @@
  * there would corrupt the stream. Diagnostics go to stderr.
  */
 import { readFileSync } from 'node:fs';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -139,12 +141,62 @@ function markdownOf(result) {
   return md?.raw_markdown || md?.markdown_with_citations || result?.markdown_v2?.raw_markdown || '';
 }
 
+
+// ---------------------------------------------------------------------------
+// What the crawler may open
+//
+// Crawl4AI runs in Docker on this computer, where it can reach the router, the
+// LAN and host.docker.internal — and whatever it reads goes back to a model.
+// A job posting is text from the open web, and "open this link" is exactly
+// what a hostile one would ask for. So board searches may only open the five
+// boards, and a posting read may only open a public address.
+// ---------------------------------------------------------------------------
+const BOARD_HOSTS = [/(^|\.)linkedin\.com$/, /(^|\.)naukri\.com$/, /(^|\.)foundit\.in$/, /(^|\.)glassdoor\.(co\.in|com)$/, /(^|\.)wellfound\.com$/];
+
+function privateAddress(ip) {
+  if (isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    // 198.18/15 is where a VPN such as Cloudflare WARP answers for private
+    // names, so a company's internal hosts land there.
+    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19)) || a >= 224;
+  }
+  const v = ip.toLowerCase();
+  return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80') || v.startsWith('::ffff:') && privateAddress(v.slice(7));
+}
+
+/** Null when the URL is safe to open, otherwise the reason it is not. */
+export async function refuseUrl(raw, { boardsOnly = false } = {}) {
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return 'That is not a link.';
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return 'Only web links can be opened.';
+  if (u.username || u.password) return 'Links with credentials in them are not opened.';
+  const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (boardsOnly) return BOARD_HOSTS.some((re) => re.test(host)) ? null : `Not a job board this connector searches: ${host}`;
+  if (isIP(host)) return privateAddress(host) ? 'Addresses on this computer or its network are not opened.' : 'Links to bare IP addresses are not opened.';
+  if (host === 'localhost' || /\.(local|internal|localhost|lan|home|corp)$/.test(host) || !host.includes('.')) {
+    return 'Addresses on this computer or its network are not opened.';
+  }
+  try {
+    const addrs = await lookup(host, { all: true });
+    if (addrs.some((a) => privateAddress(a.address))) return 'That name points inside this network, so it is not opened.';
+  } catch {
+    return `Could not find ${host}.`;
+  }
+  return null;
+}
+
 /**
  * Opens one page in Crawl4AI's browser and returns it as markdown, plus the
  * job cards when the plan carries an extraction schema. Never throws: a page
  * that fails is reported, so one slow board cannot sink the others.
  */
-export async function crawl(plan, timeoutMs = 50_000) {
+export async function crawl(plan, timeoutMs = 50_000, { boardsOnly = true } = {}) {
+  const refused = await refuseUrl(plan.url, { boardsOnly });
+  if (refused) return { ...plan, markdown: '', items: null, status: null, error: refused };
   const params = {
     cache_mode: 'bypass',
     page_timeout: Math.max(15_000, timeoutMs - 10_000),
@@ -305,7 +357,7 @@ const LOCAL_TOOLS = [
       const url = String(args.url ?? '').trim();
       if (!/^https?:\/\//i.test(url)) return fail('Give an http(s) link to the posting.');
       if (!(await crawlerHealth()).ok) return fail(NO_CRAWLER());
-      const page = await crawl({ url, delay: 1.5, scroll: false }, 45_000);
+      const page = await crawl({ url, delay: 1.5, scroll: false }, 45_000, { boardsOnly: false });
       if (page.error) return text({ url, readable: false, reason: page.error });
       const read = await trackerConnector({ action: 'posting', url, markdown: page.markdown, status: page.status });
       if (read.blocked) return text({ url, readable: false, reason: read.blocked });

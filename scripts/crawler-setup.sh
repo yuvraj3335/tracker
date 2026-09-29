@@ -14,6 +14,7 @@ set -euo pipefail
 IMAGE="unclecode/crawl4ai:0.9.4"
 DIR="${JOB_TRACKER_CONFIG_DIR:-$HOME/.config/job-tracker}"
 TOKEN_FILE="$DIR/crawl4ai-token"
+ENV_FILE="$DIR/crawl4ai.env"
 
 command -v docker >/dev/null || { echo "Docker is not installed. Install Docker Desktop first: https://www.docker.com/products/docker-desktop/"; exit 1; }
 if ! docker info >/dev/null 2>&1; then
@@ -29,13 +30,16 @@ if [ ! -s "$TOKEN_FILE" ]; then
   echo "Created a Crawl4AI token in $TOKEN_FILE"
 fi
 chmod 600 "$TOKEN_FILE"
+# Passed to Docker as a file, not on the command line, where any process list
+# would show it while the command runs.
+(umask 077 && printf 'CRAWL4AI_API_TOKEN=%s\n' "$(cat "$TOKEN_FILE")" > "$ENV_FILE")
 
 echo "Pulling $IMAGE (about 2 GB the first time)…"
 docker pull "$IMAGE" >/dev/null
 docker rm -f crawl4ai >/dev/null 2>&1 || true
 docker run -d --name crawl4ai --restart unless-stopped \
   -p 127.0.0.1:11235:11235 --shm-size=1g \
-  -e CRAWL4AI_API_TOKEN="$(cat "$TOKEN_FILE")" \
+  --env-file "$ENV_FILE" \
   "$IMAGE" >/dev/null
 
 printf "Waiting for Crawl4AI"

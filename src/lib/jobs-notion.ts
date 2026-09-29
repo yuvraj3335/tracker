@@ -9,7 +9,6 @@
 import { Client } from '@notionhq/client';
 import { P, jobProfileProperties, jobsProperties, type AddedBy, type JobStatus } from './schema';
 import { callerFor, createDb, propertyIds, type Caller } from './provision';
-import { queryAll } from './notion';
 import { claimJobsLease, ensureSchema, getConnection, releaseJobsLease, saveJobsShells } from './db';
 import { todayKey, type DayKey } from './date';
 import {
@@ -292,9 +291,24 @@ export async function getJobs(t: Tenant, opts: { fresh?: boolean } = {}): Promis
   const ds = requireJobs(t);
   const hit = listCache.get(t.userId);
   if (!opts.fresh && hit && Date.now() - hit.at < JOBS_TTL_MS) return hit.jobs;
-  const rows = await queryAll(clientFor(t.token), ds, {
-    sorts: [{ timestamp: 'created_time', direction: 'descending' }],
-  });
+  // Paged by hand so each page goes through callerFor, which retries a 429 —
+  // this client has the SDK's own retry off.
+  const run = callerFor(t.token);
+  const rows: any[] = [];
+  let cursor: string | undefined;
+  for (let guard = 0; guard < 20; guard++) {
+    const res: any = await run('list jobs', () =>
+      clientFor(t.token).dataSources.query({
+        data_source_id: ds,
+        page_size: 100,
+        start_cursor: cursor,
+        sorts: [{ timestamp: 'created_time', direction: 'descending' }],
+      } as any),
+    );
+    rows.push(...(res.results ?? []));
+    if (!res.has_more) break;
+    cursor = res.next_cursor ?? undefined;
+  }
   const jobs = rows.map(mapJob);
   listCache.set(t.userId, { at: Date.now(), jobs });
   if (listCache.size > 400) listCache.delete(listCache.keys().next().value!);

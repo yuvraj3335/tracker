@@ -17,9 +17,9 @@ import sites from '../../data/career-sites.json';
 // The four job APIs answer with untyped JSON; each reader narrows it at once.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { shiftKey, todayKey, type DayKey } from './date';
-import { findDuplicate, type Job } from './jobs';
+import { findDuplicate, own, type Job } from './jobs';
 import { normalize } from './search';
-import { INDIAN_PLACES, postedFromText, seniorityOf, keepForLevel, type Listing, type LevelWanted } from './job-search';
+import { INDIAN_PLACES, foldPlace, postedFromText, seniorityOf, keepForLevel, type Listing, type LevelWanted } from './job-search';
 import type { JobSource } from './schema';
 
 export type Ats = 'greenhouse' | 'lever' | 'ashby' | 'workday';
@@ -217,7 +217,7 @@ export function titleMatches(title: string, query: string): boolean {
     .filter((w) => w && !LEVEL_WORD.test(w));
   if (!words.length) return true;
   const has = (alt: string) => t.includes(` ${alt} `) || (alt.length >= 5 && new RegExp(` ${alt}[a-z]{0,4} `).test(t));
-  return words.every((w) => (SYNONYMS[w] ?? [w]).some(has));
+  return words.every((w) => (own(SYNONYMS, w) ?? [w]).some(has));
 }
 
 const ALIASES: [RegExp, string[]][] = [
@@ -239,8 +239,8 @@ const ALIASES: [RegExp, string[]][] = [
  * with no place in it filters nothing.
  */
 export function locationMatches(jobLocation: string, remote: boolean, wanted: string): boolean {
-  const w = wanted.toLowerCase();
-  const loc = jobLocation.toLowerCase();
+  const w = foldPlace(wanted);
+  const loc = foldPlace(jobLocation);
   const wantsRemote = /\bremote\b|\bwfh\b|work from home/.test(w);
   const cities: string[] = [];
   for (const [re, names] of ALIASES) if (re.test(w)) cities.push(...names);

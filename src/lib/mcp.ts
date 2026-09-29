@@ -52,6 +52,9 @@ export type ServerDef<C> = {
   prompts: readonly PromptDef[];
 };
 
+/** Messages allowed in one batched POST (2025-03-26 clients still send them). */
+export const MAX_BATCH = 10;
+
 /** An error whose message is written for the person, safe to show as-is. */
 export class ToolError extends Error {}
 
@@ -204,6 +207,8 @@ export async function handleBody<C>(
 ): Promise<{ status: 200; json: unknown } | { status: 202 } | { status: 400; json: unknown }> {
   if (Array.isArray(body)) {
     if (!body.length) return { status: 400, json: rpcError(null, RPC.INVALID_REQUEST, 'Empty batch') };
+    // Rate limits count requests; a batch must not smuggle a hundred through as one.
+    if (body.length > MAX_BATCH) return { status: 400, json: rpcError(null, RPC.INVALID_REQUEST, `At most ${MAX_BATCH} messages per batch`) };
     const out: RpcResponse[] = [];
     for (const m of body) {
       const r = await handleMessage(server, m, ctx);

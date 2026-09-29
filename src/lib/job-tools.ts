@@ -338,7 +338,7 @@ const tools: ToolDef<ToolContext>[] = [
     annotations: { readOnlyHint: true, openWorldHint: true },
     run: (args, ctx) =>
       guard(async () => {
-        limit(searchCalls, ctx.keyId, 'searches');
+        limit(searchCalls, ctx.tenant.userId, 'searches');
         const role = String(args.role ?? '').trim().slice(0, 120);
         if (!role) throw new ToolError('Give a role to search for.');
         const location = String(args.location ?? 'India').trim().slice(0, 120);

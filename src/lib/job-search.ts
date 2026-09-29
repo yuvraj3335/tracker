@@ -19,7 +19,7 @@
  * same small set of patterns.
  */
 import { shiftKey, todayKey, type DayKey } from './date';
-import { findDuplicate, type Job } from './jobs';
+import { findDuplicate, own, type Job } from './jobs';
 import type { JobSource } from './schema';
 
 // ---------------------------------------------------------------------------
@@ -137,16 +137,23 @@ export function keepForLevel(l: Pick<Listing, 'seniority' | 'experience'>, wante
   return LEVEL[l.seniority] >= 2;
 }
 
-/** Indian cities and regions a posting might name. */
+/**
+ * Indian cities, old names and states a posting might name. Test it on
+ * `foldPlace(text)`: boards write "Hyderābād" as often as "Hyderabad", and an
+ * unfolded accent silently failed the match — measured on Glassdoor.
+ */
 export const INDIAN_PLACES =
-  /\b(bengaluru|bangalore|pune|hyderabad|secunderabad|chennai|mumbai|navi mumbai|thane|delhi|new delhi|ncr|gurgaon|gurugram|noida|kolkata|ahmedabad|kochi|cochin|jaipur|coimbatore|chandigarh|indore|trivandrum|thiruvananthapuram|mysore|mysuru|vadodara|nagpur|bhubaneswar|india)\b/i;
+  /\b(bengaluru|bangalore|pune|hyderabad|secunderabad|chennai|madras|mumbai|bombay|navi mumbai|thane|delhi|new delhi|ncr|gurgaon|gurugram|noida|greater noida|faridabad|ghaziabad|kolkata|calcutta|ahmedabad|gandhinagar|kochi|cochin|jaipur|coimbatore|chandigarh|mohali|indore|trivandrum|thiruvananthapuram|mysore|mysuru|vadodara|surat|nagpur|nashik|bhubaneswar|visakhapatnam|vizag|lucknow|bhopal|karnataka|maharashtra|telangana|tamil nadu|kerala|gujarat|haryana|uttar pradesh|west bengal|rajasthan|andhra pradesh|madhya pradesh|punjab|odisha|goa|india)\b/i;
+
+/** Lowercase, accents off: "Hyderābād" → "hyderabad". */
+export const foldPlace = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 /** Any place a title fragment might name, remote included. */
 export const PLACES = new RegExp(INDIAN_PLACES.source.replace(/\|india\)/, '|india|remote|anywhere)'), 'i');
 
 /** True for a fragment that names a place rather than a role or a company. */
 export function looksLikePlace(s: string): boolean {
-  return PLACES.test(s) && s.split(/\s+/).length <= 8 && !/\b(engineer|developer|sde|analyst|lead|manager)\b/i.test(s);
+  return PLACES.test(foldPlace(s)) && s.split(/\s+/).length <= 8 && !/\b(engineer|developer|sde|analyst|lead|manager)\b/i.test(s);
 }
 
 // ---------------------------------------------------------------------------
@@ -332,11 +339,12 @@ export const BOARDS: readonly Board[] = [
     isPosting: (u) => /glassdoor\./.test(u.hostname) && (/\/job-listing\//.test(u.pathname) || u.searchParams.has('jl')),
     plan: (q) => {
       const p = primaryPlace(q.location);
-      const params = new URLSearchParams({ 'sc.keyword': q.role, locKeyword: p.city ? titleCase(p.city) : 'India' });
+      const params = new URLSearchParams();
       if (q.postedWithinDays > 0) params.set('fromAge', String(Math.min(q.postedWithinDays, 30)));
       if (p.remote) params.set('remoteWorkType', '1');
+      const qs = params.size ? `?${params}` : '';
       return {
-        url: `https://www.glassdoor.co.in/Job/jobs.htm?${params}`,
+        url: glassdoorSearchUrl(q.role, p.city) + qs,
         delay: 2,
         scroll: false,
         extract: {
@@ -376,6 +384,29 @@ export const BOARDS: readonly Board[] = [
 ];
 
 export const BOARD_IDS = BOARDS.map((b) => b.id);
+
+/**
+ * Glassdoor's own slug and location id, for the cities they are known for —
+ * taken from a Glassdoor search page that loaded, not guessed.
+ */
+const GLASSDOOR_CITY: Record<string, { slug: string; id: string }> = { bengaluru: { slug: 'bangalore', id: 'IC2940587' } };
+
+/**
+ * Glassdoor's canonical search address. The simple `jobs.htm?sc.keyword=…`
+ * form redirects to a generic India page and drops every filter on the way —
+ * measured: all 30 results came back "30d+" old. The canonical form keeps
+ * them: `<place>-<role>-jobs-SRCH_IL.<place span>_<place id>_KO<role span>.htm`,
+ * where the spans are character offsets into the slug.
+ */
+export function glassdoorSearchUrl(role: string, city: string | null): string {
+  const known = city ? own(GLASSDOOR_CITY, city) : undefined;
+  const id = known?.id;
+  const place = known?.slug ?? 'india';
+  const what = slug(role);
+  const il = `0,${place.length}`;
+  const ko = `${place.length + 1},${place.length + 1 + what.length}`;
+  return `https://www.glassdoor.co.in/Job/${place}-${what}-jobs-SRCH_IL.${il}_${id ?? 'IN115'}_KO${ko}.htm`;
+}
 const boardOf = (id: string) => BOARDS.find((b) => b.id === id);
 
 export function planBoardSearch(q: BoardQuery, boards: readonly BoardId[] = BOARD_IDS): PagePlan[] {
@@ -386,13 +417,22 @@ export function planBoardSearch(q: BoardQuery, boards: readonly BoardId[] = BOAR
 // Parsing a crawled page
 // ---------------------------------------------------------------------------
 
-/** `[text](url "title")` — the only markdown construct the parser needs. */
-const LINK = /\[([^\]]{0,300})\]\((https?:\/\/[^)\s]+)(?:\s+"[^"]*")?\)/g;
+/**
+ * `[text](url "title")` — the only markdown construct the parser needs.
+ * Every repetition is bounded: these patterns run on pages from the open web,
+ * and an unbounded `[^)]*` backtracks quadratically on a page full of `](`.
+ */
+const LINK = /\[([^\]\n]{0,300})\]\((https?:\/\/[^)\s]{1,2048})(?:\s+"[^"\n]{0,300}")?\)/g;
+const IMAGE = /!\[[^\]\n]{0,500}\]\([^)\s]{0,2048}\)/g;
+
+/** The most of one page the parser will read, and the most posting links it will follow. */
+export const MAX_PAGE_CHARS = 250_000;
+const MAX_LINKS = 500;
 
 /** Markdown noise inside a card: images, emphasis, headings, bullets, table pipes. */
 function plain(md: string): string {
   return md
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(IMAGE, ' ')
     .replace(LINK, '$1')
     .replace(/[*_`#>|]+/g, ' ')
     .replace(/\\(.)/g, '$1')
@@ -448,21 +488,40 @@ export function parseBoardPage(
   const board = boardOf(boardId);
   if (!board) return [];
 
-  type Hit = { index: number; end: number; text: string; url: URL };
+  type Hit = { index: number; end: number; text: string; url: URL; key: string };
   const hits: Hit[] = [];
-  for (const m of markdown.matchAll(LINK)) {
+  for (const m of markdown.slice(0, MAX_PAGE_CHARS).matchAll(LINK)) {
     const u = canonical(m[2], pageUrl);
     if (!u || !board.isPosting(u)) continue;
-    hits.push({ index: m.index ?? 0, end: (m.index ?? 0) + m[0].length, text: m[1], url: u });
+    hits.push({ index: m.index ?? 0, end: (m.index ?? 0) + m[0].length, text: m[1], url: u, key: `${u.origin}${u.pathname}`.toLowerCase() });
+    if (hits.length >= MAX_LINKS) break;
+  }
+
+  // Where the next *different* posting starts, for every hit, in one pass from
+  // the end — finding it by scanning forward from each hit was quadratic on a
+  // page that repeats one link.
+  const nextDifferent: (number | undefined)[] = new Array(hits.length);
+  let after: number | undefined;
+  let afterKey = '';
+  let sameRunStart: number | undefined;
+  for (let i = hits.length - 1; i >= 0; i--) {
+    if (hits[i].key === afterKey) {
+      nextDifferent[i] = sameRunStart;
+    } else {
+      sameRunStart = after;
+      nextDifferent[i] = after;
+      afterKey = hits[i].key;
+    }
+    after = hits[i].index;
   }
 
   const byUrl = new Map<string, { title: string; start: number; end: number; url: URL }>();
   const order: string[] = [];
   for (let i = 0; i < hits.length; i++) {
     const h = hits[i];
-    const key = `${h.url.origin}${h.url.pathname}`.toLowerCase();
+    const key = h.key;
     const title = plain(h.text);
-    const nextStart = hits.slice(i + 1).find((x) => `${x.url.origin}${x.url.pathname}`.toLowerCase() !== key)?.index;
+    const nextStart = nextDifferent[i];
     const card = byUrl.get(key);
     if (card) {
       if (!card.title && title) card.title = title;
@@ -678,7 +737,7 @@ export function readWellfound(markdown: string, today: DayKey = todayKey()): Lis
  * it out as often as they get it wrong.
  */
 export function placeFits(listingLocation: string, wanted: string): boolean {
-  const loc = listingLocation.trim();
+  const loc = foldPlace(listingLocation.trim());
   if (!loc) return true;
   const p = primaryPlace(wanted);
   if (!p.india && !p.city) return true;
@@ -782,7 +841,8 @@ export function readPostingPage(url: string, markdown: string, status: number | 
     /* reported below as blocked */
   }
   const text = markdown
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .slice(0, 50_000)
+    .replace(IMAGE, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, 9000);

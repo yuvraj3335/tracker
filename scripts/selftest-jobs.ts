@@ -6,6 +6,8 @@
  * Run as part of `npm run test`.
  */
 import {
+  coerceSource,
+  coerceStatus,
   cleanUrl,
   dedupeKey,
   findDuplicate,
@@ -28,7 +30,7 @@ import {
   type Job,
 } from '../src/lib/jobs';
 import { bearerKey, generateApiKey, hashApiKey, looksLikeApiKey, cleanKeyName } from '../src/lib/api-keys';
-import { PROTOCOL_VERSIONS, ToolError, errorResult, handleBody, handleMessage, jsonResult, type ServerDef } from '../src/lib/mcp';
+import { MAX_BATCH, PROTOCOL_VERSIONS, ToolError, errorResult, handleBody, handleMessage, jsonResult, type ServerDef } from '../src/lib/mcp';
 import { INSTRUCTIONS, JOB_TRACKER_SERVER, PLAYBOOK } from '../src/lib/job-tools';
 import {
   BOARD_IDS,
@@ -40,13 +42,14 @@ import {
   planBoardSearch,
   postedFromText,
   readCards,
+  readPostingPage,
   readWellfound,
   salaryFromText,
   seniorityOf,
 } from '../src/lib/job-search';
 import { CAREER_SITES, companiesFrom, locationMatches, titleMatches, workdayPosted } from '../src/lib/career-sites';
 import { eventBlock, initialBody, jobProperties, logJobEvent, mapJob, splitBody, updateJob } from '../src/lib/jobs-notion';
-import { BOARD_IDS as CONNECTOR_BOARDS } from '../connector/job-hunt.mjs';
+import { BOARD_IDS as CONNECTOR_BOARDS, refuseUrl } from '../connector/job-hunt.mjs';
 import { P } from '../src/lib/schema';
 import type { Tenant } from '../src/lib/tenant';
 
@@ -291,6 +294,8 @@ export async function jobTests(check: Check, section: (s: string) => void) {
     check('Naukri waits for its results to render', Boolean(plans.find((p) => p.board === 'naukri')!.waitFor));
     check('Wellfound spells Bengaluru "bangalore"', url('wellfound').pathname === '/role/l/software-engineer/bangalore');
     check('Wellfound without a city searches India', new URL(planBoardSearch({ role: 'SDE', location: 'India', postedWithinDays: 7, minYears: null }, ['wellfound'])[0].url).pathname.endsWith('/india'));
+    check('Glassdoor gets its canonical search address, spans and all', url('glassdoor').pathname === '/Job/bangalore-software-engineer-jobs-SRCH_IL.0,9_IC2940587_KO10,27.htm' && url('glassdoor').searchParams.get('fromAge') === '14');
+    check('Glassdoor without a known city searches India', new URL(planBoardSearch({ role: 'SDE', location: 'Pune', postedWithinDays: 7, minYears: null }, ['glassdoor'])[0].url).pathname === '/Job/india-sde-jobs-SRCH_IL.0,5_IN115_KO6,9.htm');
     check('boards with cards carry an extraction schema', plans.filter((p) => p.extract).map((p) => p.board).sort().join() === 'foundit,glassdoor,linkedin,naukri');
   }
 
@@ -326,6 +331,7 @@ export async function jobTests(check: Check, section: (s: string) => void) {
     check('Wellfound: place, experience, pay and age', wf[0]?.location === 'In office • Bengaluru' && wf[0]?.experience === '2+ yrs' && wf[1]?.salary.startsWith('$120k') && wf[0]?.postedOn === '2026-09-22');
     check('Wellfound: US postings do not fit a Bengaluru search', !placeFits(wf[1].location, 'Bengaluru') && placeFits(wf[0].location, 'Bengaluru'));
     check('an empty location is kept', placeFits('', 'Bengaluru'));
+    check('accents, old names and states are still India', ['Hyderābād', 'Calcutta', 'Haryana', 'Cochin', 'Bombay'].every((l) => placeFits(l, 'India')));
     check('Glassdoor\'s "Humans only" page is a bot check', blockedReason('glassdoor', '# Humans only\nGlassdoor has been built on…' + ' '.repeat(300), 200)?.includes('bot check') === true);
     check('a LinkedIn sign-in wall is blocked, not empty', blockedReason('linkedin', 'Sign in to view more jobs. Join LinkedIn '.repeat(10), 200)?.includes('sign in') === true);
     check('an HTTP 429 is a refusal', blockedReason('naukri', 'x'.repeat(500), 429)?.includes('429') === true);
@@ -362,6 +368,39 @@ export async function jobTests(check: Check, section: (s: string) => void) {
     check('bank and exec titles are senior', ['Vice President, Software Engineering', 'Backend Developer, AVP', 'Dir, Software Engineering'].every((t) => seniorityOf(t, '') === 'senior'));
     check('seniority from experience when the title says nothing', seniorityOf('Software Engineer', '0–2 yrs') === 'entry' && seniorityOf('Software Engineer', '5–8 yrs') === 'senior');
     check('an entry search keeps mid roles that start at 2 years', keepForLevel({ seniority: 'mid', experience: '2–4 yrs' }, 'entry') && !keepForLevel({ seniority: 'mid', experience: '3–5 yrs' }, 'entry'));
+  }
+
+
+  // -----------------------------------------------------------------------
+  section('Hardening (from review)');
+  {
+    check('"constructor" is not a status', coerceStatus('constructor') === null && coerceStatus('toString') === null);
+    check('"constructor" is not a source', coerceSource('__proto__') === null && coerceSource('constructor') === null);
+    check('"constructor" is not an event kind', !parseEventInput({ kind: 'constructor' }).ok && !parseEventInput({ kind: 'hasOwnProperty' }).ok);
+    let threw = false;
+    try {
+      titleMatches('Constructor Engineer', 'constructor engineer');
+    } catch {
+      threw = true;
+    }
+    check('a role containing "constructor" searches instead of throwing', !threw);
+
+    const big = await handleBody(JOB_TRACKER_SERVER, Array.from({ length: MAX_BATCH + 1 }, (_, i) => ({ jsonrpc: '2.0', id: i, method: 'ping' })), {} as never);
+    check('an oversized batch is refused whole', big.status === 400);
+
+    let t = Date.now();
+    readPostingPage('https://example.com/job', '!['.repeat(100_000), 200);
+    check('a page of broken image markup parses in well under a second', Date.now() - t < 1000, `${Date.now() - t}ms`);
+    t = Date.now();
+    parseCrawl([{ board: 'linkedin', url: 'https://www.linkedin.com/jobs/search', markdown: '[x](https://www.linkedin.com/jobs/view/4471646111/) '.repeat(20_000), items: null, status: 200 }], { seniority: 'any', postedWithinDays: 0, location: '' }, []);
+    check('a page repeating one link a million characters long stays linear', Date.now() - t < 1000, `${Date.now() - t}ms`);
+
+    const refused = async (u: string, boardsOnly = false) => Boolean(await refuseUrl(u, { boardsOnly }));
+    check('board searches open only the five boards', !(await refused('https://www.naukri.com/x', true)) && (await refused('https://example.com/x', true)));
+    check('the crawler never opens this computer', (await refused('http://localhost:3000/')) && (await refused('http://127.0.0.1:11235/health')) && (await refused('http://[::1]/')));
+    check('or the local network', (await refused('http://192.168.1.1/')) && (await refused('http://10.0.0.8/')) && (await refused('http://host.docker.internal/')) && (await refused('http://printer.local/')));
+    check('or a VPN\'s private range', await refused('http://198.18.24.247/'));
+    check('or anything that is not the web', (await refused('file:///etc/passwd')) && (await refused('ftp://example.com/')) && (await refused('https://user:pw@example.com/')));
   }
 
   // -----------------------------------------------------------------------

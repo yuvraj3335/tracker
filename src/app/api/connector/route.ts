@@ -1,8 +1,8 @@
 import { bearerKey } from '@/lib/api-keys';
 import { tenantForApiKey } from '@/lib/tenant';
-import { createRateLimiter, retryAfterSeconds } from '@/lib/rate-limit';
+import { clientIp, createRateLimiter, retryAfterSeconds } from '@/lib/rate-limit';
 import { getJobs } from '@/lib/jobs-notion';
-import { BOARD_IDS, parseCrawl, planBoardSearch, readPostingPage, type BoardId, type CrawledPage, type LevelWanted } from '@/lib/job-search';
+import { BOARD_IDS, MAX_PAGE_CHARS, parseCrawl, planBoardSearch, readPostingPage, type BoardId, type CrawledPage, type LevelWanted } from '@/lib/job-search';
 import { todayKey } from '@/lib/date';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -23,7 +23,9 @@ export const maxDuration = 30;
  * Authenticated by the same personal key as the MCP endpoint; the proxy lets
  * this route skip the session cookie.
  */
-const perKey = createRateLimiter(120, 5 * 60_000);
+/** Per account, not per key — see mcp-http.ts. */
+const perAccount = createRateLimiter(120, 5 * 60_000);
+const failedAuth = createRateLimiter(30, 5 * 60_000);
 const MAX_BODY = 3_000_000;
 const LEVELS: LevelWanted[] = ['entry', 'mid', 'senior', 'any'];
 
@@ -31,12 +33,17 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
   Response.json(body, { status, headers: { 'cache-control': 'no-store', ...headers } });
 
 export async function POST(req: Request) {
+  const fails = () => {
+    const r = failedAuth(clientIp(req));
+    return r.allowed ? null : json(429, { error: 'Too many failed attempts. Try again later.' }, { 'retry-after': String(retryAfterSeconds(r.retryAfterMs)) });
+  };
   const key = bearerKey(req.headers.get('authorization'));
-  if (!key) return json(401, { error: 'Missing key. Save your personal key for the connector (Jobs → Connect AI).' });
+  if (!key) return fails() ?? json(401, { error: 'Missing key. Save your personal key for the connector (Jobs → Connect AI).' });
+  if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY) return json(413, { error: 'Too much page content in one request.' });
   const who = await tenantForApiKey(key);
-  if (!who.ok) return json(who.status, { error: who.message });
+  if (!who.ok) return (who.status === 401 ? fails() : null) ?? json(who.status, { error: who.message });
 
-  const rate = perKey(who.keyId);
+  const rate = perAccount(who.tenant.userId);
   if (!rate.allowed) {
     return json(429, { error: 'Too many searches for now.' }, { 'retry-after': String(retryAfterSeconds(rate.retryAfterMs)) });
   }
@@ -49,6 +56,7 @@ export async function POST(req: Request) {
   } catch {
     return json(400, { error: 'Bad JSON.' });
   }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json(400, { error: 'Send a JSON object.' });
 
   const days = clamp(body.posted_within_days, 0, 30, 14);
   const boards = (Array.isArray(body.boards) ? body.boards.map(String) : BOARD_IDS).filter((b): b is BoardId =>
@@ -71,7 +79,7 @@ export async function POST(req: Request) {
     const pages: CrawledPage[] = (Array.isArray(body.pages) ? body.pages : []).slice(0, 12).map((p: any) => ({
       board: String(p?.board ?? '') as BoardId,
       url: String(p?.url ?? ''),
-      markdown: String(p?.markdown ?? ''),
+      markdown: String(p?.markdown ?? '').slice(0, MAX_PAGE_CHARS),
       items: Array.isArray(p?.items) ? p.items.slice(0, 200) : null,
       status: typeof p?.status === 'number' ? p.status : null,
       error: p?.error ? String(p.error).slice(0, 300) : null,
@@ -86,7 +94,7 @@ export async function POST(req: Request) {
 
   if (body.action === 'posting') {
     const url = String(body.url ?? '');
-    return json(200, readPostingPage(url, String(body.markdown ?? ''), typeof body.status === 'number' ? body.status : null));
+    return json(200, readPostingPage(url, String(body.markdown ?? '').slice(0, 50_000), typeof body.status === 'number' ? body.status : null));
   }
 
   return json(400, { error: 'Unknown action.' });

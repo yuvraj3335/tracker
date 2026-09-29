@@ -11,6 +11,7 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { SESSION_COOKIE, readSessionCookie } from './session';
 import {
   ensureSchema,
@@ -170,8 +171,15 @@ export async function tenantForApiKey(key: string): Promise<KeyTenant> {
       message: 'The tracker can no longer read this account’s Notion connection. Reconnect Notion in the tracker.',
     };
   }
-  // Best effort: a failed timestamp must never fail the request it describes.
-  void touchApiKey(found.id).catch(() => undefined);
+  // After the response, so it neither slows the call nor gets dropped when a
+  // serverless function freezes the moment it has answered. "Last used" is how
+  // a person spots a leaked key, so it has to be written reliably.
+  const touch = () => touchApiKey(found.id).catch(() => undefined);
+  try {
+    after(touch);
+  } catch {
+    void touch(); // outside a request (scripts, tests)
+  }
   return {
     ok: true,
     tenant: tenantOf({ id: found.userId, username: found.username }, connection, token),

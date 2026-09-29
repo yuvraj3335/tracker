@@ -28,15 +28,19 @@ const PUBLIC_PREFIXES = [
   '/characters/',
   // Dev-only component preview, and only in development — see below.
   '/preview',
-  // The MCP endpoint authenticates every request itself, with a personal key
-  // rather than the session cookie — AI tools have no cookie to send.
-  '/api/mcp',
-  // The Job Hunt connector's half of a board search. Same personal key.
-  '/api/connector',
   // OAuth discovery probes from MCP clients. There is no OAuth here; letting
   // them 404 says so, where a redirect to /login would hand them an HTML page.
   '/.well-known/',
 ];
+
+/**
+ * Routes that authenticate every request themselves, with a personal key
+ * rather than the session cookie — AI tools have no cookie to send. Matched as
+ * a whole path segment, so a future `/api/mcpx` is not waved through with them.
+ *   /api/mcp        the MCP endpoint
+ *   /api/connector  the Job Hunt connector's half of a board search
+ */
+const KEY_AUTH_ROUTES = ['/api/mcp', '/api/connector'];
 
 /**
  * The component preview is a development tool and must not be reachable by
@@ -59,6 +63,7 @@ export default async function proxy(req: NextRequest) {
   }
 
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (KEY_AUTH_ROUTES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return NextResponse.next();
 
   const userId = await readSessionCookie(req.cookies.get(SESSION_COOKIE)?.value);
   if (userId) return NextResponse.next();

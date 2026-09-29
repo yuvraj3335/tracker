@@ -12,15 +12,23 @@
  */
 import { bearerKey, looksLikeApiKey } from './api-keys';
 import { tenantForApiKey } from './tenant';
-import { createRateLimiter, retryAfterSeconds } from './rate-limit';
-import { RPC, errorResult, handleBody, rpcError, type ServerDef } from './mcp';
+import { clientIp, createRateLimiter, retryAfterSeconds } from './rate-limit';
+import { MAX_BATCH, RPC, errorResult, handleBody, rpcError, type ServerDef } from './mcp';
 import { JOB_TRACKER_SERVER, type ToolContext } from './job-tools';
 
 /** A message that big is not a tool call; it is a mistake or an attack. */
 const MAX_BODY = 1_000_000;
 
-/** Requests per key. A busy agent makes a few a second at most. */
-const perKey = createRateLimiter(300, 5 * 60_000);
+/**
+ * Requests per account — not per key, since an account can hold several keys
+ * and revoking one to make another would otherwise reset the count. A busy
+ * agent makes a few a second at most. Batched messages count one each.
+ */
+const perAccount = createRateLimiter(300, 5 * 60_000);
+
+/** Failed authentications per client address: guessing is hopeless, but each try costs a lookup. */
+const failedAuth = createRateLimiter(30, 5 * 60_000);
+
 
 const BASE_HEADERS = {
   'content-type': 'application/json',
@@ -69,14 +77,42 @@ function unavailable(message: string): ServerDef<ToolContext> {
 }
 
 export async function serveMcp(req: Request, keyFromPath?: string): Promise<Response> {
+  const ip = clientIp(req);
+  const tooManyFailures = () => {
+    const r = failedAuth(ip);
+    return r.allowed ? null : json(429, rpcError(null, RPC.INVALID_REQUEST, 'Too many failed attempts. Try again later.'), {
+      'retry-after': String(retryAfterSeconds(r.retryAfterMs)),
+    });
+  };
+
   const key = keyFromPath !== undefined ? (looksLikeApiKey(keyFromPath) ? keyFromPath : null) : bearerKey(req.headers.get('authorization'));
   if (!key) {
-    return json(
-      401,
-      rpcError(null, RPC.INVALID_REQUEST, 'Missing or malformed key. Create one in the tracker under Jobs → Connect AI and send it as "Authorization: Bearer jt_…".'),
-      { 'www-authenticate': 'Bearer realm="job-tracker"' },
+    return (
+      tooManyFailures() ??
+      json(
+        401,
+        rpcError(null, RPC.INVALID_REQUEST, 'Missing or malformed key. Create one in the tracker under Jobs → Connect AI and send it as "Authorization: Bearer jt_…".'),
+        { 'www-authenticate': 'Bearer realm="job-tracker"' },
+      )
     );
   }
+
+  // Refused before it is read: a declared size over the cap never costs a parse.
+  const declared = Number(req.headers.get('content-length') ?? 0);
+  if (declared > MAX_BODY) return json(413, rpcError(null, RPC.INVALID_REQUEST, 'Request too large'));
+
+  // The key is checked before the body is read, so a stranger's request costs
+  // one indexed lookup and nothing more.
+  const who = await tenantForApiKey(key);
+  if (!who.ok && who.status === 401) {
+    return (
+      tooManyFailures() ??
+      json(401, rpcError(null, RPC.INVALID_REQUEST, who.message), {
+        'www-authenticate': 'Bearer realm="job-tracker", error="invalid_token"',
+      })
+    );
+  }
+  if (!who.ok && who.status === 503) return json(503, rpcError(null, RPC.INTERNAL, who.message), { 'retry-after': '30' });
 
   const text = await req.text();
   if (text.length > MAX_BODY) return json(413, rpcError(null, RPC.INVALID_REQUEST, 'Request too large'));
@@ -87,20 +123,15 @@ export async function serveMcp(req: Request, keyFromPath?: string): Promise<Resp
     return json(400, rpcError(null, RPC.PARSE, 'Parse error'));
   }
 
-  const who = await tenantForApiKey(key);
-  if (!who.ok && who.status === 401) {
-    return json(401, rpcError(null, RPC.INVALID_REQUEST, who.message), {
-      'www-authenticate': 'Bearer realm="job-tracker", error="invalid_token"',
-    });
-  }
-  if (!who.ok && who.status === 503) return json(503, rpcError(null, RPC.INTERNAL, who.message), { 'retry-after': '30' });
-
-  const limitKey = who.ok ? who.keyId : key.slice(0, 16);
-  const rate = perKey(limitKey);
-  if (!rate.allowed) {
-    return json(429, rpcError(null, RPC.INTERNAL, 'Too many requests. Slow down and try again shortly.'), {
-      'retry-after': String(retryAfterSeconds(rate.retryAfterMs)),
-    });
+  const account = who.ok ? who.tenant.userId : `key:${key.slice(0, 16)}`;
+  const messages = Array.isArray(body) ? Math.min(body.length, MAX_BATCH) : 1;
+  for (let i = 0; i < messages; i++) {
+    const rate = perAccount(account);
+    if (!rate.allowed) {
+      return json(429, rpcError(null, RPC.INTERNAL, 'Too many requests. Slow down and try again shortly.'), {
+        'retry-after': String(retryAfterSeconds(rate.retryAfterMs)),
+      });
+    }
   }
 
   const server = who.ok ? JOB_TRACKER_SERVER : unavailable(who.message);

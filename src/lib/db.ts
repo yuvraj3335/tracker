@@ -592,12 +592,18 @@ export async function createApiKey(
   return toApiKey(rows[0]);
 }
 
-/** Every key, revoked ones included, newest first — revoking is visible. */
+/**
+ * Keys, live ones first, newest first. Live keys are capped at 20, so they
+ * always fit — sorting revoked ones first could have pushed a live key off the
+ * page and left it impossible to revoke there.
+ */
 export async function listApiKeys(userId: string): Promise<ApiKey[]> {
   if (!isUuid(userId)) return [];
   const q = sql();
   const rows = (await q`
-    select * from api_keys where user_id = ${userId}::uuid order by created_at desc limit 50
+    select * from api_keys where user_id = ${userId}::uuid
+     order by (revoked_at is null) desc, created_at desc
+     limit 50
   `) as any[];
   return rows.map(toApiKey);
 }

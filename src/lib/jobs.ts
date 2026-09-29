@@ -554,7 +554,16 @@ function pickEnum<T extends string>(values: readonly T[], raw: unknown, synonyms
   const direct = values.find((x) => x.toLowerCase() === v);
   if (direct) return direct;
   const compact = v.replace(/[^a-z0-9]+/g, ' ').trim();
-  return synonyms[compact] ?? synonyms[v] ?? null;
+  return own(synonyms, compact) ?? own(synonyms, v) ?? null;
+}
+
+/**
+ * A lookup that only sees the table's own keys. A plain `table[input]` also
+ * finds everything on Object.prototype, so "constructor" came back as the
+ * Object function and passed every enum check.
+ */
+export function own<T>(table: Record<string, T>, key: string): T | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
 }
 
 const STATUS_SYNONYMS: Record<string, JobStatus> = {
@@ -923,7 +932,7 @@ export function parseEventInput(raw: unknown): Parsed<EventInput> {
   const kindRaw = lc(field(o, 'kind'));
   const kind = (LOGGABLE_KINDS as readonly string[]).includes(kindRaw)
     ? (kindRaw as JobEventKind)
-    : EVENT_KIND_SYNONYMS[kindRaw.replace(/[^a-z0-9]+/g, ' ').trim()];
+    : own(EVENT_KIND_SYNONYMS, kindRaw.replace(/[^a-z0-9]+/g, ' ').trim());
   if (!kind) return { ok: false, error: `kind must be one of: ${LOGGABLE_KINDS.join(', ')}` };
   const text = cleanLine(field(o, 'text'), LIMITS.medium);
   const dateRaw = field(o, 'date');
