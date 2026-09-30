@@ -41,15 +41,16 @@ export function ProfileForm({ profile }: { profile: JobProfile }) {
               <Target className="size-3.5 text-ink-muted" aria-hidden />
               What you are looking for
             </CardTitle>
-            <CardDescription>Your AI tools read this before every search, and score each job against it.</CardDescription>
+            <CardDescription>Your AI tools read this before every search, and score every job against it: level, location, pay and the rest.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <TextArea name="target_roles" label="Target roles" defaultValue={profile.targetRoles} rows={2} placeholder="SDE-1, Software Engineer, Backend Engineer" />
             <TextArea name="locations" label="Locations" defaultValue={profile.locations} rows={2} placeholder="Bengaluru, Pune, Remote (India)" />
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <TextField name="experience" label="Experience" defaultValue={profile.experience} placeholder="1 year" />
-              <TextField name="salary" label="Expected salary" defaultValue={profile.salary} placeholder="12+ LPA" />
               <TextField name="notice_period" label="Notice period" defaultValue={profile.noticePeriod} placeholder="30 days" />
+              <TextField name="salary" label="Target salary" defaultValue={profile.salary} placeholder="15 LPA fixed" />
+              <TextField name="min_salary" label="Minimum salary" defaultValue={profile.minSalary} placeholder="10 LPA" hint="below this is a hard stop" />
             </div>
             <fieldset>
               <legend className="mb-1.5 block text-xs font-medium text-ink-2">Work modes</legend>
@@ -65,6 +66,13 @@ export function ProfileForm({ profile }: { profile: JobProfile }) {
                 ))}
               </div>
             </fieldset>
+            <label className="flex cursor-pointer items-start gap-2 text-xs text-ink-2">
+              <input type="checkbox" name="open_to_relocation" defaultChecked={profile.relocation} className="mt-0.5 size-3.5 accent-[var(--accent)]" />
+              <span>
+                Open to relocating for the right job
+                <span className="block text-micro text-ink-muted">Without this, an on-site job in another city is a hard stop.</span>
+              </span>
+            </label>
             <TextArea name="skills" label="Skills and stack" defaultValue={profile.skills} rows={2} placeholder="TypeScript, Node.js, React, Python, Postgres, AWS" />
             <div className="grid gap-3 sm:grid-cols-2">
               <TextArea name="must_haves" label="Must-haves" defaultValue={profile.mustHaves} rows={2} placeholder="Product company, strong engineering culture" />

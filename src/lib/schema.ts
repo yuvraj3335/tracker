@@ -91,6 +91,18 @@ export const P = {
     addedBy: 'Added By',
     notes: 'Notes',
     key: 'Dedupe Key',
+    // The judgment: written by an evaluation, never typed. See lib/jobs/evaluation.
+    verdict: 'Verdict',
+    levelFit: 'Level Fit',
+    legitimacy: 'Legitimacy',
+    hardStops: 'Hard Stops',
+    redFlags: 'Red Flags',
+    roleFamily: 'Role Family',
+    skillGaps: 'Skill Gaps',
+    scores: 'Scores',
+    evaluation: 'Evaluation',
+    evaluatedOn: 'Evaluated On',
+    report: 'Report',
   },
   profile: {
     name: 'Name',
@@ -100,7 +112,9 @@ export const P = {
     workModes: 'Work Modes',
     skills: 'Skills',
     salary: 'Salary',
+    minSalary: 'Minimum Salary',
     noticePeriod: 'Notice Period',
+    relocation: 'Open To Relocation',
     mustHaves: 'Must Haves',
     dealBreakers: 'Deal Breakers',
     targetCompanies: 'Target Companies',
@@ -169,6 +183,74 @@ export type AppliedVia = (typeof APPLIED_VIA)[number];
 /** Who put a row there: you from the tracker, or an AI tool through the API. */
 export const ADDED_BY = ['You', 'AI'] as const;
 export type AddedBy = (typeof ADDED_BY)[number];
+
+/**
+ * What the rubric says to do with a job. It is advice: the status is still
+ * yours to move, and nothing moves it because of a verdict.
+ */
+export const VERDICTS = ['Apply', 'Consider', 'Research first', 'Skip'] as const;
+export type Verdict = (typeof VERDICTS)[number];
+
+/** The level asked for against the level in the profile. */
+export const LEVEL_FITS = ['On-level', 'Stretch', 'Over-level'] as const;
+export type LevelFit = (typeof LEVEL_FITS)[number];
+
+/** Whether the posting looks like a real, open job. Observations, never accusations. */
+export const LEGITIMACY = ['High', 'Caution', 'Suspicious'] as const;
+export type Legitimacy = (typeof LEGITIMACY)[number];
+
+/** Any one of these rules a job out on its own, whatever else it scores. */
+export const HARD_STOPS = [
+  'Needs more experience',
+  'Location not open to you',
+  'Below your pay floor',
+  'Service bond',
+  'Notice period too long',
+  'Avoided company',
+  'Deal-breaker',
+] as const;
+export type HardStop = (typeof HARD_STOPS)[number];
+
+/** Each one costs a job points; none rules it out alone. */
+export const RED_FLAGS = [
+  'Stale posting',
+  'Reposted',
+  'Only on job boards',
+  'Staffing or contract',
+  'Long unpaid assignment',
+  'Vague description',
+  'Contradictory requirements',
+  'Recent layoffs',
+] as const;
+export type RedFlag = (typeof RED_FLAGS)[number];
+
+/** Which kind of engineering the role is, for what to lead with and what to prepare. */
+export const ROLE_FAMILIES = [
+  'Backend',
+  'Frontend',
+  'Full-stack',
+  'Mobile',
+  'Data/ML',
+  'DevOps/SRE',
+  'SDET',
+  'Generalist SDE',
+  'Other',
+] as const;
+export type RoleFamily = (typeof ROLE_FAMILIES)[number];
+
+/** A quick look from the listing alone, or a full read of the posting. */
+export const EVAL_DEPTHS = ['Quick', 'Full'] as const;
+export type EvalDepth = (typeof EVAL_DEPTHS)[number];
+
+/**
+ * The job databases' schema version. Accounts set up at an older version get
+ * the missing columns added the next time they write (lib/jobs/setup.ts).
+ *   1  the original columns
+ *   2  the judgment: Verdict, Level Fit, Legitimacy, Hard Stops, Red Flags,
+ *      Role Family, Skill Gaps, Scores, Evaluation, Evaluated On, Report;
+ *      Minimum Salary and Open To Relocation on the profile
+ */
+export const JOBS_SCHEMA_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // Property builders (thin wrappers so the seeder stays readable)
@@ -354,6 +436,17 @@ export function jobsProperties() {
     [P.job.addedBy]: select(ADDED_BY, { You: 'blue', AI: 'purple' }),
     [P.job.notes]: text(),
     [P.job.key]: text(),
+    [P.job.verdict]: select(VERDICTS, { Apply: 'green', Consider: 'blue', 'Research first': 'yellow', Skip: 'gray' }),
+    [P.job.levelFit]: select(LEVEL_FITS, { 'On-level': 'green', Stretch: 'yellow', 'Over-level': 'red' }),
+    [P.job.legitimacy]: select(LEGITIMACY, { High: 'green', Caution: 'yellow', Suspicious: 'red' }),
+    [P.job.hardStops]: multiSelect(HARD_STOPS),
+    [P.job.redFlags]: multiSelect(RED_FLAGS),
+    [P.job.roleFamily]: select(ROLE_FAMILIES),
+    [P.job.skillGaps]: multiSelect(),
+    [P.job.scores]: text(),
+    [P.job.evaluation]: select(EVAL_DEPTHS, { Quick: 'gray', Full: 'blue' }),
+    [P.job.evaluatedOn]: date(),
+    [P.job.report]: url(),
   };
 }
 
@@ -373,7 +466,9 @@ export function jobProfileProperties() {
     [P.profile.workModes]: multiSelect(WORK_MODES),
     [P.profile.skills]: text(),
     [P.profile.salary]: text(),
+    [P.profile.minSalary]: text(),
     [P.profile.noticePeriod]: text(),
+    [P.profile.relocation]: check(),
     [P.profile.mustHaves]: text(),
     [P.profile.dealBreakers]: text(),
     [P.profile.targetCompanies]: text(),

@@ -27,6 +27,20 @@ import {
   stampsFor,
   statusAfterEvent,
   textRuns,
+  NO_JUDGMENT,
+  chunkText,
+  computeMatch,
+  formatScores,
+  isRepost,
+  judge,
+  levelFitFor,
+  parseEvaluation,
+  parseReport,
+  parseScores,
+  reportBlocks,
+  systemRedFlags,
+  verdictFor,
+  type EvaluationReport,
   type Job,
 } from '../src/lib/jobs';
 import { bearerKey, generateApiKey, hashApiKey, looksLikeApiKey, cleanKeyName } from '../src/lib/api-keys';
@@ -49,7 +63,8 @@ import {
   seniorityOf,
 } from '../src/lib/job-search';
 import { CAREER_SITES, companiesFrom, locationMatches, titleMatches, workdayPosted } from '../src/lib/job-search/career-sites';
-import { eventBlock, initialBody, jobProperties, logJobEvent, mapJob, splitBody, updateJob } from '../src/lib/jobs/notion';
+import { JobsError, ensureJobsSchema, eventBlock, getJob, initialBody, jobProperties, logJobEvent, mapJob, missingProperties, pageIdFromUrl, saveEvaluation, splitBody, updateJob } from '../src/lib/jobs/notion';
+import { jobsProperties } from '../src/lib/schema';
 import { BOARD_IDS as CONNECTOR_BOARDS, refuseUrl } from '../connector/job-hunt.mjs';
 import { P } from '../src/lib/schema';
 import type { Tenant } from '../src/lib/tenant';
@@ -61,6 +76,7 @@ const TODAY = '2026-09-29';
 
 function job(p: Partial<Job>): Job {
   return {
+    ...NO_JUDGMENT,
     id: 'j1', role: 'Software Engineer', company: 'Acme', status: 'Found', source: 'LinkedIn', location: 'Bengaluru',
     workMode: null, jobUrl: null, applyUrl: null, match: null, fit: '', howToApply: '', salary: '', experience: '',
     skills: [], postedOn: null, appliedOn: null, appliedVia: null, resume: '', referral: '', contact: '', nextStep: '',
@@ -180,7 +196,7 @@ export async function jobTests(check: Check, section: (s: string) => void) {
       check('the source is read off the URL', ok.value.source === 'Naukri');
       check('utm parameters are stripped', !ok.value.jobUrl?.includes('utm_'));
       check('skills are split and de-duplicated', ok.value.skills.length === 2, JSON.stringify(ok.value.skills));
-      check('"82%" is a match of 82', ok.value.match === 82);
+      check('a match sent as input is ignored: only the rubric sets it', !('match' in ok.value));
       check('an ISO timestamp becomes a day', ok.value.postedOn === '2026-09-27');
       check('the role is trimmed', ok.value.role === 'Software Engineer');
     }
@@ -277,7 +293,7 @@ export async function jobTests(check: Check, section: (s: string) => void) {
     check('descriptions fit the 2,048-character cut', JOB_TRACKER_SERVER.tools.every((t) => t.description.length <= 2048) && INSTRUCTIONS.length <= 2048);
     check('every tool says whether it only reads', JOB_TRACKER_SERVER.tools.every((t) => typeof t.annotations?.readOnlyHint === 'boolean'));
     check('no tool deletes anything', JOB_TRACKER_SERVER.tools.every((t) => t.annotations?.destructiveHint !== true));
-    const mentioned = [...new Set(PLAYBOOK.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? [])].filter((w) => /^(get|search|read|add|list|update|log|check)_/.test(w));
+    const mentioned = [...new Set(PLAYBOOK.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? [])].filter((w) => /^(get|search|read|add|list|update|log|check|evaluate)_/.test(w));
     const connectorOnly = new Set(['search_job_boards', 'read_job_posting', 'check_job_hunt_setup']);
     const missing = mentioned.filter((m) => !names.includes(m) && !connectorOnly.has(m));
     check('every tool the playbook names exists', missing.length === 0, missing.join(', '));
@@ -432,13 +448,189 @@ export async function jobTests(check: Check, section: (s: string) => void) {
   }
 
   // -----------------------------------------------------------------------
+  section('Jobs: the rubric');
+  {
+    const all = (n: number) => ({ skills: n, level: n, location: n, pay: n, role: n });
+    check('all fives is 100', computeMatch(all(5)) === 100);
+    check('all threes is 60', computeMatch(all(3)) === 60);
+    check('unknown pay counts as the middle', computeMatch({ ...all(5), pay: null }) === computeMatch({ ...all(5), pay: 3 }));
+    const typical = { skills: 4, level: 5, location: 5, pay: null, role: 4 };
+    check('the weights are 30/25/15/15/15', computeMatch(typical) === 85, String(computeMatch(typical)));
+    check('a red flag costs 10', computeMatch(typical, ['Vague description']) === 75);
+    check('only three red flags count', computeMatch(all(5), ['Stale posting', 'Reposted', 'Vague description', 'Recent layoffs']) === 70);
+    check('a hard stop caps the match at 50', computeMatch(all(5), [], ['Service bond']) === 50 && computeMatch(all(2), [], ['Service bond']) === 40);
+    check('the match never goes below 0', computeMatch(all(1), ['Stale posting', 'Reposted', 'Vague description']) === 0);
+
+    check('80 on a full read is Apply', verdictFor({ match: 80, depth: 'Full' }) === 'Apply');
+    check('79 is Consider', verdictFor({ match: 79, depth: 'Full' }) === 'Consider');
+    check('69 is Skip', verdictFor({ match: 69, depth: 'Full' }) === 'Skip');
+    check('a hard stop is Skip at any match', verdictFor({ match: 100, depth: 'Full', hardStops: ['Avoided company'] }) === 'Skip');
+    check('a suspicious posting is Research first, however well it scores', verdictFor({ match: 95, depth: 'Full', legitimacy: 'Suspicious' }) === 'Research first');
+    check('a quick look never says Apply', verdictFor({ match: 100, depth: 'Quick' }) === 'Research first');
+    check('a middling quick look is Consider', verdictFor({ match: 65, depth: 'Quick' }) === 'Consider');
+    check('a weak quick look is Skip', verdictFor({ match: 59, depth: 'Quick' }) === 'Skip');
+
+    check('level 5 and 4 are on-level', levelFitFor(5) === 'On-level' && levelFitFor(4) === 'On-level');
+    check('level 3 is a stretch', levelFitFor(3) === 'Stretch');
+    check('level 2 is over-level', levelFitFor(2) === 'Over-level' && levelFitFor(null) === null);
+
+    check('a posting 46 days old is stale', systemRedFlags({ postedOn: '2026-08-14' }, TODAY).join() === 'Stale posting');
+    check('45 days is not yet', systemRedFlags({ postedOn: '2026-08-15' }, TODAY).length === 0 && systemRedFlags({ postedOn: null }, TODAY).length === 0);
+    const j = judge(
+      { depth: 'Full', scores: typical, hardStops: [], redFlags: ['Vague description'], legitimacy: 'High' },
+      { postedOn: '2026-08-01', keptFlags: ['Reposted'], today: TODAY },
+    );
+    check('judging adds what the tracker sees and keeps what it found', j.redFlags.join() === 'Stale posting,Reposted,Vague description', j.redFlags.join());
+    check('and scores the lot', j.match === 55 && j.verdict === 'Skip' && j.levelFit === 'On-level', `${j.match} ${j.verdict}`);
+
+    const line = formatScores(typical);
+    check('scores read as one line in Notion', line === 'Skills 4 · Level 5 · Location 5 · Pay ? · Role 4', line);
+    check('and come back the same', JSON.stringify(parseScores(line)) === JSON.stringify(typical));
+    check('text with no scores is no scores', parseScores('') === null && parseScores('just a note') === null);
+  }
+
+  section('Jobs: evaluation input');
+  {
+    const quick = parseEvaluation({ scores: { skills: '4', level: 5, location: 4.6, role: 4 } }, { depth: 'Quick' });
+    check('a quick look needs only the four listing scores', quick.ok, quick.ok ? '' : quick.error);
+    if (quick.ok) {
+      check('numbers arrive as strings and decimals too', quick.value.scores.skills === 4 && quick.value.scores.location === 5);
+      check('missing pay is unknown', quick.value.scores.pay === null && quick.value.depth === 'Quick');
+    }
+    const noLevel = parseEvaluation({ scores: { skills: 4, location: 4, role: 4 } }, { depth: 'Quick' });
+    check('a missing score says which', !noLevel.ok && noLevel.error.includes('scores.level'));
+    check('a score of 6 is refused', !parseEvaluation({ scores: { skills: 6, level: 5, location: 4, role: 4 } }, { depth: 'Quick' }).ok);
+    check('"unknown" pay is null, not an error', (() => { const r = parseEvaluation({ scores: { skills: 4, level: 5, location: 4, role: 4, pay: 'unknown' } }, { depth: 'Quick' }); return r.ok && r.value.scores.pay === null; })());
+    const syn = parseEvaluation(
+      { scores: { skills: 4, level: 5, location: 4, role: 4 }, hard_stops: ['experience'], red_flags: ['contract to hire', 'Reposted'], role_family: 'back end' },
+      { depth: 'Quick' },
+    );
+    check('hard stops and red flags take synonyms', syn.ok && syn.value.hardStops.join() === 'Needs more experience' && syn.value.redFlags.join() === 'Staffing or contract,Reposted', syn.ok ? syn.value.redFlags.join() : syn.error);
+    check('role families take synonyms', syn.ok && syn.value.roleFamily === 'Backend');
+    check('an unknown role family is Other', (() => { const r = parseEvaluation({ scores: { skills: 4, level: 5, location: 4, role: 4 }, role_family: 'astronaut' }, { depth: 'Quick' }); return r.ok && r.value.roleFamily === 'Other'; })());
+    const bad = parseEvaluation({ scores: { skills: 4, level: 5, location: 4, role: 4 }, hard_stops: ['bad vibes'] }, { depth: 'Quick' });
+    check('an unknown hard stop is refused with the list', !bad.ok && bad.error.includes('Service bond'));
+    check('"constructor" is not a hard stop', !parseEvaluation({ scores: { skills: 4, level: 5, location: 4, role: 4 }, hard_stops: ['constructor'] }, { depth: 'Quick' }).ok);
+    const scores = { skills: 4, level: 5, location: 4, role: 4 };
+    check('a full evaluation needs legitimacy', !parseEvaluation({ scores, requirements: [{ requirement: 'Go', weight: 'must', match: 'strong', evidence: 'x' }] }, { depth: 'Full' }).ok);
+    check('a full evaluation needs requirements', !parseEvaluation({ scores, legitimacy: 'High' }, { depth: 'Full' }).ok);
+    const full = parseEvaluation(
+      { scores, legitimacy: 'high', requirements: [{ requirement: 'Go', weight: 'required', match: 'gap', evidence: 'not on the resume' }], posting_text: 'p'.repeat(40_000) },
+      { depth: 'Full' },
+    );
+    check('a full evaluation with both is accepted', full.ok, full.ok ? '' : full.error);
+    if (full.ok) {
+      check('requirement words take synonyms', full.value.requirements[0].weight === 'Must' && full.value.requirements[0].match === 'Missing');
+      check('the posting is capped', full.value.posting.length <= 30_000);
+      check('fields not sent stay unchanged (null, not empty)', full.value.fit === null && full.value.howToApply === null);
+    }
+    check('depth "quick" is honoured on evaluate_job', (() => { const r = parseEvaluation({ depth: 'quick', scores }, { depth: 'Full' }); return r.ok && r.value.depth === 'Quick'; })());
+    const nulls = parseEvaluation({ scores, why_it_fits: null, how_to_apply: '   ' }, { depth: 'Quick' });
+    check('null or blank text is "not given", never "erase it"', nulls.ok && nulls.value.fit === null && nulls.value.howToApply === null);
+    const objects = parseEvaluation({ scores, pay_notes: [{ text: 'x' }, 'real note'], skill_gaps: [{ name: 'Go' }, 'Java'], score_notes: { skills: { a: 1 } } }, { depth: 'Quick' });
+    check('objects in a list are dropped, not saved as "[object Object]"', objects.ok && objects.value.payNotes.join() === 'real note' && objects.value.skillGaps.join() === 'Java' && !objects.value.notes.skills);
+  }
+
+  section('Jobs: the evaluation report');
+  {
+    const report: EvaluationReport = {
+      summary: 'Strong backend fit; Java is the gap.',
+      byline: 'Rubric v1 · Full evaluation · 2026-09-29 · by Claude Code',
+      scores: { skills: 4, level: 5, location: 5, pay: null, role: 4 },
+      notes: { skills: 'Node and Postgres map', pay: 'not in the posting' },
+      requirements: [
+        { requirement: 'REST APIs', weight: 'Must', match: 'Strong', evidence: 'built the webhook service' },
+        { requirement: 'Java', weight: 'Core', match: 'Missing', evidence: 'not on the resume' },
+      ],
+      levelStrategy: 'On-level.\n\nLead with shipped services.',
+      payNotes: ['Posted: "₹14-20 LPA"'],
+      legitimacySignals: ['Posted 3 days ago', 'On the employer site'],
+      resumeEdits: ['Lead with the rate-limiter'],
+      keywords: ['REST', 'SQL'],
+      posting: 'First paragraph.\n\nSecond paragraph.',
+    };
+    const blocks = reportBlocks(report);
+    // Notion reads rich text back as plain_text; the table's rows come separately.
+    const readBack = (b: Record<string, unknown>, i: number) => {
+      const type = b.type as string;
+      const inner = b[type] as { rich_text?: { text: { content: string } }[]; children?: unknown[] };
+      return { id: `b${i}`, type, has_children: type === 'table', [type]: { ...inner, rich_text: inner.rich_text?.map((r) => ({ plain_text: r.text.content })) } };
+    };
+    const table = blocks.find((b) => b.type === 'table') as { table: { children: { table_row: { cells: { text: { content: string } }[][] } }[] } };
+    const rows = table.table.children.map((r) => ({ type: 'table_row', table_row: { cells: r.table_row.cells.map((c) => c.map((t) => ({ plain_text: t.text.content }))) } }));
+    const back = parseReport(blocks.map(readBack), (id) => (id === `b${blocks.indexOf(table)}` ? rows : undefined));
+    check('the report comes back as it went in', JSON.stringify(back) === JSON.stringify({ ...report }), JSON.stringify(back).slice(0, 300));
+    check('empty sections are left out, heading and all', !reportBlocks({ ...report, payNotes: [] }).some((b) => b.type === 'heading_2' && b.heading_2.rich_text[0].text.content === 'Pay'));
+    const huge = reportBlocks({ ...report, posting: Array.from({ length: 300 }, (_, i) => `Paragraph ${i} `.repeat(40)).join('\n\n') });
+    check('a long posting still fits one Notion create', huge.length <= 100, String(huge.length));
+    check('and says it was cut', JSON.stringify(huge[huge.length - 1]).includes('did not fit'));
+    check('no block holds more than Notion allows', huge.every((b) => (b[b.type]?.rich_text ?? []).every((r: { text: { content: string } }) => r.text.content.length <= 2000)));
+    check('a long paragraph stays whole, and its runs fit Notion', (() => { const c = chunkText('a'.repeat(5000)); return c.length === 1 && c[0].length === 5000 && textRuns(c[0]).every((r) => r.length <= 2000); })());
+    check('short paragraphs are kept together', chunkText('one\n\ntwo\n\nthree').length === 1);
+    const long = `${'word '.repeat(499)}end`;
+    const withLong = reportBlocks({ ...report, posting: `${long}\n\nshort one` });
+    const longBack = parseReport(withLong.map(readBack), () => rows);
+    check('a 2,500-character paragraph comes back word for word', longBack.posting === `${long}\n\nshort one`, `${longBack.posting.length}`);
+    const emoji = `${'a'.repeat(1999)}😀b`;
+    check('a run never splits an emoji', textRuns(emoji).join('') === emoji && textRuns(emoji).every((r) => !/[\ud800-\udbff]$/.test(r)));
+    check('the cut note is not read as part of the posting', !parseReport(huge.map(readBack), () => rows).posting.includes('did not fit'));
+    const rubricSummary = parseReport(reportBlocks({ ...report, summary: 'Rubric v1 aside, this is a strong fit.' }).map(readBack), () => rows);
+    check('a summary that starts "Rubric v1" stays the summary', rubricSummary.summary === 'Rubric v1 aside, this is a strong fit.' && rubricSummary.byline === report.byline);
+    check('a page id comes out of a Notion URL', pageIdFromUrl('https://www.notion.so/Evaluation-0123456789abcdef0123456789abcdef') === '0123456789abcdef0123456789abcdef' && pageIdFromUrl('not a url') === null);
+  }
+
+  section('Jobs: reposts');
+  {
+    const theirs = { key: 'linkedin:4471646111', jobUrl: 'https://www.linkedin.com/jobs/view/4471646111/', applyUrl: null, source: 'LinkedIn' as const, foundOn: '2026-09-10' };
+    const again = { jobUrl: 'https://www.linkedin.com/jobs/view/4480000000/', applyUrl: null, source: 'LinkedIn' as const };
+    check('a new posting id on the same board, another day, is a repost', isRepost(again, theirs, TODAY));
+    check('the same day is two openings, not a repost', !isRepost(again, { ...theirs, foundOn: TODAY }, TODAY));
+    check('another board is a cross-listing, not a repost', !isRepost({ ...again, source: 'Naukri' }, theirs, TODAY));
+    check('past 90 days it is a new job', !isRepost(again, { ...theirs, foundOn: '2026-06-01' }, TODAY));
+    check('cleaned URLs are not ids to compare', !isRepost({ ...again, jobUrl: 'https://careers.acme.com/jobs/2' }, { ...theirs, key: 'url:careers.acme.com/jobs/1', jobUrl: 'https://careers.acme.com/jobs/1' }, TODAY));
+  }
+
+  section('Jobs: judgment in Notion');
+  {
+    const mapped = mapJob({
+      id: 'p', url: 'u', created_time: 'c',
+      properties: {
+        [P.job.role]: { title: [{ plain_text: 'X' }] },
+        [P.job.verdict]: { select: { name: 'Apply' } },
+        [P.job.levelFit]: { select: { name: 'Maybe' } },
+        [P.job.hardStops]: { multi_select: [{ name: 'Service bond' }, { name: 'Made up in Notion' }] },
+        [P.job.scores]: { rich_text: [{ plain_text: 'Skills 4 · Level 5 · Location 5 · Pay ? · Role 4' }] },
+        [P.job.evaluation]: { select: { name: 'Full' } },
+        [P.job.report]: { url: 'https://www.notion.so/r-0123456789abcdef0123456789abcdef' },
+      },
+    });
+    check('the judgment reads back', mapped.verdict === 'Apply' && mapped.evaluation === 'Full' && mapped.scores?.level === 5 && mapped.reportUrl !== null);
+    check('an option added by hand in Notion reads as unset', mapped.levelFit === null && mapped.hardStops.join() === 'Service bond');
+    check('a job saved before the rubric reads as not evaluated', (() => { const m = mapJob({ id: 'q', properties: {} }); return m.verdict === null && m.scores === null && m.hardStops.length === 0; })());
+    const props = jobProperties({ verdict: 'Skip', hardStops: ['Service bond'], scores: { skills: 3, level: 3, location: 3, pay: null, role: 3 }, reportUrl: null });
+    check('the judgment writes as Notion properties', (props[P.job.verdict] as { select: { name: string } }).select.name === 'Skip' && (props[P.job.hardStops] as { multi_select: { name: string }[] }).multi_select[0].name === 'Service bond');
+    check('scores write as their one line', (props[P.job.scores] as { rich_text: { text: { content: string } }[] }).rich_text[0].text.content.startsWith('Skills 3'));
+
+    const wanted = jobsProperties();
+    const diff = missingProperties({ [P.job.role]: { type: 'title' }, [P.job.status]: { type: 'select' }, Custom: { type: 'rich_text' } }, wanted);
+    check('a migration adds only what is missing', !(P.job.status in diff.missing) && P.job.verdict in diff.missing && P.job.scores in diff.missing);
+    check('it never adds a second title', Object.values(diff.missing).every((d) => !('title' in (d as object))));
+    check('and never touches a column someone added', !('Custom' in diff.missing) && diff.conflicts.length === 0);
+    const asRead = Object.fromEntries(Object.entries(wanted).map(([k, v]) => [k, { type: Object.keys(v as object)[0] }]));
+    check('nothing is missing from a current database', Object.keys(missingProperties(asRead, wanted).missing).length === 0);
+    const clash = missingProperties({ [P.job.report]: { type: 'files' } }, wanted);
+    check('a column of ours made as another kind is a conflict, not a success', clash.conflicts[0]?.name === P.job.report && !(P.job.report in clash.missing));
+    check('an open-ended multi-select is added without an options list', JSON.stringify(diff.missing[P.job.skillGaps]) === '{"multi_select":{}}');
+    check('a fixed one keeps its options', Array.isArray((diff.missing[P.job.hardStops] as { multi_select: { options: unknown[] } }).multi_select.options));
+  }
+
   section('Jobs in Notion (fake Notion)');
   {
     const ds = '11111111-1111-1111-1111-111111111111';
     const pageId = '22222222-2222-2222-2222-222222222222';
     const tenant = (token: string): Tenant => ({
       userId: '33333333-3333-3333-3333-333333333333', username: 'tester', token, areasDs: 'a', topicsDs: 't', tasksDs: 'k',
-      dailyDs: null, jobsDs: ds, jobsProfileDs: null, jobsProfilePageId: null, parentPageId: null,
+      dailyDs: null, jobsDs: ds, jobsProfileDs: null, jobsProfilePageId: null, jobsSchema: 2, parentPageId: null,
     });
     const page = (props: Record<string, unknown>, parent = ds) => ({
       object: 'page', id: pageId, url: 'https://www.notion.so/x', created_time: '2026-09-20T00:00:00.000Z',
@@ -462,6 +654,10 @@ export async function jobTests(check: Check, section: (s: string) => void) {
         return new Response(JSON.stringify(respond(method, url)), { status: 200, headers: { 'content-type': 'application/json' } });
       }) as typeof fetch;
 
+    // No leases against a real database from here: .env.local may name one.
+    const dbKeys = Object.keys(process.env).filter((k) => /DATABASE_URL|POSTGRES_URL/.test(k));
+    const dbEnv = Object.fromEntries(dbKeys.map((k) => [k, process.env[k]]));
+    for (const k of dbKeys) delete process.env[k];
     try {
       calls = [];
       globalThis.fetch = fake((m, u) => (u.includes('/blocks/') ? { object: 'list', results: [] } : m === 'PATCH' ? page({ [P.job.status]: { select: { name: 'Applied' } } }) : page({})));
@@ -488,8 +684,146 @@ export async function jobTests(check: Check, section: (s: string) => void) {
       check('Applied On is left alone when already set', !(P.job.appliedOn in (lp ?? {})));
       const line = (calls.find((c) => c.url.includes('/blocks/'))?.body as { children: { bulleted_list_item: { rich_text: { text: { content: string } }[] } }[] }).children[0].bulleted_list_item.rich_text[0].text.content;
       check('the timeline line says what, when and who', line.startsWith('2026-09-28 · Interview — Round 1') && line.includes('Claude Code'), line);
+
+      // A full evaluation: the report page first, then the judgment, then the timeline.
+      const reportId = '44444444-4444-4444-4444-444444444444';
+      const reportUrl = 'https://www.notion.so/Evaluation-44444444444444444444444444444444';
+      calls = [];
+      globalThis.fetch = fake((m, u) => {
+        if (m === 'POST' && u.endsWith('/pages')) return { object: 'page', id: reportId, url: reportUrl };
+        if (u.includes('/blocks/')) return { object: 'list', results: [] };
+        if (m === 'PATCH') return page({ [P.job.verdict]: { select: { name: 'Apply' } }, [P.job.match]: { number: 85 } });
+        return page({ [P.job.status]: { select: { name: 'Found' } } });
+      });
+      const ev = parseEvaluation(
+        { scores: { skills: 4, level: 5, location: 5, role: 4 }, legitimacy: 'High', summary: 'Good fit', requirements: [{ requirement: 'REST', weight: 'must', match: 'strong', evidence: 'webhooks' }] },
+        { depth: 'Full' },
+      );
+      const saved = ev.ok ? await saveEvaluation(tenant('ntn_fake_eval'), pageId, ev.value, { kind: 'AI', name: 'Claude Code' }) : null;
+      const created = calls.find((c) => c.method === 'POST' && c.url.endsWith('/pages'));
+      const judged = calls.find((c) => c.method === 'PATCH' && c.url.includes(`/pages/${pageId}`))?.body?.properties as Record<string, { number?: number; select?: { name: string }; url?: string; rich_text?: { text: { content: string } }[] }>;
+      check("a full evaluation saves its report as the job's own child page", (created?.body?.parent as { page_id?: string } | undefined)?.page_id === pageId);
+      check('the tracker computes the match and verdict, not the tool', judged?.[P.job.match]?.number === 85 && judged?.[P.job.verdict]?.select?.name === 'Apply');
+      check('the job points at its report', judged?.[P.job.report]?.url === reportUrl);
+      check('an empty Why It Fits takes the summary', judged?.[P.job.fit]?.rich_text?.[0]?.text.content === 'Good fit');
+      const evLine = (calls.find((c) => c.method === 'PATCH' && c.url.includes('/blocks/'))?.body as { children: { bulleted_list_item: { rich_text: { text: { content: string } }[] } }[] } | null)?.children[0].bulleted_list_item.rich_text[0].text.content ?? '';
+      check('the timeline says what the rubric made of it, and who asked', evLine.includes('Evaluated — 85% · Apply · full evaluation') && evLine.includes('Claude Code'), evLine);
+      check('the result carries the judgment', saved?.judgment.verdict === 'Apply' && saved?.reportUrl === reportUrl);
+
+      // One report per job: an older evaluation page is trashed, other child pages are not.
+      const oldReport = '55555555-5555-5555-5555-555555555555';
+      const notes = '66666666-6666-6666-6666-666666666666';
+      calls = [];
+      globalThis.fetch = fake((m, u) => {
+        if (m === 'POST' && u.endsWith('/pages')) return { object: 'page', id: reportId, url: reportUrl };
+        if (m === 'GET' && u.includes(`/blocks/${pageId}/children`)) {
+          return { object: 'list', has_more: false, results: [
+            { object: 'block', id: oldReport, type: 'child_page', child_page: { title: 'Evaluation · Software Engineer at Acme' } },
+            { object: 'block', id: notes, type: 'child_page', child_page: { title: 'Interview notes' } },
+          ] };
+        }
+        if (u.includes('/blocks/')) return { object: 'list', results: [] };
+        if (m === 'PATCH') return page({});
+        return page({ [P.job.report]: { url: `https://www.notion.so/Evaluation-${oldReport.replace(/-/g, '')}` } });
+      });
+      if (ev.ok) await saveEvaluation(tenant('ntn_fake_one_report'), pageId, ev.value, { kind: 'AI', name: 'k' });
+      const trashed = calls.filter((c) => c.method === 'PATCH' && (c.body as { in_trash?: boolean } | null)?.in_trash === true).map((c) => c.url);
+      check('the previous report goes to the trash', trashed.some((u) => u.includes(oldReport)));
+      check("the job's other pages are left alone", !trashed.some((u) => u.includes(notes)) && !trashed.some((u) => u.includes(reportId)));
+
+      // The job's own write fails: the report just made must not be left behind.
+      calls = [];
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        calls.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : null });
+        const ok = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+        if (method === 'POST' && url.endsWith('/pages')) return ok({ object: 'page', id: reportId, url: reportUrl });
+        if (method === 'PATCH' && url.includes(`/pages/${pageId}`)) {
+          return new Response(JSON.stringify({ object: 'error', status: 400, code: 'validation_error', message: 'Report is expected to be files.' }), { status: 400, headers: { 'content-type': 'application/json' } });
+        }
+        if (method === 'PATCH') return ok({ object: 'page', id: reportId });
+        return ok(page({}));
+      }) as typeof fetch;
+      let failedLoudly = false;
+      try {
+        if (ev.ok) await saveEvaluation(tenant('ntn_fake_fail'), pageId, ev.value, { kind: 'AI', name: 'k' });
+      } catch {
+        failedLoudly = true;
+      }
+      check('a failed save says so', failedLoudly);
+      check('and trashes the report it had just made', calls.some((c) => c.method === 'PATCH' && c.url.includes(reportId) && (c.body as { in_trash?: boolean } | null)?.in_trash === true));
+
+      // Someone deleted one of our columns after the migration: put it back, write again.
+      let pagePatches = 0;
+      calls = [];
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const method = (init?.method ?? 'GET').toUpperCase();
+        calls.push({ method, url, body: init?.body ? JSON.parse(String(init.body)) : null });
+        const ok = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { 'content-type': 'application/json' } });
+        if (url.includes('/data_sources/') && method === 'GET') return ok({ object: 'data_source', id: ds, properties: { [P.job.role]: { type: 'title' }, [P.job.status]: { type: 'select' } } });
+        if (url.includes('/data_sources/') && method === 'PATCH') return ok({ object: 'data_source', id: ds, properties: {} });
+        if (method === 'POST' && url.endsWith('/pages')) return ok({ object: 'page', id: reportId, url: reportUrl });
+        if (method === 'PATCH' && url.includes(`/pages/${pageId}`) && ++pagePatches === 1) {
+          return new Response(JSON.stringify({ object: 'error', status: 400, code: 'validation_error', message: 'Verdict is not a property that exists.' }), { status: 400, headers: { 'content-type': 'application/json' } });
+        }
+        if (url.includes('/blocks/')) return ok({ object: 'list', results: [] });
+        if (method === 'PATCH') return ok(page({}));
+        return ok(page({}));
+      }) as typeof fetch;
+      const quiet = console.error;
+      console.error = () => undefined;
+      try {
+        if (ev.ok) await saveEvaluation(tenant('ntn_fake_heal'), pageId, ev.value, { kind: 'AI', name: 'k' });
+      } finally {
+        console.error = quiet;
+      }
+      const added = calls.find((c) => c.url.includes('/data_sources/') && c.method === 'PATCH')?.body as { properties?: Record<string, unknown> } | null;
+      check('a missing column is put back', Boolean(added?.properties?.[P.job.verdict]) && !(P.job.status in (added?.properties ?? {})));
+      check('and the write goes through the second time', pagePatches === 2);
+
+      // A column of ours already there as another kind: refuse, and say which.
+      calls = [];
+      globalThis.fetch = fake((m, u) => (u.includes('/data_sources/') ? { object: 'data_source', id: ds, properties: { [P.job.report]: { type: 'files' } } } : page({})));
+      let conflict = '';
+      try {
+        await ensureJobsSchema({ ...tenant('ntn_fake_clash'), jobsSchema: 1 });
+      } catch (e) {
+        conflict = e instanceof JobsError ? e.message : '';
+      }
+      check('a clashing column stops the migration and names the column', conflict.includes('“Report”') && !calls.some((c) => c.method === 'PATCH'));
+
+      // Reading a job reads its report only when the report is the job's own child page.
+      const own = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+      const reportPage = (withChild: boolean) =>
+        fake((m, u) => {
+          if (u.includes(`/blocks/${pageId}/children`)) return { object: 'list', has_more: false, results: withChild ? [{ object: 'block', id: own, type: 'child_page', child_page: { title: 'Evaluation · x' } }] : [] };
+          if (u.includes(`/blocks/${own}/children`)) return { object: 'list', has_more: false, results: [{ object: 'block', id: 'b1', type: 'paragraph', paragraph: { rich_text: [{ plain_text: 'The report summary' }] } }] };
+          return page({ [P.job.report]: { url: `https://www.notion.so/Evaluation-${own.replace(/-/g, '')}` } });
+        });
+      calls = [];
+      globalThis.fetch = reportPage(true);
+      const withReport = await getJob(tenant('ntn_fake_read'), pageId);
+      check("a job's own report is read with it", withReport?.report?.summary === 'The report summary');
+      calls = [];
+      globalThis.fetch = reportPage(false);
+      const pointedElsewhere = await getJob(tenant('ntn_fake_read2'), pageId);
+      check('a Report link to a page that is not its child is never read', pointedElsewhere?.report === null && !calls.some((c) => c.url.includes(`/blocks/${own}/`)));
+
+      calls = [];
+      globalThis.fetch = fake(() => page({ [P.job.evaluation]: { select: { name: 'Full' } }, [P.job.evaluatedOn]: { date: { start: '2026-09-20' } } }));
+      const q = parseEvaluation({ scores: { skills: 2, level: 2, location: 2, role: 2 } }, { depth: 'Quick' });
+      let refused = false;
+      try {
+        if (q.ok) await saveEvaluation(tenant('ntn_fake_quick'), pageId, q.value, { kind: 'AI', name: 'k' });
+      } catch (e) {
+        refused = e instanceof JobsError && e.code === 'conflict';
+      }
+      check('a quick look never overwrites a full evaluation', refused && calls.every((c) => c.method === 'GET'));
     } finally {
       globalThis.fetch = realFetch;
+      Object.assign(process.env, dbEnv);
     }
 
     const props = jobProperties({ role: 'SDE', status: 'Found', skills: ['Go'], jobUrl: null, notes: 'n'.repeat(2500) });

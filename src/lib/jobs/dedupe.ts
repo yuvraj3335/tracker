@@ -5,6 +5,7 @@
  * posting cross-listed on LinkedIn and Naukri — and must be recognised as one.
  */
 import { normalize } from '../search';
+import { daysBetween, type DayKey } from '../date';
 import type { Job, JobFields } from './model';
 
 // ---------------------------------------------------------------------------
@@ -133,4 +134,34 @@ export function findDuplicate(
     if (signature(e) === sig) return { id: e.id, reason: 'same role, company and city' };
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Reposts
+// ---------------------------------------------------------------------------
+
+export const REPOST_WINDOW_DAYS = 90;
+
+/** A board's own posting id — not a cleaned URL, not a role signature. */
+const boardId = (k: string | null | undefined) => (k && !k.startsWith('url:') && !k.startsWith('sig:') ? k : null);
+
+/**
+ * A duplicate by role, company and city that is really the company posting the
+ * job again: the same board, a new posting id, first seen on a different day
+ * within 90 days. The rule is career-ops's (detect-reposts.mjs), including its
+ * care about same-day copies — two same-title openings posted the same day are
+ * two openings, not a repost. A repost is worth knowing: a job that keeps
+ * coming back is either hard to fill or not really being filled.
+ */
+export function isRepost(
+  candidate: Pick<JobFields, 'jobUrl' | 'applyUrl' | 'source'>,
+  existing: Pick<Job, 'key' | 'jobUrl' | 'applyUrl' | 'source' | 'foundOn'>,
+  today: DayKey,
+): boolean {
+  if (!existing.foundOn || existing.foundOn === today) return false;
+  if (daysBetween(existing.foundOn, today) > REPOST_WINDOW_DAYS) return false;
+  if (!candidate.source || candidate.source !== existing.source) return false;
+  const mine = boardId(postingKey(candidate.jobUrl)) ?? boardId(postingKey(candidate.applyUrl));
+  const theirs = boardId(existing.key) ?? boardId(postingKey(existing.jobUrl)) ?? boardId(postingKey(existing.applyUrl));
+  return Boolean(mine && theirs && mine !== theirs);
 }

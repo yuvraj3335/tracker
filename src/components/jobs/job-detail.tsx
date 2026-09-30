@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Phone,
   Repeat,
+  Scale,
   Search,
   Send,
   Trash2,
@@ -31,7 +32,7 @@ import {
   updateJobAction,
   type ActionState,
 } from '@/app/jobs/actions';
-import { EVENT_LABEL, LOGGABLE_KINDS, followUpFor, isClosed, type Job, type JobEvent, type JobEventKind } from '@/lib/jobs';
+import { EVENT_LABEL, LOGGABLE_KINDS, followUpFor, isClosed, type EvaluationReport, type Job, type JobEvent, type JobEventKind } from '@/lib/jobs';
 import type { BodyBlock } from '@/lib/jobs/notion';
 import { APPLIED_VIA, JOB_SOURCES, WORK_MODES, type JobStatus } from '@/lib/schema';
 import { formatKey, type DayKey } from '@/lib/date';
@@ -43,6 +44,7 @@ import {
   CompanyMark,
   FollowUpBadge,
   FormMessage,
+  LegitimacyBadge,
   MatchBadge,
   RichSteps,
   STATUS_COLOR,
@@ -50,10 +52,12 @@ import {
   StatusSelect,
   TextArea,
   TextField,
+  VerdictBadge,
   ago,
   inputClass,
   safeHref,
 } from './job-ui';
+import { EvaluationReportCard, VerdictCard } from './evaluation-panel';
 import { cn } from '@/lib/utils';
 
 /** The happy path, in order. The closed statuses sit outside it. */
@@ -63,11 +67,13 @@ export function JobDetail({
   job,
   description,
   timeline,
+  report,
   today,
 }: {
   job: Job;
   description: BodyBlock[];
   timeline: JobEvent[];
+  report: EvaluationReport | null;
   today: DayKey;
 }) {
   const [status, setStatus] = useOptimistic(job.status);
@@ -126,7 +132,9 @@ export function JobDetail({
                 {job.location ? <span className="text-ink-muted"> · {job.location}</span> : null}
               </p>
               <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <VerdictBadge verdict={job.verdict} depth={job.evaluation} />
                 <MatchBadge match={job.match} />
+                <LegitimacyBadge legitimacy={job.legitimacy} />
                 {job.workMode ? <Chip>{job.workMode}</Chip> : null}
                 {job.source ? <Chip>{job.source}</Chip> : null}
                 {job.experience ? <Chip>{job.experience}</Chip> : null}
@@ -167,6 +175,7 @@ export function JobDetail({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* ---- main ---- */}
         <div className="min-w-0 space-y-4">
+          <VerdictCard job={job} report={report} today={today} />
           {job.howToApply ? (
             <Card>
               <CardHeader>
@@ -177,7 +186,9 @@ export function JobDetail({
               </CardContent>
             </Card>
           ) : null}
-          {job.fit ? (
+          {report ? <EvaluationReportCard report={report} /> : null}
+          {/* A one-line fit is already the verdict's summary; only more than that earns its own card. */}
+          {job.fit && !(job.verdict && !report?.summary && !job.fit.includes('\n')) ? (
             <Card>
               <CardHeader>
                 <CardTitle>Why it fits</CardTitle>
@@ -188,14 +199,6 @@ export function JobDetail({
             </Card>
           ) : null}
           {description.length ? <About blocks={description} /> : null}
-          {!job.howToApply && !job.fit && !description.length ? (
-            <Card>
-              <CardContent className="pt-4 text-sm text-ink-muted sm:pt-5">
-                No notes on this role yet. Ask your AI tool to read the posting and write how to apply — it saves
-                them here.
-              </CardContent>
-            </Card>
-          ) : null}
           <Details job={job} />
         </div>
 
@@ -396,6 +399,7 @@ const EVENT_ICON: Record<JobEventKind, React.ComponentType<{ className?: string 
   offer: Award,
   found: Search,
   status: ArrowRight,
+  evaluated: Scale,
 };
 
 function Timeline({ id, timeline, today }: { id: string; timeline: JobEvent[]; today: DayKey }) {
@@ -517,7 +521,6 @@ function Details({ job }: { job: Job }) {
           <TextField name="location" label="Location" defaultValue={job.location} />
           <SelectField name="work_mode" label="Work mode" options={WORK_MODES} defaultValue={job.workMode} />
           <SelectField name="source" label="Source" options={JOB_SOURCES} defaultValue={job.source} />
-          <TextField name="match" label="Fit" type="number" defaultValue={job.match} hint="0–100" />
           <TextField name="salary" label="Salary" defaultValue={job.salary} />
           <TextField name="experience" label="Experience" defaultValue={job.experience} />
           <SelectField name="applied_via" label="Applied via" options={APPLIED_VIA} defaultValue={job.appliedVia} />

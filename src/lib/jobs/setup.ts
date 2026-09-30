@@ -9,7 +9,7 @@ import type { Client } from '@notionhq/client';
 import { P, jobProfileProperties, jobsProperties } from '../schema';
 import { callerFor, createDb, propertyIds, type Caller } from '../provision';
 import { claimJobsLease, ensureSchema, getConnection, releaseJobsLease, saveJobsShells } from '../db';
-import { JobsError, clientFor, invalidateJobs } from './notion';
+import { JobsError, clientFor, ensureJobsSchema, invalidateJobs } from './notion';
 import type { Tenant } from '../tenant';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -152,6 +152,9 @@ export async function setupJobs(t: Tenant): Promise<JobsSetup> {
     }
 
     if (fresh) await buildJobViews(run, client, jobsDs);
+    // A database adopted from an earlier attempt, or set up before a column
+    // existed, gets whatever the current schema adds.
+    await ensureJobsSchema({ ...t, jobsDs, jobsProfileDs: profileDs }, { force: true });
     invalidateJobs(t.userId);
     return { jobsDs, jobsProfileDs: profileDs, jobsProfilePageId: profilePage! };
   } finally {

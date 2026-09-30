@@ -7,14 +7,29 @@
  * exactly the same rules. You move one thing — the status, or a timeline event —
  * and the dates are derived from it. Nobody fills in "Applied On" by hand.
  *
- *   model.ts     types, statuses, stamps, timeline events
- *   pipeline.ts  follow-ups, the pipeline summary, search, profile completeness
- *   dedupe.ts    when two postings are the same posting
- *   input.ts     accepting loose input from forms and AI tools
- *   notion.ts    reading and writing the user's Notion (server only)
- *   setup.ts     adding job tracking to a connected account (server only)
+ *   model.ts       types, statuses, stamps, timeline events
+ *   pipeline.ts    follow-ups, the pipeline summary, search, profile completeness
+ *   dedupe.ts      when two postings are the same posting, and reposts
+ *   input.ts       accepting loose input from forms and AI tools
+ *   evaluation.ts  the rubric: scores → match → verdict, and evaluation input
+ *   report.ts      the evaluation report as Notion blocks, and back
+ *   notion.ts      reading and writing the user's Notion (server only)
+ *   setup.ts       adding job tracking to an account, and migrating it (server only)
  */
-import type { AddedBy, AppliedVia, JobSource, JobStatus, WorkMode } from '../schema';
+import type {
+  AddedBy,
+  AppliedVia,
+  EvalDepth,
+  HardStop,
+  JobSource,
+  JobStatus,
+  Legitimacy,
+  LevelFit,
+  RedFlag,
+  RoleFamily,
+  Verdict,
+  WorkMode,
+} from '../schema';
 import { isDayKey, type DayKey } from '../date';
 
 // ---------------------------------------------------------------------------
@@ -31,8 +46,6 @@ export type JobFields = {
   workMode: WorkMode | null;
   jobUrl: string | null;
   applyUrl: string | null;
-  /** 0–100, how well the posting fits the profile. */
-  match: number | null;
   fit: string;
   howToApply: string;
   salary: string;
@@ -49,8 +62,49 @@ export type JobFields = {
   notes: string;
 };
 
+/** The five things a job is scored on, 1–5 each. Pay is null when the posting does not say. */
+export type DimensionId = 'skills' | 'level' | 'location' | 'pay' | 'role';
+export type DimensionScores = Record<DimensionId, number | null>;
+
+/**
+ * What an evaluation made of a job. Only an evaluation writes these — never a
+ * form, never update_job — so every AI tool's verdict comes out of the same
+ * rubric (lib/jobs/evaluation.ts) instead of each tool's own taste.
+ */
+export type JobJudgment = {
+  /** 0–100 from the rubric. Rows saved before the rubric may carry a tool's own number. */
+  match: number | null;
+  verdict: Verdict | null;
+  levelFit: LevelFit | null;
+  legitimacy: Legitimacy | null;
+  hardStops: HardStop[];
+  redFlags: RedFlag[];
+  roleFamily: RoleFamily | null;
+  skillGaps: string[];
+  scores: DimensionScores | null;
+  evaluation: EvalDepth | null;
+  evaluatedOn: DayKey | null;
+  /** The full evaluation's own Notion page, a child of the job's page. */
+  reportUrl: string | null;
+};
+
+export const NO_JUDGMENT: JobJudgment = {
+  match: null,
+  verdict: null,
+  levelFit: null,
+  legitimacy: null,
+  hardStops: [],
+  redFlags: [],
+  roleFamily: null,
+  skillGaps: [],
+  scores: null,
+  evaluation: null,
+  evaluatedOn: null,
+  reportUrl: null,
+};
+
 /** A job as read back, including the fields only the system writes. */
-export type Job = JobFields & {
+export type Job = JobFields & JobJudgment & {
   id: string;
   foundOn: DayKey | null;
   lastUpdate: DayKey | null;
@@ -73,8 +127,13 @@ export type JobProfile = {
   locations: string;
   workModes: WorkMode[];
   skills: string;
+  /** What you are aiming for. */
   salary: string;
+  /** The least you would take: a posting below it is a hard stop. */
+  minSalary: string;
   noticePeriod: string;
+  /** Willing to move for the right job, so another city is not a hard stop. */
+  relocation: boolean;
   mustHaves: string;
   dealBreakers: string;
   targetCompanies: string;
@@ -89,7 +148,9 @@ export const EMPTY_PROFILE: JobProfile = {
   workModes: [],
   skills: '',
   salary: '',
+  minSalary: '',
   noticePeriod: '',
+  relocation: false,
   mustHaves: '',
   dealBreakers: '',
   targetCompanies: '',
@@ -207,12 +268,13 @@ export const EVENT_KINDS = [
   'offer',
   'found',
   'status',
+  'evaluated',
 ] as const;
 export type JobEventKind = (typeof EVENT_KINDS)[number];
 
-/** The kinds a person logs. `found` and `status` are written by the system. */
+/** The kinds a person logs. `found`, `status` and `evaluated` are written by the system. */
 export const LOGGABLE_KINDS = EVENT_KINDS.filter(
-  (k) => k !== 'found' && k !== 'status',
+  (k) => k !== 'found' && k !== 'status' && k !== 'evaluated',
 ) as readonly JobEventKind[];
 
 export const EVENT_LABEL: Record<JobEventKind, string> = {
@@ -227,6 +289,7 @@ export const EVENT_LABEL: Record<JobEventKind, string> = {
   offer: 'Offer',
   found: 'Found',
   status: 'Status',
+  evaluated: 'Evaluated',
 };
 
 /** Logging one of these moves the application along with it. */
@@ -322,6 +385,14 @@ export function own<T>(table: Record<string, T>, key: string): T | undefined {
 export function textRuns(s: string, size = 2000): string[] {
   if (!s) return [];
   const out: string[] = [];
-  for (let i = 0; i < s.length && out.length < 100; i += size) out.push(s.slice(i, i + size));
+  let i = 0;
+  while (i < s.length && out.length < 100) {
+    let end = Math.min(i + size, s.length);
+    // Never between the two halves of an emoji: a lone surrogate is not text.
+    const c = s.charCodeAt(end);
+    if (end < s.length && c >= 0xdc00 && c <= 0xdfff) end--;
+    out.push(s.slice(i, end));
+    i = end;
+  }
   return out;
 }

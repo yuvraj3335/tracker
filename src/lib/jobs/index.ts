@@ -7,3 +7,5 @@ export * from './model';
 export * from './pipeline';
 export * from './dedupe';
 export * from './input';
+export * from './evaluation';
+export * from './report';

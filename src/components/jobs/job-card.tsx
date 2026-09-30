@@ -6,7 +6,19 @@ import { ExternalLink, MapPin } from 'lucide-react';
 import { followUpFor, type Job } from '@/lib/jobs';
 import type { JobStatus } from '@/lib/schema';
 import type { DayKey } from '@/lib/date';
-import { Chip, CompanyMark, FollowUpBadge, MatchBadge, StatusSelect, ago, safeHref } from './job-ui';
+import {
+  Chip,
+  CompanyMark,
+  FollowUpBadge,
+  HardStopChip,
+  LegitimacyBadge,
+  MatchBadge,
+  RedFlagChip,
+  StatusSelect,
+  VerdictBadge,
+  ago,
+  safeHref,
+} from './job-ui';
 import { cn } from '@/lib/utils';
 
 /** The one line of time that matters most for where the job is. */
@@ -69,9 +81,12 @@ export const JobTile = memo(function JobTile({
           </div>
         </div>
         <div className="flex flex-wrap gap-1">
+          <VerdictBadge verdict={job.verdict} depth={job.evaluation} />
+          <MatchBadge match={job.match} />
           {placeChip(job) ? <Chip icon={<MapPin className="size-2.5 shrink-0" />}>{placeChip(job)}</Chip> : null}
           {job.workMode ? <Chip>{job.workMode}</Chip> : null}
-          <MatchBadge match={job.match} />
+          {job.hardStops[0] ? <HardStopChip>{job.hardStops[0]}</HardStopChip> : null}
+          <LegitimacyBadge legitimacy={job.legitimacy} />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-1.5">
           <span className="text-micro text-ink-muted tnum">{when(job, today)}</span>
@@ -135,12 +150,20 @@ export const JobRow = memo(function JobRow({
           <div className="hidden shrink-0 items-center gap-1 sm:flex">{controls}</div>
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <VerdictBadge verdict={job.verdict} depth={job.evaluation} />
+          <MatchBadge match={job.match} />
           {place ? <Chip icon={<MapPin className="size-2.5 shrink-0" />} title={job.location}>{place}</Chip> : null}
           {job.workMode ? <Chip>{job.workMode}</Chip> : null}
           {job.source ? <Chip>{job.source}</Chip> : null}
           {job.salary ? <Chip>{job.salary}</Chip> : null}
           {job.experience ? <Chip>{job.experience}</Chip> : null}
-          <MatchBadge match={job.match} />
+          {job.hardStops.slice(0, 2).map((h) => (
+            <HardStopChip key={h}>{h}</HardStopChip>
+          ))}
+          {job.redFlags.slice(0, 2).map((f) => (
+            <RedFlagChip key={f}>{f}</RedFlagChip>
+          ))}
+          <LegitimacyBadge legitimacy={job.legitimacy} />
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-meta text-ink-muted">
           <span className="tnum">{when(job, today)}</span>

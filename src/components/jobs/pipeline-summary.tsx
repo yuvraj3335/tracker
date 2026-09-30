@@ -49,11 +49,13 @@ export function PipelineSummary({ summary: s }: { summary: Summary }) {
         </ul>
 
         <dl className="flex flex-wrap gap-x-5 gap-y-1 border-t border-hairline pt-3 text-xs text-ink-muted">
+          {s.worthApplying ? <Fact label="worth applying" value={s.worthApplying} strong /> : null}
           <Fact label="applied" value={s.applied} />
           <Fact label="this week" value={s.appliedLast7Days} />
           <Fact label="interviewing" value={interviewing} />
           <Fact label="heard back" value={rate === null ? '—' : `${rate}%`} />
           {s.followUps.length ? <Fact label="to follow up" value={s.followUps.length} strong /> : null}
+          {s.notEvaluated ? <Fact label="not evaluated" value={s.notEvaluated} /> : null}
         </dl>
       </CardContent>
     </Card>

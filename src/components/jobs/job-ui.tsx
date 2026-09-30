@@ -1,7 +1,21 @@
-import { CheckCircle2, ChevronDown, ExternalLink, TriangleAlert } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  CircleCheck,
+  CircleDot,
+  CircleMinus,
+  ExternalLink,
+  OctagonX,
+  ScanSearch,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldX,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
 import { daysBetween, formatKey, type DayKey } from '@/lib/date';
-import { JOB_STATUS, type JobStatus } from '@/lib/schema';
-import type { FollowUp } from '@/lib/jobs';
+import { JOB_STATUS, type EvalDepth, type JobStatus, type Legitimacy, type Verdict } from '@/lib/schema';
+import { APPLY_AT, CONSIDER_AT, DIMENSIONS, type DimensionId, type DimensionScores, type FollowUp } from '@/lib/jobs';
 import { cn } from '@/lib/utils';
 
 /**
@@ -160,10 +174,10 @@ export function Chip({ children, icon, className, title }: { children: React.Rea
   );
 }
 
-/** A fit score: the number, with a ring that reinforces it. */
+/** A fit score: the number, with a ring that reinforces it. The ring's tones follow the verdict lines. */
 export function MatchBadge({ match, className }: { match: number | null; className?: string }) {
   if (match === null) return null;
-  const tone = match >= 75 ? 'var(--good)' : match >= 55 ? 'var(--accent)' : 'var(--axis)';
+  const tone = match >= APPLY_AT ? 'var(--good)' : match >= CONSIDER_AT ? 'var(--accent)' : 'var(--axis)';
   const r = 5;
   const c = 2 * Math.PI * r;
   return (
@@ -177,6 +191,108 @@ export function MatchBadge({ match, className }: { match: number | null; classNa
       </svg>
       {match}% fit
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Judgment: verdict, legitimacy, flags, scores
+// ---------------------------------------------------------------------------
+
+export const VERDICT_STYLE: Record<Verdict, { color: string; Icon: LucideIcon; hint: string }> = {
+  Apply: { color: 'var(--good)', Icon: CircleCheck, hint: 'Worth applying' },
+  Consider: { color: 'var(--accent)', Icon: CircleDot, hint: 'Apply with a reason: a referral, a target company' },
+  'Research first': { color: 'var(--warning)', Icon: ScanSearch, hint: 'Read the posting in full before deciding' },
+  Skip: { color: 'var(--axis)', Icon: CircleMinus, hint: 'Not worth the application' },
+};
+
+/** The rubric's verdict, as an icon beside its word. A quick look says so. */
+export function VerdictBadge({
+  verdict,
+  depth,
+  className,
+}: {
+  verdict: Verdict | null;
+  depth?: EvalDepth | null;
+  className?: string;
+}) {
+  if (!verdict) return null;
+  const { color, Icon, hint } = VERDICT_STYLE[verdict];
+  return (
+    <span
+      title={`${verdict}${depth === 'Quick' ? ', from a quick look' : ''}: ${hint}`}
+      className={cn('skin-pill inline-flex items-center gap-1 border border-hairline bg-surface px-1.5 py-0.5 text-micro font-semibold text-ink-2', className)}
+    >
+      <Icon className="size-3 shrink-0" style={{ color }} aria-hidden />
+      {verdict}
+      {depth === 'Quick' ? <span className="font-normal text-ink-muted">· quick</span> : null}
+    </span>
+  );
+}
+
+const LEGITIMACY_STYLE: Record<Legitimacy, { color: string; Icon: LucideIcon; label: string }> = {
+  High: { color: 'var(--good)', Icon: ShieldCheck, label: 'Looks genuine' },
+  Caution: { color: 'var(--warning)', Icon: ShieldAlert, label: 'Check the posting' },
+  Suspicious: { color: 'var(--critical)', Icon: ShieldX, label: 'Looks suspicious' },
+};
+
+/** Only a doubt is worth the space on a card; the job page shows High too. */
+export function LegitimacyBadge({ legitimacy, showHigh = false }: { legitimacy: Legitimacy | null; showHigh?: boolean }) {
+  if (!legitimacy || (legitimacy === 'High' && !showHigh)) return null;
+  const { color, Icon, label } = LEGITIMACY_STYLE[legitimacy];
+  return (
+    <span
+      title={`Legitimacy: ${legitimacy}`}
+      className="skin-pill inline-flex items-center gap-1 border border-hairline bg-surface px-1.5 py-0.5 text-micro font-medium text-ink-2"
+    >
+      <Icon className="size-3 shrink-0" style={{ color }} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+export function HardStopChip({ children }: { children: string }) {
+  return (
+    <Chip icon={<OctagonX className="size-2.5 shrink-0" style={{ color: 'var(--critical)' }} aria-hidden />} title={`Hard stop: ${children}`}>
+      {children}
+    </Chip>
+  );
+}
+
+export function RedFlagChip({ children }: { children: string }) {
+  return (
+    <Chip icon={<TriangleAlert className="size-2.5 shrink-0" style={{ color: 'var(--warning)' }} aria-hidden />} title={`Red flag: ${children}`}>
+      {children}
+    </Chip>
+  );
+}
+
+const scoreTone = (s: number) => (s >= 4 ? 'var(--good)' : s === 3 ? 'var(--accent)' : 'var(--warning)');
+
+/**
+ * The five scores as short bars, with the number beside each. The weight is
+ * shown so it is clear why Skills moved the match more than Pay did.
+ */
+export function ScoreBars({ scores, notes }: { scores: DimensionScores; notes?: Partial<Record<DimensionId, string>> }) {
+  return (
+    <dl className="space-y-2.5">
+      {DIMENSIONS.map((d) => {
+        const s = scores[d.id];
+        return (
+          <div key={d.id} className="grid grid-cols-[6.5rem_minmax(0,1fr)_2.25rem] items-center gap-x-3 gap-y-0.5">
+            <dt className="text-xs text-ink-2">
+              {d.label} <span className="text-micro text-ink-muted tnum">{Math.round(d.weight * 100)}%</span>
+            </dt>
+            <dd className="flex gap-0.5" aria-label={s === null ? 'not stated' : `${s} out of 5`}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <span key={i} className="h-1.5 flex-1 rounded-full" style={{ background: s !== null && i <= s ? scoreTone(s) : 'var(--grid)' }} />
+              ))}
+            </dd>
+            <dd className="text-right text-xs font-medium text-ink-2 tnum">{s === null ? '—' : `${s}/5`}</dd>
+            {notes?.[d.id] ? <dd className="col-span-3 text-micro leading-snug text-ink-muted sm:col-start-2 sm:col-span-2">{notes[d.id]}</dd> : null}
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 

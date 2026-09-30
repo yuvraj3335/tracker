@@ -50,6 +50,10 @@ export type PipelineSummary = {
   responseRate: number;
   appliedLast7Days: number;
   followUps: { job: Job; followUp: FollowUp }[];
+  /** Not applied to yet, and the rubric says Apply. */
+  worthApplying: number;
+  /** Found, and no evaluation yet. */
+  notEvaluated: number;
 };
 
 export function pipelineSummary(jobs: readonly Job[], today: DayKey): PipelineSummary {
@@ -57,10 +61,14 @@ export function pipelineSummary(jobs: readonly Job[], today: DayKey): PipelineSu
   let applied = 0;
   let heardBack = 0;
   let appliedLast7Days = 0;
+  let worthApplying = 0;
+  let notEvaluated = 0;
   const followUps: { job: Job; followUp: FollowUp }[] = [];
 
   for (const j of jobs) {
     byStatus[j.status]++;
+    if ((j.status === 'Found' || j.status === 'Shortlisted') && j.verdict === 'Apply') worthApplying++;
+    if (j.status === 'Found' && !j.verdict) notEvaluated++;
     if (hasApplied(j.status)) {
       applied++;
       if (j.heardBackOn || isResponse(j.status)) heardBack++;
@@ -87,6 +95,8 @@ export function pipelineSummary(jobs: readonly Job[], today: DayKey): PipelineSu
     responseRate: applied ? heardBack / applied : 0,
     appliedLast7Days,
     followUps,
+    worthApplying,
+    notEvaluated,
   };
 }
 

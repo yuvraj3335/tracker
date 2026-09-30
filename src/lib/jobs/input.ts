@@ -19,7 +19,7 @@ export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const lc = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
-function pickEnum<T extends string>(values: readonly T[], raw: unknown, synonyms: Record<string, T> = {}): T | null {
+export function pickEnum<T extends string>(values: readonly T[], raw: unknown, synonyms: Record<string, T> = {}): T | null {
   const v = lc(raw);
   if (!v) return null;
   const direct = values.find((x) => x.toLowerCase() === v);
@@ -218,8 +218,9 @@ export function cleanSkills(raw: unknown): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const item of list) {
+    if (typeof item !== 'string' && typeof item !== 'number') continue;
     // Notion refuses commas inside a select option's name.
-    const s = cleanLine(String(item ?? '').replace(/,/g, ' '), LIMITS.skill);
+    const s = cleanLine(String(item).replace(/,/g, ' '), LIMITS.skill);
     const k = s.toLowerCase();
     if (!s || seen.has(k)) continue;
     seen.add(k);
@@ -227,13 +228,6 @@ export function cleanSkills(raw: unknown): string[] {
     if (out.length >= LIMITS.skills) break;
   }
   return out;
-}
-
-export function cleanMatch(raw: unknown): number | null {
-  if (raw === null || raw === undefined || raw === '') return null;
-  const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/%$/, '').trim());
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.min(100, Math.round(n)));
 }
 
 /** Reads a field by snake_case name, falling back to camelCase. */
@@ -255,7 +249,6 @@ const FIELD_NAMES = {
   workMode: 'work_mode',
   jobUrl: 'job_url',
   applyUrl: 'apply_url',
-  match: 'match',
   fit: 'why_it_fits',
   howToApply: 'how_to_apply',
   salary: 'salary',
@@ -307,8 +300,6 @@ function parseField<K extends keyof JobFields>(
       const u = cleanUrl(raw);
       return u ? ok(u) : { ok: false, error: `${name} must be an http(s) link` };
     }
-    case 'match':
-      return ok(cleanMatch(raw));
     case 'postedOn':
     case 'appliedOn':
     case 'followUpOn': {
@@ -429,6 +420,9 @@ const EVENT_KIND_SYNONYMS: Record<string, JobEventKind> = {
   comment: 'note',
 };
 
+/** A checkbox from a form ("on"), JSON (true) or an AI tool ("yes"). */
+const truthy = (v: unknown) => v === true || ['on', 'true', 'yes', '1'].includes(lc(v));
+
 export function parseProfile(raw: unknown): Parsed<JobProfile> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, error: 'profile must be an object' };
@@ -446,7 +440,9 @@ export function parseProfile(raw: unknown): Parsed<JobProfile> {
       workModes,
       skills: cleanText(field(o, 'skills'), LIMITS.long),
       salary: cleanLine(field(o, 'salary'), LIMITS.short),
+      minSalary: cleanLine(field(o, 'min_salary'), LIMITS.short),
       noticePeriod: cleanLine(field(o, 'notice_period'), LIMITS.short),
+      relocation: truthy(field(o, 'open_to_relocation')),
       mustHaves: cleanText(field(o, 'must_haves'), LIMITS.long),
       dealBreakers: cleanText(field(o, 'deal_breakers'), LIMITS.long),
       targetCompanies: cleanText(field(o, 'target_companies'), LIMITS.long),
@@ -468,7 +464,9 @@ export function parseProfilePatch(raw: unknown): Parsed<Partial<JobProfile>> {
     workModes: 'work_modes',
     skills: 'skills',
     salary: 'salary',
+    minSalary: 'min_salary',
     noticePeriod: 'notice_period',
+    relocation: 'open_to_relocation',
     mustHaves: 'must_haves',
     dealBreakers: 'deal_breakers',
     targetCompanies: 'target_companies',

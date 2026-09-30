@@ -48,6 +48,8 @@ export type Connection = {
   /** The one-row Job Profile data source, and its one row. */
   jobsProfileDs: string | null;
   jobsProfilePageId: string | null;
+  /** The job databases' schema version; see JOBS_SCHEMA_VERSION. */
+  jobsSchema: number;
 };
 
 /** A personal key an AI tool uses to reach the tracker. Never the key itself. */
@@ -194,6 +196,10 @@ export async function ensureSchema(): Promise<void> {
   // Held while one request creates the job databases or adds a batch of jobs,
   // for the same reason as provision_lock: two at once would both write.
   await q`alter table notion_connections add column if not exists jobs_lock timestamptz`;
+  // Which version of the job databases' columns this account has (see
+  // JOBS_SCHEMA_VERSION). Accounts set up before a column was added get it the
+  // next time they write, and this records that they have.
+  await q`alter table notion_connections add column if not exists jobs_schema int not null default 1`;
 
   // Personal keys for AI tools. Only a SHA-256 of each key is kept — a key is
   // 256 random bits, so a fast hash is enough, and a leaked table cannot be
@@ -311,6 +317,7 @@ function toConnection(row: any): Connection {
     jobsDs: row.jobs_ds ?? null,
     jobsProfileDs: row.jobs_profile_ds ?? null,
     jobsProfilePageId: row.jobs_profile_page_id ?? null,
+    jobsSchema: typeof row.jobs_schema === 'number' ? row.jobs_schema : 1,
   };
 }
 
@@ -530,6 +537,16 @@ export async function saveJobsShells(
       jobs_profile_ds      = coalesce(${d.jobsProfileDs ?? null}::text, jobs_profile_ds),
       jobs_profile_page_id = coalesce(${d.jobsProfilePageId ?? null}::text, jobs_profile_page_id),
       updated_at           = now()
+    where user_id = ${userId}::uuid
+  `;
+}
+
+/** Records that an account's job databases now have every column of `version`. */
+export async function saveJobsSchema(userId: string, version: number): Promise<void> {
+  if (!isUuid(userId)) return;
+  const q = sql();
+  await q`
+    update notion_connections set jobs_schema = greatest(jobs_schema, ${version}::int), updated_at = now()
     where user_id = ${userId}::uuid
   `;
 }

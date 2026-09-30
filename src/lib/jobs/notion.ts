@@ -7,27 +7,56 @@
  * a Tenant explicitly — there is no ambient token.
  */
 import { Client } from '@notionhq/client';
-import { P, type AddedBy, type JobStatus } from '../schema';
+import {
+  EVAL_DEPTHS,
+  HARD_STOPS,
+  JOBS_SCHEMA_VERSION,
+  LEGITIMACY,
+  LEVEL_FITS,
+  P,
+  RED_FLAGS,
+  ROLE_FAMILIES,
+  VERDICTS,
+  jobProfileProperties,
+  jobsProperties,
+  type AddedBy,
+  type JobStatus,
+} from '../schema';
 import { callerFor, type Caller } from '../provision';
-import { claimJobsLease, releaseJobsLease } from '../db';
+import { claimJobsLease, ensureSchema, hasDatabase, releaseJobsLease, saveJobsSchema } from '../db';
 import { todayKey, type DayKey } from '../date';
 import {
   EMPTY_PROFILE,
   EVENT_LABEL,
+  RUBRIC_VERSION,
   dedupeKey,
   findDuplicate,
   formatEvent,
+  formatScores,
   isHeardBack,
+  isRepost,
+  judge,
+  keptRedFlags,
+  mergeRedFlags,
+  computeMatch,
+  verdictFor,
   parseEvent,
+  parseReport,
+  parseScores,
+  reportBlocks,
   stampsFor,
   statusAfterEvent,
   textRuns,
+  type EvaluationInput,
+  type EvaluationReport,
   type EventInput,
   type Job,
   type JobEvent,
   type JobFields,
+  type JobJudgment,
   type JobPatch,
   type JobProfile,
+  type Judgment,
   type NewJob,
 } from '.';
 import type { Tenant } from '../tenant';
@@ -63,7 +92,7 @@ export type Actor = { kind: AddedBy; name: string };
 export class JobsError extends Error {
   constructor(
     message: string,
-    readonly code: 'not_set_up' | 'not_found' | 'busy' | 'no_parent',
+    readonly code: 'not_set_up' | 'not_found' | 'busy' | 'no_parent' | 'conflict',
   ) {
     super(message);
   }
@@ -87,6 +116,11 @@ const sel = (p: any): string | null => p?.select?.name ?? null;
 const msel = (p: any): string[] => (p?.multi_select ?? []).map((o: any) => o?.name).filter(Boolean);
 const dt = (p: any): DayKey | null => (typeof p?.date?.start === 'string' ? p.date.start.slice(0, 10) : null);
 const ur = (p: any): string | null => (typeof p?.url === 'string' && p.url ? p.url : null);
+/** A select that only answers with the app's own options: one added by hand in Notion reads as unset. */
+const known = <T extends string>(values: readonly T[], v: string | null): T | null =>
+  v !== null && (values as readonly string[]).includes(v) ? (v as T) : null;
+const knownAll = <T extends string>(values: readonly T[], vs: string[]): T[] =>
+  vs.filter((v): v is T => (values as readonly string[]).includes(v));
 
 export function mapJob(page: any): Job {
   const p = page.properties ?? {};
@@ -120,6 +154,17 @@ export function mapJob(page: any): Job {
     heardBackOn: dt(p[P.job.heardBackOn]),
     addedBy: (sel(p[P.job.addedBy]) as AddedBy | null) ?? null,
     key: rt(p[P.job.key]),
+    verdict: known(VERDICTS, sel(p[P.job.verdict])),
+    levelFit: known(LEVEL_FITS, sel(p[P.job.levelFit])),
+    legitimacy: known(LEGITIMACY, sel(p[P.job.legitimacy])),
+    hardStops: knownAll(HARD_STOPS, msel(p[P.job.hardStops])),
+    redFlags: knownAll(RED_FLAGS, msel(p[P.job.redFlags])),
+    roleFamily: known(ROLE_FAMILIES, sel(p[P.job.roleFamily])),
+    skillGaps: msel(p[P.job.skillGaps]),
+    scores: parseScores(rt(p[P.job.scores])),
+    evaluation: known(EVAL_DEPTHS, sel(p[P.job.evaluation])),
+    evaluatedOn: dt(p[P.job.evaluatedOn]),
+    reportUrl: ur(p[P.job.report]),
     notionUrl: typeof page.url === 'string' ? page.url : '',
     createdAt: typeof page.created_time === 'string' ? page.created_time : '',
   };
@@ -133,7 +178,7 @@ const selectOf = (v: string | null | undefined) => ({ select: v ? { name: v } : 
 const dateOf = (v: string | null | undefined) => ({ date: v ? { start: v } : null });
 
 type Writable = Partial<
-  JobFields & Pick<Job, 'foundOn' | 'lastUpdate' | 'heardBackOn' | 'addedBy' | 'key'>
+  JobFields & JobJudgment & Pick<Job, 'foundOn' | 'lastUpdate' | 'heardBackOn' | 'addedBy' | 'key'>
 >;
 
 /** Notion property values for exactly the keys present. */
@@ -165,9 +210,23 @@ export function jobProperties(f: Writable): Record<string, any> {
     ['workMode', P.job.workMode],
     ['appliedVia', P.job.appliedVia],
     ['addedBy', P.job.addedBy],
+    ['verdict', P.job.verdict],
+    ['levelFit', P.job.levelFit],
+    ['legitimacy', P.job.legitimacy],
+    ['roleFamily', P.job.roleFamily],
+    ['evaluation', P.job.evaluation],
   ] as const) {
     set(k, prop, () => selectOf(f[k] as string | null));
   }
+  for (const [k, prop] of [
+    ['hardStops', P.job.hardStops],
+    ['redFlags', P.job.redFlags],
+    ['skillGaps', P.job.skillGaps],
+  ] as const) {
+    set(k, prop, () => ({ multi_select: ((f[k] ?? []) as string[]).map((name) => ({ name })) }));
+  }
+  set('scores', P.job.scores, () => ({ rich_text: f.scores ? runs(formatScores(f.scores)) : [] }));
+  set('reportUrl', P.job.report, () => ({ url: f.reportUrl ?? null }));
   set('jobUrl', P.job.jobUrl, () => ({ url: f.jobUrl ?? null }));
   set('applyUrl', P.job.applyUrl, () => ({ url: f.applyUrl ?? null }));
   set('match', P.job.match, () => ({ number: f.match ?? null }));
@@ -179,6 +238,7 @@ export function jobProperties(f: Writable): Record<string, any> {
     ['foundOn', P.job.foundOn],
     ['lastUpdate', P.job.lastUpdate],
     ['heardBackOn', P.job.heardBackOn],
+    ['evaluatedOn', P.job.evaluatedOn],
   ] as const) {
     set(k, prop, () => dateOf(f[k] as string | null));
   }
@@ -207,7 +267,7 @@ export const eventBlock = (e: JobEvent) => ({
  * The body a new job page starts with. Paragraphs are split on blank lines and
  * capped, because Notion takes at most 100 blocks in one create.
  */
-export function initialBody(description: string, first: JobEvent): any[] {
+export function initialBody(description: string, ...events: JobEvent[]): any[] {
   const blocks: any[] = [];
   const paras = description
     .split(/\n\s*\n/)
@@ -219,7 +279,7 @@ export function initialBody(description: string, first: JobEvent): any[] {
     for (const p of paras) blocks.push(paragraph(p));
   }
   blocks.push(heading(TIMELINE));
-  blocks.push(eventBlock(first));
+  for (const e of events) blocks.push(eventBlock(e));
   return blocks;
 }
 
@@ -342,7 +402,7 @@ async function jobPage(t: Tenant, run: Caller, id: string): Promise<any | null> 
   return page;
 }
 
-export type JobDetail = { job: Job; description: BodyBlock[]; timeline: JobEvent[] };
+export type JobDetail = { job: Job; description: BodyBlock[]; timeline: JobEvent[]; report: EvaluationReport | null };
 
 async function readBody(t: Tenant, run: Caller, pageId: string): Promise<any[]> {
   const blocks: any[] = [];
@@ -358,10 +418,46 @@ async function readBody(t: Tenant, run: Caller, pageId: string): Promise<any[]> 
   return blocks;
 }
 
+/** The id in a Notion page URL: the 32 hex characters at the end of its path. */
+export function pageIdFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    return /([0-9a-f]{32})$/i.exec(new URL(url).pathname)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * One job with its description and timeline. The page and its body are read
- * at the same time; the body is thrown away unless the page turns out to be
- * one of this tenant's jobs, so the ownership check costs no extra wait.
+ * A job's evaluation report, read only when it is the job's own child page.
+ *
+ * The Report column is an ordinary URL in Notion, so someone can point it
+ * anywhere. The job's body lists its child pages, and only a page found there
+ * is read — the check costs nothing, since the body was read anyway.
+ */
+async function readReport(t: Tenant, run: Caller, job: Job, body: readonly any[]): Promise<EvaluationReport | null> {
+  const id = pageIdFromUrl(job.reportUrl);
+  const child = id ? body.find((b) => b?.type === 'child_page' && sameId(b.id, id)) : null;
+  if (!child) return null;
+  const blocks = await readBody(t, run, child.id);
+  const tables = blocks.filter((b) => b?.type === 'table' && b.has_children);
+  const rows = new Map<string, any[]>();
+  await Promise.all(
+    tables.map(async (tb) => {
+      const res: any = await run('read report table', () =>
+        clientFor(t.token).blocks.children.list({ block_id: tb.id, page_size: 100 }),
+      );
+      rows.set(tb.id, res.results ?? []);
+    }),
+  );
+  return parseReport(blocks, (tableId) => rows.get(tableId));
+}
+
+/**
+ * One job with its description, timeline and evaluation report. The page and
+ * its body are read at the same time; the body is thrown away unless the page
+ * turns out to be one of this tenant's jobs, so the ownership check costs no
+ * extra wait. A report that fails to load leaves the rest of the job intact.
  */
 export async function getJob(t: Tenant, id: string): Promise<JobDetail | null> {
   if (!isNotionId(id)) return null;
@@ -371,7 +467,10 @@ export async function getJob(t: Tenant, id: string): Promise<JobDetail | null> {
     readBody(t, run, id.trim()).catch(() => null),
   ]);
   if (!page) return null;
-  return { job: mapJob(page), ...splitBody(blocks ?? (await readBody(t, run, page.id))) };
+  const job = mapJob(page);
+  const body = blocks ?? (await readBody(t, run, page.id));
+  const report = job.reportUrl ? await readReport(t, run, job, body).catch(() => null) : null;
+  return { job, ...splitBody(body), report };
 }
 
 // ---------------------------------------------------------------------------
@@ -379,12 +478,54 @@ export async function getJob(t: Tenant, id: string): Promise<JobDetail | null> {
 // ---------------------------------------------------------------------------
 
 export type AddResult = {
-  created: { id: string; role: string; company: string; notionUrl: string }[];
-  duplicates: { index: number; role: string; company: string; existingId: string; reason: string }[];
+  created: { id: string; role: string; company: string; notionUrl: string; match: number | null; verdict: string | null }[];
+  duplicates: { index: number; role: string; company: string; existingId: string; reason: string; reposted?: boolean }[];
   /** Left for the next call when the time budget ran out. */
   notProcessed: number[];
   errors: { index: number; error: string }[];
 };
+
+/** A job to add, with the quick look an AI tool took while it was searching. */
+export type NewJobInput = NewJob & { evaluation?: EvaluationInput | null };
+
+/**
+ * The properties and the timeline line an evaluation writes. The one-line
+ * summary fills Why It Fits when that is empty — a quick look has no report
+ * page, and without this its only words would be lost.
+ */
+function judgmentWrite(
+  e: EvaluationInput,
+  j: Judgment,
+  today: DayKey,
+  actor: Actor,
+  currentFit: string,
+): { props: Writable; event: JobEvent } {
+  const fit = e.fit !== null ? e.fit : !currentFit.trim() && e.summary ? e.summary : null;
+  return {
+    props: {
+      match: j.match,
+      verdict: j.verdict,
+      levelFit: j.levelFit,
+      legitimacy: e.legitimacy,
+      hardStops: e.hardStops,
+      redFlags: j.redFlags,
+      roleFamily: e.roleFamily,
+      skillGaps: e.skillGaps,
+      scores: e.scores,
+      evaluation: e.depth,
+      evaluatedOn: today,
+      ...(fit !== null ? { fit } : {}),
+      ...(e.howToApply !== null ? { howToApply: e.howToApply } : {}),
+    },
+    event: {
+      date: today,
+      kind: 'evaluated',
+      text:
+        `${j.match}% · ${j.verdict} · ${e.depth === 'Full' ? 'full evaluation' : 'quick look'}, rubric ${RUBRIC_VERSION}` +
+        (actor.kind === 'AI' ? ` (by ${actor.name})` : ''),
+    },
+  };
+}
 
 /**
  * Adds jobs, skipping any that are already tracked.
@@ -394,13 +535,17 @@ export type AddResult = {
  * the batch itself, since one search often finds a posting twice. The lease
  * makes the check-then-write safe against a second batch arriving at once.
  *
+ * A duplicate that turns out to be the company posting the job again (see
+ * isRepost) is still not saved twice, but the tracked copy is flagged Reposted
+ * and its match re-scored, because that is worth knowing before applying.
+ *
  * Writes are paced by `callerFor` (~3 a second) and bounded by `budgetMs`, so a
  * big batch stops cleanly inside the function's time limit and says which rows
  * it did not reach instead of being killed halfway through one.
  */
 export async function addJobs(
   t: Tenant,
-  jobs: readonly NewJob[],
+  jobs: readonly NewJobInput[],
   actor: Actor,
   opts: { budgetMs?: number } = {},
 ): Promise<AddResult> {
@@ -409,14 +554,13 @@ export async function addJobs(
   const budget = opts.budgetMs ?? 40_000;
   const result: AddResult = { created: [], duplicates: [], notProcessed: [], errors: [] };
   if (!jobs.length) return result;
+  if (jobs.some((j) => j.evaluation)) await ensureJobsSchema(t);
 
   if (!(await claimJobsLease(t.userId))) {
     throw new JobsError('Another update to your jobs is still running. Try again in a few seconds.', 'busy');
   }
   try {
-    const existing: Pick<Job, 'id' | 'key' | 'jobUrl' | 'applyUrl' | 'company' | 'role' | 'location'>[] = [
-      ...(await getJobs(t, { fresh: true })),
-    ];
+    const existing: Job[] = [...(await getJobs(t, { fresh: true }))];
     const run = callerFor(t.token);
     const today = todayKey();
 
@@ -425,10 +569,28 @@ export async function addJobs(
         for (let j = i; j < jobs.length; j++) result.notProcessed.push(j);
         break;
       }
-      const job = jobs[i];
+      const { evaluation, ...job } = jobs[i];
       const dup = findDuplicate(job, existing);
       if (dup) {
-        result.duplicates.push({ index: i, role: job.role, company: job.company, existingId: dup.id, reason: dup.reason });
+        const at = existing.findIndex((e) => e.id === dup.id);
+        const theirs = at >= 0 ? existing[at] : null;
+        let reposted = false;
+        if (theirs && dup.reason !== 'same posting' && !theirs.redFlags.includes('Reposted') && isRepost(job, theirs, today)) {
+          const flagged = await flagRepost(t, run, theirs.id, job.source ?? 'the same board', today).catch(() => null);
+          // A copy, not an edit: `existing` shares its rows with the list cache.
+          if (flagged) {
+            existing[at] = flagged;
+            reposted = true;
+          }
+        }
+        result.duplicates.push({
+          index: i,
+          role: job.role,
+          company: job.company,
+          existingId: dup.id,
+          reason: dup.reason,
+          ...(reposted ? { reposted: true } : {}),
+        });
         continue;
       }
       const key = dedupeKey(job);
@@ -437,23 +599,37 @@ export async function addJobs(
         job.status === 'Found'
           ? { date: today, kind: 'found', text: `on ${job.source ?? 'the web'}, added by ${actor.name}` }
           : { date: today, kind: 'status', text: `added as ${job.status} by ${actor.name}` };
+      const judged = evaluation
+        ? judgmentWrite(evaluation, judge(evaluation, { postedOn: job.postedOn, today }), today, actor, job.fit)
+        : null;
       try {
-        const page: any = await run('add job', () =>
-          clientFor(t.token).pages.create({
-            parent: { type: 'data_source_id', data_source_id: ds },
-            properties: jobProperties({
-              ...job,
-              ...stamps,
-              foundOn: today,
-              lastUpdate: today,
-              addedBy: actor.kind,
-              key,
-            }),
-            children: initialBody(job.description, first),
-          } as any),
+        const page: any = await withColumns(t, () =>
+          run('add job', () =>
+            clientFor(t.token).pages.create({
+              parent: { type: 'data_source_id', data_source_id: ds },
+              properties: jobProperties({
+                ...job,
+                ...stamps,
+                ...(judged?.props ?? {}),
+                foundOn: today,
+                lastUpdate: today,
+                addedBy: actor.kind,
+                key,
+              }),
+              children: initialBody(job.description, first, ...(judged ? [judged.event] : [])),
+            } as any),
+          ),
         );
-        result.created.push({ id: page.id, role: job.role, company: job.company, notionUrl: page.url ?? '' });
-        existing.push({ id: page.id, key, jobUrl: job.jobUrl, applyUrl: job.applyUrl, company: job.company, role: job.role, location: job.location });
+        const saved = mapJob(page);
+        result.created.push({
+          id: page.id,
+          role: job.role,
+          company: job.company,
+          notionUrl: page.url ?? '',
+          match: saved.match,
+          verdict: saved.verdict,
+        });
+        existing.push(saved);
       } catch (e) {
         result.errors.push({ index: i, error: (e as Error).message });
       }
@@ -463,6 +639,38 @@ export async function addJobs(
     invalidateJobs(t.userId);
   }
   return result;
+}
+
+/**
+ * Marks a tracked job Reposted, re-scores it when it has been evaluated, and
+ * says so in its timeline. The status is left alone: a repost is a signal to
+ * weigh, not a decision.
+ *
+ * The job is read again first rather than taken from the batch's snapshot,
+ * which can be most of a minute old — an evaluation that landed in between
+ * would otherwise be overwritten with the old scores. Returns the job as
+ * saved, or null when it is gone.
+ */
+async function flagRepost(t: Tenant, run: Caller, id: string, where: string, today: DayKey): Promise<Job | null> {
+  const page = await jobPage(t, run, id);
+  if (!page) return null;
+  const job = mapJob(page);
+  const redFlags = mergeRedFlags(job.redFlags, ['Reposted']);
+  const props: Writable = { redFlags, lastUpdate: today };
+  if (job.scores && job.evaluation) {
+    props.match = computeMatch(job.scores, redFlags, job.hardStops);
+    props.verdict = verdictFor({ match: props.match, depth: job.evaluation, hardStops: job.hardStops, legitimacy: job.legitimacy });
+  }
+  await ensureJobsSchema(t);
+  const updated: any = await withColumns(t, () =>
+    run('flag repost', () => clientFor(t.token).pages.update({ page_id: job.id, properties: jobProperties(props) } as any)),
+  );
+  await appendEvent(t, run, job.id, {
+    date: today,
+    kind: 'note',
+    text: `Reposted: the company posted this again on ${where} with a new posting id`,
+  }).catch(() => undefined);
+  return mapJob(updated);
 }
 
 /**
@@ -565,6 +773,250 @@ export async function logJobEvent(t: Tenant, id: string, input: EventInput, acto
   return { job: mapJob(updated), event, movedTo, warning };
 }
 
+export type EvaluationResult = { job: Job; judgment: Judgment; reportUrl: string | null; warning?: string };
+
+const reportTitle = (j: Pick<Job, 'role' | 'company'>) => `Evaluation · ${j.role}${j.company ? ` at ${j.company}` : ''}`;
+
+const REPORT_TITLE = /^Evaluation · /;
+
+/**
+ * Keeps one report per job: every other evaluation page among the job's own
+ * child pages goes to the trash. Read from the job's body, so only its own
+ * children can be touched — and it also clears a report orphaned by a create
+ * that timed out on the way back but had in fact succeeded.
+ */
+async function keepOnlyReport(t: Tenant, run: Caller, jobId: string, keepId: string) {
+  const body = await readBody(t, run, jobId);
+  const stale = body.filter(
+    (b) => b?.type === 'child_page' && REPORT_TITLE.test(String(b.child_page?.title ?? '')) && !sameId(b.id, keepId),
+  );
+  for (const b of stale) {
+    await run('replace old report', () => clientFor(t.token).pages.update({ page_id: b.id, in_trash: true } as any));
+  }
+}
+
+/**
+ * Saves an evaluation: the judgment into the job's properties, a timeline line,
+ * and for a full one the report as the job's child page (replacing the last).
+ *
+ * The match and the verdict are computed here from the scores, never taken
+ * from the tool (see ./evaluation). A quick look never overwrites a full
+ * evaluation — it would replace a better reading with a worse one.
+ *
+ * Order matters: the report is created first so the job can point at it, and
+ * trashed again if the job's own write then fails, so no report is left
+ * pointing nowhere.
+ */
+export async function saveEvaluation(
+  t: Tenant,
+  id: string,
+  e: EvaluationInput,
+  actor: Actor,
+): Promise<EvaluationResult | null> {
+  await ensureJobsSchema(t);
+  // One write to a person's jobs at a time, like addJobs: two evaluations of
+  // the same job at once — a client retrying one that looked slow — would
+  // each create a report, and one of them would be left pointing nowhere.
+  const leased = hasDatabase();
+  if (leased && !(await claimJobsLease(t.userId))) {
+    throw new JobsError('Another update to your jobs is still running. Try again in a few seconds.', 'busy');
+  }
+  try {
+    return await saveEvaluationLeased(t, id, e, actor);
+  } finally {
+    if (leased) await releaseJobsLease(t.userId);
+  }
+}
+
+async function saveEvaluationLeased(
+  t: Tenant,
+  id: string,
+  e: EvaluationInput,
+  actor: Actor,
+): Promise<EvaluationResult | null> {
+  const run = callerFor(t.token);
+  const page = await jobPage(t, run, id);
+  if (!page) return null;
+  const current = mapJob(page);
+  if (e.depth === 'Quick' && current.evaluation === 'Full') {
+    throw new JobsError(
+      `This job already has a full evaluation${current.evaluatedOn ? ` from ${current.evaluatedOn}` : ''}. A quick look would replace it with less — evaluate it again with depth "full" to update it.`,
+      'conflict',
+    );
+  }
+  const today = todayKey();
+  const judgment = judge(e, { postedOn: current.postedOn, keptFlags: keptRedFlags(current.redFlags), today });
+  const { props, event } = judgmentWrite(e, judgment, today, actor, current.fit);
+
+  let created: { id: string; url: string | null } | null = null;
+  if (e.depth === 'Full') {
+    const report: EvaluationReport = {
+      summary: e.summary,
+      byline: `Rubric ${RUBRIC_VERSION} · Full evaluation · ${today} · by ${actor.name}`,
+      scores: e.scores,
+      notes: e.notes,
+      requirements: e.requirements,
+      levelStrategy: e.levelStrategy,
+      payNotes: e.payNotes,
+      legitimacySignals: e.legitimacySignals,
+      resumeEdits: e.resumeEdits,
+      keywords: e.keywords,
+      posting: e.posting,
+    };
+    const rp: any = await run('save evaluation report', () =>
+      clientFor(t.token).pages.create({
+        parent: { type: 'page_id', page_id: page.id },
+        icon: { type: 'emoji', emoji: '🧾' },
+        properties: { title: { title: runs(reportTitle(current)) } },
+        children: reportBlocks(report),
+      } as any),
+    );
+    created = { id: rp.id, url: typeof rp.url === 'string' ? rp.url : null };
+  }
+
+  let updated: any;
+  try {
+    updated = await withColumns(t, () =>
+      run('save evaluation', () =>
+        clientFor(t.token).pages.update({
+          page_id: page.id,
+          properties: jobProperties({ ...props, reportUrl: created ? created.url : current.reportUrl, lastUpdate: today }),
+        } as any),
+      ),
+    );
+  } catch (err) {
+    if (created) {
+      await run('remove unsaved report', () =>
+        clientFor(t.token).pages.update({ page_id: created!.id, in_trash: true } as any),
+      ).catch(() => undefined);
+    }
+    throw err;
+  }
+
+  const warnings: string[] = [];
+  if (created) {
+    await keepOnlyReport(t, run, page.id, created.id).catch(() => warnings.push('The previous report could not be moved to the trash.'));
+  }
+  try {
+    await appendEvent(t, run, page.id, event);
+  } catch {
+    warnings.push('Saved, but the evaluation could not be added to the timeline.');
+  }
+  invalidateJobs(t.userId);
+  return { job: mapJob(updated), judgment, reportUrl: created?.url ?? current.reportUrl, ...(warnings.length ? { warning: warnings.join(' ') } : {}) };
+}
+
+// ---------------------------------------------------------------------------
+// Schema migration
+// ---------------------------------------------------------------------------
+
+/** The kind of a column definition: `{ select: … }` is "select". */
+const kindOf = (def: any): string | null => (def && typeof def === 'object' ? (Object.keys(def).find((k) => k !== 'name' && k !== 'description' && k !== 'id') ?? null) : null);
+
+export type SchemaDiff = {
+  missing: Record<string, any>;
+  /** Columns that exist under our name but as another kind — someone's own. */
+  conflicts: { name: string; want: string; have: string }[];
+};
+
+/**
+ * The columns a database lacks, from the ones the current schema defines.
+ * Only additions: a column that exists is never changed or removed, so
+ * anything someone set up in Notion themselves is left as it was. The title
+ * column is skipped — a database has exactly one, whatever it is called.
+ *
+ * A column of ours that exists as another kind (a "Report" someone made as a
+ * Files column) cannot be added and must not be written to, so it is
+ * reported rather than silently accepted.
+ *
+ * An open-ended multi-select is added with no options list at all: if two
+ * servers add it at once, the second must not reset options the first one's
+ * writes have created since.
+ */
+export function missingProperties(existing: Record<string, any>, wanted: Record<string, any>): SchemaDiff {
+  const out: SchemaDiff = { missing: {}, conflicts: [] };
+  for (const [name, def] of Object.entries(wanted)) {
+    const want = kindOf(def);
+    if (!want || want === 'title') continue;
+    if (Object.prototype.hasOwnProperty.call(existing, name)) {
+      const have = typeof existing[name]?.type === 'string' ? existing[name].type : kindOf(existing[name]);
+      if (have && have !== want) out.conflicts.push({ name, want, have });
+      continue;
+    }
+    const options = def[want]?.options;
+    out.missing[name] = Array.isArray(options) && !options.length ? { [want]: {} } : def;
+  }
+  return out;
+}
+
+async function addMissingColumns(run: Caller, client: Client, ds: string, wanted: Record<string, any>, database: string) {
+  const res: any = await run('read schema', () => client.dataSources.retrieve({ data_source_id: ds } as any));
+  if (!res?.properties || typeof res.properties !== 'object') throw new Error(`Notion returned no columns for ${database}`);
+  const { missing, conflicts } = missingProperties(res.properties, wanted);
+  if (conflicts.length) {
+    const c = conflicts[0];
+    throw new JobsError(
+      `Your ${database} database already has a column called “${c.name}”, as a ${c.have.replace(/_/g, ' ')} column. The tracker needs that name for a ${c.want.replace(/_/g, ' ')} column — rename yours in Notion, then try again.`,
+      'conflict',
+    );
+  }
+  if (!Object.keys(missing).length) return;
+  await run('add columns', () => client.dataSources.update({ data_source_id: ds, properties: missing } as any));
+}
+
+/**
+ * Notion saying a column the write names does not exist: someone renamed or
+ * removed one of ours after the migration had run.
+ */
+export function missingColumnError(e: unknown): boolean {
+  const err = e as { code?: string; message?: string; cause?: { message?: string } };
+  const text = `${err?.cause?.message ?? ''} ${err?.message ?? ''}`;
+  return err?.code === 'validation_error' && /is not a property that exists|property .{0,80} does not exist/i.test(text);
+}
+
+/** A write that names one of our columns, retried once after putting a missing column back. */
+async function withColumns<T>(t: Tenant, write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (e) {
+    if (!missingColumnError(e)) throw e;
+    await ensureJobsSchema(t, { force: true });
+    return write();
+  }
+}
+
+const migrations = new Map<string, Promise<void>>();
+
+/**
+ * Brings an account's job databases up to JOBS_SCHEMA_VERSION before a write
+ * that needs the newer columns. Reads never need it — a column that is not
+ * there reads as empty — so an account set up before the rubric keeps working
+ * untouched until the first evaluation, which adds the columns itself.
+ * `force` checks again whatever the recorded version says.
+ */
+export async function ensureJobsSchema(t: Tenant, opts: { force?: boolean } = {}): Promise<void> {
+  if (!t.jobsDs || (!opts.force && (t.jobsSchema ?? 1) >= JOBS_SCHEMA_VERSION)) return;
+  let p = migrations.get(t.userId);
+  if (!p) {
+    p = (async () => {
+      const client = clientFor(t.token);
+      const run = callerFor(t.token);
+      await addMissingColumns(run, client, t.jobsDs!, jobsProperties(), 'Job Applications');
+      if (t.jobsProfileDs) await addMissingColumns(run, client, t.jobsProfileDs, jobProfileProperties(), 'Job Profile');
+      // Recording the version only saves the next write a schema read. A
+      // session signed in before this deploy may reach here before anything
+      // has added the column, so it is ensured first, and a failure to record
+      // never fails the write that asked for the migration.
+      await ensureSchema()
+        .then(() => saveJobsSchema(t.userId, JOBS_SCHEMA_VERSION))
+        .catch((e) => console.error('[jobs] could not record the schema version:', (e as Error)?.message ?? e));
+    })().finally(() => migrations.delete(t.userId));
+    migrations.set(t.userId, p);
+  }
+  await p;
+  t.jobsSchema = JOBS_SCHEMA_VERSION;
+}
+
 /** Moves a job to Notion's trash, where it can still be restored for 30 days. */
 export async function trashJob(t: Tenant, id: string): Promise<boolean> {
   const run = callerFor(t.token);
@@ -585,6 +1037,7 @@ const PROFILE_TEXT: [keyof JobProfile, string][] = [
   ['locations', P.profile.locations],
   ['skills', P.profile.skills],
   ['salary', P.profile.salary],
+  ['minSalary', P.profile.minSalary],
   ['noticePeriod', P.profile.noticePeriod],
   ['mustHaves', P.profile.mustHaves],
   ['dealBreakers', P.profile.dealBreakers],
@@ -598,6 +1051,7 @@ export function mapProfile(page: any): JobProfile & { updatedAt: string | null }
   const out: JobProfile = { ...EMPTY_PROFILE };
   for (const [k, prop] of PROFILE_TEXT) (out as Record<string, unknown>)[k] = rt(p[prop]);
   out.workModes = msel(p[P.profile.workModes]) as JobProfile['workModes'];
+  out.relocation = p[P.profile.relocation]?.checkbox === true;
   return { ...out, updatedAt: typeof page?.last_edited_time === 'string' ? page.last_edited_time : null };
 }
 
@@ -620,8 +1074,10 @@ export async function saveProfile(t: Tenant, profile: Partial<JobProfile>): Prom
   if ('workModes' in profile) {
     properties[P.profile.workModes] = { multi_select: (profile.workModes ?? []).map((name) => ({ name })) };
   }
-  const page: any = await callerFor(t.token)('save profile', () =>
-    clientFor(t.token).pages.update({ page_id: t.jobsProfilePageId!, properties } as any),
+  if ('relocation' in profile) properties[P.profile.relocation] = { checkbox: profile.relocation === true };
+  if ('minSalary' in profile || 'relocation' in profile) await ensureJobsSchema(t);
+  const page: any = await withColumns(t, () =>
+    callerFor(t.token)('save profile', () => clientFor(t.token).pages.update({ page_id: t.jobsProfilePageId!, properties } as any)),
   );
   return mapProfile(page);
 }

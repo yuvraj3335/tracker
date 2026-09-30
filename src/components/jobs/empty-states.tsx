@@ -8,7 +8,7 @@ import { CopyText } from './copy-text';
 const PROMPTS = [
   'Find SDE-1 jobs in Bengaluru or remote, posted this week.',
   'Search company career sites for backend roles in India.',
-  'What should I follow up on?',
+  'Is this job worth applying to? <paste a link>',
 ];
 
 /** Shown until an AI tool is connected — the step that makes the pipeline fill itself. */
@@ -20,7 +20,7 @@ export function ConnectNudge() {
           <Sparkles className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
           <p className="text-xs text-ink-2">
             Connect Claude Code, Codex, Gemini or Claude Desktop, then ask it to find jobs. It searches the boards and
-            company career sites, and saves the good ones here with how to apply.
+            company career sites, judges each one against your profile, and saves the good ones here with how to apply.
           </p>
         </div>
         <Button asChild size="sm" variant="outline">

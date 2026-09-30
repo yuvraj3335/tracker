@@ -4,7 +4,7 @@ import { useCallback, useDeferredValue, useMemo, useOptimistic, useState, useSyn
 import { Columns3, List, Search, X } from 'lucide-react';
 import { setJobStatusAction } from '@/app/jobs/actions';
 import { JOB_GROUPS, jobHaystack, type Job } from '@/lib/jobs';
-import { JOB_SOURCES, type JobStatus } from '@/lib/schema';
+import { JOB_SOURCES, VERDICTS, type JobStatus } from '@/lib/schema';
 import { matchesTokens, tokenize } from '@/lib/search';
 import { offerUndo, reportProblem } from '@/lib/undo';
 import type { DayKey } from '@/lib/date';
@@ -67,6 +67,8 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
   const [query, setQuery] = useState('');
   const [stage, setStage] = useState<Stage>(initialStage);
   const [source, setSource] = useState('');
+  /** '' for every job, a verdict, or 'none' for the ones not evaluated yet. */
+  const [verdict, setVerdict] = useState('');
   const [sort, setSort] = useState<Sort>('newest');
   const view = useSyncExternalStore(subscribeView, readView, () => 'board' as View);
   const deferred = useDeferredValue(query);
@@ -98,14 +100,17 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
   const indexed = useMemo(() => shown.map((j) => ({ job: j, hay: jobHaystack(j) })), [shown]);
   const visible = useMemo(() => {
     const tokens = tokenize(deferred);
-    const rows = indexed.filter(({ job, hay }) => (!source || job.source === source) && matchesTokens(hay, tokens)).map(({ job }) => job);
+    const verdictFits = (j: Job) => !verdict || (verdict === 'none' ? !j.verdict : j.verdict === verdict);
+    const rows = indexed
+      .filter(({ job, hay }) => (!source || job.source === source) && verdictFits(job) && matchesTokens(hay, tokens))
+      .map(({ job }) => job);
     const by: Record<Sort, (a: Job, b: Job) => number> = {
       newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
       match: (a, b) => (b.match ?? -1) - (a.match ?? -1) || b.createdAt.localeCompare(a.createdAt),
       updated: (a, b) => (b.lastUpdate ?? '').localeCompare(a.lastUpdate ?? '') || b.createdAt.localeCompare(a.createdAt),
     };
     return rows.sort(by[sort]);
-  }, [indexed, deferred, source, sort]);
+  }, [indexed, deferred, source, verdict, sort]);
 
   const grouped = useMemo(
     () => Object.fromEntries(JOB_GROUPS.map((g) => [g.id, visible.filter((j) => g.statuses.includes(j.status))])) as Record<string, Job[]>,
@@ -118,7 +123,8 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
   };
 
   const sources = useMemo(() => JOB_SOURCES.filter((s) => jobs.some((j) => j.source === s)), [jobs]);
-  const searching = deferred.trim().length > 0 || Boolean(source);
+  const searching = deferred.trim().length > 0 || Boolean(source) || Boolean(verdict);
+  const evaluated = useMemo(() => jobs.some((j) => j.verdict), [jobs]);
   const chips: { id: Stage; label: string }[] = [{ id: 'open', label: 'Open' }, ...JOB_GROUPS.map((g) => ({ id: g.id as Stage, label: g.label })), { id: 'all', label: 'All' }];
 
   const listGroups = JOB_GROUPS.filter((g) => (stage === 'all' ? true : stage === 'open' ? g.id !== 'closed' : g.id === stage)).filter((g) => grouped[g.id].length);
@@ -160,6 +166,17 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
               </option>
             ))}
           </select>
+          {evaluated ? (
+            <select value={verdict} onChange={(e) => setVerdict(e.target.value)} aria-label="Filter by verdict" className="skin-pill shrink-0 cursor-pointer border border-hairline bg-surface px-2.5 py-1.5 text-xs text-ink-2 outline-none focus-visible:outline-2 focus-visible:outline-accent">
+              <option value="">Any verdict</option>
+              {VERDICTS.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+              <option value="none">Not evaluated</option>
+            </select>
+          ) : null}
           <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort jobs" className="skin-pill shrink-0 cursor-pointer border border-hairline bg-surface px-2.5 py-1.5 text-xs text-ink-2 outline-none focus-visible:outline-2 focus-visible:outline-accent">
             {(Object.keys(SORT_LABEL) as Sort[]).map((s) => (
               <option key={s} value={s}>
@@ -239,7 +256,7 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
           <Card>
             <div className="px-4 py-10 text-center">
               <p className="text-sm font-medium text-ink">Nothing here</p>
-              <p className="mt-0.5 text-xs text-ink-muted">{searching ? 'Try a different search or source.' : 'No jobs in this stage yet.'}</p>
+              <p className="mt-0.5 text-xs text-ink-muted">{searching ? 'Try a different search, source or verdict.' : 'No jobs in this stage yet.'}</p>
             </div>
           </Card>
         ) : (

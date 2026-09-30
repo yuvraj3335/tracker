@@ -381,25 +381,79 @@ Follow-ups are derived, not entered:
 - **Nudge**: a week since applying with no reply.
 - **Probably ghosted**: three weeks of silence.
 
+### Judging jobs
+
+Every job gets a verdict before you spend an evening on it: **Apply, Consider,
+Research first or Skip**. The idea, and much of the method, comes from
+[career-ops](https://github.com/career-ops-hq/career-ops) (MIT): *apply better
+to fewer*, and say plainly when a job is not worth it.
+
+An AI tool scores five dimensions against the profile, 1–5 each. The tracker
+does the arithmetic:
+
+| Dimension | Weight | 5 | 1 |
+| --- | --- | --- | --- |
+| Skills | 30% | the resume shows 80%+ of the must-haves | few of them |
+| Level | 25% | the profile's level (SDE-1, 0–2 years) | firmly above it (3+ years required) |
+| Location | 15% | a target city or remote open to India | a city or region you cannot work from |
+| Pay | 15% | at or above the target | below the minimum (unknown counts as 3) |
+| Role | 15% | a target role at a company worth joining | a role or company you avoid |
+
+- **Match** is the weighted average × 20. Each red flag costs 10 points, and a
+  hard stop caps the match at 50.
+- **Full evaluation:** 80+ is Apply, 70–79 is Consider, below that is Skip.
+- **Quick look:** from the listing alone, so it never says Apply. The best it
+  gives is Research first, meaning "read it in full".
+- **Hard stops** rule a job out on their own: more experience than you have, a
+  location you can't work from, pay below your floor, a service bond, a notice
+  period too long, an avoided company, or one of your deal-breakers.
+- **Red flags** cost points: a stale posting (45+ days), a repost, a posting
+  found only on job boards, a staffing vendor, a long unpaid assignment, a
+  vague description, contradictory requirements, recent layoffs.
+- **Legitimacy** is High, Caution or Suspicious. It's written as observations,
+  never accusations. Suspicious always means Research first.
+
+The score is arithmetic on purpose, where career-ops uses a holistic judgment.
+Several AI tools write to one tracker, and each would weigh things its own way.
+Here they only score the five dimensions, and `src/lib/jobs/evaluation.ts`
+turns every tool's scores into a match and a verdict the same way.
+
+A full evaluation reads the whole posting:
+- It weights each requirement from the posting before reading the resume.
+- It matches each one with a quote from the resume, or names the gap.
+- It adds level strategy, pay questions, legitimacy signals, resume edits and
+  keywords, and saves the posting word for word.
+
+The verdict is advice. Nothing moves a job's status because of it.
+
 ### In the tracker
 
 - **Pipeline.** A board with a column per stage (to review, to apply, applied,
-  in process, offers), or the same groups as a list. Drag a card to another
-  column to move it. The move shows at once, saves to Notion behind it, and
-  can be undone for six seconds. Closed jobs fold away below the board. Search
-  covers role, company, city, source, skills and notes; sort by newest, best
-  fit or last update.
+  in process, offers), or the same groups as a list. Every card shows its
+  verdict, match, first hard stop and any doubt about the posting. Drag a card
+  to another column to move it. The move shows at once, saves to Notion behind
+  it, and can be undone for six seconds. Closed jobs fold away below the board.
+  Search covers role, company, city, source, skills and notes; filter by
+  source or verdict; sort by newest, best fit or last update.
 - **Funnel.** One bar showing where every job stands, with applied, this
   week, interviewing, heard back and to follow up beside it. Each stage links
   to the pipeline filtered to it.
 - **Needs attention.** Due follow-ups and quiet applications, each with the
   action that clears it. *Followed up* logs it and sets the next follow-up a
   week out. The others are *Mark ghosted* and *Snooze a week*.
-- **The job page.** A stage stepper, the actions that fit the stage (*I
-  applied*, *They replied*, *Got an assessment*, *Interview scheduled*…), how
-  to apply, why it fits, the posting's own description, and the timeline with
-  a form to log to it.
-- **Dashboard.** A card with the count at each stage and the next follow-ups.
+- **The job page.** The verdict first:
+  - the match and a one-line summary;
+  - level fit, legitimacy, hard stops and red flags;
+  - the five scores as bars, and the skill gaps;
+  - one suggested step, which you can take or ignore: *Shortlist it* or *Skip it*.
+
+  Then how to apply and the full evaluation: each requirement against your
+  resume, pay, legitimacy signals, resume edits, keywords and the saved posting.
+  Below those are a stage stepper, the actions that fit the stage (*I applied*,
+  *They replied*, *Got an assessment*…), and the timeline. A job not evaluated
+  yet shows the prompt to ask your AI tool.
+- **Dashboard.** A card with the count at each stage, how many jobs look worth
+  applying to, and the next follow-ups.
 
 The code is in three folders:
 - `src/lib/jobs/`: the model, pipeline rules, dedupe, input parsing, and the
@@ -421,8 +475,18 @@ lives in:
 - **Job Applications**: role, company, status, source, links, match, why it
   fits, how to apply, salary, experience, skills, dates, referral, contact and
   notes, with Pipeline, Applied and Follow-ups views.
-- **Job Profile**: target roles, experience, locations, work modes, skills,
-  must-haves, deal-breakers, target and avoided companies, and your resume.
+  - The judgment has its own columns: Verdict, Level Fit, Legitimacy, Hard
+    Stops, Red Flags, Role Family, Skill Gaps, Scores, Evaluation (quick or
+    full), Evaluated On, and Report.
+  - A full evaluation's report is a child page of the job. A re-evaluation
+    replaces it.
+- **Job Profile**: target roles, experience, locations, work modes, relocation,
+  target and minimum salary, notice period, skills, must-haves, deal-breakers,
+  target and avoided companies, and your resume.
+
+An account set up before the judgment columns existed gets them automatically,
+on its first evaluation. The migration only adds columns, and never changes or
+removes one, including any you added yourself.
 
 It is resumable the same way the original setup is: ids are saved the moment
 they exist, and a database made by an attempt that died is adopted rather than
@@ -433,6 +497,12 @@ Duplicates are refused on write:
   subdomains and `/apply` suffixes.
 - **The same role at the same company in the same city**: this catches one job
   cross-posted on LinkedIn and Naukri.
+
+A duplicate can also be the company **posting the job again**: the same board,
+a new posting id, on a different day within 90 days. It is still not saved
+twice, but the tracked copy is flagged Reposted and re-scored. Two same-title
+openings posted the same day count as two openings, not a repost. That rule
+comes from career-ops too.
 
 ### Finding jobs
 
@@ -500,7 +570,7 @@ recording is the job.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 945 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, MCP, board readers, career sites, job writes |
+| `npm run test` | 1036 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, the rubric, evaluation reports, MCP, board readers, career sites, job writes |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
@@ -533,6 +603,17 @@ of steps, not an automatic inversion.
 
 Responsive: bottom tab bar on phones (inside the iOS safe area), top nav on
 laptops.
+
+## Credits
+
+The job-judging approach — the verdict, the "do not apply" line, hard stops,
+legitimacy tiers, repost detection, weighting requirements before reading the
+resume — is adapted from [career-ops](https://github.com/career-ops-hq/career-ops)
+by santifer and its contributors, released under the MIT licence.
+
+The code here is written for this app. So are the five weighted dimensions and
+the 0–100 scale, adapted from their 1–5 score: their "do not apply below 4.0"
+is our 80, and their triage's hard-stop cap of 2.5 is our 50.
 
 ## Data provenance
 

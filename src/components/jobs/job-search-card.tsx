@@ -35,9 +35,11 @@ export function JobSearchCard({ summary }: { summary: PipelineSummary | null }) 
         </CardTitle>
         <CardDescription>
           {summary.applied
-            ? `${summary.applied} applied · ${Math.round(summary.responseRate * 100)}% heard back${summary.appliedLast7Days ? ` · ${summary.appliedLast7Days} this week` : ''}`
+            ? `${summary.applied} applied · ${Math.round(summary.responseRate * 100)}% heard back${summary.appliedLast7Days ? ` · ${summary.appliedLast7Days} this week` : ''}${summary.worthApplying ? ` · ${summary.worthApplying} worth applying` : ''}`
             : summary.total
-              ? 'Nothing applied to yet — your shortlist is waiting.'
+              ? summary.worthApplying
+                ? `Nothing applied to yet — ${summary.worthApplying} ${summary.worthApplying === 1 ? 'looks' : 'look'} worth it.`
+                : 'Nothing applied to yet — your shortlist is waiting.'
               : 'No jobs yet. Ask your AI tool to find some.'}
         </CardDescription>
       </CardHeader>

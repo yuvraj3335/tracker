@@ -38,6 +38,8 @@ export type Tenant = {
   jobsDs: string | null;
   jobsProfileDs: string | null;
   jobsProfilePageId: string | null;
+  /** The job databases' schema version. Raised in place once a migration runs. */
+  jobsSchema: number;
   /** Where Notion builds new databases for this account. */
   parentPageId: string | null;
 };
@@ -54,6 +56,7 @@ function tenantOf(user: Pick<User, 'id' | 'username'>, connection: Connection, t
     jobsDs: connection.jobsDs,
     jobsProfileDs: connection.jobsProfileDs,
     jobsProfilePageId: connection.jobsProfilePageId,
+    jobsSchema: connection.jobsSchema,
     parentPageId: connection.parentPageId,
   };
 }
