@@ -97,6 +97,9 @@ export function seniorityOf(role: string, experience: string): Seniority {
   if (/\b(intern|internship|trainee|apprentice)\b/.test(r)) return 'intern';
   if (/\b(senior|sr\.?|staff|principal|lead|manager|architect|director|dir|head|vp|avp|svp|evp|vice president|distinguished|fellow)\b/.test(r)) return 'senior';
   if (/\b(junior|jr\.?|graduate|entry|fresher|associate|new grad)\b/.test(r) || /\b(sde|swe|engineer|developer)\s*(-|\s)?\s*(i|1)\b/.test(r)) return 'entry';
+  // Years written into the title ("Software Engineer (0-4 Years)") say more
+  // than any digit in it.
+  if (!experience) experience = experienceFromText(role);
   const min = /^(\d{1,2})/.exec(experience)?.[1];
   if (min !== undefined) {
     const n = Number(min);
@@ -104,7 +107,11 @@ export function seniorityOf(role: string, experience: string): Seniority {
     if (n <= 4) return 'mid';
     return 'senior';
   }
-  if (/\b(ii|2|iii|3)\b/.test(r)) return 'mid';
+  // III and IV sit above the SDE-1 band (JPMorgan's "Software Engineer III"
+  // asks for 3+ years); II is the reachable stretch. A digit counts only as a
+  // level, right after the role word — "Grade 3", "3 months" and "0-4" are not.
+  if (/\b(iii|iv)\b/.test(r) || /\b(sde|swe|engineer|developer)\s*[-–]?\s*[34]\b/.test(r)) return 'senior';
+  if (/\bii\b/.test(r) || /\b(sde|swe|engineer|developer)\s*[-–]?\s*2\b/.test(r)) return 'mid';
   return 'unknown';
 }
 

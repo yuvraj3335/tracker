@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireTenant, type Tenant } from '@/lib/tenant';
-import { addJobs, logJobEvent, saveProfile, trashJob, updateJob, JobsError, type Actor } from '@/lib/jobs/notion';
+import { addJobs, getJobs, logJobEvent, recordPostingChecks, saveProfile, trashJob, updateJob, JobsError, type Actor } from '@/lib/jobs/notion';
+import { checkPostingApi } from '@/lib/job-search/liveness-api';
+import { createRateLimiter, retryAfterSeconds } from '@/lib/rate-limit';
 import { setupJobs } from '@/lib/jobs/setup';
 import { LOGGABLE_KINDS, coerceStatus, parseEventInput, parseJobPatch, parseNewJob, parseProfile, type JobEventKind } from '@/lib/jobs';
 import { shiftKey, todayKey } from '@/lib/date';
@@ -141,6 +143,60 @@ export async function snoozeAction(id: string, days = 7): Promise<ActionState> {
   }
   revalidateJobs(id);
   return { ok: true, message: `Follow-up moved to ${n} day${n === 1 ? '' : 's'} from now.` };
+}
+
+/**
+ * "Is it still open?" from the job page, for postings on a board with an API.
+ * The job is looked up in this account's own list — the ownership check —
+ * and only the board's own API is asked; pages on other sites need the
+ * connector's browser, which the tracker does not have.
+ */
+/** Each check is a request to someone else's API, so a person gets a sensible number of them. */
+const postingChecks = createRateLimiter(30, 10 * 60_000);
+
+export async function checkPostingAction(id: string): Promise<ActionState & { state?: string }> {
+  try {
+    const t = await requireTenant();
+    const rate = postingChecks(t.userId);
+    if (!rate.allowed) return { ok: false, message: `That is a lot of checks. Try again in ${retryAfterSeconds(rate.retryAfterMs)} seconds.` };
+    const bare = id.replace(/-/g, '').toLowerCase();
+    const job = (await getJobs(t, { fresh: true })).find((j) => j.id.replace(/-/g, '').toLowerCase() === bare);
+    if (!job) return { ok: false, message: 'That job is no longer in your tracker.' };
+    const r = await checkPostingApi(job.jobUrl ?? job.applyUrl, job.company);
+    if (!r) {
+      return { ok: false, message: 'This site has no posting API the tracker can ask. Your AI tool can check the page with the local connector (check_job_pages).' };
+    }
+    await recordPostingChecks(t, [{ job, state: r.state, reason: r.reason }]);
+    revalidateJobs(id);
+    const said: Record<string, string> = {
+      Open: 'Still open.',
+      Closed: `Closed — ${r.reason}.`,
+      Unclear: `Could not tell — ${r.reason}.`,
+      Blocked: `The site would not let the tracker check — ${r.reason}.`,
+    };
+    return { ok: true, message: said[r.state], state: r.state };
+  } catch (e) {
+    return problem(e);
+  }
+}
+
+/**
+ * The override: you looked, and the posting is up. A check can be wrong —
+ * a site that had not finished loading, a banner about some other role —
+ * and a wrong Closed must never be the last word.
+ */
+export async function markPostingOpenAction(id: string): Promise<ActionState> {
+  try {
+    const t = await requireTenant();
+    const bare = id.replace(/-/g, '').toLowerCase();
+    const job = (await getJobs(t, { fresh: true })).find((j) => j.id.replace(/-/g, '').toLowerCase() === bare);
+    if (!job) return { ok: false, message: 'That job is no longer in your tracker.' };
+    await recordPostingChecks(t, [{ job, state: 'Open', reason: 'you checked it yourself' }]);
+  } catch (e) {
+    return problem(e);
+  }
+  revalidateJobs(id);
+  return { ok: true, message: 'Marked as still open.' };
 }
 
 export async function addJobAction(_prev: ActionState, form: FormData): Promise<ActionState> {

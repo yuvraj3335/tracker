@@ -14,6 +14,7 @@ import {
   LEGITIMACY,
   LEVEL_FITS,
   P,
+  POSTING_STATES,
   RED_FLAGS,
   ROLE_FAMILIES,
   VERDICTS,
@@ -21,6 +22,7 @@ import {
   jobsProperties,
   type AddedBy,
   type JobStatus,
+  type PostingState,
 } from '../schema';
 import { callerFor, type Caller } from '../provision';
 import { claimJobsLease, ensureSchema, hasDatabase, releaseJobsLease, saveJobsSchema } from '../db';
@@ -165,6 +167,8 @@ export function mapJob(page: any): Job {
     evaluation: known(EVAL_DEPTHS, sel(p[P.job.evaluation])),
     evaluatedOn: dt(p[P.job.evaluatedOn]),
     reportUrl: ur(p[P.job.report]),
+    posting: known(POSTING_STATES, sel(p[P.job.posting])),
+    checkedOn: dt(p[P.job.checkedOn]),
     notionUrl: typeof page.url === 'string' ? page.url : '',
     createdAt: typeof page.created_time === 'string' ? page.created_time : '',
   };
@@ -215,6 +219,7 @@ export function jobProperties(f: Writable): Record<string, any> {
     ['legitimacy', P.job.legitimacy],
     ['roleFamily', P.job.roleFamily],
     ['evaluation', P.job.evaluation],
+    ['posting', P.job.posting],
   ] as const) {
     set(k, prop, () => selectOf(f[k] as string | null));
   }
@@ -239,6 +244,7 @@ export function jobProperties(f: Writable): Record<string, any> {
     ['lastUpdate', P.job.lastUpdate],
     ['heardBackOn', P.job.heardBackOn],
     ['evaluatedOn', P.job.evaluatedOn],
+    ['checkedOn', P.job.checkedOn],
   ] as const) {
     set(k, prop, () => dateOf(f[k] as string | null));
   }
@@ -904,6 +910,55 @@ async function saveEvaluationLeased(
   }
   invalidateJobs(t.userId);
   return { job: mapJob(updated), judgment, reportUrl: created?.url ?? current.reportUrl, ...(warnings.length ? { warning: warnings.join(' ') } : {}) };
+}
+
+// ---------------------------------------------------------------------------
+// Is the posting still up
+// ---------------------------------------------------------------------------
+
+/**
+ * One check to record. `job` must come from this tenant's own job list — the
+ * callers look ids up there first, which is the ownership check, so nothing
+ * here reads the page again.
+ */
+export type PostingCheck = { job: Pick<Job, 'id' | 'posting'>; state: PostingState; reason: string };
+
+/**
+ * Records what a liveness check found: the state and the day on each job, and
+ * a timeline line the first time a posting turns up closed. The status is
+ * never moved — a closed posting after applying still has an application
+ * behind it, and before applying it is the user's call to skip.
+ *
+ * Unclear and Blocked are recorded as they are: neither is evidence the job is
+ * gone, and neither overwrites an earlier Closed.
+ */
+export async function recordPostingChecks(t: Tenant, checks: readonly PostingCheck[]): Promise<{ saved: number; errors: string[] }> {
+  if (!checks.length) return { saved: 0, errors: [] };
+  await ensureJobsSchema(t);
+  const run = callerFor(t.token);
+  const today = todayKey();
+  const out = { saved: 0, errors: [] as string[] };
+  for (const c of checks) {
+    try {
+      const keepClosed = c.job.posting === 'Closed' && (c.state === 'Unclear' || c.state === 'Blocked');
+      await withColumns(t, () =>
+        run('record posting check', () =>
+          clientFor(t.token).pages.update({
+            page_id: c.job.id,
+            properties: jobProperties({ posting: keepClosed ? 'Closed' : c.state, checkedOn: today }),
+          } as any),
+        ),
+      );
+      if (c.state === 'Closed' && c.job.posting !== 'Closed') {
+        await appendEvent(t, run, c.job.id, { date: today, kind: 'note', text: `Posting closed: ${c.reason}` }).catch(() => undefined);
+      }
+      out.saved++;
+    } catch (e) {
+      out.errors.push(`${c.job.id}: ${(e as Error).message}`);
+    }
+  }
+  invalidateJobs(t.userId);
+  return out;
 }
 
 // ---------------------------------------------------------------------------

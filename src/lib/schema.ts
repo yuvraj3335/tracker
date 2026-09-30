@@ -103,6 +103,10 @@ export const P = {
     evaluation: 'Evaluation',
     evaluatedOn: 'Evaluated On',
     report: 'Report',
+    // Whether the posting is still up. See lib/job-search/liveness. Named in
+    // full: a plain "Posting" is the kind of column someone adds themselves.
+    posting: 'Posting Status',
+    checkedOn: 'Posting Checked On',
   },
   profile: {
     name: 'Name',
@@ -160,6 +164,11 @@ export const JOB_SOURCES = [
   'Greenhouse',
   'Lever',
   'Ashby',
+  'SmartRecruiters',
+  'Workable',
+  'Oracle',
+  'Himalayas',
+  'VC job board',
   'Company site',
   'Referral',
   'Other',
@@ -243,14 +252,22 @@ export const EVAL_DEPTHS = ['Quick', 'Full'] as const;
 export type EvalDepth = (typeof EVAL_DEPTHS)[number];
 
 /**
+ * Whether a posting is still up. Unclear is checked again later, and Blocked
+ * means the site put a bot check in the way — neither is ever read as Closed.
+ */
+export const POSTING_STATES = ['Open', 'Closed', 'Unclear', 'Blocked'] as const;
+export type PostingState = (typeof POSTING_STATES)[number];
+
+/**
  * The job databases' schema version. Accounts set up at an older version get
  * the missing columns added the next time they write (lib/jobs/setup.ts).
  *   1  the original columns
  *   2  the judgment: Verdict, Level Fit, Legitimacy, Hard Stops, Red Flags,
  *      Role Family, Skill Gaps, Scores, Evaluation, Evaluated On, Report;
  *      Minimum Salary and Open To Relocation on the profile
+ *   3  Posting Status and Posting Checked On: whether the posting is still up
  */
-export const JOBS_SCHEMA_VERSION = 2;
+export const JOBS_SCHEMA_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Property builders (thin wrappers so the seeder stays readable)
@@ -447,6 +464,8 @@ export function jobsProperties() {
     [P.job.evaluation]: select(EVAL_DEPTHS, { Quick: 'gray', Full: 'blue' }),
     [P.job.evaluatedOn]: date(),
     [P.job.report]: url(),
+    [P.job.posting]: select(POSTING_STATES, { Open: 'green', Closed: 'red', Unclear: 'gray', Blocked: 'yellow' }),
+    [P.job.checkedOn]: date(),
   };
 }
 

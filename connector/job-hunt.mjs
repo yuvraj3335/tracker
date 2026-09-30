@@ -11,13 +11,14 @@
  *   - Crawl4AI, running in Docker on this computer, which is the only thing
  *     here with a real browser to open job boards.
  *
- * Every tracker tool is passed straight through. Three are added locally:
- * search_job_boards, read_job_posting and check_job_hunt_setup.
+ * Every tracker tool is passed straight through. Four are added locally:
+ * search_job_boards, read_job_posting, check_job_pages and
+ * check_job_hunt_setup.
  *
  * The tracker decides which pages to open and reads what comes back; this file
  * only moves pages between Crawl4AI and the tracker. So it has no dependencies,
  * needs no build, and the knowledge of each job board lives in one tested place
- * (src/lib/job-search.ts).
+ * (src/lib/job-search/).
  *
  * Configuration, all optional except the key:
  *   ~/.config/job-tracker/key            your personal key (jt_…), chmod 600
@@ -134,6 +135,12 @@ export async function crawlerHealth() {
   }
 }
 
+/** The address a crawl finished on: Crawl4AI's redirected_url, else the one asked for. */
+export function landingOf(result, asked) {
+  const u = typeof result?.redirected_url === 'string' && result.redirected_url ? result.redirected_url : typeof result?.url === 'string' && result.url ? result.url : asked;
+  return u === asked || u.replace(/\/+$/, '') === asked.replace(/\/+$/, '') ? asked : u;
+}
+
 /** Markdown out of whatever shape this Crawl4AI version returns it in. */
 function markdownOf(result) {
   const md = result?.markdown;
@@ -189,6 +196,33 @@ export async function refuseUrl(raw, { boardsOnly = false } = {}) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// What the browser itself may reach
+//
+// Checking a link before opening it, and where the page landed after, covers
+// what this connector can see. What it cannot see — a page that navigates
+// with JavaScript once loaded, an image from the router, a name that answers
+// differently between a check and a connection — is covered by Crawl4AI
+// itself: from 0.9.4 its server sends the browser through its own pinning
+// proxy, which resolves each connection once, refuses any address that is not
+// global, and dials exactly the address it checked (egress_broker.py in the
+// image). It also refuses a request that tries to set a proxy or browser
+// flags, so no caller can switch that off. check_job_hunt_setup warns when
+// the version is older, or when CRAWL4AI_ALLOW_INTERNAL_URLS turns it off.
+// ---------------------------------------------------------------------------
+export const EGRESS_GUARD_SINCE = '0.9.4';
+
+/** True for a version at least `min`, compared number by number. */
+export function versionAtLeast(version, min) {
+  const a = String(version ?? '').split('.').map((n) => parseInt(n, 10));
+  const b = min.split('.').map((n) => parseInt(n, 10));
+  for (let i = 0; i < b.length; i++) {
+    const x = Number.isFinite(a[i]) ? a[i] : 0;
+    if (x !== b[i]) return x > b[i];
+  }
+  return true;
+}
+
 /**
  * Opens one page in Crawl4AI's browser and returns it as markdown, plus the
  * job cards when the plan carries an extraction schema. Never throws: a page
@@ -230,6 +264,15 @@ export async function crawl(plan, timeoutMs = 50_000, { boardsOnly = true } = {}
     const body = await res.json();
     const r = Array.isArray(body?.results) ? body.results[0] : body;
     if (!r) return { ...plan, markdown: '', items: null, status: null, error: 'Crawl4AI returned nothing' };
+    // Where the browser ended up, not where it was sent: a public page can
+    // redirect to the router or to Crawl4AI itself, and whatever loads there
+    // would go back to a model. The address is checked again, and the page
+    // thrown away if it landed somewhere this connector would not have opened.
+    const finalUrl = landingOf(r, plan.url);
+    if (finalUrl !== plan.url) {
+      const moved = await refuseUrl(finalUrl, { boardsOnly });
+      if (moved) return { ...plan, markdown: '', items: null, status: null, finalUrl, error: `the page redirected somewhere this connector does not open (${moved})` };
+    }
     const markdown = markdownOf(r);
     let items = null;
     if (plan.extract && r.extracted_content) {
@@ -247,6 +290,7 @@ export async function crawl(plan, timeoutMs = 50_000, { boardsOnly = true } = {}
       markdown: markdown.slice(0, items?.length ? 20_000 : 250_000),
       items,
       status: typeof r.status_code === 'number' ? r.status_code : null,
+      finalUrl,
       error: r.success === false && !markdown ? String(r.error_message || 'the page did not load').slice(0, 200) : null,
     };
   } catch (e) {
@@ -345,7 +389,7 @@ const LOCAL_TOOLS = [
     name: 'read_job_posting',
     title: 'Read a job posting',
     description:
-      'Opens one job posting with Crawl4AI on this computer and returns its text, with experience, salary, work mode and posting date where the page states them. Use it on the most promising listings before scoring them and writing how-to-apply steps.',
+      'Opens one job posting with Crawl4AI on this computer and returns its text, with experience, salary, work mode and posting date where the page states them, and posting_state: Open, Closed, Unclear or Blocked. Use it on the most promising listings before evaluating them and writing how-to-apply steps.',
     inputSchema: {
       type: 'object',
       properties: { url: { type: 'string', format: 'uri', description: 'The posting to read' } },
@@ -359,17 +403,59 @@ const LOCAL_TOOLS = [
       if (!(await crawlerHealth()).ok) return fail(NO_CRAWLER());
       const page = await crawl({ url, delay: 1.5, scroll: false }, 45_000, { boardsOnly: false });
       if (page.error) return text({ url, readable: false, reason: page.error });
-      const read = await trackerConnector({ action: 'posting', url, markdown: page.markdown, status: page.status });
-      if (read.blocked) return text({ url, readable: false, reason: read.blocked });
+      const read = await trackerConnector({ action: 'posting', url, markdown: page.markdown, status: page.status, final_url: page.finalUrl });
+      if (read.blocked) return text({ url, readable: false, reason: read.blocked, posting_state: read.posting_state ?? null });
       return text({
         url,
         readable: true,
+        posting_state: read.posting_state ?? null,
+        posting_reason: read.posting_reason ?? null,
         title: read.title || null,
         experience: read.experience || null,
         salary: read.salary || null,
         work_mode: read.workMode || null,
         posted_on: read.postedOn,
         text: read.text,
+      });
+    },
+  },
+  {
+    name: 'check_job_pages',
+    title: 'Check posting pages are still up',
+    description:
+      'For tracked jobs on sites with no posting API (LinkedIn, Naukri, company pages): opens each posting with Crawl4AI on this computer and records on the job whether it is still open. Call check_postings first and pass the ids it returned under needs_page_check — up to 8 at a time. Pages behind a sign-in or a bot check are recorded as Blocked, never as Closed. Never changes a status.',
+    inputSchema: {
+      type: 'object',
+      properties: { ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 8, description: 'Job ids from check_postings → needs_page_check' } },
+      required: ['ids'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    async run(args) {
+      const ids = (Array.isArray(args.ids) ? args.ids : []).map((i) => String(i).trim()).filter(Boolean).slice(0, 8);
+      if (!ids.length) return fail('Give the job ids to check — check_postings lists them under needs_page_check.');
+      if (!(await crawlerHealth()).ok) return fail(NO_CRAWLER());
+      // The links come from the tracker, for jobs that are the user's own.
+      const listed = await trackerRpc('tools/call', { name: 'check_postings', arguments: { ids } }, 60_000);
+      if (listed?.isError) return fail(listed?.content?.[0]?.text || 'The tracker could not list those jobs.');
+      let answer = {};
+      try {
+        answer = JSON.parse(listed?.content?.[0]?.text ?? '{}');
+      } catch {
+        return fail('The tracker answered in a shape this connector does not know. Update the connector (git pull in the tracker folder).');
+      }
+      const todo = Array.isArray(answer.needs_page_check) ? answer.needs_page_check.slice(0, 8) : [];
+      const pages = await pool(todo, 3, async (j) => {
+        const page = await crawl({ url: j.url, delay: 1.5, scroll: false }, 45_000, { boardsOnly: false });
+        // The tracker reads 50,000 characters of a page; more would only risk the request's size limit.
+        return { id: j.id, status: page.status, final_url: page.finalUrl ?? null, markdown: (page.markdown ?? '').slice(0, 50_000), error: page.error ?? null };
+      });
+      const recorded = pages.length ? await trackerConnector({ action: 'liveness', pages }, 60_000) : { results: [] };
+      return text({
+        today: answer.today,
+        checked_by_api: { closed: answer.closed ?? [], open: answer.open ?? 0, unclear: answer.unclear ?? [] },
+        checked_by_page: recorded.results ?? [],
+        ...(recorded.not_saved ? { not_saved: recorded.not_saved } : {}),
       });
     },
   },
@@ -390,8 +476,18 @@ const LOCAL_TOOLS = [
       } catch (e) {
         tracker = { ok: false, detail: e.message };
       }
+      const guarded = crawler.ok && versionAtLeast(crawler.version, EGRESS_GUARD_SINCE);
       return text({
-        crawl4ai: crawler.ok ? { ok: true, url: crawlerUrl(), version: crawler.version } : { ok: false, url: crawlerUrl(), fix: NO_CRAWLER() },
+        crawl4ai: crawler.ok
+          ? {
+              ok: true,
+              url: crawlerUrl(),
+              version: crawler.version,
+              browser_egress: guarded
+                ? `Crawl4AI ${crawler.version} keeps its browser to public addresses. Leave CRAWL4AI_ALLOW_INTERNAL_URLS unset.`
+                : `Crawl4AI ${crawler.version ?? '(unknown version)'} predates the egress guard (${EGRESS_GUARD_SINCE}): a page could make its browser reach this computer's network. Update: npm run crawler:setup`,
+            }
+          : { ok: false, url: crawlerUrl(), fix: NO_CRAWLER() },
         tracker: { url: trackerUrl(), key_saved: Boolean(trackerKey()), ...tracker },
       });
     },
@@ -399,7 +495,7 @@ const LOCAL_TOOLS = [
 ];
 
 const INSTRUCTIONS =
-  "This connects the user's job application tracker (their own Notion, through their tracker website) with Crawl4AI on their computer. Use search_job_boards for LinkedIn, Naukri, foundit, Glassdoor and Wellfound; search_company_jobs for company career sites (Workday, Greenhouse, Lever, Ashby); read_job_posting to read a posting in full. Read get_job_hunt_playbook before a job search, and follow it. If something fails, call check_job_hunt_setup. Never apply, send messages or sign in on the user's behalf.";
+  "This connects the user's job application tracker (their own Notion, through their tracker website) with Crawl4AI on their computer. Use search_job_boards for LinkedIn, Naukri, foundit, Glassdoor and Wellfound; search_company_jobs for company career sites and job feeds; read_job_posting to read a posting in full; check_postings and then check_job_pages to find postings that have closed. Read get_job_hunt_playbook before a job search or an evaluation, and follow it. If something fails, call check_job_hunt_setup. Never apply, send messages or sign in on the user's behalf.";
 
 // ---------------------------------------------------------------------------
 // Protocol

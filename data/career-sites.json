@@ -1,6 +1,6 @@
 {
-  "verifiedOn": "2026-09-29",
-  "source": "each entry answered its public job API and listed at least one job in India or remote on that date",
+  "verifiedOn": "2026-09-30",
+  "source": "each site answered its public job API and listed at least one job in India or remote on that date; each feed returned India or remote software roles",
   "sites": [
     {
       "name": "Adobe",
@@ -13,6 +13,10 @@
       "name": "Airbnb",
       "ats": "greenhouse",
       "slug": "airbnb"
+    },
+    {
+      "name": "Amazon",
+      "ats": "amazon"
     },
     {
       "name": "Analog Devices",
@@ -32,6 +36,11 @@
       "host": "autodesk.wd1.myworkdayjobs.com",
       "tenant": "autodesk",
       "site": "Ext"
+    },
+    {
+      "name": "Bosch",
+      "ats": "smartrecruiters",
+      "slug": "BoschGroup"
     },
     {
       "name": "Broadcom",
@@ -148,6 +157,16 @@
       "slug": "fivetran"
     },
     {
+      "name": "Fortanix",
+      "ats": "workable",
+      "slug": "fortanix"
+    },
+    {
+      "name": "Freshworks",
+      "ats": "smartrecruiters",
+      "slug": "Freshworks"
+    },
+    {
       "name": "GitLab",
       "ats": "greenhouse",
       "slug": "gitlab"
@@ -192,6 +211,12 @@
       "host": "intel.wd1.myworkdayjobs.com",
       "tenant": "intel",
       "site": "External"
+    },
+    {
+      "name": "JPMorgan Chase",
+      "ats": "oracle",
+      "host": "jpmc.fa.oraclecloud.com",
+      "site": "CX_1001"
     },
     {
       "name": "KLA",
@@ -271,6 +296,11 @@
       "name": "New Relic",
       "ats": "greenhouse",
       "slug": "newrelic"
+    },
+    {
+      "name": "NielsenIQ",
+      "ats": "smartrecruiters",
+      "slug": "NielsenIQ"
     },
     {
       "name": "NVIDIA",
@@ -374,6 +404,11 @@
       "slug": "scaleai"
     },
     {
+      "name": "ServiceNow",
+      "ats": "smartrecruiters",
+      "slug": "ServiceNow"
+    },
+    {
       "name": "slice",
       "ats": "greenhouse",
       "slug": "slice"
@@ -437,6 +472,11 @@
       "site": "Visa"
     },
     {
+      "name": "Wabtec",
+      "ats": "smartrecruiters",
+      "slug": "Wabtec"
+    },
+    {
       "name": "Warner Bros. Discovery",
       "ats": "workday",
       "host": "warnerbros.wd5.myworkdayjobs.com",
@@ -459,6 +499,21 @@
       "name": "Zscaler",
       "ats": "greenhouse",
       "slug": "zscaler"
+    }
+  ],
+  "feeds": [
+    {
+      "name": "Workable (every company)",
+      "ats": "workable-search"
+    },
+    {
+      "name": "Himalayas (remote)",
+      "ats": "himalayas"
+    },
+    {
+      "name": "Accel portfolio companies",
+      "ats": "getro",
+      "collection": 8672
     }
   ]
 }

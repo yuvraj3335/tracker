@@ -62,10 +62,14 @@ import {
   salaryFromText,
   seniorityOf,
 } from '../src/lib/job-search';
-import { CAREER_SITES, companiesFrom, locationMatches, titleMatches, workdayPosted } from '../src/lib/job-search/career-sites';
+import { CAREER_SITES, JOB_FEEDS, companiesFrom, locationMatches, tidyPlace, titleMatches, workdayPosted } from '../src/lib/job-search/career-sites';
+import { allowedJobApi } from '../src/lib/job-search/fetch';
+import { dayFromWords, readAmazon, readGetro, readHimalayas, readOracle, readSmartRecruiters, readWorkableAccount, readWorkableSearch, workdayIndiaFacet } from '../src/lib/job-search/providers';
+import { pageVerdict, postingRef } from '../src/lib/job-search/liveness';
+import { checkPostingApi } from '../src/lib/job-search/liveness-api';
 import { JobsError, ensureJobsSchema, eventBlock, getJob, initialBody, jobProperties, logJobEvent, mapJob, missingProperties, pageIdFromUrl, saveEvaluation, splitBody, updateJob } from '../src/lib/jobs/notion';
-import { jobsProperties } from '../src/lib/schema';
-import { BOARD_IDS as CONNECTOR_BOARDS, refuseUrl } from '../connector/job-hunt.mjs';
+import { JOBS_SCHEMA_VERSION, jobsProperties } from '../src/lib/schema';
+import { BOARD_IDS as CONNECTOR_BOARDS, EGRESS_GUARD_SINCE, landingOf, refuseUrl, versionAtLeast } from '../connector/job-hunt.mjs';
 import { P } from '../src/lib/schema';
 import type { Tenant } from '../src/lib/tenant';
 import { clampInt, cn } from '../src/lib/utils';
@@ -294,7 +298,7 @@ export async function jobTests(check: Check, section: (s: string) => void) {
     check('every tool says whether it only reads', JOB_TRACKER_SERVER.tools.every((t) => typeof t.annotations?.readOnlyHint === 'boolean'));
     check('no tool deletes anything', JOB_TRACKER_SERVER.tools.every((t) => t.annotations?.destructiveHint !== true));
     const mentioned = [...new Set(PLAYBOOK.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? [])].filter((w) => /^(get|search|read|add|list|update|log|check|evaluate)_/.test(w));
-    const connectorOnly = new Set(['search_job_boards', 'read_job_posting', 'check_job_hunt_setup']);
+    const connectorOnly = new Set(['search_job_boards', 'read_job_posting', 'check_job_pages', 'check_job_hunt_setup']);
     const missing = mentioned.filter((m) => !names.includes(m) && !connectorOnly.has(m));
     check('every tool the playbook names exists', missing.length === 0, missing.join(', '));
     check('the connector searches exactly the boards the tracker plans', JSON.stringify([...CONNECTOR_BOARDS].sort()) === JSON.stringify([...BOARD_IDS].sort()));
@@ -431,7 +435,9 @@ export async function jobTests(check: Check, section: (s: string) => void) {
   // -----------------------------------------------------------------------
   section('Company career sites');
   {
-    check('every listed site is complete', CAREER_SITES.every((s) => s.name && (s.ats === 'workday' ? s.host.endsWith('.myworkdayjobs.com') && s.tenant && s.site : s.slug)));
+    check('every listed site is complete', CAREER_SITES.every((s) => s.name && (s.ats === 'workday' ? s.host.endsWith('.myworkdayjobs.com') && s.tenant && s.site : s.ats === 'oracle' ? s.host.endsWith('.oraclecloud.com') && s.site : s.ats === 'amazon' ? true : s.slug)));
+    check('every listed site and feed is one the fetcher may reach', [...CAREER_SITES.filter((s) => s.ats === 'workday' || s.ats === 'oracle').map((s) => `https://${(s as { host: string }).host}/x`)].every(allowedJobApi));
+    check('the feeds are there', JOB_FEEDS.length === 3 && JOB_FEEDS.every((f) => f.name));
     check('no company is listed twice', new Set(CAREER_SITES.map((s) => s.name.toLowerCase())).size === CAREER_SITES.length);
     check('the list is the verified one, not a stub', CAREER_SITES.length >= 60, String(CAREER_SITES.length));
     check('"SDE" finds "Software Development Engineer"', titleMatches('Software Development Engineer II', 'SDE 1'));
@@ -624,13 +630,153 @@ export async function jobTests(check: Check, section: (s: string) => void) {
     check('a fixed one keeps its options', Array.isArray((diff.missing[P.job.hardStops] as { multi_select: { options: unknown[] } }).multi_select.options));
   }
 
+  section('Job sources: the new APIs');
+  {
+    const sr = readSmartRecruiters({ content: [{ id: '744000152588729', name: 'Software Engineer', releasedDate: '2026-09-30T04:41:43.236Z', location: { city: 'Bangalore', region: 'Karnataka', country: 'in', remote: true, fullLocation: 'Bangalore, Karnataka, India' }, experienceLevel: { id: 'entry_level' }, company: { identifier: 'ServiceNow' } }, { id: '1', name: 'X', experienceLevel: { id: 'constructor' }, company: { identifier: 'A' } }] });
+    check('SmartRecruiters: the public posting link, date, place and level', sr[0].url === 'https://jobs.smartrecruiters.com/ServiceNow/744000152588729' && sr[0].postedOn === '2026-09-30' && sr[0].location.startsWith('Bangalore') && sr[0].remote && sr[0].level === 'entry');
+    check('SmartRecruiters: an odd level id is no level, and a short id no link', sr[1].level === undefined && sr[1].url === '');
+    const amz = readAmazon({ jobs: [{ title: 'Software Development Engineer', normalized_location: 'Bengaluru, Karnataka, IND', posted_date: 'September 30, 2026', job_path: '/en/jobs/10565511/sde', basic_qualifications: '- 3+ years of non-internship professional software development experience<br/>- more' }, { title: 'SDE Intern', job_path: 'javascript:alert(1)', is_intern: true }] });
+    check('Amazon: link, day from words, and the years from its qualifications', amz[0].url === 'https://www.amazon.jobs/en/jobs/10565511/sde' && amz[0].postedOn === '2026-09-30' && amz[0].experience === '3+ yrs');
+    check('Amazon: a strange path is no link; an internship is entry level', amz[1].url === '' && amz[1].level === 'entry');
+    check('days in words parse without Date guessing', dayFromWords('February 3, 2026') === '2026-02-03' && dayFromWords('Smarch 3, 2026') === null);
+    const orc = readOracle({ items: [{ requisitionList: [{ Id: '210782490', Title: 'Software Engineer II', PrimaryLocation: 'Hyderabad, Telangana, India', PostedDate: '2026-09-30' }] }] }, { host: 'jpmc.fa.oraclecloud.com', site: 'CX_1001' });
+    check('Oracle: the candidate page for the requisition', orc[0].url === 'https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210782490' && orc[0].postedOn === '2026-09-30');
+    const wka = readWorkableAccount({ jobs: [{ title: 'Backend Engineer', shortcode: 'B000B621D0', published_on: '2026-09-28', locations: [{ city: 'Bengaluru', region: 'Karnataka', country: 'India' }], telecommuting: false }] }, 'fortanix');
+    check('Workable: the link keeps the account, so a liveness check can find it', wka[0].url === 'https://apply.workable.com/fortanix/j/B000B621D0/' && wka[0].location === 'Bengaluru, Karnataka, India');
+    const wks = readWorkableSearch({ jobs: [{ title: 'Software Engineer', url: 'https://jobs.workable.com/view/abc/software-engineer', created: '2026-09-29T14:49:20.019Z', locations: ['Pune, Maharashtra, India'], workplace: 'on_site', company: { title: 'Smartstream Limited' } }, { title: 'Y', url: 'https://evil.example/x', company: { title: 'Z' } }] });
+    check('Workable search: each row names its company', wks[0].company === 'Smartstream Limited' && wks[0].location === 'Pune, Maharashtra, India');
+    check('a feed row pointing off its own site is dropped', wks[1].url === '');
+    const him = readHimalayas({ jobs: [{ title: 'Junior Software Engineer', companyName: 'Canonical', applicationLink: 'https://himalayas.app/companies/canonical/jobs/junior', pubDate: 1787114127, locationRestrictions: [], seniority: ['Entry-level'] }] });
+    check('Himalayas: remote, dated from seconds, entry level', him[0].remote && him[0].postedOn === '2026-08-19' && him[0].level === 'entry' && him[0].company === 'Canonical', him[0].postedOn ?? '');
+    const gt = readGetro({ results: { jobs: [{ title: 'SDE 1', url: 'https://jobs.lever.co/acme/1', created_at: 1790780205, locations: ['San Francisco, CA, USA', 'Bengaluru, Karnataka, India'], work_mode: 'on_site', organization: { name: 'Acme' } }] } });
+    check('Getro: the Indian location first, the employer\'s own link', gt[0].location === 'Bengaluru, Karnataka, India' && gt[0].url.startsWith('https://jobs.lever.co/') && gt[0].company === 'Acme');
+    const facets = { total: 1706, facets: [{ facetParameter: 'jobFamilyGroup', values: [{ descriptor: 'Engineering', id: 'e' }] }, { facetParameter: 'locationMainGroup', values: [{ facetParameter: 'locationHierarchy1', descriptor: 'Locations', values: [{ descriptor: 'United States', id: 'us' }, { descriptor: 'India', id: '2fcb99c455831013ea52b82135ba3266' }] }] }] };
+    check("Workday: India is found in the tenant's nested location facet", JSON.stringify(workdayIndiaFacet(facets)) === '{"locationHierarchy1":["2fcb99c455831013ea52b82135ba3266"]}');
+    check('and a board with no India facet gets none', workdayIndiaFacet({ facets: [{ facetParameter: 'locations', values: [{ descriptor: 'Berlin', id: 'b' }] }] }) === null);
+    check('a country facet beats an office called "India"', JSON.stringify(workdayIndiaFacet({ facets: [{ facetParameter: 'locations', values: [{ descriptor: 'India', id: 'site' }] }, { facetParameter: 'locationMainGroup', values: [{ facetParameter: 'locationHierarchy1', values: [{ descriptor: 'India', id: 'country' }] }] }] })) === '{"locationHierarchy1":["country"]}');
+    check("SmartRecruiters' catch-all mid-senior level decides nothing", readSmartRecruiters({ content: [{ id: '744000152588729', name: 'Software Engineer', experienceLevel: { id: 'mid_senior_level' }, company: { identifier: 'X' } }] })[0].level === undefined);
+  }
+
+  section('Job sources: what the server may fetch');
+  {
+    check('the job APIs are allowed', ['https://boards-api.greenhouse.io/v1/boards/x/jobs', 'https://visa.wd5.myworkdayjobs.com/wday/cxs/visa/Visa/jobs', 'https://jpmc.fa.oraclecloud.com/hcmRestApi/x', 'https://api.smartrecruiters.com/v1/companies/x/postings', 'https://www.amazon.jobs/en/search.json', 'https://api.getro.com/api/v2/collections/1/search/jobs'].every(allowedJobApi));
+    check('anything else is refused', !['http://boards-api.greenhouse.io/v1', 'https://evil.example/', 'https://169.254.169.254/latest', 'https://user:pw@api.lever.co/v0', 'https://api.lever.co:8443/v0', 'https://boards-api.greenhouse.io.evil.example/', 'https://x.myworkdayjobs.com.evil.example/', 'not a url'].some(allowedJobApi));
+  }
+
+  section('Job sources: is the posting still up');
+  {
+    check('Greenhouse posting links', JSON.stringify(postingRef('https://job-boards.greenhouse.io/stripe/jobs/7154839')) === '{"ats":"greenhouse","board":"stripe","id":"7154839"}');
+    check('Lever and Ashby links', postingRef('https://jobs.lever.co/cred/0f3c5f1e-1b2a-4c3d-9e8f-0a1b2c3d4e5f')?.ats === 'lever' && postingRef('https://jobs.ashbyhq.com/sarvam/0f3c5f1e-1b2a-4c3d-9e8f-0a1b2c3d4e5f/application')?.ats === 'ashby');
+    const wd = postingRef('https://visa.wd5.myworkdayjobs.com/en-US/Visa/job/IN---Bengaluru-India/Software-Engineer_REF088484W');
+    check('Workday links, with or without a locale', wd?.ats === 'workday' && wd.site === 'Visa' && wd.path === 'IN---Bengaluru-India/Software-Engineer_REF088484W' && wd.tenant === 'visa');
+    check('SmartRecruiters and Workable links', postingRef('https://jobs.smartrecruiters.com/ServiceNow/744000152588729-software-engineer')?.ats === 'smartrecruiters' && postingRef('https://apply.workable.com/fortanix/j/B000B621D0/')?.ats === 'workable');
+    check('a link that only looks like one is no API address', postingRef('https://job-boards.greenhouse.io/../jobs/1') === null && postingRef('https://visa.wd5.myworkdayjobs.com.evil.example/Visa/job/x') === null && postingRef('https://www.linkedin.com/jobs/view/123') === null);
+    const step = postingRef('https://acme.wd1.myworkdayjobs.com/External/job/Chennai-India/Software-Engineer_R0123456/apply/applyManually');
+    check('a Workday apply step is still the job', step?.ats === 'workday' && step.path === 'Chennai-India/Software-Engineer_R0123456', JSON.stringify(step));
+    check('a Workday link without a job id is not a posting', postingRef('https://acme.wd1.myworkdayjobs.com/External/job/Chennai-India') === null);
+    check('EU boards are left to a page check, not the US API', postingRef('https://job-boards.eu.greenhouse.io/acme/jobs/7154839') === null && postingRef('https://jobs.eu.lever.co/acme/0f3c5f1e-1b2a-4c3d-9e8f-0a1b2c3d4e5f') === null);
+
+    const page = (text: string, status: number | null = 200, finalUrl: string | null = null, url = 'https://www.naukri.com/job-listings-sde-acme-123456789012') => pageVerdict({ status, requestedUrl: url, finalUrl, text, rendered: true });
+    check('a 404 is closed', page('', 404).state === 'Closed');
+    check('a bot check is blocked, never closed', page('Just a moment... Checking your browser before accessing').state === 'Blocked' && page('x', 403).state === 'Blocked');
+    check('"no longer accepting applications" is closed', page('Software Engineer · Acme · No longer accepting applications').state === 'Closed');
+    check('"this job has expired" is closed', page('Sorry, this job has expired. Browse similar jobs.').state === 'Closed');
+    check('"the position has been filled" is closed', page('We are sorry — the position has been filled.').state === 'Closed');
+    check('"your application form has been filled" is not', page('Thanks! Your application form has been filled in. Apply for more roles.').state !== 'Closed');
+    check('"closed-loop" is a skill, not a closure', page('Experience with closed-loop control systems. Apply now to join us.').state === 'Open');
+    check("Greenhouse's closed-job redirect is closed", page('Jobs at Acme', 200, 'https://job-boards.greenhouse.io/acme?error=true', 'https://job-boards.greenhouse.io/acme/jobs/7154839').state === 'Closed');
+    check('a redirect that dropped the job id is unclear, not closed', page('Careers at Acme. Search jobs.', 200, 'https://careers.acme.com/', 'https://careers.acme.com/jobs/7154839').state === 'Unclear');
+    check('a page with a way to apply is open', page('Software Engineer. We build payments. Easy Apply').state === 'Open');
+    check('a list of jobs instead of the job is unclear, never closed', page('37 jobs found matching software engineer').state === 'Unclear');
+    // Ordinary job text that reads like a closure (from review): none of it is Closed.
+    for (const line of [
+      'This role is not open to recruitment agencies. Apply now.',
+      'This position is not open to third-party recruiters.',
+      'This role is not open to remote candidates.',
+      'The position is not accepting sponsorship. Submit your application.',
+      'Applications will be closed on 30 Oct 2026.',
+      'Our offices are closed on 2 Oct for the holiday.',
+      'Applications are closed once we find the right candidate, so apply soon.',
+    ]) {
+      check(`not a closure: “${line.slice(0, 48)}…”`, page(line).state !== 'Closed', page(line).state);
+    }
+    check('a closed banner beside an apply button is unclear', page('This job is no longer available. Apply now for similar roles.').state === 'Unclear');
+    check('a nearly empty page is unclear, not closed', page('Loading…').state === 'Unclear');
+    check('a sign-in wall is blocked', page('Sign in to view this job. Join LinkedIn to see more jobs.').state === 'Blocked');
+    check('"Page not found." is closed', page('Oops. Page not found.').state === 'Closed');
+    check('anything else is unclear', page('Software Engineer at Acme. We build payments infrastructure for merchants across India and beyond. '.repeat(5)).state === 'Unclear');
+    check('curly quotes and accents are read the same', page('This position is no longer available — it’s been a great run').state === 'Closed');
+  }
+
+  section('Job sources: the posting APIs, from saved answers');
+  {
+    const realFetch = globalThis.fetch;
+    const answer = (routes: [RegExp, number, unknown][]) =>
+      (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        const hit = routes.find(([re]) => re.test(url));
+        if (!hit) return new Response('{}', { status: 500 });
+        return new Response(JSON.stringify(hit[2]), { status: hit[1], headers: { 'content-type': 'application/json' } });
+      }) as typeof fetch;
+    try {
+      globalThis.fetch = answer([[/\/jobs\/7154839$/, 404, {}], [/\/boards\/acme\/jobs$/, 200, { jobs: [{ id: 1 }] }]]);
+      check('Greenhouse: gone from a board still hiring is closed', (await checkPostingApi('https://job-boards.greenhouse.io/acme/jobs/7154839'))?.state === 'Closed');
+      globalThis.fetch = answer([[/\/jobs\/7154839$/, 404, {}], [/\/boards\/acme\/jobs$/, 404, {}]]);
+      check('Greenhouse: a board that is not there says nothing about the job', (await checkPostingApi('https://job-boards.greenhouse.io/acme/jobs/7154839'))?.state === 'Unclear');
+      globalThis.fetch = answer([[/api\.lever\.co/, 404, {}]]);
+      check('Lever: a 404 goes to a page check, never closed', (await checkPostingApi('https://jobs.lever.co/acme/0f3c5f1e-1b2a-4c3d-9e8f-0a1b2c3d4e5f')) === null);
+      globalThis.fetch = answer([[/api\.ashbyhq\.com/, 200, { jobs: [{ id: 'other', jobUrl: 'https://jobs.ashbyhq.com/acme/other' }] }]]);
+      check('Ashby: missing from the list goes to a page check (unlisted jobs are left out)', (await checkPostingApi('https://jobs.ashbyhq.com/acme/0f3c5f1e-1b2a-4c3d-9e8f-0a1b2c3d4e5f')) === null);
+      globalThis.fetch = answer([[/api\.ashbyhq\.com/, 200, { jobs: [{ jobUrl: 'https://jobs.ashbyhq.com/acme/0f3c5f1e-1b2a-4c3d-9e8f-0a1b2c3d4e5f' }] }]]);
+      check('Ashby: found by its link when the id field is missing', (await checkPostingApi('https://jobs.ashbyhq.com/acme/0f3c5f1e-1b2a-4c3d-9e8f-0a1b2c3d4e5f'))?.state === 'Open');
+      globalThis.fetch = answer([[/widget\/accounts\/fortanix/, 200, { jobs: [{ shortcode: 'OTHER12345' }] }]]);
+      check('Workable: missing from the list goes to a page check', (await checkPostingApi('https://apply.workable.com/fortanix/j/B000B621D0/')) === null);
+      globalThis.fetch = answer([[/postings\/744000152588729$/, 200, { active: false }]]);
+      check('SmartRecruiters: inactive is closed', (await checkPostingApi('https://jobs.smartrecruiters.com/ServiceNow/744000152588729'))?.state === 'Closed');
+      globalThis.fetch = answer([[/\/job\/India-Pune\/Engineer_JR1$/, 404, {}], [/\/jobs$/, 200, { total: 0 }]]);
+      check('Workday: a 404 on an empty board is unclear', (await checkPostingApi('https://acme.wd5.myworkdayjobs.com/External/job/India-Pune/Engineer_JR1'))?.state === 'Unclear');
+      globalThis.fetch = answer([[/\/job\/India-Pune\/Engineer_JR1$/, 404, {}], [/\/jobs$/, 200, { total: 120 }]]);
+      check('Workday: a 404 on a board still hiring is closed', (await checkPostingApi('https://acme.wd5.myworkdayjobs.com/External/job/India-Pune/Engineer_JR1'))?.state === 'Closed');
+      globalThis.fetch = answer([[/.*/, 429, {}]]);
+      check('a rate limit is blocked, not closed', (await checkPostingApi('https://job-boards.greenhouse.io/acme/jobs/7154839'))?.state === 'Blocked');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+
+  section('Connector: where a page actually landed');
+  {
+    const asked = 'https://careers.acme.com/jobs/1';
+    check('no redirect is the address asked for', landingOf({ url: asked }, asked) === asked && landingOf({}, asked) === asked);
+    check('a trailing slash is not a move', landingOf({ redirected_url: `${asked}/` }, asked) === asked);
+    const moved = landingOf({ redirected_url: 'http://192.168.1.1/admin' }, asked);
+    check('a redirect is reported as where it went', moved === 'http://192.168.1.1/admin');
+    check('and a landing on this network is refused', Boolean(await refuseUrl(moved)));
+    check('a landing on a public site is allowed', (await refuseUrl('https://example.com/careers')) === null);
+    check("Crawl4AI's egress guard is recognised by version", versionAtLeast('0.9.4', EGRESS_GUARD_SINCE) && versionAtLeast('0.10.0', EGRESS_GUARD_SINCE) && !versionAtLeast('0.8.9', EGRESS_GUARD_SINCE) && !versionAtLeast(null, EGRESS_GUARD_SINCE));
+  }
+
+  section('Job sources: keys, sources and levels');
+  {
+    check('new posting ids survive link noise', postingKey('https://jobs.smartrecruiters.com/ServiceNow/744000152588729-software-engineer?trid=x') === 'smartrecruiters:744000152588729' && postingKey('https://www.amazon.jobs/en/jobs/10565511/sde?cmpid=x') === 'amazon:10565511');
+    check('Workable and Oracle ids', postingKey('https://apply.workable.com/fortanix/j/b000b621d0/') === 'workable:B000B621D0' && postingKey('https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210782490') === 'oracle:jpmc:210782490');
+    check('new sources are read off their links', sourceFromUrl('https://jobs.smartrecruiters.com/x/1') === 'SmartRecruiters' && sourceFromUrl('https://apply.workable.com/x/j/ABCDEF1234') === 'Workable' && sourceFromUrl('https://jpmc.fa.oraclecloud.com/x') === 'Oracle' && sourceFromUrl('https://himalayas.app/x') === 'Himalayas');
+    check('"Software Engineer III" is senior, not an SDE-1 stretch', seniorityOf('Software Engineer III', '') === 'senior' && seniorityOf('Software Engineer II', '') === 'mid');
+    check('III with 0–2 years stated is still entry', seniorityOf('Software Engineer III', '0–2 yrs') === 'entry');
+    check('"3D" and "Web3" are not levels', seniorityOf('3D Graphics Engineer', '') === 'unknown' && seniorityOf('Web3 Developer', '') === 'unknown');
+    check('years in the title beat a digit in it', seniorityOf('Software Engineer (0-4 Years)', '') === 'entry' && seniorityOf('Software Engineer (2-4 yrs)', '') === 'mid');
+    check('"3 months" and "Grade 3" are not levels', seniorityOf('Software Engineer (3 months contract)', '') !== 'senior' && seniorityOf('Engineer - Grade 3', '') === 'unknown');
+    check('a level right after the role is', seniorityOf('Software Engineer 3', '') === 'senior' && seniorityOf('SDE-2', '') === 'mid');
+    check('empty parts of a place are tidied', tidyPlace('hosur road bangalore, , India') === 'hosur road bangalore, India' && tidyPlace(' , Pune ,') === 'Pune');
+  }
+
   section('Jobs in Notion (fake Notion)');
   {
     const ds = '11111111-1111-1111-1111-111111111111';
     const pageId = '22222222-2222-2222-2222-222222222222';
     const tenant = (token: string): Tenant => ({
       userId: '33333333-3333-3333-3333-333333333333', username: 'tester', token, areasDs: 'a', topicsDs: 't', tasksDs: 'k',
-      dailyDs: null, jobsDs: ds, jobsProfileDs: null, jobsProfilePageId: null, jobsSchema: 2, parentPageId: null,
+      dailyDs: null, jobsDs: ds, jobsProfileDs: null, jobsProfilePageId: null, jobsSchema: JOBS_SCHEMA_VERSION, parentPageId: null,
     });
     const page = (props: Record<string, unknown>, parent = ds) => ({
       object: 'page', id: pageId, url: 'https://www.notion.so/x', created_time: '2026-09-20T00:00:00.000Z',

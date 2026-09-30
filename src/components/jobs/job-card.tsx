@@ -13,6 +13,7 @@ import {
   HardStopChip,
   LegitimacyBadge,
   MatchBadge,
+  PostingBadge,
   RedFlagChip,
   StatusSelect,
   VerdictBadge,
@@ -86,6 +87,7 @@ export const JobTile = memo(function JobTile({
           {placeChip(job) ? <Chip icon={<MapPin className="size-2.5 shrink-0" />}>{placeChip(job)}</Chip> : null}
           {job.workMode ? <Chip>{job.workMode}</Chip> : null}
           {job.hardStops[0] ? <HardStopChip>{job.hardStops[0]}</HardStopChip> : null}
+          <PostingBadge posting={job.posting} />
           <LegitimacyBadge legitimacy={job.legitimacy} />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-1.5">
@@ -163,6 +165,7 @@ export const JobRow = memo(function JobRow({
           {job.redFlags.slice(0, 2).map((f) => (
             <RedFlagChip key={f}>{f}</RedFlagChip>
           ))}
+          <PostingBadge posting={job.posting} />
           <LegitimacyBadge legitimacy={job.legitimacy} />
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-meta text-ink-muted">

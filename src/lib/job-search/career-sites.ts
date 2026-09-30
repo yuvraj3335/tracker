@@ -1,50 +1,84 @@
 /**
- * Company career sites, read through their own public job APIs.
+ * Company career sites and open job feeds, read through their own public job
+ * APIs (server only).
  *
- * Workday, Greenhouse, Lever and Ashby each publish every open role on a
- * company's board as JSON — no browser, no crawler, no key — because that is
- * how job boards syndicate them. So this part of search runs right here on the
- * server, and is available to every AI tool, including the ones that can only
- * reach the tracker over the internet.
+ * Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Oracle and
+ * Amazon's own search each publish a company's open roles as JSON — no
+ * browser, no crawler, no key — because that is how job boards syndicate
+ * them. So this part of search runs right here on the server, and is
+ * available to every AI tool, including the ones that can only reach the
+ * tracker over the internet.
  *
- * What these APIs cannot do is search across companies: each answers for one
- * board. So the tracker ships a list of boards (data/career-sites.json, every
- * entry checked against its API before it was added) and adds the companies in
- * the user's own profile on top.
+ * Most of these answer for one company's board, so the tracker ships a list of
+ * boards (data/career-sites.json, every entry checked against its API before
+ * it was added) and adds the companies in the user's own profile on top. Three
+ * feeds span companies instead: Workable's own job search, Himalayas (remote)
+ * and Accel's portfolio board. Every request goes through ./fetch, which only
+ * talks to these APIs' hosts and never follows a redirect.
  */
-import sites from '../../../data/career-sites.json';
+import data from '../../../data/career-sites.json';
 
-// The four job APIs answer with untyped JSON; each reader narrows it at once.
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { shiftKey, todayKey, type DayKey } from '../date';
-import { findDuplicate, own, type Job } from '../jobs';
+import { shiftKey, todayKey } from '../date';
+import { findDuplicate, own, signature, type Job } from '../jobs';
 import { normalize } from '../search';
-import { INDIAN_PLACES, foldPlace, keepForLevel, postedFromText, seniorityOf, type LevelWanted, type Listing } from './text';
+import { INDIAN_PLACES, foldPlace, keepForLevel, seniorityOf, type LevelWanted, type Listing } from './text';
 import type { JobSource } from '../schema';
+import { getJson } from './fetch';
+import {
+  readAmazon,
+  readAshby,
+  readGetro,
+  readGreenhouse,
+  readHimalayas,
+  readLever,
+  readOracle,
+  readSmartRecruiters,
+  readWorkableAccount,
+  readWorkableSearch,
+  readWorkday,
+  workdayIndiaFacet,
+  type Raw,
+} from './providers';
 
-export type Ats = 'greenhouse' | 'lever' | 'ashby' | 'workday';
+export { workdayPosted } from './providers';
 
 export type CareerSite =
-  | { name: string; ats: 'greenhouse' | 'lever' | 'ashby'; slug: string }
-  | { name: string; ats: 'workday'; host: string; tenant: string; site: string };
+  | { name: string; ats: 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters' | 'workable'; slug: string }
+  | { name: string; ats: 'workday'; host: string; tenant: string; site: string }
+  | { name: string; ats: 'oracle'; host: string; site: string }
+  | { name: string; ats: 'amazon' };
 
-export const CAREER_SITES = (sites as { sites: CareerSite[] }).sites;
+/** A source that spans companies: each row names its own. */
+export type JobFeed =
+  | { name: string; ats: 'workable-search' | 'himalayas' }
+  | { name: string; ats: 'getro'; collection: number };
+
+type Target = CareerSite | JobFeed;
+export type Ats = Target['ats'];
+
+export const CAREER_SITES = (data as unknown as { sites: CareerSite[] }).sites;
+export const JOB_FEEDS = (data as unknown as { feeds: JobFeed[] }).feeds;
+
+const isFeed = (t: Target): t is JobFeed => t.ats === 'workable-search' || t.ats === 'himalayas' || t.ats === 'getro';
 
 const SOURCE: Record<Ats, JobSource> = {
   greenhouse: 'Greenhouse',
   lever: 'Lever',
   ashby: 'Ashby',
   workday: 'Workday',
+  smartrecruiters: 'SmartRecruiters',
+  workable: 'Workable',
+  oracle: 'Oracle',
+  amazon: 'Company site',
+  'workable-search': 'Workable',
+  himalayas: 'Himalayas',
+  getro: 'VC job board',
 };
-
-/** One posting from a company board, before any filtering. */
-type Raw = { title: string; location: string; url: string; postedOn: DayKey | null; remote: boolean };
 
 // ---------------------------------------------------------------------------
 // Fetching
 // ---------------------------------------------------------------------------
 
-const TIMEOUT_MS = 12_000;
 /**
  * The whole search must answer inside one serverless function (60 s) with room
  * to spare, so boards not reached by this point are reported as skipped
@@ -52,114 +86,95 @@ const TIMEOUT_MS = 12_000;
  */
 const DEADLINE_MS = 35_000;
 
-async function getJson(url: string, body?: unknown): Promise<any> {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: body ? 'POST' : 'GET',
-      signal: abort.signal,
-      headers: { accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
-      cache: 'no-store',
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
+/** Words only, for APIs that take the role as a filter string. */
+const words = (q: string) => q.replace(/[^\p{L}\p{N} +#.-]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
 
-const day = (v: unknown): DayKey | null => {
-  if (typeof v === 'number' && Number.isFinite(v)) return new Date(v).toISOString().slice(0, 10);
-  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
-  return null;
-};
-
-/** Workday writes "Posted Today", "Posted Yesterday", "Posted 3 Days Ago", "Posted 30+ Days Ago". */
-export function workdayPosted(text: string, today: DayKey = todayKey()): DayKey | null {
-  const s = text.toLowerCase();
-  if (/today/.test(s)) return today;
-  if (/yesterday/.test(s)) return shiftKey(today, -1);
-  return postedFromText(s.replace(/^posted\s+/, ''), today);
-}
-
-async function fetchBoard(site: CareerSite, query: string): Promise<Raw[]> {
-  const today = todayKey();
-  switch (site.ats) {
-    case 'greenhouse': {
-      const j = await getJson(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(site.slug)}/jobs`);
-      return (j?.jobs ?? []).map((x: any) => ({
-        title: String(x?.title ?? ''),
-        location: String(x?.location?.name ?? ''),
-        url: String(x?.absolute_url ?? ''),
-        postedOn: day(x?.first_published) ?? day(x?.updated_at),
-        remote: /remote/i.test(String(x?.location?.name ?? '')),
-      }));
-    }
-    case 'lever': {
-      const j = await getJson(`https://api.lever.co/v0/postings/${encodeURIComponent(site.slug)}?mode=json`);
-      return (Array.isArray(j) ? j : []).map((x: any) => {
-        const locs = [x?.categories?.location, ...(x?.categories?.allLocations ?? [])].filter(Boolean);
-        return {
-          title: String(x?.text ?? ''),
-          location: [...new Set(locs)].join(' / '),
-          url: String(x?.hostedUrl ?? ''),
-          postedOn: day(x?.createdAt),
-          remote: x?.workplaceType === 'remote' || /remote/i.test(locs.join(' ')),
-        };
-      });
-    }
-    case 'ashby': {
-      const j = await getJson(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(site.slug)}`);
-      return (j?.jobs ?? []).map((x: any) => {
-        const locs = [x?.location, ...(x?.secondaryLocations ?? []).map((s: any) => s?.location)].filter(Boolean);
-        return {
-          title: String(x?.title ?? ''),
-          location: [...new Set(locs)].join(' / '),
-          url: String(x?.jobUrl ?? ''),
-          postedOn: day(x?.publishedAt),
-          remote: x?.isRemote === true || /remote/i.test(String(x?.workplaceType ?? '')),
-        };
-      });
-    }
+async function fetchBoard(t: Target, query: string, opts: { india: boolean; entry: boolean }): Promise<Raw[]> {
+  const q = words(query);
+  switch (t.ats) {
+    case 'greenhouse':
+      return readGreenhouse(await getJson(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(t.slug)}/jobs`));
+    case 'lever':
+      return readLever(await getJson(`https://api.lever.co/v0/postings/${encodeURIComponent(t.slug)}?mode=json`));
+    case 'ashby':
+      return readAshby(await getJson(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(t.slug)}`));
     case 'workday': {
-      // Workday searches server-side, so the role goes into the request and
-      // the result depends on it — unlike the other three, which list all.
-      const j = await getJson(`https://${site.host}/wday/cxs/${site.tenant}/${site.site}/jobs`, {
-        appliedFacets: {},
-        limit: 20,
-        offset: 0,
-        searchText: query,
-      });
-      return (j?.jobPostings ?? []).map((x: any) => ({
-        title: String(x?.title ?? ''),
-        location: String(x?.locationsText ?? ''),
-        url: `https://${site.host}/${site.site}${String(x?.externalPath ?? '')}`,
-        postedOn: workdayPosted(String(x?.postedOn ?? ''), today),
-        remote: /remote/i.test(String(x?.locationsText ?? '')),
-      }));
+      // Workday searches server-side, so the role goes into the request. A
+      // big board is asked again with its own India filter, found in the
+      // first answer's facets: NVIDIA lists 1,706 matches worldwide and 140
+      // in India, and the first twenty of the 1,706 are rarely Indian.
+      const url = `https://${t.host}/wday/cxs/${t.tenant}/${t.site}/jobs`;
+      const first = await getJson(url, { body: { appliedFacets: {}, limit: 20, offset: 0, searchText: q } });
+      const facet = opts.india && Number(first?.total) > 20 ? workdayIndiaFacet(first) : null;
+      const answer = facet ? await getJson(url, { body: { appliedFacets: facet, limit: 20, offset: 0, searchText: q } }) : first;
+      return readWorkday(answer, t, todayKey());
     }
+    case 'smartrecruiters': {
+      const params = new URLSearchParams({ q, limit: '100' });
+      if (opts.india) params.set('country', 'in');
+      return readSmartRecruiters(await getJson(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(t.slug)}/postings?${params}`));
+    }
+    case 'workable':
+      return readWorkableAccount(await getJson(`https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(t.slug)}`), t.slug);
+    case 'oracle': {
+      // The finder is Oracle's own mini-syntax; its separators stay literal.
+      const finder = `findReqs;siteNumber=${encodeURIComponent(t.site)},keyword=${encodeURIComponent(q)}${opts.india ? ',location=India' : ''},limit=50,offset=0`;
+      return readOracle(
+        await getJson(
+          `https://${t.host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions?onlyData=true&expand=requisitionList.workLocation,requisitionList.secondaryLocations&finder=${finder}`,
+        ),
+        t,
+      );
+    }
+    case 'amazon': {
+      const params = new URLSearchParams({ base_query: q, result_limit: '100', offset: '0', sort: 'recent' });
+      if (opts.india) params.append('normalized_country_code[]', 'IND');
+      return readAmazon(await getJson(`https://www.amazon.jobs/en/search.json?${params}`));
+    }
+    case 'workable-search': {
+      const params = new URLSearchParams({ query: q });
+      if (opts.india) params.set('location', 'India');
+      return readWorkableSearch(await getJson(`https://jobs.workable.com/api/v1/jobs?${params}`));
+    }
+    case 'himalayas': {
+      const params = new URLSearchParams({ q });
+      if (opts.india) params.set('country', 'India');
+      if (opts.entry) params.set('seniority', 'Entry-level');
+      return readHimalayas(await getJson(`https://himalayas.app/jobs/api/search?${params}`));
+    }
+    case 'getro':
+      return readGetro(
+        await getJson(`https://api.getro.com/api/v2/collections/${t.collection}/search/jobs`, {
+          body: { hitsPerPage: 50, page: 0, filters: { page: 0, ...(opts.india ? { searchable_locations: ['India'] } : {}) }, query: q },
+        }),
+      );
   }
 }
 
 /**
  * Boards change slowly, and one job search is usually three or four roles in
- * a row, so each board's full list is kept for a few minutes. Workday is keyed
- * by query too, since its answer depends on it.
+ * a row, so each board's answer is kept for a few minutes. The ones that
+ * search server-side are keyed by the query and its options too.
  */
 const BOARD_TTL_MS = 10 * 60_000;
 const boardCache = new Map<string, { at: number; rows: Raw[] }>();
 
-function siteKey(s: CareerSite): string {
-  return s.ats === 'workday' ? `workday:${s.host}/${s.site}` : `${s.ats}:${s.slug}`;
+/** The boards that return everything whatever the query: one cache entry each. */
+const LISTS_ALL: ReadonlySet<Ats> = new Set(['greenhouse', 'lever', 'ashby', 'workable']);
+
+function targetKey(t: Target): string {
+  if ('slug' in t) return `${t.ats}:${t.slug}`;
+  if (t.ats === 'workday') return `workday:${t.host}/${t.site}`;
+  if (t.ats === 'oracle') return `oracle:${t.host}/${t.site}`;
+  if (t.ats === 'getro') return `getro:${t.collection}`;
+  return t.ats;
 }
 
-async function boardRows(site: CareerSite, query: string): Promise<Raw[]> {
-  const key = site.ats === 'workday' ? `${siteKey(site)}?${normalize(query)}` : siteKey(site);
+async function boardRows(t: Target, query: string, opts: { india: boolean; entry: boolean }): Promise<Raw[]> {
+  const key = LISTS_ALL.has(t.ats) ? targetKey(t) : `${targetKey(t)}?${normalize(query)}|${opts.india}|${opts.entry}`;
   const hit = boardCache.get(key);
   if (hit && Date.now() - hit.at < BOARD_TTL_MS) return hit.rows;
-  const rows = await fetchBoard(site, query);
+  const rows = await fetchBoard(t, query, opts);
   boardCache.set(key, { at: Date.now(), rows });
   if (boardCache.size > 500) boardCache.delete(boardCache.keys().next().value!);
   return rows;
@@ -282,8 +297,9 @@ export type CompanySearchResult = {
 /**
  * Board guesses for a company named in the profile: Greenhouse, Lever and
  * Ashby address boards by a slug that is usually the name, squashed. Workday
- * cannot be guessed — it needs a host and a site name — so only listed
- * Workday companies are searched.
+ * and Oracle cannot be guessed — they need a host and a site name — and a
+ * SmartRecruiters guess always "exists" (a wrong slug answers with no jobs), so
+ * only listed companies on those are searched.
  */
 function guessSites(name: string): CareerSite[] {
   const slug = name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
@@ -293,6 +309,16 @@ function guessSites(name: string): CareerSite[] {
 
 const namesMatch = (a: string, b: string) => normalize(a).replace(/\s+/g, '') === normalize(b).replace(/\s+/g, '');
 
+/** "hosur road bangalore, , India" → "hosur road bangalore, India". */
+export const tidyPlace = (s: string) =>
+  s.replace(/\s+/g, ' ').replace(/\s*,(\s*,)+/g, ',').replace(/\s*,\s*/g, ', ').replace(/^[,\s]+|[,\s]+$/g, '').trim();
+
+/** A search is for India unless it names somewhere else: the list is companies hiring in India. */
+function wantsIndia(location: string): boolean {
+  const w = foldPlace(location);
+  return !w.trim() || INDIAN_PLACES.test(w) || /\bremote\b|\bwfh\b|\bind\b/.test(w);
+}
+
 export async function searchCompanySites(
   req: CompanySearch,
   profileTargets: string[],
@@ -300,9 +326,12 @@ export async function searchCompanySites(
 ): Promise<CompanySearchResult> {
   const today = todayKey();
   const oldest = req.postedWithinDays > 0 ? shiftKey(today, -req.postedWithinDays) : null;
+  const opts = { india: wantsIndia(req.location), entry: req.seniority === 'entry' };
 
-  // Which boards: the named companies, or everything listed plus the profile's.
-  let targets: CareerSite[];
+  // Which boards: the named companies, or everything listed plus the
+  // profile's, plus the feeds. Naming companies skips the feeds: they are not
+  // one company, and the named ones are what was asked for.
+  let targets: Target[];
   const unmatched: string[] = [];
   const wanted = req.companies.length ? req.companies : [];
   if (wanted.length) {
@@ -313,11 +342,12 @@ export async function searchCompanySites(
       else targets.push(...guessSites(n));
     }
   } else {
-    targets = [...CAREER_SITES];
+    targets = [...CAREER_SITES, ...JOB_FEEDS];
     for (const n of profileTargets.slice(0, 15)) {
       if (!CAREER_SITES.some((s) => namesMatch(s.name, n))) targets.push(...guessSites(n));
     }
   }
+  const listed = (t: Target) => isFeed(t) || CAREER_SITES.includes(t);
 
   const failed: { name: string; ats: Ats }[] = [];
   const found = new Set<string>();
@@ -326,52 +356,66 @@ export async function searchCompanySites(
     targets,
     16,
     deadline,
-    async (site) => {
+    async (t) => {
       try {
-        const rows = await boardRows(site, req.role);
-        found.add(site.name);
-        return rows.map((r) => ({ site, r }));
+        const rows = await boardRows(t, req.role, opts);
+        if (!isFeed(t)) found.add(t.name);
+        return rows.map((r) => ({ t, r }));
       } catch {
         // A guessed board that does not exist is expected; a listed one failing is worth saying.
-        if (CAREER_SITES.includes(site)) failed.push({ name: site.name, ats: site.ats });
+        if (listed(t)) failed.push({ name: t.name, ats: t.ats });
         return [];
       }
     },
-    (site) => {
-      if (CAREER_SITES.includes(site)) failed.push({ name: site.name, ats: site.ats });
+    (t) => {
+      if (listed(t)) failed.push({ name: t.name, ats: t.ats });
       return [];
     },
   );
-  for (const n of wanted.length ? wanted : profileTargets.slice(0, 15)) {
-    if (![...found].some((f) => namesMatch(f, n))) unmatched.push(n);
-  }
 
   const listings: Listing[] = [];
   const seen = new Set<string>();
-  for (const { site, r } of results.flat()) {
+  const seenRole = new Set<string>();
+  for (const { t, r } of results.flat()) {
     if (!r.title || !/^https?:\/\//.test(r.url) || seen.has(r.url)) continue;
     if (!titleMatches(r.title, req.role)) continue;
     if (!locationMatches(r.location, r.remote, req.location)) continue;
     if (oldest && r.postedOn && r.postedOn < oldest) continue;
-    const seniority = seniorityOf(r.title, '');
+    const company = (isFeed(t) ? r.company : t.name)?.replace(/\s+/g, ' ').trim() ?? '';
+    if (!company) continue;
+    const experience = r.experience ?? '';
+    // The title's own "Senior" or "Intern" wins over the API's level: a
+    // company's "entry level" tag on a "Sr. Engineer" posting is a data slip.
+    const fromTitle = seniorityOf(r.title, experience);
     const listing: Listing = {
       role: r.title.replace(/\s+/g, ' ').trim(),
-      company: site.name,
-      location: r.location.replace(/\s+/g, ' ').trim(),
-      source: SOURCE[site.ats],
+      company,
+      location: tidyPlace(r.location),
+      source: SOURCE[t.ats],
       url: r.url,
       snippet: '',
-      experience: '',
+      experience,
       salary: '',
       postedOn: r.postedOn,
-      seniority,
+      seniority: fromTitle === 'senior' || fromTitle === 'intern' ? fromTitle : (r.level ?? fromTitle),
       alreadyTracked: false,
       existingId: null,
     };
     if (!keepForLevel(listing, req.seniority)) continue;
+    // A feed often repeats a company's own board under another URL, so a feed
+    // row whose role, company and city a board already showed is dropped.
+    // Two board rows are never merged this way: one company posting the same
+    // title in the same city twice (JPMorgan does, often) is two openings.
+    const sig = signature(listing);
+    if (isFeed(t) && seenRole.has(sig)) continue;
     seen.add(r.url);
-    const dup = findDuplicate({ jobUrl: r.url, applyUrl: null, company: site.name, role: listing.role, location: listing.location }, existing);
+    seenRole.add(sig);
+    found.add(company);
+    const dup = findDuplicate({ jobUrl: r.url, applyUrl: null, company, role: listing.role, location: listing.location }, existing);
     listings.push({ ...listing, alreadyTracked: Boolean(dup), existingId: dup?.id ?? null });
+  }
+  for (const n of wanted.length ? wanted : profileTargets.slice(0, 15)) {
+    if (![...found].some((f) => namesMatch(f, n))) unmatched.push(n);
   }
   // Newest first; undated last.
   listings.sort((a, b) => (b.postedOn ?? '').localeCompare(a.postedOn ?? ''));

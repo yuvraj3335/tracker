@@ -25,6 +25,7 @@ import type {
   JobStatus,
   Legitimacy,
   LevelFit,
+  PostingState,
   RedFlag,
   RoleFamily,
   Verdict,
@@ -86,6 +87,9 @@ export type JobJudgment = {
   evaluatedOn: DayKey | null;
   /** The full evaluation's own Notion page, a child of the job's page. */
   reportUrl: string | null;
+  /** Whether the posting was still up when last checked, and when that was. */
+  posting: PostingState | null;
+  checkedOn: DayKey | null;
 };
 
 export const NO_JUDGMENT: JobJudgment = {
@@ -101,6 +105,8 @@ export const NO_JUDGMENT: JobJudgment = {
   evaluation: null,
   evaluatedOn: null,
   reportUrl: null,
+  posting: null,
+  checkedOn: null,
 };
 
 /** A job as read back, including the fields only the system writes. */

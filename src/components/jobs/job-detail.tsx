@@ -24,7 +24,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import {
+  checkPostingAction,
   logJobEventAction,
+  markPostingOpenAction,
   quickEventAction,
   setJobStatusAction,
   snoozeAction,
@@ -46,6 +48,7 @@ import {
   FormMessage,
   LegitimacyBadge,
   MatchBadge,
+  PostingBadge,
   RichSteps,
   STATUS_COLOR,
   SelectField,
@@ -334,9 +337,61 @@ function QuickActions({ id, status, appliedOn }: { id: string; status: JobStatus
 // Facts
 // ---------------------------------------------------------------------------
 
+/**
+ * Whether the posting is still up, with a way to ask again. Only boards with
+ * a posting API answer here; for the rest the message says who can check.
+ */
+function PostingLine({ job, today }: { job: Job; today: DayKey }) {
+  const [pending, start] = useTransition();
+  const [message, setMessage] = useState<string | null>(null);
+  if (!safeHref(job.jobUrl) && !safeHref(job.applyUrl)) return null;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        {job.posting ? <PostingBadge posting={job.posting} checkedOn={job.checkedOn} today={today} all /> : <span className="text-xs text-ink-muted">Not checked yet</span>}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() =>
+            start(async () => {
+              const r = await checkPostingAction(job.id);
+              setMessage(r?.message ?? null);
+            })
+          }
+          className="inline-flex items-center gap-1 text-xs font-medium text-accent underline-offset-2 hover:underline disabled:opacity-50"
+        >
+          {pending ? <Loader2 className="size-3 animate-spin" aria-hidden /> : <Repeat className="size-3" aria-hidden />}
+          Check now
+        </button>
+        {job.posting === 'Closed' ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const r = await markPostingOpenAction(job.id);
+                setMessage(r?.message ?? null);
+              })
+            }
+            className="text-xs font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline disabled:opacity-50"
+          >
+            It&apos;s still open
+          </button>
+        ) : null}
+      </div>
+      {message ? (
+        <p className="text-micro leading-snug text-ink-muted" role="status">
+          {message}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function Facts({ job, today }: { job: Job; today: DayKey }) {
   const day = (d: string | null) => (d ? `${formatKey(d, 'd MMM yyyy')} · ${ago(d, today)}` : null);
   const rows: [string, React.ReactNode | null][] = [
+    ['Posting', <PostingLine key="posting" job={job} today={today} />],
     ['Applied', job.appliedOn ? `${day(job.appliedOn)}${job.appliedVia ? ` · ${job.appliedVia}` : ''}` : null],
     ['Heard back', day(job.heardBackOn)],
     ['Follow up', day(job.followUpOn)],
@@ -349,7 +404,7 @@ function Facts({ job, today }: { job: Job; today: DayKey }) {
     ['Posted', day(job.postedOn)],
     ['Found', job.foundOn ? `${day(job.foundOn)}${job.addedBy === 'AI' ? ' · by your AI tool' : ''}` : null],
   ];
-  const filled = rows.filter(([, v]) => v);
+  const filled = rows.filter(([k, v]) => v && (k !== 'Posting' || safeHref(job.jobUrl) || safeHref(job.applyUrl)));
   return (
     <Card>
       <CardHeader>

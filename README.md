@@ -86,7 +86,8 @@ another's data.
 | Write scope | Task writes verify the page belongs to that tenant's Tasks table; job writes verify the page belongs to that tenant's Job Applications |
 | AI tool keys | 256-bit random, shown once, stored only as SHA-256; revocable; scoped to jobs and profile; rate-limited per key |
 | Key in a URL | Only for apps that cannot send a header (claude.ai, ChatGPT); the connect page says so and suggests a separate key |
-| Crawler | Crawl4AI listens on `127.0.0.1` only, behind its own token; the tracker never reaches it |
+| Crawler | Crawl4AI listens on `127.0.0.1` only, behind its own token; the tracker never reaches it. From 0.9.4 (the version `crawler:setup` installs) Crawl4AI sends its own browser through a pinning proxy that refuses any address that is not public, so a page cannot make it reach your router or LAN by redirecting, by script, or by changing its DNS answer. On top of that, the connector checks where each page landed and throws away one that ended up inside this computer's network, and `check_job_hunt_setup` warns if Crawl4AI is older or that guard is switched off |
+| Server fetches | Only to the job APIs' own hosts, over https, never following a redirect (`src/lib/job-search/fetch.ts`); ids from posting URLs are checked against narrow patterns before they reach a request |
 | Fail closed | A missing `SESSION_SECRET` rejects every session rather than allowing all |
 
 Rotating `SESSION_SECRET` signs everybody out. Rotating `ENCRYPTION_KEY` makes
@@ -511,7 +512,8 @@ Search comes from two places, because no single place reaches everything:
 | Where | How | Runs |
 | --- | --- | --- |
 | **LinkedIn, Naukri, foundit (Monster India), Glassdoor, Wellfound** | Crawl4AI opens each board's own search page in a real browser and reads the cards | on your computer |
-| **Workday, Greenhouse, Lever, Ashby** career sites | their public job APIs, for 78 companies hiring in India (`data/career-sites.json`, each entry checked live) plus the target companies in your profile | on the tracker |
+| **Company career sites**: Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Oracle and Amazon's own search | their public job APIs, for 86 companies hiring in India (`data/career-sites.json`, each entry checked live) plus the target companies in your profile | on the tracker |
+| **Feeds across companies**: Workable's job search, Himalayas (remote) and Accel's portfolio board | the same public APIs, filtered to India | on the tracker |
 
 Each board was measured before it was added. One Software Engineer search in
 Bengaluru took 14 s and returned:
@@ -533,6 +535,47 @@ The tracker plans which page to open on each board and reads what comes back
 (`src/lib/job-search/`, with extraction selectors per board). The connector
 only carries pages between Crawl4AI and the tracker. `npm run check:boards`
 runs the whole path live and flags a board whose layout has changed.
+
+The career-site search was measured too. One entry-level Software Engineer
+search across India took 16 s over 89 boards and feeds, with none failing. It
+returned 82 listings: 38 from Workday, 10 from Greenhouse, 10 from Workable,
+6 each from SmartRecruiters and JPMorgan's Oracle site, 4 from Himalayas, and
+3 each from Amazon and Accel's board. A few details made the difference:
+- **Workday's India filter.** A big Workday board is asked again with its own
+  India filter, found in the first answer's facets. NVIDIA lists 1,706
+  software postings worldwide and 140 in India, and the first twenty of the
+  1,706 were rarely Indian.
+- **SmartRecruiters slugs.** SmartRecruiters answers 200 for a company that
+  does not exist, so only companies that showed real India postings are
+  listed.
+- **Seniority.** "Software Engineer III" counts as senior (JPMorgan's asks for
+  3+ years). "II" stays a stretch an SDE-1 search keeps, and a title's own
+  "Senior" beats an API's "entry level" tag.
+
+### Dead postings
+
+A posting that closed is worse than no posting: you write a cover note for a
+job that is gone. `check_postings` asks each board's own API. Only clear
+evidence counts as closed:
+
+| Board | Closed when |
+| --- | --- |
+| Greenhouse, Workday | the posting answers 404 |
+| Lever | the posting answers 404, and the board's full list agrees (confidential postings 404 too) |
+| Ashby, Workable | the job is missing from a non-empty board |
+| SmartRecruiters | the API marks it inactive |
+
+- **Pages with no API** (LinkedIn, Naukri, company pages) are read by the
+  connector's `check_job_pages`. It uses the same page reader as
+  career-ops's liveness check: a 404 or 410 is closed, a bot check is
+  blocked, and so is a "no longer accepting applications" banner. A redirect
+  that dropped the job id is unclear, and a visible apply button is open.
+- **Unclear and Blocked mean "look again later"**, never "gone", and never
+  overwrite an earlier Closed.
+- **The status stays yours.** A closed posting you haven't applied to shows
+  up in *Needs attention* with *Skip it*.
+- **From the job page**, *Check now* asks the board directly, for any job on
+  a board with an API.
 
 ### Using it from any AI tool
 
@@ -570,7 +613,7 @@ recording is the job.
 | --- | --- |
 | `npm run dev` | dev server |
 | `npm run build` | production build |
-| `npm run test` | 1036 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, the rubric, evaluation reports, MCP, board readers, career sites, job writes |
+| `npm run test` | 1113 self-tests: crypto, sessions, redirect safety, cursor maths, timezones, derived stats, moods, timer maths, search, keyboard, characters, job rules, the rubric, evaluation reports, MCP, board readers, career sites and feeds, dead postings, job writes |
 | `npm run keygen` | generate `SESSION_SECRET` + `ENCRYPTION_KEY` |
 | `npm run scrape` | re-scrape the sheet; fails loudly on any integrity mismatch |
 | `npm run typecheck` | `tsc --noEmit` |
@@ -614,6 +657,12 @@ by santifer and its contributors, released under the MIT licence.
 The code here is written for this app. So are the five weighted dimensions and
 the 0–100 scale, adapted from their 1–5 score: their "do not apply below 4.0"
 is our 80, and their triage's hard-stop cap of 2.5 is our 50.
+
+From career-ops as well:
+- the dead-posting signals, per ATS and on a page (`liveness-core.mjs`,
+  `liveness-api.mjs`);
+- the notes on which job APIs behave how (`providers/`);
+- the same-day rule for reposts (`detect-reposts.mjs`).
 
 ## Data provenance
 

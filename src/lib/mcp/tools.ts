@@ -41,16 +41,20 @@ import {
   getJobs,
   getProfile,
   logJobEvent,
+  recordPostingChecks,
   saveEvaluation,
   saveProfile,
   updateJob,
   type Actor,
   type NewJobInput,
+  type PostingCheck,
 } from '../jobs/notion';
+import { checkPostingApi } from '../job-search/liveness-api';
+import { daysBetween } from '../date';
 import { ToolError, jsonResult, type ServerDef, type ToolDef } from './protocol';
 import { clampInt } from '../utils';
 import { INSTRUCTIONS, PLAYBOOK, prompts } from './playbook';
-import { CAREER_SITES, companiesFrom, searchCompanySites } from '../job-search/career-sites';
+import { CAREER_SITES, JOB_FEEDS, companiesFrom, searchCompanySites } from '../job-search/career-sites';
 import {
   APPLIED_VIA,
   HARD_STOPS,
@@ -115,6 +119,7 @@ export function compactJob(j: Job, today: DayKey) {
     ...(j.hardStops.length ? { hard_stops: j.hardStops } : {}),
     ...(j.redFlags.length ? { red_flags: j.redFlags } : {}),
     evaluation: j.evaluation ? `${j.evaluation.toLowerCase()} (${j.evaluatedOn ?? 'undated'})` : null,
+    ...(j.posting ? { posting: `${j.posting.toLowerCase()} (checked ${j.checkedOn ?? 'undated'})` } : {}),
     posted_on: j.postedOn,
     found_on: j.foundOn,
     applied_on: j.appliedOn,
@@ -325,7 +330,7 @@ const tools: ToolDef<ToolContext>[] = [
   {
     name: 'search_company_jobs',
     title: 'Search company career sites',
-    description: `Searches company career sites directly — Workday, Greenhouse, Lever and Ashby — for one role. Covers ${CAREER_SITES.length} companies hiring in India, among them Stripe, Databricks, Datadog, Visa, NVIDIA, Adobe, Salesforce, Mastercard, Meesho, Groww and CRED, plus the target companies in the profile — or only the companies you name. Free and fast; works without the local connector.`,
+    description: `Searches company career sites and open job feeds directly, for one role. ${CAREER_SITES.length} companies hiring in India on Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Oracle and Amazon's own search — among them Stripe, Databricks, Visa, NVIDIA, Adobe, Amazon, JPMorgan, ServiceNow, Freshworks, Meesho, Groww and CRED — plus the target companies in the profile, and ${JOB_FEEDS.length} feeds across companies: ${JOB_FEEDS.map((f) => f.name).join(', ')}. Or only the companies you name (feeds are then skipped). Free and fast; works without the local connector.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -505,6 +510,88 @@ const tools: ToolDef<ToolContext>[] = [
           report_url: r.reportUrl,
           ...(r.warning ? { warning: r.warning } : {}),
           job: compactJob(r.job, todayKey()),
+        });
+      }),
+  },
+
+  {
+    name: 'check_postings',
+    title: 'Check postings are still open',
+    description:
+      "Checks whether tracked postings are still open, through the board's own API where it has one (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Workable), and records Open, Closed, Unclear or Blocked on each job. Only clear evidence counts as Closed. Postings elsewhere (LinkedIn, Naukri, most company pages) need their page read, and come back under needs_page_check: check_job_pages reads them when the local connector is installed. Default: jobs not applied to yet, not checked in the last 3 days. Never changes a status — tell the user what closed and let them decide.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ids: { type: 'array', items: { type: 'string' }, maxItems: 15, description: 'Only these jobs. Default: Found and Shortlisted jobs not checked in the last 3 days (closed ones after a week), 15 at most.' },
+        include_applied: { type: 'boolean', description: 'Also check jobs already applied to. Default false.' },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    run: (args, ctx) =>
+      guard(async () => {
+        limit(searchCalls, ctx.tenant.userId, 'checks');
+        const today = todayKey();
+        const all = await getJobs(ctx.tenant, { fresh: true });
+        const bare = (id: string) => id.replace(/-/g, '').toLowerCase();
+        const ids = Array.isArray(args.ids) ? args.ids.map((i) => bare(String(i).trim())).filter(Boolean).slice(0, 15) : [];
+        const statuses: Job['status'][] = args.include_applied === true ? ['Found', 'Shortlisted', 'Applied'] : ['Found', 'Shortlisted'];
+        // A closed posting is looked at again after a week: a wrong Closed
+        // should not be the last word.
+        const due = (j: Job) => !j.checkedOn || daysBetween(j.checkedOn, today) >= (j.posting === 'Closed' ? 7 : 3);
+        const jobs = (ids.length ? all.filter((j) => ids.includes(bare(j.id))) : all.filter((j) => statuses.includes(j.status) && due(j))).slice(0, 15);
+        const checks: PostingCheck[] = [];
+        const page: { id: string; role: string; company: string; url: string }[] = [];
+        const noLink: string[] = [];
+        const late: string[] = [];
+        const notSaved: string[] = [];
+        // The function has 60 s. No check starts after 20, each is capped by
+        // the time left, and each result is saved as it comes in — so a slow
+        // board costs its own check, not everyone's.
+        const deadline = Date.now() + 20_000;
+        let next = 0;
+        await Promise.all(
+          Array.from({ length: Math.min(6, jobs.length) }, async () => {
+            while (next < jobs.length) {
+              const j = jobs[next++];
+              const left = deadline - Date.now();
+              if (left <= 0) {
+                late.push(j.id);
+                continue;
+              }
+              const url = j.jobUrl ?? j.applyUrl;
+              if (!url) {
+                noLink.push(j.id);
+                continue;
+              }
+              const r = await checkPostingApi(url, j.company, { timeoutMs: Math.max(3_000, Math.min(12_000, left + 8_000)) });
+              if (!r) {
+                page.push({ id: j.id, role: j.role, company: j.company, url });
+                continue;
+              }
+              const check = { job: j, state: r.state, reason: r.reason };
+              checks.push(check);
+              const saved = await recordPostingChecks(ctx.tenant, [check]);
+              notSaved.push(...saved.errors);
+            }
+          }),
+        );
+        const name = (id: string) => {
+          const j = jobs.find((x) => x.id === id);
+          return j ? `${j.role} at ${j.company}` : id;
+        };
+        return jsonResult({
+          today,
+          checked: checks.length,
+          closed: checks.filter((c) => c.state === 'Closed').map((c) => ({ id: c.job.id, job: name(c.job.id), reason: c.reason })),
+          open: checks.filter((c) => c.state === 'Open').length,
+          unclear: checks.filter((c) => c.state === 'Unclear' || c.state === 'Blocked').map((c) => ({ id: c.job.id, job: name(c.job.id), state: c.state, reason: c.reason })),
+          ...(page.length
+            ? { needs_page_check: page, hint: 'These are on sites with no posting API. With the local connector, call check_job_pages with their ids; otherwise open each link yourself and tell the user what you find.' }
+            : {}),
+          ...(noLink.length ? { no_link: noLink.map(name) } : {}),
+          ...(late.length ? { not_reached: late, hint_late: 'Time ran out before these were checked. Call check_postings again with their ids.' } : {}),
+          ...(notSaved.length ? { not_saved: notSaved } : {}),
         });
       }),
   },

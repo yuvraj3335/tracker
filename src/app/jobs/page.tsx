@@ -63,7 +63,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
       {jobs.length ? (
         <>
           <PipelineSummary summary={s} />
-          <NeedsAttention items={s.followUps} />
+          <NeedsAttention items={s.followUps} closed={s.closedPostings} />
           <Pipeline jobs={jobs} today={today} initialStage={stage && STAGES.has(stage) ? (stage as Stage) : 'open'} />
         </>
       ) : (

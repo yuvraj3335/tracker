@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { daysBetween, formatKey, type DayKey } from '@/lib/date';
-import { JOB_STATUS, type EvalDepth, type JobStatus, type Legitimacy, type Verdict } from '@/lib/schema';
+import { JOB_STATUS, type EvalDepth, type JobStatus, type Legitimacy, type PostingState, type Verdict } from '@/lib/schema';
 import { APPLY_AT, CONSIDER_AT, DIMENSIONS, type DimensionId, type DimensionScores, type FollowUp } from '@/lib/jobs';
 import { cn } from '@/lib/utils';
 
@@ -246,6 +246,29 @@ export function LegitimacyBadge({ legitimacy, showHigh = false }: { legitimacy: 
     >
       <Icon className="size-3 shrink-0" style={{ color }} aria-hidden />
       {label}
+    </span>
+  );
+}
+
+const POSTING_STYLE: Record<PostingState, { color: string; label: string }> = {
+  Open: { color: 'var(--good)', label: 'Still open' },
+  Closed: { color: 'var(--critical)', label: 'Posting closed' },
+  Unclear: { color: 'var(--axis)', label: 'Could not tell if open' },
+  Blocked: { color: 'var(--warning)', label: 'Site blocked the check' },
+};
+
+/**
+ * Whether the posting is still up. On a card only Closed earns the space; the
+ * job page shows every state, with when it was checked.
+ */
+export function PostingBadge({ posting, checkedOn, today, all = false }: { posting: PostingState | null; checkedOn?: DayKey | null; today?: DayKey; all?: boolean }) {
+  if (!posting || (!all && posting !== 'Closed')) return null;
+  const { color, label } = POSTING_STYLE[posting];
+  return (
+    <span className="skin-pill inline-flex items-center gap-1 border border-hairline bg-surface px-1.5 py-0.5 text-micro font-medium text-ink-2" title={checkedOn ? `Checked ${checkedOn}` : undefined}>
+      <Dot color={color} />
+      {label}
+      {all && checkedOn && today ? <span className="font-normal text-ink-muted">· {ago(checkedOn, today)}</span> : null}
     </span>
   );
 }

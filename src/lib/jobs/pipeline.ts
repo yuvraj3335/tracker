@@ -54,6 +54,8 @@ export type PipelineSummary = {
   worthApplying: number;
   /** Found, and no evaluation yet. */
   notEvaluated: number;
+  /** Not applied to yet, and the posting has closed: worth skipping. */
+  closedPostings: Job[];
 };
 
 export function pipelineSummary(jobs: readonly Job[], today: DayKey): PipelineSummary {
@@ -63,12 +65,14 @@ export function pipelineSummary(jobs: readonly Job[], today: DayKey): PipelineSu
   let appliedLast7Days = 0;
   let worthApplying = 0;
   let notEvaluated = 0;
+  const closedPostings: Job[] = [];
   const followUps: { job: Job; followUp: FollowUp }[] = [];
 
   for (const j of jobs) {
     byStatus[j.status]++;
     if ((j.status === 'Found' || j.status === 'Shortlisted') && j.verdict === 'Apply') worthApplying++;
     if (j.status === 'Found' && !j.verdict) notEvaluated++;
+    if ((j.status === 'Found' || j.status === 'Shortlisted') && j.posting === 'Closed') closedPostings.push(j);
     if (hasApplied(j.status)) {
       applied++;
       if (j.heardBackOn || isResponse(j.status)) heardBack++;
@@ -97,6 +101,7 @@ export function pipelineSummary(jobs: readonly Job[], today: DayKey): PipelineSu
     followUps,
     worthApplying,
     notEvaluated,
+    closedPostings,
   };
 }
 

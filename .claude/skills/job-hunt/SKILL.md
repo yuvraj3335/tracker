@@ -1,6 +1,6 @@
 ---
 name: job-hunt
-description: Find software jobs, judge whether each is worth applying to, and track applications with the Job Switch Tracker. Use when the user asks to find, search or fetch jobs (LinkedIn, Naukri, foundit/Monster, Glassdoor, Wellfound, Workday, Greenhouse, Lever, Ashby or company career sites), pastes a job link or asks whether a job is worth it or to evaluate one, says they applied somewhere, got a reply, OA, interview, rejection or offer, wants to update their job profile or resume, or asks what to follow up on.
+description: Find software jobs, judge whether each is worth applying to, and track applications with the Job Switch Tracker. Use when the user asks to find, search or fetch jobs (LinkedIn, Naukri, foundit/Monster, Glassdoor, Wellfound, Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable or company career sites), pastes a job link or asks whether a job is worth it or to evaluate one, asks which postings are still open or have closed, says they applied somewhere, got a reply, OA, interview, rejection or offer, wants to update their job profile or resume, or asks what to follow up on.
 ---
 
 # Job hunt

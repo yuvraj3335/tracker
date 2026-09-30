@@ -55,8 +55,11 @@ Search both ways, and merge the results:
   and one stack-specific title such as "Backend Engineer"), with the user's
   location, posted_within_days 7-14 and seniority matching the profile ("entry"
   for 0-2 years).
-- search_company_jobs — company career sites directly, for a built-in list of
-  companies hiring in India plus the profile's target companies. Always there.
+- search_company_jobs — company career sites directly (Workday, Greenhouse,
+  Lever, Ashby, SmartRecruiters, Workable, Oracle, Amazon) for a built-in list
+  of companies hiring in India plus the profile's target companies, and three
+  feeds across companies: Workable's job search, Himalayas (remote) and Accel's
+  portfolio board. Always there.
 Without search_job_boards, use search_company_jobs plus your own web search or
 browsing, and save what you find with add_jobs.
 
@@ -75,8 +78,9 @@ never says Apply — at best Research first, meaning "worth reading in full".
 ## 4. A full evaluation of the promising ones
 For quick looks that came back Research first, for target companies, and for
 any job the user asks about:
-1. Read the whole posting — read_job_posting when the connector is installed,
-   otherwise your own browsing. If it is gone or closed, say so and stop.
+1. Read the whole posting — read_job_posting when the connector is installed
+   (its posting_state says whether the page looks closed), otherwise your own
+   browsing. If it is gone or closed, say so and stop.
 2. For a job-board listing, look for the same role on the employer's own
    careers site (search_company_jobs with companies: [the company], or a web
    search). Not there: red flag "Only on job boards", legitimacy at most Caution.
@@ -147,6 +151,19 @@ match; Suspicious changes the verdict to Research first.
 ${ROLE_FAMILIES.join(', ')}. It decides which projects the user should lead
 with and what to prepare for (DSA rounds, machine coding, system basics).
 
+## Dead postings
+A posting that closed is worse than no posting: the user writes a cover note
+for a job that is gone. Before recommending what to apply to, and whenever the
+user asks what is still open:
+1. Call check_postings. It asks each board's own API where there is one and
+   records Open, Closed, Unclear or Blocked on every job it checks.
+2. For the ones under needs_page_check (LinkedIn, Naukri, company pages), call
+   check_job_pages with their ids when the connector is installed; otherwise
+   open the links with your own browsing and tell the user what you saw.
+3. Tell the user which closed, and suggest skipping them. Never change a
+   status yourself, and never call a posting closed on a guess: Unclear and
+   Blocked mean "look again later", not "gone".
+
 ## Recording progress
 When the user says what happened ("applied to Visa through a referral from
 Ravi", "got an OA from Stripe, due Friday", "Zomato rejected me"):
@@ -179,7 +196,7 @@ never send anything yourself.
 - Keep the tracker clean: search before adding, and do not add the same job twice.
 `;
 
-export const INSTRUCTIONS = `This is the user's job application tracker (their own Notion, through their tracker website). Use it to find jobs, judge each one with a fixed rubric (evaluate_job: the tracker turns your scores into a match and a verdict — Apply, Consider, Research first or Skip), and record applications, replies, interviews and follow-ups. Job boards (LinkedIn, Naukri, foundit, Glassdoor, Wellfound) are searched with search_job_boards when the local Job Hunt connector is installed; company career sites with search_company_jobs. Read get_job_hunt_playbook before a job search or an evaluation, and follow it. A verdict is advice: never change a status because of one. Never apply, send messages or sign in on the user's behalf.`;
+export const INSTRUCTIONS = `This is the user's job application tracker (their own Notion, through their tracker website). Use it to find jobs, judge each one with a fixed rubric (evaluate_job: the tracker turns your scores into a match and a verdict — Apply, Consider, Research first or Skip), check postings are still open (check_postings), and record applications, replies, interviews and follow-ups. Job boards (LinkedIn, Naukri, foundit, Glassdoor, Wellfound) are searched with search_job_boards when the local Job Hunt connector is installed; company career sites with search_company_jobs. Read get_job_hunt_playbook before a job search or an evaluation, and follow it. A verdict is advice: never change a status because of one. Never apply, send messages or sign in on the user's behalf.`;
 
 export const prompts: PromptDef[] = [
   {
@@ -196,6 +213,13 @@ export const prompts: PromptDef[] = [
     arguments: [{ name: 'job', description: 'A posting link, or the company and role of a tracked job', required: true }],
     render: (a) =>
       `Evaluate this job for me: ${a.job}\n\nIf it is not in my tracker yet, add it with add_jobs first. Then do the full evaluation from the playbook (section 4) and call evaluate_job with depth "full". Tell me the verdict in one line and the two or three things that decided it. Do not change the status.\n\n${PLAYBOOK}`,
+  },
+  {
+    name: 'check_postings',
+    title: 'Which postings closed',
+    description: 'Check whether the jobs not applied to yet are still open, and say which closed.',
+    render: () =>
+      'Call check_postings. For anything under needs_page_check, call check_job_pages with those ids if that tool exists; otherwise open the links yourself. Then tell me which postings closed and suggest skipping them. Do not change any status.',
   },
   {
     name: 'log_update',

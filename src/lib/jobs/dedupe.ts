@@ -82,6 +82,22 @@ export function postingKey(rawUrl: string | null | undefined): string | null {
     const id = /\/job\/[^/]*?-([A-Za-z0-9]{6,})$/.exec(path)?.[1];
     if (id) return `cutshort:${id}`;
   }
+  if (host === 'jobs.smartrecruiters.com') {
+    const id = /^\/[^/]+\/(\d{6,20})(?:-|$)/.exec(path)?.[1];
+    if (id) return `smartrecruiters:${id}`;
+  }
+  if (host === 'amazon.jobs') {
+    const id = /\/jobs\/(\d{5,12})(?:\/|$)/.exec(path)?.[1];
+    if (id) return `amazon:${id}`;
+  }
+  if (host === 'apply.workable.com') {
+    const id = /\/j\/([A-Za-z0-9]{6,16})(?:\/|$)/.exec(path + '/')?.[1];
+    if (id) return `workable:${id.toUpperCase()}`;
+  }
+  if (host.endsWith('.oraclecloud.com')) {
+    const id = /\/job\/(\d{3,15})(?:\/|$)/.exec(path + '/')?.[1];
+    if (id) return `oracle:${host.split('.')[0]}:${id}`;
+  }
   return `url:${host}${path.toLowerCase()}`;
 }
 

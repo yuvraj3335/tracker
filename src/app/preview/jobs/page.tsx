@@ -87,12 +87,13 @@ function sample(): Job[] {
   return [
     { ...base, id: 'j1', role: 'Software Engineer I', company: 'Visa', status: 'Found', source: 'Workday', experience: '0–2 yrs', salary: '₹14–20 LPA', skills: ['Java', 'Spring Boot', 'SQL', 'REST'],
       ...judged('Full', { skills: 4, level: 5, location: 5, pay: 4, role: 4 }, { legitimacy: 'High', roleFamily: 'Backend', skillGaps: ['Java', 'Spring Boot'], on: shiftKey(t, -1) }),
+      posting: 'Open', checkedOn: shiftKey(t, -1),
       jobUrl: 'https://visa.wd5.myworkdayjobs.com/Visa/job/IN---Bengaluru-India/Software-Engineer_REF088484W',
       fit: 'Backend-heavy role on payments APIs; your Node.js services and Postgres work map directly. Gap: no Java yet — worth saying you are picking it up.',
       howToApply: '1. Apply on Visa careers (Workday): https://visa.wd5.myworkdayjobs.com/Visa/job/IN---Bengaluru-India/Software-Engineer_REF088484W\n2. Lead with the integrations platform and the rate-limiter work — both are payment-shaped problems.\n3. Ask for a referral first; Visa weighs them.\n4. Expect a HackerRank OA within a week.' },
     { ...base, id: 'j2', role: 'SDE 1, Payments', company: 'Razorpay', status: 'Found', source: 'Naukri', salary: '12-18 Lacs PA', location: 'Bengaluru',
       fit: 'Payments backend at SDE-1 level; read the posting for the stack before deciding.',
-      ...judged('Quick', { skills: 4, level: 5, location: 5, pay: null, role: 4 }, { roleFamily: 'Backend', on: t }) },
+      ...judged('Quick', { skills: 4, level: 5, location: 5, pay: null, role: 4 }, { roleFamily: 'Backend', on: t }), posting: 'Closed', checkedOn: t },
     { ...base, id: 'j10', role: 'Senior Software Engineer', company: 'Globex Staffing', status: 'Found', source: 'LinkedIn', location: 'Hyderabad', experience: '5+ years',
       fit: 'Five years required, through a staffing vendor.',
       ...judged('Quick', { skills: 3, level: 1, location: 2, pay: null, role: 3 }, { hardStops: ['Needs more experience'], redFlags: ['Staffing or contract'], legitimacy: 'Caution', roleFamily: 'Full-stack', on: t }) },
@@ -130,7 +131,7 @@ export default async function JobsPreview({ searchParams }: { searchParams: Prom
           <div className="space-y-4">
             <PageHeader title="Jobs" sub="2 to act on · 6 applied · 2 in process" />
             <PipelineSummary summary={s} />
-            <NeedsAttention items={s.followUps} />
+            <NeedsAttention items={s.followUps} closed={s.closedPostings} />
             <Pipeline jobs={jobs} today={today} />
           </div>
         </Section>

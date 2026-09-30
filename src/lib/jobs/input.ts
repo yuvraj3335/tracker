@@ -88,6 +88,17 @@ const SOURCE_SYNONYMS: Record<string, JobSource> = {
   greenhouse: 'Greenhouse',
   lever: 'Lever',
   ashby: 'Ashby',
+  smartrecruiters: 'SmartRecruiters',
+  'smart recruiters': 'SmartRecruiters',
+  workable: 'Workable',
+  oracle: 'Oracle',
+  'oracle cloud': 'Oracle',
+  taleo: 'Oracle',
+  himalayas: 'Himalayas',
+  getro: 'VC job board',
+  'vc board': 'VC job board',
+  'vc job board': 'VC job board',
+  'portfolio jobs': 'VC job board',
   company: 'Company site',
   'company website': 'Company site',
   'careers page': 'Company site',
@@ -124,6 +135,10 @@ export function sourceFromUrl(rawUrl: string | null | undefined): JobSource | nu
     [/(^|\.)greenhouse\.io$/, 'Greenhouse'],
     [/(^|\.)lever\.co$/, 'Lever'],
     [/(^|\.)ashbyhq\.com$/, 'Ashby'],
+    [/(^|\.)smartrecruiters\.com$/, 'SmartRecruiters'],
+    [/(^|\.)workable\.com$/, 'Workable'],
+    [/\.oraclecloud\.com$/, 'Oracle'],
+    [/(^|\.)himalayas\.app$/, 'Himalayas'],
   ];
   for (const [re, source] of rules) if (re.test(host)) return source;
   return 'Company site';
