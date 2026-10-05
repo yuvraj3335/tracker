@@ -288,11 +288,11 @@ export function Sheet({
   //
   // scrollIntoView({block:'nearest'}) is not enough on its own: it does nothing
   // when the row is already inside the viewport, and "inside the viewport"
-  // includes the strip covered by the sticky search bar and heading band. A row
-  // walked to with `k` therefore sat underneath them — measured at 90px hidden
+  // includes the strip covered by the sticky search bar. A row
+  // walked to with `k` therefore sat underneath it — measured at 90px hidden
   // — and scroll-margin never applied, because no scroll ever happened. So the
   // occluded case is handled explicitly, and the offset is read from the same
-  // custom property the sticky elements use rather than repeated here.
+  // custom property measured for the search bar rather than repeated here.
   useEffect(() => {
     if (!activeTask) return;
     const el = root.current?.querySelector<HTMLElement>(
@@ -352,13 +352,8 @@ export function Sheet({
   /**
    * How far down the page the sticky chrome reaches, measured.
    *
-   * This used to be the literal string "146px", arrived at by measuring once
-   * on one screen. It is the nav plus the search bar, and the search bar
-   * wraps: on a narrow phone the filters take a second line and the bar is
-   * taller, so bands stuck too high and hid behind it; on a wide laptop it is
-   * shorter, so bands stuck too low and floated in the middle of the list
-   * over the rows. Wrong in both directions at once, which is why it looked
-   * broken on both.
+   * This is the nav plus the search bar. The bar wraps on narrower screens,
+   * so keyboard navigation needs its measured height to keep rows visible.
    *
    * Observed rather than calculated, because the thing that changes it is
    * text wrapping, and nothing can predict that from a viewport width.
@@ -399,8 +394,7 @@ export function Sheet({
           problem. `top-14` clears the sticky nav bar.
 
           --sheet-chrome is how far down the page is covered by sticky chrome:
-          the nav plus this bar. Heading bands stick below it and keyboard
-          navigation scrolls rows clear of it, so the three cannot drift apart.
+          the nav plus this bar. Keyboard navigation scrolls rows clear of it.
           It is measured rather than written down — see the effect above. */}
       <div
         ref={bar}
@@ -584,7 +578,7 @@ export function Sheet({
                     <section key={h.heading}>
                       {/* Heading rows are categories, not questions — they are
                           never counted toward any total. */}
-                      <HeadingBand label={h.heading} count={`${h.done}/${h.total}`} sticky />
+                      <HeadingBand label={h.heading} count={`${h.done}/${h.total}`} />
                       <ul>
                         {h.items.map((t) => (
                           <TaskRow
@@ -657,15 +651,14 @@ function Chevron({ open }: { open: boolean }) {
 
 /**
  * How much of the top of the page is covered by sticky chrome: the nav plus the
- * sheet's search bar, plus a heading band's height. Read from the same custom
- * property the sticky elements position against, so there is one number.
+ * sheet's search bar. Read from the measured custom property, so keyboard
+ * navigation adapts when the filter bar wraps.
  */
-const BAND_HEIGHT = 36;
 function stickyChrome(el: HTMLElement | null): number {
-  if (!el) return 56 + BAND_HEIGHT;
+  if (!el) return CHROME_GUESS;
   const raw = getComputedStyle(el).getPropertyValue('--sheet-chrome').trim();
   const px = Number.parseFloat(raw);
-  return (Number.isFinite(px) ? px : 56) + BAND_HEIGHT;
+  return Number.isFinite(px) ? px : CHROME_GUESS;
 }
 
 /**

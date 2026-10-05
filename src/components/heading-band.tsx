@@ -15,24 +15,17 @@ import { cn } from '@/lib/utils';
 export function HeadingBand({
   label,
   count,
-  sticky = false,
   className,
 }: {
   label: string;
   /** Usually `3/9`, or a bare number where there is no total. */
   count?: string;
-  /** Sticks below the page's sticky chrome (see --sheet-chrome). */
-  sticky?: boolean;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        'flex items-baseline justify-between gap-2 border-y border-hairline bg-surface-2/85 px-4 py-2 sm:px-5',
-        // Below the sheet's sticky search bar, not underneath it: both used
-        // to stick at top-14, so a band parked behind 90px of chrome and was
-        // never actually visible while stuck.
-        sticky && 'sticky z-10 backdrop-blur-sm top-[var(--sheet-chrome,3.5rem)]',
+        'flex items-baseline justify-between gap-2 border-y border-hairline bg-surface-2 px-4 py-2 sm:px-5',
         className,
       )}
     >
