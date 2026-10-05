@@ -1,0 +1,1853 @@
+{
+  "source": "a2zdsa.pages.dev → codolio.com/question-tracker/sheet/strivers-a2z-dsa-sheet",
+  "primaryMatches": 448,
+  "duplicateAliases": 7,
+  "newQuestions": [
+    "686bae0251477d7abf77af6a",
+    "66e776528a15c1adcdf78bc5",
+    "66e776528a15c1adcdf78bc9",
+    "66e776528a15c1adcdf78c45",
+    "66e776538a15c1adcdf78c91",
+    "66e776538a15c1adcdf78ca9",
+    "66e776558a15c1adcdf79143"
+  ],
+  "legacyQuestions": [
+    "/dp|3|5|5_0/1_knapsack_(dp_–_19)"
+  ],
+  "byCodolioId": {
+    "66e776528a15c1adcdf78b15": {
+      "primaryLegacyKey": "/basics|0|0|0_user_input/_output",
+      "duplicateLegacyKeys": []
+    },
+    "686bb2be51477d7abf77af6e": {
+      "primaryLegacyKey": "/basics|0|4|4_what_are_arrays,_strings?",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b19": {
+      "primaryLegacyKey": "/basics|0|1|1_data_types",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b1d": {
+      "primaryLegacyKey": "/basics|0|2|2_if_else_statements",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b21": {
+      "primaryLegacyKey": "/basics|0|3|3_switch_statement",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b25": {
+      "primaryLegacyKey": "/basics|0|5|5_for_loops",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b29": {
+      "primaryLegacyKey": "/basics|0|6|6_while_loops",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b2d": {
+      "primaryLegacyKey": "/basics|0|7|7_functions_[pass_by_value_and_pass_by_reference]",
+      "duplicateLegacyKeys": []
+    },
+    "686bb31051477d7abf77af6f": {
+      "primaryLegacyKey": "/basics|0|8|8_time_complexity_[learn_basics,_and_then_analyse_in_next_steps]",
+      "duplicateLegacyKeys": []
+    },
+    "686bb1fa51477d7abf77af6d": {
+      "primaryLegacyKey": "/basics|1|0|0_do_all_these_patterns",
+      "duplicateLegacyKeys": []
+    },
+    "686bb07751477d7abf77af6b": {
+      "primaryLegacyKey": "/basics|2|0|0_c++_stl",
+      "duplicateLegacyKeys": []
+    },
+    "686bb3f951477d7abf77af70": {
+      "primaryLegacyKey": "/basics|2|1|1_java_collections",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b31": {
+      "primaryLegacyKey": "/basics|3|0|0_count_digits",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b35": {
+      "primaryLegacyKey": "/basics|3|1|1_reverse_a_number",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b39": {
+      "primaryLegacyKey": "/basics|3|2|2_check_palindrome",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b3d": {
+      "primaryLegacyKey": "/basics|3|3|3_gcd_or_hcf",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b41": {
+      "primaryLegacyKey": "/basics|3|4|4_armstrong_number",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b45": {
+      "primaryLegacyKey": "/basics|3|5|5_print_all_divisor",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b49": {
+      "primaryLegacyKey": "/basics|3|6|6_check_for_prime",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b4d": {
+      "primaryLegacyKey": "/basics|4|0|0_understand_recursion_by_print_something_n_times",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b51": {
+      "primaryLegacyKey": "/basics|4|1|1_print_name_n_times_using_recursion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b55": {
+      "primaryLegacyKey": "/basics|4|2|2_print_1_to_n_using_recursion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b59": {
+      "primaryLegacyKey": "/basics|4|3|3_print_n_to_1_using_recursion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b5d": {
+      "primaryLegacyKey": "/basics|4|4|4_sum_of_first_n_numbers",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b61": {
+      "primaryLegacyKey": "/basics|4|5|5_factorial_of_n_numbers",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b65": {
+      "primaryLegacyKey": "/basics|4|6|6_reverse_and_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b69": {
+      "primaryLegacyKey": "/basics|4|7|7_check_if_a_string_is_palindrome_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b6d": {
+      "primaryLegacyKey": "/basics|4|8|8_fibonacci_number",
+      "duplicateLegacyKeys": []
+    },
+    "686bae0251477d7abf77af6a": {
+      "primaryLegacyKey": null,
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b71": {
+      "primaryLegacyKey": "/basics|5|0|0_count_frequencies_of_array_elements",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b75": {
+      "primaryLegacyKey": "/basics|5|1|1_find_the_highest/lowest_frequency_element",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b79": {
+      "primaryLegacyKey": "/sorting_techniques|0|0|0_selection_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b7d": {
+      "primaryLegacyKey": "/sorting_techniques|0|1|1_bubble_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b81": {
+      "primaryLegacyKey": "/sorting_techniques|0|2|2_insertion_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b85": {
+      "primaryLegacyKey": "/sorting_techniques|1|0|0_merge_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b89": {
+      "primaryLegacyKey": "/sorting_techniques|1|1|1_recursive_bubble_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b8d": {
+      "primaryLegacyKey": "/sorting_techniques|1|2|2_recursive_insertion_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b91": {
+      "primaryLegacyKey": "/sorting_techniques|1|3|3_quick_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b95": {
+      "primaryLegacyKey": "/array|0|0|0_largest_element_in_an_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b99": {
+      "primaryLegacyKey": "/array|0|1|1_second_largest_element_in_an_array_without_sorting",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78b9d": {
+      "primaryLegacyKey": "/array|0|2|2_check_if_the_array_is_sorted",
+      "duplicateLegacyKeys": [
+        "/binary_search|0|4|4_check_if_input_array_is_sorted"
+      ]
+    },
+    "66e776528a15c1adcdf78ba1": {
+      "primaryLegacyKey": "/array|0|3|3_remove_duplicates_from_sorted_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78ba5": {
+      "primaryLegacyKey": "/array|0|4|4_left_rotate_an_array_by_one_place",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78ba9": {
+      "primaryLegacyKey": "/array|0|5|5_left_rotate_an_array_by_d_places",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bad": {
+      "primaryLegacyKey": "/array|0|6|6_move_zeros_to_end",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bb1": {
+      "primaryLegacyKey": "/array|0|7|7_linear_search",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bb5": {
+      "primaryLegacyKey": "/array|0|8|8_find_the_union_and_intersection_of_two_sorted_arrays",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bb9": {
+      "primaryLegacyKey": "/array|0|9|9_find_missing_number_in_an_array",
+      "duplicateLegacyKeys": [
+        "/array|0|12|12_find_the_missing_number"
+      ]
+    },
+    "66e776528a15c1adcdf78bbd": {
+      "primaryLegacyKey": "/array|0|10|10_maximum_consecutive_ones",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bc1": {
+      "primaryLegacyKey": "/array|0|13|13_find_the_number_that_appears_once,_and_other_numbers_twice.",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bc5": {
+      "primaryLegacyKey": null,
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bc9": {
+      "primaryLegacyKey": null,
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bcd": {
+      "primaryLegacyKey": "/array|1|0|0_2sum_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bd1": {
+      "primaryLegacyKey": "/array|1|1|1_sort_an_array_of_0’s_1’s_and_2’s",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bd5": {
+      "primaryLegacyKey": "/array|1|2|2_majority_element_(>n/2_times)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bd9": {
+      "primaryLegacyKey": "/array|1|3|3_kadane’s_algorithm,_maximum_subarray_sum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bdd": {
+      "primaryLegacyKey": "/array|1|4|4_print_subarray_with_maximum_subarray_sum_(extended_version_of_above_problem)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78be1": {
+      "primaryLegacyKey": "/array|1|5|5_stock_buy_and_sell",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78be5": {
+      "primaryLegacyKey": "/array|1|6|6_rearrange_the_array_in_alternating_positive_and_negative_items",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78be9": {
+      "primaryLegacyKey": "/array|1|7|7_next_permutation",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bed": {
+      "primaryLegacyKey": "/array|1|8|8_leaders_in_an_array_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bf1": {
+      "primaryLegacyKey": "/array|1|9|9_longest_consecutive_sequence_in_an_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bf5": {
+      "primaryLegacyKey": "/array|1|10|10_set_matrix_zeros",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bf9": {
+      "primaryLegacyKey": "/array|1|11|11_rotate_matrix_by_90_degrees",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78bfd": {
+      "primaryLegacyKey": "/array|1|12|12_print_the_matrix_in_spiral_manner",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c01": {
+      "primaryLegacyKey": "/array|0|11|11_subarray_with_given_sum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c05": {
+      "primaryLegacyKey": "/array|2|0|0_pascal’s_triangle",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c09": {
+      "primaryLegacyKey": "/array|2|1|1_majority_element_(n/3_times)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c0d": {
+      "primaryLegacyKey": "/array|2|2|2_3-sum_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c11": {
+      "primaryLegacyKey": "/array|2|3|3_4-sum_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c15": {
+      "primaryLegacyKey": "/array|2|4|4_largest_subarray_with_0_sum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c19": {
+      "primaryLegacyKey": "/array|2|5|5_count_number_of_subarrays_with_given_xor_k",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c1d": {
+      "primaryLegacyKey": "/array|2|6|6_merge_overlapping_subintervals",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c21": {
+      "primaryLegacyKey": "/array|2|7|7_merge_two_sorted_arrays_without_extra_space",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c25": {
+      "primaryLegacyKey": "/array|2|8|8_find_the_repeating_and_missing_number",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c29": {
+      "primaryLegacyKey": "/array|2|9|9_count_inversions",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c2d": {
+      "primaryLegacyKey": "/array|2|10|10_reverse_pairs",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c31": {
+      "primaryLegacyKey": "/array|2|11|11_maximum_product_subarray",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c35": {
+      "primaryLegacyKey": "/binary_search|0|0|0_binary_search_to_find_x_in_sorted_array_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c39": {
+      "primaryLegacyKey": "/binary_search|0|1|1_implement_lower_bound",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c3d": {
+      "primaryLegacyKey": "/binary_search|0|2|2_implement_upper_bound",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c41": {
+      "primaryLegacyKey": "/binary_search|0|3|3_search_insert_position",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c45": {
+      "primaryLegacyKey": null,
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c49": {
+      "primaryLegacyKey": "/binary_search|0|5|5_find_the_first_or_last_occurrence_of_a_given_number_in_a_sorted_array_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c4d": {
+      "primaryLegacyKey": "/binary_search|0|6|6_count_occurrences_of_a_number_in_a_sorted_array_with_duplicates_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c51": {
+      "primaryLegacyKey": "/binary_search|0|8|8_search_in_rotated_sorted_array_i",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c55": {
+      "primaryLegacyKey": "/binary_search|0|9|9_search_in_rotated_sorted_array_ii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c59": {
+      "primaryLegacyKey": "/binary_search|0|10|10_find_minimum_in_rotated_sorted_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776528a15c1adcdf78c5d": {
+      "primaryLegacyKey": "/binary_search|0|13|13_find_out_how_many_times_has_an_array_been_rotated",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c61": {
+      "primaryLegacyKey": "/binary_search|0|11|11_single_element_in_a_sorted_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c65": {
+      "primaryLegacyKey": "/binary_search|0|7|7_find_peak_element",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c69": {
+      "primaryLegacyKey": "/binary_search|2|0|0_find_square_root_of_a_number_in_log_n",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c6d": {
+      "primaryLegacyKey": "/binary_search|2|1|1_find_the_nth_root_of_a_number_using_binary_search",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c71": {
+      "primaryLegacyKey": "/binary_search|2|2|2_koko_eating_bananas",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c75": {
+      "primaryLegacyKey": "/binary_search|2|3|3_minimum_days_to_make_m_bouquets",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c79": {
+      "primaryLegacyKey": "/binary_search|2|4|4_find_the_smallest_divisor",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c7d": {
+      "primaryLegacyKey": "/binary_search|2|5|5_capacity_to_ship_packages_within_d_days",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c81": {
+      "primaryLegacyKey": "/binary_search|2|10|10_kth_missing_positive_number",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c85": {
+      "primaryLegacyKey": "/binary_search|2|7|7_aggressive_cows",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c89": {
+      "primaryLegacyKey": "/binary_search|2|8|8_book_allocation_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c8d": {
+      "primaryLegacyKey": "/binary_search|2|9|9_split_array_–_largest_sum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c91": {
+      "primaryLegacyKey": null,
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c95": {
+      "primaryLegacyKey": "/binary_search|2|11|11_minimize_max_distance_to_gas_station",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78c99": {
+      "primaryLegacyKey": "/binary_search|2|12|12_median_of_2_sorted_arrays",
+      "duplicateLegacyKeys": [
+        "/binary_search|2|6|6_median_of_two_sorted_arrays"
+      ]
+    },
+    "66e776538a15c1adcdf78c9d": {
+      "primaryLegacyKey": "/binary_search|2|13|13_kth_element_of_2_sorted_arrays",
+      "duplicateLegacyKeys": [
+        "/binary_search|0|12|12_find_kth_element_of_two_sorted_arrays"
+      ]
+    },
+    "66e776538a15c1adcdf78ca1": {
+      "primaryLegacyKey": "/array|0|15|15_find_the_row_with_maximum_number_of_1’s",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78ca5": {
+      "primaryLegacyKey": "/binary_search|1|0|0_search_in_a_2d_matrix_",
+      "duplicateLegacyKeys": [
+        "/array|0|14|14_search_an_element_in_a_2d_matrix"
+      ]
+    },
+    "66e776538a15c1adcdf78ca9": {
+      "primaryLegacyKey": null,
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cad": {
+      "primaryLegacyKey": "/binary_search|1|1|1_find_peak_element_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cb1": {
+      "primaryLegacyKey": "/binary_search|1|2|2_matrix_median",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cb5": {
+      "primaryLegacyKey": "/strings_part_1|0|0|0_remove_outermost_paranthesis",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cb9": {
+      "primaryLegacyKey": "/strings_part_1|0|1|1_reverse_words_in_a_given_string_/_palindrome_check_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cbd": {
+      "primaryLegacyKey": "/strings_part_1|0|2|2_largest_odd_number_in_a_string",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cc1": {
+      "primaryLegacyKey": "/strings_part_1|0|3|3_longest_common_prefix",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cc5": {
+      "primaryLegacyKey": "/strings_part_1|0|4|4_isomorphic_string",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cc9": {
+      "primaryLegacyKey": "/strings_part_1|0|5|5_check_whether_one_string_is_a_rotation_of_another_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78ccd": {
+      "primaryLegacyKey": "/strings_part_1|0|6|6_check_if_two_strings_are_anagram_of_each_other",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cd1": {
+      "primaryLegacyKey": "/strings_part_1|1|0|0_sort_characters_by_frequency",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cd5": {
+      "primaryLegacyKey": "/strings_part_1|1|1|1_maximum_nesting_depth_of_paranthesis",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cd9": {
+      "primaryLegacyKey": "/strings_part_1|1|2|2_roman_number_to_integer_and_vice_versa",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cdd": {
+      "primaryLegacyKey": "/strings_part_1|1|3|3_implement_atoi",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78ce1": {
+      "primaryLegacyKey": "/strings_part_1|1|4|4_count_number_of_substrings",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78ce5": {
+      "primaryLegacyKey": "/strings_part_1|1|5|5_longest_palindromic_substring[do_it_without_dp]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78ce9": {
+      "primaryLegacyKey": "/strings_part_1|1|6|6_sum_of_beauty_of_all_substring",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78ced": {
+      "primaryLegacyKey": "/strings_part_1|1|7|7_reverse_every_word_in_a_string",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cf1": {
+      "primaryLegacyKey": "/linked_list|0|0|0_introduction_to_linkedlist,_learn_about_struct,_and_how_is_node_represented_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cf5": {
+      "primaryLegacyKey": "/linked_list|0|1|1_inserting_a_node_in_linkedlist",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cf9": {
+      "primaryLegacyKey": "/linked_list|0|2|2_deleting_a_node_in_linkedlist",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78cfd": {
+      "primaryLegacyKey": "/linked_list|0|3|3_find_the_length_of_the_linkedlist_[learn_traversal]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d01": {
+      "primaryLegacyKey": "/linked_list|0|4|4_search_an_element_in_the_linkedlist",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d05": {
+      "primaryLegacyKey": "/linked_list|1|0|0_introduction_to_dll,_learn_about_struct,_and_how_is_node_represented_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d09": {
+      "primaryLegacyKey": "/linked_list|1|1|1_insert_a_node_in_dll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d0d": {
+      "primaryLegacyKey": "/linked_list|1|2|2_delete_a_node_in_dll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d11": {
+      "primaryLegacyKey": "/linked_list|1|3|3_reverse_a_dll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d15": {
+      "primaryLegacyKey": "/linked_list|2|0|0_middle_of_a_linkedlist_[tortoise_hare_method]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d19": {
+      "primaryLegacyKey": "/linked_list|2|1|1_reverse_a_linkedlist_[iterative]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d1d": {
+      "primaryLegacyKey": "/linked_list|2|2|2_reverse_a_ll_[recursive]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d21": {
+      "primaryLegacyKey": "/linked_list|2|3|3_detect_a_loop_in_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d25": {
+      "primaryLegacyKey": "/linked_list|2|4|4_find_the_starting_point_in_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d29": {
+      "primaryLegacyKey": "/linked_list|2|5|5_length_of_loop_in_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d2d": {
+      "primaryLegacyKey": "/linked_list|2|6|6_check_if_ll_is_palindrome_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d31": {
+      "primaryLegacyKey": "/linked_list|2|7|7_segrregate_odd_and_even_nodes_in_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d35": {
+      "primaryLegacyKey": "/linked_list|2|8|8_remove_nth_node_from_the_back_of_the_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d39": {
+      "primaryLegacyKey": "/linked_list|2|9|9_delete_the_middle_node_of_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d3d": {
+      "primaryLegacyKey": "/linked_list|2|10|10_sort_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d41": {
+      "primaryLegacyKey": "/linked_list|2|11|11_sort_a_ll_of_0’s_1’s_and_2’s_by_changing_links",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d45": {
+      "primaryLegacyKey": "/linked_list|2|12|12_find_the_intersection_point_of_y_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d49": {
+      "primaryLegacyKey": "/linked_list|2|13|13_add_1_to_a_number_represented_by_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d4d": {
+      "primaryLegacyKey": "/linked_list|2|14|14_add_2_numbers_in_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d51": {
+      "primaryLegacyKey": "/linked_list|3|0|0_delete_all_occurrences_of_a_key_in_dll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d55": {
+      "primaryLegacyKey": "/linked_list|3|1|1_find_pairs_with_given_sum_in_dll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d59": {
+      "primaryLegacyKey": "/linked_list|3|2|2_remove_duplicates_from_sorted_dll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d5d": {
+      "primaryLegacyKey": "/linked_list|4|0|0_reverse_ll_in_group_of_given_size_k",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d61": {
+      "primaryLegacyKey": "/linked_list|4|1|1_rotate_a_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d65": {
+      "primaryLegacyKey": "/linked_list|4|2|2_flattening_of_ll",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d69": {
+      "primaryLegacyKey": "/linked_list|4|3|3_clone_a_linked_list_with_random_and_next_pointer",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d6d": {
+      "primaryLegacyKey": "/recursion|0|0|0_recursive_implementation_of_atoi()",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d71": {
+      "primaryLegacyKey": "/recursion|0|1|1_pow(x,_n)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d75": {
+      "primaryLegacyKey": "/recursion|0|2|2_count_good_numbers",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d79": {
+      "primaryLegacyKey": "/recursion|0|3|3_sort_a_stack_using_recursion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d7d": {
+      "primaryLegacyKey": "/recursion|0|4|4_reverse_a_stack_using_recursion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d82": {
+      "primaryLegacyKey": "/recursion|1|0|0_generate_all_binary_strings",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d86": {
+      "primaryLegacyKey": "/recursion|1|1|1_generate_paranthesis",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d8a": {
+      "primaryLegacyKey": "/recursion|1|2|2_print_all_subsequences/power_set",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d8e": {
+      "primaryLegacyKey": "/recursion|1|3|3_learn_all_patterns_of_subsequences_(theory)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d92": {
+      "primaryLegacyKey": "/recursion|1|4|4_count_all_subsequences_with_sum_k",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d96": {
+      "primaryLegacyKey": "/recursion|1|5|5_check_if_there_exists_a_subsequence_with_sum_k",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d9a": {
+      "primaryLegacyKey": "/recursion|1|6|6_combination_sum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78d9e": {
+      "primaryLegacyKey": "/recursion|1|7|7_combination_sum-ii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78da2": {
+      "primaryLegacyKey": "/recursion|1|9|9_subset_sum-i",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78da6": {
+      "primaryLegacyKey": "/recursion|1|10|10_subset_sum-ii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78daa": {
+      "primaryLegacyKey": "/recursion|1|8|8_combination_sum_–_iii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dae": {
+      "primaryLegacyKey": "/recursion|1|11|11_letter_combinations_of_a_phone_number",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78db2": {
+      "primaryLegacyKey": "/recursion|2|0|0_palindrome_partitioning",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78db6": {
+      "primaryLegacyKey": "/recursion|2|1|1_word_search",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dba": {
+      "primaryLegacyKey": "/recursion|2|2|2_n_queen",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dbe": {
+      "primaryLegacyKey": "/recursion|2|3|3_rat_in_a_maze",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dc2": {
+      "primaryLegacyKey": "/recursion|2|4|4_word_break",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dc6": {
+      "primaryLegacyKey": "/recursion|2|5|5_m_coloring_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dca": {
+      "primaryLegacyKey": "/recursion|2|6|6_sudoko_solver",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dce": {
+      "primaryLegacyKey": "/recursion|2|7|7_expression_add_operators",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dd2": {
+      "primaryLegacyKey": "/bit_manipulation|0|0|0_introduction_to_bit_manipulation_[theory]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dd6": {
+      "primaryLegacyKey": "/bit_manipulation|0|1|1_check_if_the_i-th_bit_is_set_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dda": {
+      "primaryLegacyKey": "/bit_manipulation|0|2|2_check_if_a_number_is_odd_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dde": {
+      "primaryLegacyKey": "/bit_manipulation|0|3|3_check_if_a_number_is_power_of_2_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78de2": {
+      "primaryLegacyKey": "/bit_manipulation|0|4|4_count_the_number_of_set_bits",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78de6": {
+      "primaryLegacyKey": "/bit_manipulation|0|5|5_set/unset_the_rightmost_unset_bit",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dea": {
+      "primaryLegacyKey": "/bit_manipulation|0|6|6_swap_two_numbers",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dee": {
+      "primaryLegacyKey": "/bit_manipulation|0|7|7_divide_two_integers_without_using_multiplication,_division_and_mod_operator",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78df2": {
+      "primaryLegacyKey": "/bit_manipulation|1|0|0_count_number_of_bits_to_be_flipped_to_convert_a_to_b",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78df6": {
+      "primaryLegacyKey": "/bit_manipulation|1|1|1_find_the_number_that_appears_odd_number_of_times",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dfa": {
+      "primaryLegacyKey": "/bit_manipulation|1|2|2_power_set",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78dfe": {
+      "primaryLegacyKey": "/bit_manipulation|1|3|3_find_xor_of_numbers_from_l_to_r",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e02": {
+      "primaryLegacyKey": "/bit_manipulation|1|4|4_find_the_two_numbers_appearing_odd_number_of_times",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e06": {
+      "primaryLegacyKey": "/bit_manipulation|2|0|0_print_prime_factors_of_a_number",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e0a": {
+      "primaryLegacyKey": "/bit_manipulation|2|1|1_all_divisors_of_a_number",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e0e": {
+      "primaryLegacyKey": "/bit_manipulation|2|2|2_sieve_of_eratosthenes",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e12": {
+      "primaryLegacyKey": "/bit_manipulation|2|3|3_find_prime_factorisation_of_a_number_using_sieve",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e16": {
+      "primaryLegacyKey": "/bit_manipulation|2|4|4_power(n,_x)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e1a": {
+      "primaryLegacyKey": "/stack_n_queue|0|0|0_implement_stack_using_arrays",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e1e": {
+      "primaryLegacyKey": "/stack_n_queue|0|1|1_implement_queue_using_arrays",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e22": {
+      "primaryLegacyKey": "/stack_n_queue|0|2|2_implement_stack_using_queue",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e26": {
+      "primaryLegacyKey": "/stack_n_queue|0|3|3_implement_queue_using_stack",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e2a": {
+      "primaryLegacyKey": "/stack_n_queue|0|4|4_implement_stack_using_linkedlist",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e2e": {
+      "primaryLegacyKey": "/stack_n_queue|0|5|5_implement_queue_using_linkedlist",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e32": {
+      "primaryLegacyKey": "/stack_n_queue|0|6|6_check_for_balanced_paranthesis",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e36": {
+      "primaryLegacyKey": "/stack_n_queue|0|7|7_implement_min_stack",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e3a": {
+      "primaryLegacyKey": "/stack_n_queue|1|0|0_infix_to_postfix_conversion_using_stack",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e3e": {
+      "primaryLegacyKey": "/stack_n_queue|1|1|1_prefix_to_infix_conversion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e42": {
+      "primaryLegacyKey": "/stack_n_queue|1|2|2_prefix_to_postfix_conversion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e46": {
+      "primaryLegacyKey": "/stack_n_queue|1|3|3_postfix_to_prefix_conversion",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e4a": {
+      "primaryLegacyKey": "/stack_n_queue|1|4|4_postfix_to_infix",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e4e": {
+      "primaryLegacyKey": "/stack_n_queue|1|5|5_convert_infix_to_prefix_notation",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e52": {
+      "primaryLegacyKey": "/stack_n_queue|2|0|0_next_greater_element",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e56": {
+      "primaryLegacyKey": "/stack_n_queue|2|1|1_next_greater_element_-_ii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e5a": {
+      "primaryLegacyKey": "/stack_n_queue|2|2|2_next_smaller_element",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e5e": {
+      "primaryLegacyKey": "/stack_n_queue|2|3|3_number_of_nges_to_the_right",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e62": {
+      "primaryLegacyKey": "/stack_n_queue|2|4|4_trapping_rainwater",
+      "duplicateLegacyKeys": []
+    },
+    "66e776538a15c1adcdf78e66": {
+      "primaryLegacyKey": "/stack_n_queue|2|5|5_sum_of_subarray_minimum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e6a": {
+      "primaryLegacyKey": "/stack_n_queue|2|7|7_asteroid_collision",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e6e": {
+      "primaryLegacyKey": "/stack_n_queue|2|8|8_sum_of_subarray_ranges",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e72": {
+      "primaryLegacyKey": "/stack_n_queue|2|9|9_remove_k_digits",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e76": {
+      "primaryLegacyKey": "/stack_n_queue|2|10|10_largest_rectangle_in_a_histogram",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e7a": {
+      "primaryLegacyKey": "/stack_n_queue|2|11|11_maximal_rectangles",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e7e": {
+      "primaryLegacyKey": "/stack_n_queue|3|0|0_sliding_window_maximum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e82": {
+      "primaryLegacyKey": "/stack_n_queue|3|1|1_stock_span_problem",
+      "duplicateLegacyKeys": [
+        "/stack_n_queue|2|6|6_stock_span_problem"
+      ]
+    },
+    "66e776548a15c1adcdf78e86": {
+      "primaryLegacyKey": "/stack_n_queue|3|2|2_the_celebrity_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e8a": {
+      "primaryLegacyKey": "/stack_n_queue|3|4|4_lru_cache_(important)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e8e": {
+      "primaryLegacyKey": "/stack_n_queue|3|5|5_lfu_cache",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e92": {
+      "primaryLegacyKey": "/two_pointers|0|0|0_longest_substring_without_repeating_characters",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e96": {
+      "primaryLegacyKey": "/two_pointers|0|1|1_max_consecutive_ones_iii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e9a": {
+      "primaryLegacyKey": "/two_pointers|0|2|2_fruit_into_baskets",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78e9e": {
+      "primaryLegacyKey": "/two_pointers|0|3|3_longest_repeating_character_replacement",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ea2": {
+      "primaryLegacyKey": "/two_pointers|0|4|4_binary_subarray_with_sum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ea6": {
+      "primaryLegacyKey": "/two_pointers|0|5|5_count_number_of_nice_subarrays",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eaa": {
+      "primaryLegacyKey": "/two_pointers|0|6|6_number_of_substring_containing_all_three_characters",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eae": {
+      "primaryLegacyKey": "/two_pointers|0|7|7_maximum_point_you_can_obtain_from_cards",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eb2": {
+      "primaryLegacyKey": "/two_pointers|1|0|0_longest_substring_with_at_most_k_distinct_characters",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eb6": {
+      "primaryLegacyKey": "/two_pointers|1|1|1_subarray_with_k_different_integers",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eba": {
+      "primaryLegacyKey": "/two_pointers|1|2|2_minimum_window_substring",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ebe": {
+      "primaryLegacyKey": "/two_pointers|1|3|3_minimum_window_subsequence",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ec2": {
+      "primaryLegacyKey": "/heaps|0|0|0_introduction_to_priority_queues_using_binary_heaps",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ec6": {
+      "primaryLegacyKey": "/heaps|0|1|1_min_heap_and_max_heap_implementation",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eca": {
+      "primaryLegacyKey": "/heaps|0|2|2_check_if_an_array_represents_a_min-heap_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ece": {
+      "primaryLegacyKey": "/heaps|0|3|3_convert_min_heap_to_max_heap",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ed2": {
+      "primaryLegacyKey": "/heaps|1|0|0_kth_largest_element_in_an_array_[use_priority_queue]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ed6": {
+      "primaryLegacyKey": "/heaps|1|1|1_kth_smallest_element_in_an_array_[use_priority_queue]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eda": {
+      "primaryLegacyKey": "/heaps|1|2|2_sort_k_sorted_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ede": {
+      "primaryLegacyKey": "/heaps|1|3|3_merge_m_sorted_lists",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ee2": {
+      "primaryLegacyKey": "/heaps|1|4|4_replace_each_array_element_by_its_corresponding_rank",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ee6": {
+      "primaryLegacyKey": "/heaps|1|5|5_task_scheduler",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eea": {
+      "primaryLegacyKey": "/heaps|1|6|6_hands_of_straights",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78eee": {
+      "primaryLegacyKey": "/heaps|2|0|0_design_twitter",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ef2": {
+      "primaryLegacyKey": "/heaps|2|1|1_connect_`n`_ropes_with_minimal_cost",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ef6": {
+      "primaryLegacyKey": "/heaps|2|2|2_kth_largest_element_in_a_stream_of_running_integers",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78efa": {
+      "primaryLegacyKey": "/heaps|2|3|3_maximum_sum_combination",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78efe": {
+      "primaryLegacyKey": "/heaps|2|4|4_find_median_from_data_stream",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f02": {
+      "primaryLegacyKey": "/heaps|2|5|5_k_most_frequent_elements",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f06": {
+      "primaryLegacyKey": "/greedy|0|0|0_assign_cookies",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f0a": {
+      "primaryLegacyKey": "/greedy|0|1|1_fractional_knapsack_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f0f": {
+      "primaryLegacyKey": "/greedy|0|2|2_greedy_algorithm_to_find_minimum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f13": {
+      "primaryLegacyKey": "/greedy|0|3|3_lemonade_change",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f17": {
+      "primaryLegacyKey": "/greedy|0|4|4_valid_paranthesis_checker",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f1b": {
+      "primaryLegacyKey": "/greedy|1|0|0_n_meetings_in_one_room",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f1f": {
+      "primaryLegacyKey": "/greedy|1|1|1_jump_game",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f23": {
+      "primaryLegacyKey": "/greedy|1|2|2_jump_game_2",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f27": {
+      "primaryLegacyKey": "/greedy|1|3|3_minimum_number_of_platforms_required_for_a_railway",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f2b": {
+      "primaryLegacyKey": "/greedy|1|4|4_job_sequencing_problem",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f2f": {
+      "primaryLegacyKey": "/greedy|1|5|5_candy",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f33": {
+      "primaryLegacyKey": "/greedy|1|6|6_program_for_shortest_job_first_(or_sjf)_cpu_scheduling",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f37": {
+      "primaryLegacyKey": "/greedy|1|7|7_program_for_least_recently_used_(lru)_page_replacement_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f3b": {
+      "primaryLegacyKey": "/greedy|1|8|8_insert_interval",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f3f": {
+      "primaryLegacyKey": "/greedy|1|9|9_merge_intervals",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f43": {
+      "primaryLegacyKey": "/greedy|1|10|10_non-overlapping_intervals",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f47": {
+      "primaryLegacyKey": "/binary_tree|0|0|0_introduction_to_trees",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f4b": {
+      "primaryLegacyKey": "/binary_tree|0|1|1_binary_tree_representation_in_c++",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f4f": {
+      "primaryLegacyKey": "/binary_tree|0|2|2_binary_tree_representation_in_java",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f53": {
+      "primaryLegacyKey": "/binary_tree|0|3|3_binary_tree_traversals_in_binary_tree_",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f57": {
+      "primaryLegacyKey": "/binary_tree|0|4|4_preorder_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f5b": {
+      "primaryLegacyKey": "/binary_tree|0|5|5_inorder_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f5f": {
+      "primaryLegacyKey": "/binary_tree|0|6|6_post-order_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f63": {
+      "primaryLegacyKey": "/binary_tree|0|7|7_level_order_traversal_/_level_order_traversal_in_spiral_form",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f67": {
+      "primaryLegacyKey": "/binary_tree|0|8|8_iterative_preorder_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f6b": {
+      "primaryLegacyKey": "/binary_tree|0|9|9_iterative_inorder_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f6f": {
+      "primaryLegacyKey": "/binary_tree|0|10|10_post-order_traversal_of_binary_tree_using_2_stack",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f73": {
+      "primaryLegacyKey": "/binary_tree|0|11|11_post-order_traversal_of_binary_tree_using_1_stack",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f77": {
+      "primaryLegacyKey": "/binary_tree|0|12|12_preorder,_inorder,_and_postorder_traversal_in_one_traversal",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f7b": {
+      "primaryLegacyKey": "/binary_tree|1|0|0_height_of_a_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f7f": {
+      "primaryLegacyKey": "/binary_tree|1|1|1_check_if_the_binary_tree_is_height-balanced_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f83": {
+      "primaryLegacyKey": "/binary_tree|1|2|2_diameter_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f87": {
+      "primaryLegacyKey": "/binary_tree|1|3|3_maximum_path_sum",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f8b": {
+      "primaryLegacyKey": "/binary_tree|1|4|4_check_if_two_trees_are_identical_or_not",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f8f": {
+      "primaryLegacyKey": "/binary_tree|1|5|5_zig_zag_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f93": {
+      "primaryLegacyKey": "/binary_tree|1|6|6_boundary_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f97": {
+      "primaryLegacyKey": "/binary_tree|1|7|7_vertical_order_traversal_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f9b": {
+      "primaryLegacyKey": "/binary_tree|1|8|8_top_view_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78f9f": {
+      "primaryLegacyKey": "/binary_tree|1|9|9_bottom_view_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fa3": {
+      "primaryLegacyKey": "/binary_tree|1|10|10_right/left_view_of_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fa7": {
+      "primaryLegacyKey": "/binary_tree|1|11|11_symmetric_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fab": {
+      "primaryLegacyKey": "/binary_tree|2|0|0_root_to_node_path_in_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78faf": {
+      "primaryLegacyKey": "/binary_tree|2|1|1_lca_in_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fb3": {
+      "primaryLegacyKey": "/binary_tree|2|2|2_maximum_width_of_a_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fb7": {
+      "primaryLegacyKey": "/binary_tree|2|3|3_check_for_children_sum_property",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fbb": {
+      "primaryLegacyKey": "/binary_tree|2|4|4_print_all_the_nodes_at_a_distance_of_k_in_a_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fbf": {
+      "primaryLegacyKey": "/binary_tree|2|5|5_minimum_time_taken_to_burn_the_binary_tree_from_a_node",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fc3": {
+      "primaryLegacyKey": "/binary_tree|2|6|6_count_total_nodes_in_a_complete_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fc7": {
+      "primaryLegacyKey": "/binary_tree|2|7|7_requirements_needed_to_construct_a_unique_binary_tree_|_theory",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fcb": {
+      "primaryLegacyKey": "/binary_tree|2|8|8_construct_binary_tree_from_inorder_and_preorder",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fcf": {
+      "primaryLegacyKey": "/binary_tree|2|9|9_construct_the_binary_tree_from_postorder_and_inorder_traversal",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fd3": {
+      "primaryLegacyKey": "/binary_tree|2|10|10_serialize_and_deserialize_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fd7": {
+      "primaryLegacyKey": "/binary_tree|2|11|11_morris_preorder_traversal_of_a_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fdb": {
+      "primaryLegacyKey": "/binary_tree|2|12|12_morris_inorder_traversal_of_a_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fdf": {
+      "primaryLegacyKey": "/binary_tree|2|13|13_flatten_binary_tree_to_linkedlist",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fe3": {
+      "primaryLegacyKey": "/binary_search_tree|0|0|0_introduction_to_binary_search_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fe7": {
+      "primaryLegacyKey": "/binary_search_tree|0|1|1_search_in_a_binary_search_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78feb": {
+      "primaryLegacyKey": "/binary_search_tree|0|2|2_find_min/max_in_bst",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fef": {
+      "primaryLegacyKey": "/binary_search_tree|1|0|0_ceil_in_a_binary_search_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ff3": {
+      "primaryLegacyKey": "/binary_search_tree|1|1|1_floor_in_a_binary_search_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ff7": {
+      "primaryLegacyKey": "/binary_search_tree|1|2|2_insert_a_given_node_in_binary_search_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78ffb": {
+      "primaryLegacyKey": "/binary_search_tree|1|3|3_delete_a_node_in_binary_search_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf78fff": {
+      "primaryLegacyKey": "/binary_search_tree|1|4|4_find_k-th_smallest/largest_element_in_bst",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79003": {
+      "primaryLegacyKey": "/binary_search_tree|1|5|5_check_if_a_tree_is_a_bst_or_bt",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79007": {
+      "primaryLegacyKey": "/binary_search_tree|1|6|6_lca_in_binary_search_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7900b": {
+      "primaryLegacyKey": "/binary_search_tree|1|7|7_construct_a_bst_from_a_preorder_traversal",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7900f": {
+      "primaryLegacyKey": "/binary_search_tree|1|8|8_inorder_successor/predecessor_in_bst",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79013": {
+      "primaryLegacyKey": "/binary_search_tree|1|9|9_merge_2_bst’s",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79017": {
+      "primaryLegacyKey": "/binary_search_tree|1|10|10_two_sum_in_bst_|_check_if_there_exists_a_pair_with_sum_k",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7901b": {
+      "primaryLegacyKey": "/binary_search_tree|1|11|11_recover_bst_|_correct_bst_with_two_nodes_swapped",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7901f": {
+      "primaryLegacyKey": "/binary_search_tree|1|12|12_largest_bst_in_binary_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79023": {
+      "primaryLegacyKey": "/graphs|0|0|0_graph_and_types",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79027": {
+      "primaryLegacyKey": "/graphs|0|1|1_graph_representation_|_c++",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7902b": {
+      "primaryLegacyKey": "/graphs|0|2|2_graph_representation_|_java",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7902f": {
+      "primaryLegacyKey": "/graphs|0|3|3_connected_components_|_logic_explanation",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79033": {
+      "primaryLegacyKey": "/graphs|0|4|4_bfs",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79037": {
+      "primaryLegacyKey": "/graphs|0|5|5_dfs",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7903b": {
+      "primaryLegacyKey": "/graphs|1|0|0_number_of_provinces_(leetcode)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7903f": {
+      "primaryLegacyKey": "/graphs|1|1|1_connected_components_problem_in_matrix",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79043": {
+      "primaryLegacyKey": "/graphs|1|2|2_rotten_oranges",
+      "duplicateLegacyKeys": [
+        "/stack_n_queue|3|3|3_rotten_oranges"
+      ]
+    },
+    "66e776548a15c1adcdf79047": {
+      "primaryLegacyKey": "/graphs|1|3|3_flood_fill",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7904b": {
+      "primaryLegacyKey": "/graphs|1|4|4_cycle_detection_in_unirected_graph_(bfs)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7904f": {
+      "primaryLegacyKey": "/graphs|1|5|5_cycle_detection_in_undirected_graph_(dfs)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79053": {
+      "primaryLegacyKey": "/graphs|1|6|6_0/1_matrix_(bfs_problem)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79057": {
+      "primaryLegacyKey": "/graphs|1|7|7_surrounded_regions_(dfs)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7905b": {
+      "primaryLegacyKey": "/graphs|1|8|8_number_of_enclaves_[flood_fill_implementation_–_multisource]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7905f": {
+      "primaryLegacyKey": "/graphs|1|9|9_word_ladder_–_1",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79063": {
+      "primaryLegacyKey": "/graphs|1|10|10_word_ladder_–_2",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79067": {
+      "primaryLegacyKey": "/graphs|1|11|11_number_of_distinct_islands_[dfs_multisource]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7906b": {
+      "primaryLegacyKey": "/graphs|1|12|12_bipartite_graph_(dfs)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7906f": {
+      "primaryLegacyKey": "/graphs|1|13|13_cycle_detection_in_directed_graph_(dfs)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79073": {
+      "primaryLegacyKey": "/graphs|2|0|0_topo_sort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79077": {
+      "primaryLegacyKey": "/graphs|2|1|1_kahn’s_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7907b": {
+      "primaryLegacyKey": "/graphs|2|2|2_cycle_detection_in_directed_graph_(bfs)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7907f": {
+      "primaryLegacyKey": "/graphs|2|3|3_course_schedule_–_i",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79083": {
+      "primaryLegacyKey": "/graphs|2|4|4_course_schedule_–_ii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79087": {
+      "primaryLegacyKey": "/graphs|2|5|5_find_eventual_safe_states",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7908b": {
+      "primaryLegacyKey": "/graphs|2|6|6_alien_dictionary",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7908f": {
+      "primaryLegacyKey": "/graphs|3|0|0_shortest_path_in_ug_with_unit_weights",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79093": {
+      "primaryLegacyKey": "/graphs|3|1|1_shortest_path_in_dag",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf79097": {
+      "primaryLegacyKey": "/graphs|3|2|2_djisktra’s_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7909b": {
+      "primaryLegacyKey": "/graphs|3|3|3_why_priority_queue_is_used_in_djisktra’s_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776548a15c1adcdf7909f": {
+      "primaryLegacyKey": "/graphs|3|4|4_shortest_path_in_a_binary_maze",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790a3": {
+      "primaryLegacyKey": "/graphs|3|5|5_path_with_minimum_effort",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790a7": {
+      "primaryLegacyKey": "/graphs|3|6|6_cheapest_flights_within_k_stops",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790ab": {
+      "primaryLegacyKey": "/graphs|3|7|7_network_delay_time",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790af": {
+      "primaryLegacyKey": "/graphs|3|8|8_number_of_ways_to_arrive_at_destination",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790b3": {
+      "primaryLegacyKey": "/graphs|3|9|9_minimum_steps_to_reach_end_from_start_by_performing_multiplication_and_mod_operations_with_array_elements",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790b7": {
+      "primaryLegacyKey": "/graphs|3|10|10_bellman_ford_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790bb": {
+      "primaryLegacyKey": "/graphs|3|11|11_floyd_warshal_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790bf": {
+      "primaryLegacyKey": "/graphs|3|12|12_find_the_city_with_the_smallest_number_of_neighbors_in_a_threshold_distance",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790c3": {
+      "primaryLegacyKey": "/graphs|4|0|0_minimum_spanning_tree",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790c7": {
+      "primaryLegacyKey": "/graphs|4|1|1_prim’s_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790cb": {
+      "primaryLegacyKey": "/graphs|4|2|2_disjoint_set_[union_by_rank]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790cf": {
+      "primaryLegacyKey": "/graphs|4|3|3_disjoint_set_[union_by_size]",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790d3": {
+      "primaryLegacyKey": "/graphs|4|4|4_kruskal’s_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790d7": {
+      "primaryLegacyKey": "/graphs|4|5|5_number_of_operations_to_make_network_connected",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790db": {
+      "primaryLegacyKey": "/graphs|4|6|6_most_stones_removed_with_same_rows_or_columns",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790df": {
+      "primaryLegacyKey": "/graphs|4|7|7_accounts_merge",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790e3": {
+      "primaryLegacyKey": "/graphs|4|8|8_number_of_island_ii",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790e7": {
+      "primaryLegacyKey": "/graphs|4|9|9_making_a_large_island",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790eb": {
+      "primaryLegacyKey": "/graphs|4|10|10_swim_in_rising_water",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790ef": {
+      "primaryLegacyKey": "/graphs|5|0|0_bridges_in_graph",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790f3": {
+      "primaryLegacyKey": "/graphs|5|1|1_articulation_point",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790f7": {
+      "primaryLegacyKey": "/graphs|5|2|2_kosaraju’s_algorithm",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790fb": {
+      "primaryLegacyKey": "/dp|0|0|0_dynamic_programming_introduction",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf790ff": {
+      "primaryLegacyKey": "/dp|1|0|0_climbing_stars",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79103": {
+      "primaryLegacyKey": "/dp|1|1|1_frog_jump(dp-3)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79107": {
+      "primaryLegacyKey": "/dp|1|2|2_frog_jump_with_k_distances(dp-4)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7910b": {
+      "primaryLegacyKey": "/dp|1|3|3_maximum_sum_of_non-adjacent_elements_(dp_5)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7910f": {
+      "primaryLegacyKey": "/dp|1|4|4_house_robber_(dp_6)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79113": {
+      "primaryLegacyKey": "/dp|2|0|0_ninja’s_training_(dp_7)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79117": {
+      "primaryLegacyKey": "/dp|2|1|1_grid_unique_paths_:_dp_on_grids_(dp8)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7911b": {
+      "primaryLegacyKey": "/dp|2|2|2_grid_unique_paths_2_(dp_9)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7911f": {
+      "primaryLegacyKey": "/dp|2|3|3_minimum_path_sum_in_grid_(dp_10)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79123": {
+      "primaryLegacyKey": "/dp|2|4|4_minimum_path_sum_in_triangular_grid_(dp_11)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79127": {
+      "primaryLegacyKey": "/dp|2|5|5_minimum/maximum_falling_path_sum_(dp-12)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7912b": {
+      "primaryLegacyKey": "/dp|2|6|6_3d_dp_:_ninja_and_his_friends_(dp-13)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7912f": {
+      "primaryLegacyKey": "/dp|3|0|0_subset_sum_equal_to_target_(dp-_14)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79133": {
+      "primaryLegacyKey": "/dp|3|1|1_partition_equal_subset_sum_(dp-_15)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79137": {
+      "primaryLegacyKey": "/dp|3|2|2_partition_set_into_2_subsets_with_min_absolute_sum_diff_(dp-_16)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7913b": {
+      "primaryLegacyKey": "/dp|3|3|3_count_subsets_with_sum_k_(dp_–_17)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7913f": {
+      "primaryLegacyKey": "/dp|3|4|4_count_partitions_with_given_difference_(dp_–_18)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79143": {
+      "primaryLegacyKey": null,
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79147": {
+      "primaryLegacyKey": "/dp|3|6|6_minimum_coins_(dp_–_20)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7914b": {
+      "primaryLegacyKey": "/dp|3|7|7_target_sum_(dp_–_21)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7914f": {
+      "primaryLegacyKey": "/dp|3|8|8_coin_change_2_(dp_–_22)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79153": {
+      "primaryLegacyKey": "/dp|3|9|9_unbounded_knapsack_(dp_–_23)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79157": {
+      "primaryLegacyKey": "/dp|3|10|10_rod_cutting_problem_|_(dp_–_24)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7915b": {
+      "primaryLegacyKey": "/dp|4|0|0_longest_common_subsequence_|_(dp_–_25)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7915f": {
+      "primaryLegacyKey": "/dp|4|1|1_print_longest_common_subsequence_|_(dp_–_26)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79163": {
+      "primaryLegacyKey": "/dp|4|2|2_longest_common_substring_|_(dp_–_27)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79167": {
+      "primaryLegacyKey": "/dp|4|3|3_longest_palindromic_subsequence_|_(dp-28)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7916b": {
+      "primaryLegacyKey": "/dp|4|4|4_minimum_insertions_to_make_string_palindrome_|_dp-29",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7916f": {
+      "primaryLegacyKey": "/dp|4|5|5_minimum_insertions/deletions_to_convert_string_|_(dp-_30)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79173": {
+      "primaryLegacyKey": "/dp|4|6|6_shortest_common_supersequence_|_(dp_–_31)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79177": {
+      "primaryLegacyKey": "/dp|4|7|7_distinct_subsequences|_(dp-32)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7917b": {
+      "primaryLegacyKey": "/dp|4|8|8_edit_distance_|_(dp-33)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7917f": {
+      "primaryLegacyKey": "/dp|4|9|9_wildcard_matching_|_(dp-34)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79183": {
+      "primaryLegacyKey": "/dp|5|0|0_best_time_to_buy_and_sell_stock_|(dp-35)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79187": {
+      "primaryLegacyKey": "/dp|5|1|1_buy_and_sell_stock_–_ii|(dp-36)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7918b": {
+      "primaryLegacyKey": "/dp|5|2|2_buy_and_sell_stocks_iii|(dp-37)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7918f": {
+      "primaryLegacyKey": "/dp|5|3|3_buy_and_stock_sell_iv_|(dp-38)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79193": {
+      "primaryLegacyKey": "/dp|5|4|4_buy_and_sell_stocks_with_cooldown|(dp-39)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79197": {
+      "primaryLegacyKey": "/dp|5|5|5_buy_and_sell_stocks_with_transaction_fee|(dp-40)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7919b": {
+      "primaryLegacyKey": "/dp|6|0|0_longest_increasing_subsequence_|(dp-41)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7919f": {
+      "primaryLegacyKey": "/dp|6|1|1_printing_longest_increasing_subsequence|(dp-42)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791a3": {
+      "primaryLegacyKey": "/dp|6|2|2_longest_increasing_subsequence_|(dp-43)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791a7": {
+      "primaryLegacyKey": "/dp|6|3|3_largest_divisible_subset|(dp-44)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791ab": {
+      "primaryLegacyKey": "/dp|6|4|4_longest_string_chain|(dp-45)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791af": {
+      "primaryLegacyKey": "/dp|6|5|5_longest_bitonic_subsequence_|(dp-46)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791b3": {
+      "primaryLegacyKey": "/dp|6|6|6_number_of_longest_increasing_subsequences|(dp-47)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791b7": {
+      "primaryLegacyKey": "/dp|7|0|0_matrix_chain_multiplication|(dp-48)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791bb": {
+      "primaryLegacyKey": "/dp|7|1|1_matrix_chain_multiplication_|_bottom-up|(dp-49)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791bf": {
+      "primaryLegacyKey": "/dp|7|2|2_minimum_cost_to_cut_the_stick|(dp-50)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791c3": {
+      "primaryLegacyKey": "/dp|7|3|3_burst_balloons|(dp-51)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791c7": {
+      "primaryLegacyKey": "/dp|7|4|4_evaluate_boolean_expression_to_true|(dp-52)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791cb": {
+      "primaryLegacyKey": "/dp|7|5|5_palindrome_partitioning_–_ii|(dp-53)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791cf": {
+      "primaryLegacyKey": "/dp|7|6|6_partition_array_for_maximum_sum|(dp-54)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791d3": {
+      "primaryLegacyKey": "/dp|8|0|0_maximum_rectangle_area_with_all_1’s|(dp-55)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791d7": {
+      "primaryLegacyKey": "/dp|8|1|1_count_square_submatrices_with_all_ones|(dp-56)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791db": {
+      "primaryLegacyKey": "/tries|0|0|0_implement_trie_|_insert_|_search_|_startswith",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791df": {
+      "primaryLegacyKey": "/tries|1|0|0_implement_trie_–_2_(prefix_tree)",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791e3": {
+      "primaryLegacyKey": "/tries|1|1|1_longest_string_with_all_prefixes",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791e7": {
+      "primaryLegacyKey": "/tries|1|2|2_number_of_distinct_substrings_in_a_string",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791eb": {
+      "primaryLegacyKey": "/tries|1|3|3_bit_prerequisites_for_trie_problems",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791ef": {
+      "primaryLegacyKey": "/tries|1|4|4_maximum_xor_of_two_numbers_in_an_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791f3": {
+      "primaryLegacyKey": "/tries|1|5|5_maximum_xor_with_an_element_from_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791f7": {
+      "primaryLegacyKey": "/strings_part_2|0|0|0_minimum_number_of_bracket_reversals_needed_to_make_an_expression_balanced",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791fb": {
+      "primaryLegacyKey": "/strings_part_2|0|1|1_count_and_say",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf791ff": {
+      "primaryLegacyKey": "/strings_part_2|0|2|2_hashing_in_strings_|_theory",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79203": {
+      "primaryLegacyKey": "/strings_part_2|0|3|3_rabin_karp",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79207": {
+      "primaryLegacyKey": "/strings_part_2|0|4|4_z-function",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7920b": {
+      "primaryLegacyKey": "/strings_part_2|0|5|5_kmp_algo_/_lps(pi)_array",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf7920f": {
+      "primaryLegacyKey": "/strings_part_2|0|6|6_shortest_palindrome",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79213": {
+      "primaryLegacyKey": "/strings_part_2|0|7|7_longest_happy_prefix",
+      "duplicateLegacyKeys": []
+    },
+    "66e776558a15c1adcdf79217": {
+      "primaryLegacyKey": "/strings_part_2|0|8|8_count_palindromic_subsequence_in_given_string",
+      "duplicateLegacyKeys": []
+    }
+  }
+}

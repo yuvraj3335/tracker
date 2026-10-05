@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
  * its own ink token, chosen beside the colour it has to sit on.
  */
 const CHIP: Record<string, { bg: string; fg: string }> = {
+  Basic: { bg: 'var(--surface-3, var(--surface-2))', fg: 'var(--ink)' },
   Easy: { bg: 'var(--diff-easy)', fg: 'var(--diff-easy-ink)' },
   Medium: { bg: 'var(--diff-medium)', fg: 'var(--diff-medium-ink)' },
   Hard: { bg: 'var(--diff-hard)', fg: 'var(--diff-hard-ink)' },
@@ -72,9 +73,14 @@ function TaskRowImpl({
   });
   const [difficulty, setDifficultyOptimistic] = useOptimistic(task.difficulty);
 
-  const links = (Object.keys(LINK_LABEL) as (keyof typeof LINK_LABEL)[])
-    .map((k) => ({ label: LINK_LABEL[k], href: task.links[k] }))
-    .filter((l) => l.href);
+  const links = task.sourceId.startsWith('codolio:')
+    ? [
+        { label: 'Problem', href: task.links.problem },
+        { label: 'Learn', href: task.links.resource },
+      ].filter((l) => l.href)
+    : (Object.keys(LINK_LABEL) as (keyof typeof LINK_LABEL)[])
+        .map((k) => ({ label: LINK_LABEL[k], href: task.links[k] }))
+        .filter((l) => l.href);
 
   function toggle(next: boolean) {
     // Celebrate optimistically, before Notion replies — the reward has to land
@@ -282,10 +288,8 @@ export const TaskRow = memo(TaskRowImpl);
 /**
  * Sets a question's difficulty.
  *
- * The source sheet carries no difficulty, so every row is seeded blank and the
- * analytics page's breakdown stays empty until these are filled in. There was
- * previously no way to do that anywhere in the app — `setDifficultyAction`
- * existed but nothing called it — so the feature was unreachable.
+ * Codolio provides a starting difficulty. This control lets a person override
+ * it without changing the separate Source Difficulty column in Notion.
  *
  * A native <select> rather than a custom menu: it is one element, it is
  * keyboard and screen-reader correct for free, and on a phone it opens the

@@ -60,20 +60,22 @@ export function fixtures() {
           areaIds: [AREA],
           topicIds: [`fx-topic-${sec.order}`],
           heading: h.name,
-          difficulty: rand() > 0.4 ? DIFFICULTY[Math.floor(rand() * 3)] : null,
+          difficulty: rand() > 0.4 ? q.difficulty as (typeof DIFFICULTY)[number] : null,
           order: q.globalOrder,
           headingOrder: h.order,
           taskOrder: q.order,
           links: {
-            tuf: q.tufLink,
-            leetcode: q.leetCodeLink,
-            gfg: q.gfgLink,
-            youtube: q.youTubeLink,
+            tuf: '',
+            leetcode: '',
+            gfg: '',
+            youtube: '',
+            problem: q.problemLink,
+            resource: q.resourceLink,
           },
           bookmarked: rand() > 0.93,
           revisit: rand() > 0.95,
           notes: '',
-          sourceId: q.sourceId,
+          sourceId: `codolio:${q.sourceId}`,
         });
       }
     }

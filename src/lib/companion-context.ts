@@ -61,14 +61,13 @@ export function buildSnapshot(areas: Area[], topics: Topic[], tasks: Task[]): st
     lines.push('They have never logged a question yet.');
   }
 
-  // Difficulty. The source sheet ships none of this, so most of it is usually
-  // blank — saying so is the difference between honest and confidently wrong.
+  // Codolio supplies a source difficulty; the user can override it in Notion.
   const diff = difficultyBreakdown(tasks);
   const graded = diff.rows.map((r) => `${r.difficulty} ${r.done}/${r.total}`).join(', ');
   lines.push(
     `By difficulty (done out of total): ${graded}. ${diff.unset.total} questions have no difficulty set` +
       (diff.unset.total > 0
-        ? ' — the source sheet does not carry difficulty, so it is blank until they fill it in.'
+        ? ' — these records have not been graded yet.'
         : '.'),
   );
 

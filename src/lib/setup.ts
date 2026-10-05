@@ -18,11 +18,13 @@ export type SetupStage =
   | 'page'
   /** Databases exist and the 456 questions are going in. */
   | 'seeding'
+  | 'migrating'
   /** Everything is wired up. This is where an already-connected user lands. */
   | 'connected';
 
 export function setupStage(state: ConnectionState, hasDatabases: boolean): SetupStage {
   if (state === 'ready') return 'connected';
+  if (state === 'migrating') return 'migrating';
   if (state === 'needs_token') return 'token';
   if (state === 'needs_page') return 'page';
   // A provision that failed before any database existed has nothing to resume,

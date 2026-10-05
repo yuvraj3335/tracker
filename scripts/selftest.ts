@@ -21,7 +21,11 @@ import {
   wrapNotionError,
   isSelectOptionRejection,
   friendlyNotionError,
+  totalQuestions,
 } from '../src/lib/provision';
+import codolioSeed from '../data/a2z-seed.json';
+import crosswalk from '../data/a2z-crosswalk.json';
+import { mergeProgress, MIGRATION_TOTAL, type ProgressSnapshot } from '../src/lib/sheet-migration';
 import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey, isDayKey } from '../src/lib/date';
 import { streaks, countsByDay, overallProgress, areaProgress, streakMood, performanceMood, summarize } from '../src/lib/derive';
 import {
@@ -87,6 +91,7 @@ import { usableAccent, contrastRatio, readableInk } from '../src/lib/contrast';
 import { resolveDatabaseUrl } from '../src/lib/env';
 import type { Area, Task } from '../src/lib/notion';
 import { jobTests } from './selftest-jobs';
+import { codolioMigrationTests } from './selftest-codolio';
 
 let pass = 0;
 let fail = 0;
@@ -100,7 +105,7 @@ function task(p: Partial<Task>): Task {
   return {
     id: 'x', name: 'q', done: false, completedOn: null, areaIds: ['a1'], topicIds: ['t1'],
     heading: 'h', difficulty: null, order: 0, headingOrder: 0, taskOrder: 0,
-    links: { tuf: '', leetcode: '', gfg: '', youtube: '' },
+    links: { tuf: '', leetcode: '', gfg: '', youtube: '', problem: '', resource: '' },
     bookmarked: false, revisit: false, notes: '', sourceId: '', ...p,
   };
 }
@@ -156,7 +161,26 @@ async function main() {
   check('every question has a section path', all.every((q) => !!q.sectionPath));
   check('every question has a heading', all.every((q) => !!q.headingName));
   check('every question has a name', all.every((q) => !!q.name.trim()));
-  check('unique headings = 54', uniqueHeadings().length === 54, `got ${uniqueHeadings().length}`);
+  check('Codolio has 18 steps', codolioSeed.sections.length === 18);
+  check('Codolio has 61 lessons', codolioSeed.sections.reduce((n, s) => n + s.headings.length, 0) === 61);
+  check('Codolio has 58 unique lesson labels', uniqueHeadings().length === 58);
+  check('Codolio has four source difficulty levels',
+    new Set(all.map((q) => q.difficulty)).size === 4);
+  check('Codolio identifiers are unique', new Set(all.map((q) => q.sourceId)).size === 455);
+  check('old in-flight setup still has 456 questions', totalQuestions(1) === 456 && flatQuestions(1).length === 456);
+  check('old in-flight setup still has 54 headings', uniqueHeadings(1).length === 54);
+  check('crosswalk covers every Codolio question', Object.keys(crosswalk.byCodolioId).length === 455);
+  check('crosswalk has 448 matched, 7 duplicate and 7 new questions',
+    crosswalk.primaryMatches === 448 && crosswalk.duplicateAliases === 7 && crosswalk.newQuestions.length === 7);
+  check('one old-only question is recoverable', crosswalk.legacyQuestions.length === 1);
+  check('migration cursor includes archive, section updates and final verification', MIGRATION_TOTAL === 475);
+  const sample: ProgressSnapshot = { done: false, completedOn: null, difficulty: 'Hard', bookmarked: false, revisit: false };
+  const merged = mergeProgress(sample, [{ done: true, completedOn: '2026-09-20', difficulty: 'Easy', bookmarked: true, revisit: true }], 'Medium');
+  check('duplicate completion and date move to active question', merged.done && merged.completedOn === '2026-09-20');
+  check('manual primary difficulty wins over duplicate and source', merged.difficulty === 'Hard');
+  check('duplicate bookmark and revisit are preserved', merged.bookmarked && merged.revisit);
+  check('new questions use source difficulty', mergeProgress(null, [], 'Basic').difficulty === 'Basic');
+  await codolioMigrationTests(check);
   // Chunking must cover every question exactly once.
   const seen = new Set<number>();
   for (let c = 0; c < all.length; c += 15) {
@@ -307,7 +331,12 @@ async function main() {
     let created = 0;
     const FAIL_ON = 6;
 
-    globalThis.fetch = (async () => {
+    globalThis.fetch = (async (input) => {
+      if (String(input).includes('/query')) {
+        return new Response(JSON.stringify({ object: 'list', results: [], has_more: false, next_cursor: null }), {
+          status: 200, headers: { 'content-type': 'application/json' },
+        });
+      }
       created++;
       if (created === FAIL_ON) {
         return new Response(
@@ -347,14 +376,47 @@ async function main() {
     }
   }
 
+  section('seedChunk lost-response recovery');
+  {
+    const realFetch = globalThis.fetch;
+    let creates = 0;
+    let stored = '';
+    globalThis.fetch = (async (input, init) => {
+      if (String(input).includes('/query')) {
+        return new Response(JSON.stringify({
+          object: 'list', has_more: false, next_cursor: null,
+          results: stored ? [{ properties: { 'Source Id': { rich_text: [{ plain_text: stored }] } } }] : [],
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      creates++;
+      const body = JSON.parse(String(init?.body ?? '{}'));
+      stored = body.properties?.['Source Id']?.rich_text?.[0]?.text?.content ?? '';
+      return new Response(JSON.stringify({ object: 'error', status: 503, code: 'service_unavailable', message: 'response lost' }),
+        { status: 503, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    try {
+      const topicPageIds = Object.fromEntries([...new Set(flatQuestions().map((q) => q.sectionPath))]
+        .map((p) => [p, 'topic-id']));
+      const d = { tasksDs: 'ds', areaPageId: 'area', topicPageIds, headingIsSelect: true };
+      const first = await seedChunk('ntn_fake_lost', d, 0, 1);
+      const second = await seedChunk('ntn_fake_lost', d, first.cursor, 1);
+      check('a lost create response pauses without claiming progress', Boolean(first.error) && first.cursor === 0);
+      check('retry finds the saved Source Id and does not create twice', second.cursor === 1 && creates === 1);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  }
+
   section('seedChunk bounds');
   {
     const realFetch = globalThis.fetch;
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ object: 'page', id: 'pg' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })) as typeof fetch;
+    globalThis.fetch = (async (input) =>
+      new Response(String(input).includes('/query')
+        ? JSON.stringify({ object: 'list', results: [], has_more: false, next_cursor: null })
+        : JSON.stringify({ object: 'page', id: 'pg' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })) as typeof fetch;
     try {
       const topicPageIds = Object.fromEntries(
         [...new Set(flatQuestions().map((q) => q.sectionPath))].map((p) => [p, 'topic-id']),
@@ -1059,6 +1121,7 @@ async function main() {
     check('no token yet asks for one', setupStage('needs_token', false) === 'token');
     check('a token but no shared page asks for the page', setupStage('needs_page', false) === 'page');
     check('a provision in flight shows progress', setupStage('provisioning', true) === 'seeding');
+    check('old connected account upgrades before opening the tracker', setupStage('migrating', true) === 'migrating');
     check('a finished connection is a connection screen, not a redirect',
       setupStage('ready', true) === 'connected');
 

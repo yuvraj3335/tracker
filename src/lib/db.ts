@@ -43,6 +43,10 @@ export type Connection = {
   provisionState: ProvisionState;
   provisionCursor: number;
   provisionError: string | null;
+  /** 1 is the original 456-question sheet; 2 is Codolio's 455-question sheet. */
+  sheetVersion: number;
+  sheetMigrationCursor: number;
+  sheetMigrationError: string | null;
   /** Job Applications data source, once job tracking has been set up. */
   jobsDs: string | null;
   /** The one-row Job Profile data source, and its one row. */
@@ -200,6 +204,10 @@ export async function ensureSchema(): Promise<void> {
   // JOBS_SCHEMA_VERSION). Accounts set up before a column was added get it the
   // next time they write, and this records that they have.
   await q`alter table notion_connections add column if not exists jobs_schema int not null default 1`;
+  await q`alter table notion_connections add column if not exists sheet_version int not null default 1`;
+  await q`alter table notion_connections add column if not exists sheet_migration_cursor int not null default 0`;
+  await q`alter table notion_connections add column if not exists sheet_migration_lock timestamptz`;
+  await q`alter table notion_connections add column if not exists sheet_migration_error text`;
 
   // Personal keys for AI tools. Only a SHA-256 of each key is kept — a key is
   // 256 random bits, so a fast hash is enough, and a leaked table cannot be
@@ -311,6 +319,9 @@ function toConnection(row: any): Connection {
     provisionState: row.provision_state,
     provisionCursor: row.provision_cursor,
     provisionError: row.provision_error,
+    sheetVersion: Number(row.sheet_version ?? 1),
+    sheetMigrationCursor: Number(row.sheet_migration_cursor ?? 0),
+    sheetMigrationError: row.sheet_migration_error ?? null,
     // `?? null` because these columns do not exist until ensureSchema has run
     // once on a database created before job tracking, and `select *` then
     // simply leaves them out.
@@ -323,6 +334,9 @@ function toConnection(row: any): Connection {
 
 export async function getConnection(userId: string): Promise<Connection | null> {
   if (!/^[0-9a-f-]{36}$/i.test(userId)) return null;
+  // Signed-in returning users may never hit signup/signin after a deployment.
+  // Their first page read must install the additive migration columns too.
+  await ensureSchema();
   const q = sql();
   const rows = (await q`
     select * from notion_connections where user_id = ${userId}::uuid limit 1
@@ -338,15 +352,18 @@ export async function saveToken(
   const q = sql();
   await q`
     insert into notion_connections
-      (user_id, token_ciphertext, token_iv, token_tag, provision_state, provision_cursor)
+      (user_id, token_ciphertext, token_iv, token_tag, provision_state, provision_cursor, sheet_version)
     values
-      (${userId}::uuid, ${sealed.ciphertext}, ${sealed.iv}, ${sealed.tag}, 'needs_page', 0)
+      (${userId}::uuid, ${sealed.ciphertext}, ${sealed.iv}, ${sealed.tag}, 'needs_page', 0, 2)
     on conflict (user_id) do update set
       token_ciphertext = excluded.token_ciphertext,
       token_iv         = excluded.token_iv,
       token_tag        = excluded.token_tag,
       provision_state  = 'needs_page',
       provision_error  = null,
+      sheet_version    = case
+        when notion_connections.tasks_ds is null and notion_connections.provision_cursor = 0 then 2
+        else notion_connections.sheet_version end,
       updated_at       = now()
   `;
 }
@@ -475,6 +492,45 @@ export async function releaseSeedingLease(userId: string): Promise<void> {
   const q = sql();
   await q`
     update notion_connections set provision_lock = null where user_id = ${userId}::uuid
+  `;
+}
+
+/** A separate lease: an old account may be finishing its v1 seed while a
+ * migration page is open, but only one migration chunk may ever write. */
+export async function claimSheetMigrationLease(userId: string): Promise<number | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return null;
+  const q = sql();
+  const rows = (await q`
+    update notion_connections set sheet_migration_lock = now()
+     where user_id = ${userId}::uuid
+       and sheet_version = 1 and provision_state = 'ready'
+       and (sheet_migration_lock is null or sheet_migration_lock < now() - interval '90 seconds')
+    returning sheet_migration_cursor
+  `) as any[];
+  return rows.length ? Number(rows[0].sheet_migration_cursor) : null;
+}
+
+export async function releaseSheetMigrationLease(userId: string): Promise<void> {
+  const q = sql();
+  await q`update notion_connections set sheet_migration_lock = null where user_id = ${userId}::uuid`;
+}
+
+export async function saveSheetMigrationProgress(userId: string, cursor: number, error: string | null): Promise<void> {
+  const q = sql();
+  await q`
+    update notion_connections set sheet_migration_cursor = ${cursor},
+      sheet_migration_error = ${error}, updated_at = now()
+    where user_id = ${userId}::uuid and sheet_version = 1
+  `;
+}
+
+/** Only called after Notion has been read back and all 455 live rows verified. */
+export async function finishSheetMigration(userId: string): Promise<void> {
+  const q = sql();
+  await q`
+    update notion_connections set sheet_version = 2, sheet_migration_cursor = 455,
+      sheet_migration_error = null, updated_at = now()
+    where user_id = ${userId}::uuid and sheet_version = 1 and provision_state = 'ready'
   `;
 }
 

@@ -13,6 +13,7 @@
  */
 import { Client } from '@notionhq/client';
 import seedJson from '../../data/a2z-seed.json';
+import legacySeedJson from '../../data/a2z-legacy-seed.json';
 import {
   P,
   areasProperties,
@@ -28,10 +29,13 @@ import {
 type SeedQuestion = {
   order: number;
   name: string;
-  tufLink: string;
-  leetCodeLink: string;
-  gfgLink: string;
-  youTubeLink: string;
+  tufLink?: string;
+  leetCodeLink?: string;
+  gfgLink?: string;
+  youTubeLink?: string;
+  problemLink?: string;
+  resourceLink?: string;
+  difficulty?: 'Basic' | 'Easy' | 'Medium' | 'Hard';
   sourceId: string;
   globalOrder: number;
 };
@@ -42,6 +46,8 @@ const SEED = seedJson as unknown as {
   totals: { sections: number; headings: number; questions: number };
   sections: SeedSection[];
 };
+const LEGACY_SEED = legacySeedJson as unknown as typeof SEED;
+const seedFor = (version: number) => version >= 2 ? SEED : LEGACY_SEED;
 
 /** One flat list in sheet order. The provisioning cursor indexes into this. */
 export type FlatQuestion = SeedQuestion & {
@@ -50,11 +56,13 @@ export type FlatQuestion = SeedQuestion & {
   headingOrder: number;
 };
 
-let _flat: FlatQuestion[] | null = null;
-export function flatQuestions(): FlatQuestion[] {
-  if (_flat) return _flat;
+const flatCache = new Map<number, FlatQuestion[]>();
+export function flatQuestions(version = 2): FlatQuestion[] {
+  const key = version >= 2 ? 2 : 1;
+  const hit = flatCache.get(key);
+  if (hit) return hit;
   const out: FlatQuestion[] = [];
-  for (const s of SEED.sections) {
+  for (const s of seedFor(key).sections) {
     for (const h of s.headings) {
       for (const q of h.questions) {
         out.push({
@@ -68,14 +76,15 @@ export function flatQuestions(): FlatQuestion[] {
   }
   // Sort by the scraper's global order so the cursor is stable across deploys.
   out.sort((a, b) => a.globalOrder - b.globalOrder);
-  _flat = out;
+  flatCache.set(key, out);
   return out;
 }
 
 export const TOTAL_QUESTIONS = SEED.totals.questions;
+export function totalQuestions(version: number): number { return seedFor(version).totals.questions; }
 
-export function uniqueHeadings(): string[] {
-  return [...new Set(SEED.sections.flatMap((s) => s.headings.map((h) => h.name)))];
+export function uniqueHeadings(version = 2): string[] {
+  return [...new Set(seedFor(version).sections.flatMap((s) => s.headings.map((h) => h.name)))];
 }
 
 // ---------------------------------------------------------------------------
@@ -331,6 +340,7 @@ export async function createDatabases(
   existing: ExistingDatabases = {},
   /** Called as each database is created, so none is orphaned by a failure. */
   onCreated?: (d: DatabaseShells) => Promise<void>,
+  sheetVersion = 2,
 ): Promise<CreatedDatabases> {
   const client = new Client({ auth: token });
   const run = callerFor(token);
@@ -361,9 +371,9 @@ export async function createDatabases(
   // Heading is a select so Notion can group by it. Notion rejects commas in
   // option names, and one heading has them, so fall back to rich_text rather
   // than ever altering a heading from the source sheet.
-  const headings = uniqueHeadings();
+  const headings = uniqueHeadings(sheetVersion);
   let tasksDs: string;
-  let headingSelect = existing.headingIsSelect ?? true;
+  let headingSelect = sheetVersion < 2 ? existing.headingIsSelect ?? true : false;
 
   if (existing.tasksDs) {
     tasksDs = existing.tasksDs;
@@ -375,9 +385,10 @@ export async function createDatabases(
         parentPageId,
         'Tasks',
         '✅',
-        tasksProperties(areasDs, topicsDs, headings, true),
+        tasksProperties(areasDs, topicsDs, headings, headingSelect),
       );
     } catch (e) {
+      if (!headingSelect) throw e;
       // Only the comma-in-select case justifies a second attempt. Retrying
       // after an auth failure or a timeout would create a duplicate Tasks
       // database and bury the error that actually mattered.
@@ -430,7 +441,7 @@ export async function createDatabases(
   }
 
   const topicPageIds: Record<string, string> = { ...(existing.topicPageIds ?? {}) };
-  for (const s of SEED.sections) {
+  for (const s of seedFor(sheetVersion).sections) {
     if (topicPageIds[s.path]) continue;
     const res: any = await run(`create topic ${s.name}`, () =>
       client.pages.create({
@@ -490,26 +501,49 @@ async function buildViews(
         view_range: 'month',
         show_weekends: true,
       },
+      filter: { property: P.task.sheetStatus, select: { does_not_equal: 'Legacy' } },
     });
   }
   await safe('Done Log', {
     data_source_id: ds.tasksDs,
     name: 'Done Log',
     type: 'table',
-    filter: { property: P.task.done, checkbox: { equals: true } },
+    filter: { and: [
+      { property: P.task.done, checkbox: { equals: true } },
+      { property: P.task.sheetStatus, select: { does_not_equal: 'Legacy' } },
+    ] },
     sorts: [{ property: P.task.completedOn, direction: 'descending' }],
   });
   await safe('Bookmarked', {
     data_source_id: ds.tasksDs,
     name: 'Bookmarked',
     type: 'table',
-    filter: { property: P.task.bookmarked, checkbox: { equals: true } },
+    filter: { and: [
+      { property: P.task.bookmarked, checkbox: { equals: true } },
+      { property: P.task.sheetStatus, select: { does_not_equal: 'Legacy' } },
+    ] },
   });
   await safe('Revisit', {
     data_source_id: ds.tasksDs,
     name: 'Revisit',
     type: 'table',
-    filter: { property: P.task.revisit, checkbox: { equals: true } },
+    filter: { and: [
+      { property: P.task.revisit, checkbox: { equals: true } },
+      { property: P.task.sheetStatus, select: { does_not_equal: 'Legacy' } },
+    ] },
+  });
+  await safe('Codolio A2Z', {
+    data_source_id: ds.tasksDs,
+    name: 'Codolio A2Z',
+    type: 'table',
+    filter: { property: P.task.sheetStatus, select: { equals: 'Codolio' } },
+    sorts: [{ property: P.task.order, direction: 'ascending' }],
+  });
+  await safe('Legacy A2Z', {
+    data_source_id: ds.tasksDs,
+    name: 'Legacy A2Z',
+    type: 'table',
+    filter: { property: P.task.sheetStatus, select: { equals: 'Legacy' } },
   });
   await safe('Topic Progress', {
     data_source_id: ds.topicsDs,
@@ -560,18 +594,44 @@ export async function seedChunk(
   },
   cursor: number,
   size: number = CHUNK_SIZE,
+  sheetVersion = 2,
 ): Promise<{ cursor: number; total: number; done: boolean; error?: string }> {
-  const client = new Client({ auth: token });
-  const run = callerFor(token);
-  const all = flatQuestions();
+  const client = new Client({ auth: token, retry: false });
+  const read = callerFor(token);
+  const all = flatQuestions(sheetVersion);
   const start = Math.max(0, Math.min(cursor, all.length));
   const end = Math.min(start + size, all.length);
+
+  // The cursor cannot tell whether Notion created a page whose HTTP response
+  // was lost. Re-read Source Ids before every chunk, so retrying that cursor
+  // can skip the already-present row instead of producing a 456th page.
+  const present = new Set<string>();
+  if (start < end) {
+    let page: string | undefined;
+    for (let n = 0; n < 10; n++) {
+      const res: any = await read('read seeded questions', () => client.dataSources.query({
+        data_source_id: d.tasksDs, page_size: 100, start_cursor: page,
+      } as any));
+      for (const row of res.results ?? []) {
+        const value = (row.properties?.[P.task.sourceId]?.rich_text ?? [])
+          .map((x: any) => x.plain_text ?? x.text?.content ?? '').join('');
+        if (value) present.add(value);
+      }
+      if (!res.has_more) break;
+      page = res.next_cursor ?? undefined;
+      if (!page || n === 9) throw new Error('Notion did not finish listing seeded questions.');
+    }
+  }
 
   // Advances only after a write lands, so it always reflects reality.
   let written = start;
 
   for (let i = start; i < end; i++) {
     const q = all[i];
+    const sourceKey = sheetVersion < 2
+      ? `${q.sectionPath}|${q.headingOrder}|${q.order}|${q.sourceId}`
+      : `codolio:${q.sourceId}`;
+    if (present.has(sourceKey)) { written = i + 1; continue; }
     const topicId = d.topicPageIds[q.sectionPath];
     if (!topicId) {
       return {
@@ -583,33 +643,42 @@ export async function seedChunk(
     }
 
     try {
-      await run(`create "${q.name.slice(0, 40)}"`, () =>
-        client.pages.create({
+      // Never retry a non-idempotent page creation on an ambiguous 503/504.
+      // The next request re-reads Source Ids before trying it again.
+      await throttle(tokenKey(token));
+      await client.pages.create({
           parent: { type: 'data_source_id', data_source_id: d.tasksDs },
           properties: {
             [P.task.name]: { title: rtv(q.name) },
             [P.task.done]: { checkbox: false },
             [P.task.area]: { relation: [{ id: d.areaPageId }] },
             [P.task.topic]: { relation: [{ id: topicId }] },
-            [P.task.heading]: d.headingIsSelect
-              ? { select: { name: q.headingName } }
-              : { rich_text: rtv(q.headingName) },
-            // Difficulty is intentionally omitted — the source sheet has none.
+            ...(sheetVersion < 2 ? {
+              [P.task.heading]: d.headingIsSelect
+                ? { select: { name: q.headingName } }
+                : { rich_text: rtv(q.headingName) },
+            } : {
+              [P.task.codolioLesson]: { rich_text: rtv(q.headingName) },
+              [P.task.difficulty]: { select: { name: q.difficulty } },
+              [P.task.sourceDifficulty]: { select: { name: q.difficulty } },
+              [P.task.sheetStatus]: { select: { name: 'Codolio' } },
+              [P.task.problem]: urlOrNull(q.problemLink ?? ''),
+              [P.task.resource]: urlOrNull(q.resourceLink ?? ''),
+            }),
             [P.task.order]: { number: q.globalOrder },
             [P.task.headingOrder]: { number: q.headingOrder },
             [P.task.taskOrder]: { number: q.order },
-            [P.task.tuf]: urlOrNull(q.tufLink),
-            [P.task.leetcode]: urlOrNull(q.leetCodeLink),
-            [P.task.gfg]: urlOrNull(q.gfgLink),
-            [P.task.youtube]: urlOrNull(q.youTubeLink),
+            [P.task.tuf]: urlOrNull(q.tufLink ?? ''),
+            [P.task.leetcode]: urlOrNull(q.leetCodeLink ?? ''),
+            [P.task.gfg]: urlOrNull(q.gfgLink ?? ''),
+            [P.task.youtube]: urlOrNull(q.youTubeLink ?? ''),
             [P.task.bookmarked]: { checkbox: false },
             [P.task.revisit]: { checkbox: false },
             [P.task.sourceId]: {
-              rich_text: rtv(`${q.sectionPath}|${q.headingOrder}|${q.order}|${q.sourceId}`),
+              rich_text: rtv(sourceKey),
             },
           } as any,
-        } as any),
-      );
+        } as any);
     } catch (e) {
       // Stop here and hand back the cursor as it truly stands, so the next
       // attempt starts on the row that failed rather than repeating the batch.
@@ -621,9 +690,8 @@ export async function seedChunk(
       };
     }
     written = i + 1;
+    present.add(sourceKey);
   }
 
   return { cursor: written, total: all.length, done: written >= all.length };
 }
-
-

@@ -90,6 +90,7 @@ export type TenantStatus =
   | { kind: 'needs_page'; user: User }
   | { kind: 'provisioning'; user: User; connection: Connection }
   | { kind: 'error'; user: User; connection: Connection }
+  | { kind: 'migrating'; user: User; connection: Connection }
   | { kind: 'ready'; user: User; tenant: Tenant };
 
 /**
@@ -126,6 +127,8 @@ export async function tenantStatus(): Promise<TenantStatus> {
     // reconnect rather than surfacing a decryption error.
     return { kind: 'needs_token', user };
   }
+
+  if (connection.sheetVersion < 2) return { kind: 'migrating', user, connection };
 
   return { kind: 'ready', user, tenant: tenantOf(user, connection, token) };
 }

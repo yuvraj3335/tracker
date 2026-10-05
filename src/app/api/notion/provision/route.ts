@@ -14,6 +14,7 @@ import {
   createDatabases,
   friendlyNotionError,
   seedChunk,
+  totalQuestions,
 } from '@/lib/provision';
 import { invalidateTenant } from '@/lib/notion';
 
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
   if (!connection) {
     return NextResponse.json({ error: 'Connect your Notion workspace first.' }, { status: 400 });
   }
+  const total = totalQuestions(connection.sheetVersion);
 
   let token: string;
   try {
@@ -98,6 +100,7 @@ export async function POST(req: Request) {
           topicPageIds: connection.topicPageIds,
         },
         (shells) => saveDatabaseShells(user.id, shells),
+        connection.sheetVersion,
       );
       await saveDatabases(user.id, created, startsFromScratch);
       invalidateTenant(user.id);
@@ -105,7 +108,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         state: 'seeding',
         cursor: resumed,
-        total: TOTAL_QUESTIONS,
+        total,
         done: false,
       } satisfies Progress);
     } catch (e) {
@@ -125,8 +128,8 @@ export async function POST(req: Request) {
     if (connection.provisionState === 'ready') {
       return NextResponse.json({
         state: 'ready',
-        cursor: TOTAL_QUESTIONS,
-        total: TOTAL_QUESTIONS,
+        cursor: total,
+        total,
         done: true,
       } satisfies Progress);
     }
@@ -158,6 +161,7 @@ export async function POST(req: Request) {
         // request may have advanced it between the two.
         cursor,
         CHUNK_SIZE,
+        connection.sheetVersion,
       );
 
       // Always persist the cursor the chunk actually reached, including when
@@ -197,7 +201,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       state: hasDbs ? 'seeding' : 'needs_page',
       cursor: connection.provisionCursor,
-      total: TOTAL_QUESTIONS,
+      total,
       done: false,
     } satisfies Progress);
   }
@@ -217,7 +221,7 @@ export async function GET() {
   return NextResponse.json({
     state: connection.provisionState,
     cursor: connection.provisionCursor,
-    total: TOTAL_QUESTIONS,
+    total: totalQuestions(connection.sheetVersion),
     done: connection.provisionState === 'ready',
     error: connection.provisionError,
   } satisfies Progress);

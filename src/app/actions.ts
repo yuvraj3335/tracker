@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { setTaskDone, setTaskFlag, setTaskDifficulty } from '@/lib/notion';
 import { requireTenant } from '@/lib/tenant';
 import { todayKey } from '@/lib/date';
-import type { Difficulty } from '@/lib/schema';
+import { DIFFICULTY, type Difficulty } from '@/lib/schema';
 
 /**
  * Every action resolves the tenant from the session cookie on the server. The
@@ -30,7 +30,7 @@ export async function toggleFlagAction(
 }
 
 export async function setDifficultyAction(id: string, difficulty: Difficulty | null) {
-  if (difficulty !== null && !['Easy', 'Medium', 'Hard'].includes(difficulty)) {
+  if (difficulty !== null && !DIFFICULTY.includes(difficulty)) {
     throw new Error('invalid difficulty');
   }
   const t = await requireTenant();

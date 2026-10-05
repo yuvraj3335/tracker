@@ -6,6 +6,7 @@ import { setupStage } from '@/lib/setup';
 import { TOTAL_QUESTIONS } from '@/lib/provision';
 import { hasEncryptionKey } from '@/lib/crypto';
 import { SetupFlow } from '@/components/setup-flow';
+import { SheetMigrationFlow } from '@/components/sheet-migration-flow';
 import { AuthShell, FormError } from '@/components/auth-shell';
 import { Button } from '@/components/ui/button';
 
@@ -35,6 +36,17 @@ export default async function SetupPage({
     );
   }
 
+  if (stage === 'migrating' && 'connection' in status) {
+    return (
+      <AuthShell title="Upgrade your question sheet" subtitle={`Signed in as ${status.user.username}`}>
+        <SheetMigrationFlow
+          initialCursor={status.connection.sheetMigrationCursor}
+          initialError={status.connection.sheetMigrationError}
+        />
+      </AuthShell>
+    );
+  }
+
   const cursor = 'connection' in status ? status.connection.provisionCursor : 0;
   const error = 'connection' in status ? status.connection.provisionError : null;
 
@@ -48,7 +60,7 @@ export default async function SetupPage({
       <SetupFlow
         initialStep={stage as 'token' | 'page' | 'seeding'}
         initialCursor={cursor}
-        initialTotal={TOTAL_QUESTIONS}
+        initialTotal={'connection' in status && status.connection.sheetVersion < 2 ? 456 : TOTAL_QUESTIONS}
         initialError={error}
       />
       <form action="/api/auth/signout" method="post" className="mt-6">

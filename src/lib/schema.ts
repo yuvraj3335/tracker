@@ -42,7 +42,14 @@ export const P = {
     area: 'Area',
     topic: 'Topic',
     heading: 'Heading',
+    codolioLesson: 'Codolio Lesson',
     difficulty: 'Difficulty',
+    sourceDifficulty: 'Source Difficulty',
+    sheetStatus: 'Sheet Status',
+    previousSourceId: 'Previous Source Id',
+    legacySection: 'Legacy Section',
+    problem: 'Problem Link',
+    resource: 'Resource Link',
     order: 'Order',
     headingOrder: 'Heading Order',
     taskOrder: 'Task Order',
@@ -128,7 +135,7 @@ export const P = {
 } as const;
 
 export const AREA_STATUS = ['Active', 'Planned', 'Paused', 'Done'] as const;
-export const DIFFICULTY = ['Easy', 'Medium', 'Hard'] as const;
+export const DIFFICULTY = ['Basic', 'Easy', 'Medium', 'Hard'] as const;
 export const MOOD = ['Great', 'Good', 'Okay', 'Rough'] as const;
 
 export type Difficulty = (typeof DIFFICULTY)[number];
@@ -357,9 +364,16 @@ export function tasksProperties(
     // database. Notion has historically rejected commas in option names, so the
     // seeder falls back to rich_text rather than ever altering a heading name.
     [P.task.heading]: headingAsSelect ? select(headings) : text(),
-    // The source sheet carries no difficulty data, so every row is seeded
-    // blank. The field exists so analytics light up as you fill it in.
-    [P.task.difficulty]: select(DIFFICULTY, { Easy: 'blue', Medium: 'blue', Hard: 'blue' }),
+    // A source heading contains commas, which Notion rejects in select names.
+    // Rich text preserves Codolio's exact wording without changing the old Heading.
+    [P.task.codolioLesson]: text(),
+    [P.task.difficulty]: select(DIFFICULTY, { Basic: 'gray', Easy: 'green', Medium: 'yellow', Hard: 'red' }),
+    [P.task.sourceDifficulty]: select(DIFFICULTY, { Basic: 'gray', Easy: 'green', Medium: 'yellow', Hard: 'red' }),
+    [P.task.sheetStatus]: select(['Codolio', 'Legacy']),
+    [P.task.previousSourceId]: text(),
+    [P.task.legacySection]: text(),
+    [P.task.problem]: url(),
+    [P.task.resource]: url(),
     [P.task.order]: num('number'),
     [P.task.headingOrder]: num('number'),
     [P.task.taskOrder]: num('number'),

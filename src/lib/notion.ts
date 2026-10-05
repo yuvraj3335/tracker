@@ -72,7 +72,7 @@ export type Task = {
   order: number;
   headingOrder: number;
   taskOrder: number;
-  links: { tuf: string; leetcode: string; gfg: string; youtube: string };
+  links: { tuf: string; leetcode: string; gfg: string; youtube: string; problem: string; resource: string };
   bookmarked: boolean;
   revisit: boolean;
   notes: string;
@@ -185,7 +185,7 @@ export async function getTasks(t: Tenant): Promise<Task[]> {
     const rows = await queryAll(notionFor(t.token), t.tasksDs, {
       sorts: [{ property: P.task.order, direction: 'ascending' }],
     });
-    return rows.map((r) => {
+    return rows.filter((r) => sel(r.properties?.[P.task.sheetStatus]) !== 'Legacy').map((r) => {
       const p = r.properties;
       return {
         id: r.id,
@@ -195,7 +195,7 @@ export async function getTasks(t: Tenant): Promise<Task[]> {
         areaIds: rel(p[P.task.area]),
         topicIds: rel(p[P.task.topic]),
         // Heading is a select normally, rich_text when the comma fallback fired.
-        heading: sel(p[P.task.heading]) ?? rt(p[P.task.heading]),
+        heading: rt(p[P.task.codolioLesson]) || sel(p[P.task.heading]) || rt(p[P.task.heading]),
         difficulty: (sel(p[P.task.difficulty]) as Difficulty | null) ?? null,
         order: nm(p[P.task.order]) ?? 0,
         headingOrder: nm(p[P.task.headingOrder]) ?? 0,
@@ -205,6 +205,8 @@ export async function getTasks(t: Tenant): Promise<Task[]> {
           leetcode: ur(p[P.task.leetcode]),
           gfg: ur(p[P.task.gfg]),
           youtube: ur(p[P.task.youtube]),
+          problem: ur(p[P.task.problem]),
+          resource: ur(p[P.task.resource]),
         },
         bookmarked: cb(p[P.task.bookmarked]),
         revisit: cb(p[P.task.revisit]),

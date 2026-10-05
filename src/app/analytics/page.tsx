@@ -20,6 +20,7 @@ import { VelocityChart } from '@/components/velocity-chart';
 export const dynamic = 'force-dynamic';
 
 const DIFF_COLOR: Record<string, string> = {
+  Basic: 'var(--ink-muted)',
   Easy: 'var(--diff-easy)',
   Medium: 'var(--diff-medium)',
   Hard: 'var(--diff-hard)',

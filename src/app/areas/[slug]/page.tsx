@@ -5,6 +5,7 @@ import { pct } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
 import { ProgressBar } from '@/components/progress-bar';
 import { Sheet } from '@/components/sheet';
+import { ExternalLink } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,16 @@ export default async function AreaPage({
         <div className="px-1">
           <ProgressBar value={total ? (done / total) * 100 : 0} height={8} label="Area progress" />
         </div>
+        {area.slug === 'dsa' ? (
+          <a
+            href="https://codolio.com/question-tracker/sheet/strivers-a2z-dsa-sheet"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 px-1 text-xs text-accent underline-offset-2 hover:underline"
+          >
+            View the original Codolio sheet <ExternalLink className="size-3" aria-hidden />
+          </a>
+        ) : null}
       </div>
 
       <Sheet

@@ -15,39 +15,34 @@ and interview**, all into the same Notion. See [Job applications](#job-applicati
 
 ---
 
-## ⚠️ The question count is 456, not 474
+## Codolio's Striver A2Z sheet
 
-The source at [a2zdsa.pages.dev](https://a2zdsa.pages.dev/) contains **456
-questions**, not the 474 originally specified.
+The question tracker follows [Codolio’s Striver A2Z sheet](https://codolio.com/question-tracker/sheet/strivers-a2z-dsa-sheet):
+**455 questions, 18 steps and 61 lessons**, with Codolio’s ordering, titles,
+problem/resource links and Basic/Easy/Medium/Hard source difficulty. One public
+record has no usable URL; the question remains in the sheet. The public API
+has 455 records but a stale 456th ID in its order metadata. The scraper asserts
+that exact discrepancy and refuses to silently change the count.
 
-This is not a scraping shortfall:
+`npm run scrape` refreshes the frozen public sheet and rebuilds the reviewed
+old-to-new crosswalk. The original 456-question seed is kept in
+`data/a2z-legacy-seed.json` solely to finish any in-flight setup and migrate
+existing accounts.
 
-- The site **declares its own total as 456** (`totalQuestions: 456` in its bundle).
-- All **18** sections' declared subtotals match their actual contents exactly.
-- `npm run scrape` asserts both and **exits non-zero** if either disagrees.
+Existing Notion trackers upgrade in place. Matching question pages retain
+their completion/date, manual difficulty, bookmark, revisit flag and notes.
+Duplicate completions merge onto the active question. Unmatched old questions
+and duplicate pages remain recoverable with **Legacy** status (and a filtered
+**Legacy A2Z** view when the integration permits creating views);
+they no longer count in DSA rollups. Migration is chunked, resumable and
+verified before the account switches to the 455-question version. The app never
+uses another person’s Notion connection for this upgrade.
 
-Three different numbers are in circulation:
-
-| Source | Count |
-| --- | --- |
-| `a2zdsa.pages.dev` (this app's source) | **456** questions |
-| `takeuforward.org` (official, restructured) | 442 topics / 19 modules / 95 sections |
-| Originally specified | 474 |
-
-474 could not be substantiated against any live source, so nothing was padded to
-reach it. If you find the list that has 474, drop it in and re-scrape.
-
-**There is also no difficulty data.** The source carries none — the only
-`difficulty` strings in its bundle are query parameters inside GeeksforGeeks
-URLs. So `Difficulty` exists as an `Easy / Medium / Hard` select on every
-question but is **seeded blank** rather than guessed at. Fill it in as you go and
-the analytics light up on their own.
-
-**What the source does give, faithfully:** 18 sections → 61 headings → 456
-questions in original order; headings stored as **categories, never counted as
-questions**; the **33 questions with no URL** all retained and labelled; original
-names and all four link types preserved verbatim; pure A2Z, with Striver's
-separate pattern-based sheet not mixed in.
+After deployment, an existing user opens the tracker and sees the upgrade
+screen automatically. Leave that tab open for the short Notion batches; if a
+batch pauses, Retry resumes from the last confirmed row. Job-hunt API keys
+continue to work while the question sheet migrates. This code does not read or
+modify any personal Notion workspace until its owner visits the tracker.
 
 ---
 
@@ -283,7 +278,7 @@ npm install && npm run dev
 ```
 
 Then sign up and follow the four-step setup. **No CLI seeding** — connecting
-Notion and inserting all 456 questions happens in the browser.
+Notion and inserting all 455 questions happens in the browser.
 
 ### 4. Deploy
 
@@ -301,11 +296,11 @@ Import the repo into Vercel and set: `DATABASE_URL`, `SESSION_SECRET`,
 3. **Paste a Notion page link** — after adding the integration under that page's
    **••• → Connections**. (This is the step people miss; without it Notion
    reports the page does not exist.)
-4. **Wait a few minutes** while 456 questions are written.
+4. **Wait a few minutes** while 455 questions are written.
 
 ### Why seeding is chunked
 
-456 questions means 456 individual page creations — Notion has no bulk insert
+455 questions means 455 individual page creations — Notion has no bulk insert
 and allows roughly 3 requests/second, so the job takes minutes. That is far
 longer than a serverless function may run, so the browser requests one small
 chunk at a time and draws a progress bar.
@@ -328,7 +323,7 @@ used to duplicate rows.
 
 ```
 Areas          Topics              Tasks
-(prep areas)   (the 18 sections)   (the 456 questions)
+(prep areas)   (the 18 sections)   (the 455 questions)
      │              │                   │
      └──────────────┴───────────────────┘
                     │
