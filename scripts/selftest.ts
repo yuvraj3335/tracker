@@ -62,7 +62,7 @@ import {
 } from '../src/lib/conversation';
 import {
   ANGRY_POKES, ANGRY_WINDOW_MS, clampToViewport, defaultPosition, parsePosition,
-  pokeReaction, trimPokes, type Safe,
+  pokeReaction, touchZone, trimPokes, type Safe,
 } from '../src/lib/companion';
 import { checkRate, createRateLimiter, retryAfterSeconds } from '../src/lib/rate-limit';
 import { buildSnapshot } from '../src/lib/companion-context';
@@ -616,8 +616,8 @@ async function main() {
   section('Shipped characters (Miso and Miso Classic)');
   {
     const artDir = join(process.cwd(), 'public', 'characters', 'miso');
-    const imagePoses = ['idle', 'blink', 'celebrate', 'focused', 'sad', 'angry', 'laughing', 'talking', 'talking-closed', 'listening'] as const;
-    check('new Miso ships ten expressive animation frames', imagePoses.every((pose) => {
+    const imagePoses = ['idle', 'blink', 'celebrate', 'focused', 'sad', 'angry', 'laughing', 'talking', 'talking-closed', 'listening', 'patted', 'tickled', 'surprised', 'winking'] as const;
+    check('new Miso ships fourteen expressive animation frames', imagePoses.every((pose) => {
       const data = readFileSync(join(artDir, `${pose}.webp`));
       return data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP' && data.length < 80 * 1024;
     }));
@@ -672,7 +672,7 @@ async function main() {
     const miso = catalog.find((c) => c.id === 'miso');
     const classic = catalog.find((c) => c.id === 'miso-classic');
     check('new Miso is the default character', catalog[0]?.id === 'miso');
-    check('Miso renders cache-versioned images, not the old model', !miso?.model && miso?.poses.idle === '/characters/miso/idle.webp?v=anime-2');
+    check('Miso renders cache-versioned images, not the old model', !miso?.model && miso?.poses.idle === '/characters/miso/idle.webp?v=anime-3');
     check('Miso has dedicated conversation, focus and reaction poses', Boolean(miso?.poses.talking && miso?.poses.listening && miso?.poses.focused && miso?.poses.laughing && miso?.poses.angry));
     check('Miso remains renderable', isRenderable(miso));
     check('classic keeps its animated model', classic?.model === '/characters/miso-classic/model.glb');
@@ -1197,7 +1197,7 @@ async function main() {
   // -----------------------------------------------------------------------
   section('Companion position');
   {
-    const SIZE = 104;
+    const SIZE = 208;
     const SAFE: Safe = { top: 68, right: 16, bottom: 20, left: 16 };
     const DESK = { width: 1280, height: 800 };
     const clamp = (p: { x: number; y: number }, v = DESK) => clampToViewport(p, SIZE, v, SAFE);
@@ -1231,6 +1231,12 @@ async function main() {
       home.x === 1280 - SIZE - 16 && home.y === 800 - SIZE - 20, JSON.stringify(home));
     check('the default corner is already clamped',
       JSON.stringify(clamp(home)) === JSON.stringify(home));
+
+    check('a head pat is distinct from a body tickle',
+      touchZone(104, 44, SIZE) === 'head' && touchZone(104, 130, SIZE) === 'body');
+    check('hand and feet get their own physical reactions',
+      touchZone(185, 120, SIZE) === 'hand' && touchZone(90, 195, SIZE) === 'feet');
+    check('a corrupt touch coordinate is harmless', touchZone(NaN, 40, SIZE) === 'body');
 
     // ---- stored values
     check('a stored point reads back', JSON.stringify(parsePosition('{"x":10,"y":20}')) === '{"x":10,"y":20}');

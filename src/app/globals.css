@@ -376,16 +376,16 @@ body {
 
 /* --------------------------- BLOSSOM (soft, sparkly) --------------------- */
 :root[data-skin='blossom'] {
-  --plane: #fdf6fb;
-  --surface: #fffdfe;
-  --surface-2: #f6ecf7;
+  --plane: #fcf3fc;
+  --surface: #fffafd;
+  --surface-2: #f7eafa;
   --ink: #241b2e;
   --ink-2: #5c4f68;
-  --ink-muted: #74687e;
+  --ink-muted: #6c5d75;
   --grid: #ece0f0;
   --axis: #cfc0d8;
-  --control: #93859c;
-  --border: rgba(36, 27, 46, 0.10);
+  --control: #897691;
+  --border: rgba(107, 51, 139, 0.14);
 
   --seq-0: #f0e7f3;
   --seq-1: #d8cee9;
@@ -403,7 +403,7 @@ body {
   --accent: #7c4dcc;
   --accent-ink: #ffffff;
 
-  --radius-card: 18px;
+  --radius-card: 24px;
   --radius-pill: 999px;
 }
 
@@ -465,6 +465,26 @@ body {
 
   --accent: #a084e8;
   --accent-ink: #14101b;
+}
+
+/* Lilac paper and a blush glow: decorative only; data colours stay validated. */
+:root[data-skin='blossom'] body {
+  background-image: radial-gradient(circle at 9% 6%, rgba(244, 192, 224, 0.26), transparent 34%),
+    radial-gradient(circle at 88% 22%, rgba(198, 173, 241, 0.23), transparent 33%);
+  background-repeat: no-repeat;
+}
+:root[data-skin='blossom'] .skin-card {
+  box-shadow: var(--lift-1), inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  transition: box-shadow 260ms ease, border-color 260ms ease, transform 260ms ease;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :root[data-skin='blossom'] .skin-card:hover {
+    border-color: color-mix(in oklab, var(--accent) 28%, transparent);
+    box-shadow: var(--lift-2), 0 0 22px rgba(212, 142, 216, 0.10);
+  }
+}
+:root[data-skin='blossom'] .skin-pill {
+  box-shadow: 0 1px 4px rgba(151, 79, 168, 0.10);
 }
 
 /* ---- shape language: skins change how round everything is --------------- */
@@ -913,6 +933,69 @@ body {
 .miso-laugh { animation: misoLaugh 850ms ease-in-out infinite; }
 .miso-blink-frame { opacity: 0; animation: misoBlinkFrame 6.4s steps(1, end) infinite; }
 .miso-speaking-frame { opacity: 0; animation: misoSpeechFrame 1.1s steps(1, end) infinite; }
+
+/* Miso's controls float with her, but never borrow the large figure's hit box. */
+.companion-stage { isolation: isolate; }
+.companion-aura {
+  position: absolute; inset: 21% 8% 2%; z-index: -1; pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in oklab, var(--accent) 25%, transparent), transparent 70%);
+  filter: blur(16px);
+  opacity: 0.7;
+  transition: opacity 220ms ease, transform 300ms ease;
+}
+.companion-stage:hover .companion-aura { opacity: 1; transform: scale(1.16); }
+.companion-figure { outline-offset: -5px; }
+.companion-figure > span { pointer-events: none; }
+.companion-figure.is-pressed { filter: brightness(1.05); }
+.companion-controls {
+  position: absolute; right: 4px; bottom: 4px; z-index: 2;
+  display: flex; align-items: center; gap: 6px;
+}
+.companion-controls button {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 42px; min-height: 42px;
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, var(--surface));
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--surface) 93%, var(--accent));
+  box-shadow: var(--lift-2);
+  backdrop-filter: blur(12px);
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+.companion-controls button:hover { transform: translateY(-3px); box-shadow: var(--lift-3); }
+.companion-controls button:active { transform: scale(0.94); }
+.companion-controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.companion-controls .companion-talk-control { gap: 6px; padding: 0 14px; color: var(--accent-ink); background: var(--accent); font-size: 12px; font-weight: 700; }
+.companion-stage.is-compact .companion-talk-control { padding: 0; width: 42px; }
+.companion-stage.is-compact .companion-talk-control span { display: none; }
+.companion-emote {
+  position: absolute; z-index: 3; top: 5%; right: 0; pointer-events: none;
+  max-width: 150px; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 999px 999px 999px 8px;
+  color: var(--ink); background: var(--surface); box-shadow: var(--lift-2);
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  animation: companionEmote 1.1s ease-out both;
+}
+.companion-particles { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+.companion-particles i { position: absolute; font-size: 20px; font-style: normal; color: var(--accent); text-shadow: 0 2px 9px var(--surface); }
+.companion-particles i:nth-child(1) { top: 14%; left: 15%; }
+.companion-particles i:nth-child(2) { top: 8%; right: 12%; color: #d976b3; }
+.companion-particles i:nth-child(3) { top: 46%; right: 3%; }
+.companion-particles-pat, .companion-particles-tickle, .companion-particles-wave,
+.companion-particles-cuddle, .companion-particles-land { animation: companionSparkle 1s ease-out both; }
+.companion-gesture-pat, .companion-gesture-cuddle { animation: companionPat 900ms ease-out both; }
+.companion-gesture-tickle { animation: companionTickle 820ms ease-in-out both; }
+.companion-gesture-surprise, .companion-gesture-land { animation: companionSpring 780ms cubic-bezier(.2,1.3,.35,1) both; }
+.companion-gesture-wave { animation: companionWave 900ms ease-in-out both; }
+.companion-gesture-grumpy { animation: companionGrumpy 660ms ease-in-out both; }
+@keyframes companionPat { 0%, 100% { transform: none; } 28% { transform: translateY(8px) scale(1.04,.94) rotate(-4deg); } 65% { transform: translateY(-8px) rotate(3deg); } }
+@keyframes companionTickle { 0%, 100% { transform: none; } 20%, 60% { transform: rotate(-7deg) translateY(-7px); } 40%, 80% { transform: rotate(7deg) translateY(2px); } }
+@keyframes companionSpring { 0%, 100% { transform: none; } 20% { transform: translateY(10px) scale(1.08,.9); } 52% { transform: translateY(-18px) scale(.94,1.08); } 80% { transform: translateY(3px) scale(1.03,.97); } }
+@keyframes companionWave { 0%, 100% { transform: none; } 32%, 70% { transform: rotate(8deg) translateY(-4px); } 50% { transform: rotate(-4deg); } }
+@keyframes companionGrumpy { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-6px) rotate(-3deg); } 40%, 80% { transform: translateX(6px) rotate(3deg); } }
+@keyframes companionEmote { 0% { opacity: 0; transform: translateY(10px) scale(.9); } 18%, 82% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-12px); } }
+@keyframes companionSparkle { 0% { opacity: 0; transform: scale(.7); } 25% { opacity: 1; } 100% { opacity: 0; transform: scale(1.18) translateY(-12px); } }
 .js-spark  { animation: jsSparkPop 760ms ease-out both; }
 .js-rise   { animation: jsRiseFade 1900ms ease-out both; }
 .js-ring   { animation: jsRingOut 700ms ease-out both; }

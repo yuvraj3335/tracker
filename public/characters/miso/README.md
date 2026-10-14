@@ -1,7 +1,8 @@
 # Miso, illustrated edition
 
-Ten transparent, 512×512 WebP frames: `idle`, `blink`, `celebrate`, `focused`,
-`sad`, `angry`, `laughing`, `talking`, `talking-closed`, and `listening`. Idle
+Fourteen transparent, 512×512 WebP frames: `idle`, `blink`, `celebrate`, `focused`,
+`sad`, `angry`, `laughing`, `talking`, `talking-closed`, `listening`, `patted`,
+`tickled`, `surprised`, and `winking`. Idle
 blinks, talking changes mouth shape, and the other moods have their own subtle
 movement. Unillustrated poses use the semantic fallback chain. Each final
 asset is under 80 KB. The original 3D Miso remains **Miso Classic**.
@@ -19,3 +20,7 @@ transparent cutout; no kimono, shrine attire, weapon, text or franchise
 resemblance.” The edits locked her identity and outfit while varying brow,
 eyes, mouth, gesture and posture for the moods above. Blink and speech-pause
 frames were edited from their nearest matching frame for stable animation.
+The four physical-interaction frames were generated from the original Miso base
+as a transparent 2×2 expression sheet, then split and optimized. Their prompt
+called for a happy head pat, ticklish laugh, surprise, and wink/wave, keeping
+the same identity and outfit in every cell. This is original project art.

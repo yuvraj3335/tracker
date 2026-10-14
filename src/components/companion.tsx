@@ -2,79 +2,63 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
-import { CharacterFigure } from './character-figure';
+import { Maximize2, MessageCircle, Minimize2 } from 'lucide-react';
+import { CharacterFigure, type MisoExpression } from './character-figure';
 import { useActiveCharacter } from './character-provider';
 import { BARE_ROUTES } from './nav';
-import type { Pose } from '@/lib/characters';
+import { misoFrameUrl, type Pose } from '@/lib/characters';
 import {
-  DOUBLE_TAP_MS,
-  NUDGE,
-  NUDGE_FAR,
-  TAP_SLOP,
-  clampToViewport,
-  defaultPosition,
-  getCompanionDismissed,
-  getCompanionPosition,
-  pokeReaction,
-  serverCompanionDismissed,
-  serverCompanionPosition,
-  setCompanionPosition,
-  subscribeCompanion,
-  trimPokes,
-  type Point,
-  type Safe,
+  DOUBLE_TAP_MS, HOLD_MS, NUDGE, NUDGE_FAR, TAP_SLOP,
+  clampToViewport, defaultPosition, getCompanionCompact, getCompanionDismissed, getCompanionPosition,
+  pokeReaction, serverCompanionCompact, serverCompanionDismissed, serverCompanionPosition,
+  setCompanionCompact, setCompanionPosition, subscribeCompanion, touchZone, trimPokes,
+  type Point, type Safe, type TouchZone,
 } from '@/lib/companion';
 import { hasSpeechLevel, speechLevel } from '@/lib/kokoro';
 import { primeAudio } from '@/lib/speech';
 import { cn } from '@/lib/utils';
 
-/**
- * The character, loose on the page: pick it up, move it, poke it, talk to it.
- *
- * Only appears once a character is available and selected. The shipped Miso
- * provides the default; installations with no artwork retain the SVG fallback.
- *
- * It deliberately sits *below* the nav and the celebration overlay in the
- * stack, and its position is clamped clear of both bars, so it can never cover
- * a tab, the sign-out button, or the mobile bottom bar. It cannot cover a tick
- * box either for long: it is a small target and the whole point is that it
- * moves.
- */
-const SIZE = 104;
-
-/** Clear of the sticky header, and of the phone tab bar plus its safe area. */
+/** Double the old 104px figure. Compact is an opt-in escape hatch on phones. */
+export const COMPANION_SIZE = 208;
+const COMPACT_SIZE = 104;
 const SAFE_DESKTOP: Safe = { top: 68, right: 16, bottom: 20, left: 16 };
 const SAFE_PHONE: Safe = { top: 68, right: 12, bottom: 96, left: 12 };
 
-export function Companion({
-  onOpen,
-  overridePose,
-}: {
-  onOpen?: () => void;
-  /** Wins over every reaction — it is a state, not a moment. */
-  overridePose?: Pose | null;
-}) {
+type Physical = {
+  pose: Pose;
+  expression?: MisoExpression;
+  label: string;
+  motion: 'pat' | 'tickle' | 'surprise' | 'wave' | 'cuddle' | 'grumpy' | 'land';
+};
+
+const TOUCH: Record<TouchZone, Physical> = {
+  head: { pose: 'laughing', expression: 'patted', label: 'That’s nice ♡', motion: 'pat' },
+  hand: { pose: 'celebrate', expression: 'winking', label: 'High five! ✨', motion: 'wave' },
+  body: { pose: 'laughing', expression: 'tickled', label: 'Hehe, tickles!', motion: 'tickle' },
+  feet: { pose: 'jumping', expression: 'surprised', label: 'Whoa!', motion: 'surprise' },
+};
+
+/** A physical little character: tap different places, hold, or pick her up. */
+export function Companion({ onOpen, overridePose }: { onOpen?: () => void; overridePose?: Pose | null }) {
   const pathname = usePathname();
   const character = useActiveCharacter();
   const stored = useSyncExternalStore(subscribeCompanion, getCompanionPosition, serverCompanionPosition);
-  const dismissed = useSyncExternalStore(
-    subscribeCompanion,
-    getCompanionDismissed,
-    serverCompanionDismissed,
-  );
-
+  const dismissed = useSyncExternalStore(subscribeCompanion, getCompanionDismissed, serverCompanionDismissed);
   const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
+  const compact = useSyncExternalStore(subscribeCompanion, getCompanionCompact, serverCompanionCompact);
+  const [dragPoint, setDragPoint] = useState<Point | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [reaction, setReaction] = useState<Pose | null>(null);
-
-  const grab = useRef<{ dx: number; dy: number; x: number; y: number; moved: boolean } | null>(null);
+  const [pressed, setPressed] = useState(false);
+  const [reaction, setReaction] = useState<(Physical & { id: number }) | null>(null);
+  const reactionSeq = useRef(0);
+  const grab = useRef<{ dx: number; dy: number; x: number; y: number; moved: boolean; held: boolean } | null>(null);
+  const dragRef = useRef<Point | null>(null);
   const pokes = useRef<number[]>([]);
   const lastTap = useRef(0);
   const reactionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shell = useRef<HTMLSpanElement>(null);
 
-  // One resize listener for the whole feature, and it only exists while the
-  // companion is on screen.
   useEffect(() => {
     const measure = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
     measure();
@@ -82,40 +66,26 @@ export function Companion({
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  useEffect(
-    () => () => {
-      if (reactionTimer.current) clearTimeout(reactionTimer.current);
-    },
-    [],
-  );
+  useEffect(() => () => {
+    if (reactionTimer.current) clearTimeout(reactionTimer.current);
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+  }, []);
 
-  /**
-   * The figure moves with the voice, not with a timer.
-   *
-   * `speechLevel` is the loudness of what is actually coming out of the
-   * speaker this frame, so the motion lands on the syllables instead of
-   * merely happening at the same time as them — which is the difference
-   * between a figure that is talking and a figure that is wobbling. Written
-   * straight to a custom property rather than through state: this runs every
-   * frame, and a re-render per frame would cost more than the whole rest of
-   * the panel.
-   */
+  // Physical reactions must be ready on the first touch. These four local
+  // cutouts total under 200 KB; the optimized route would start on demand
+  // and can easily outlive a one-second expression on a cold server.
+  useEffect(() => {
+    if (character?.id !== 'miso') return;
+    for (const frame of ['patted', 'tickled', 'surprised', 'winking']) {
+      const image = new window.Image();
+      image.src = misoFrameUrl(frame);
+    }
+  }, [character?.id]);
+
   const talking = overridePose === 'talking';
-  /**
-   * Whether the voice is one this can actually measure.
-   *
-   * Only the neural and hosted voices go through this file's audio graph. The
-   * browser's own `speechSynthesis` cannot be captured, so on that voice the
-   * level is a flat zero — and the frame loop below was running for the whole
-   * length of every reply to write `--voice: 0.000` sixty times a second.
-   */
   const [metered, setMetered] = useState(false);
   useEffect(() => {
     if (!talking) return;
-    // Asked repeatedly rather than once: on the neural voice the first clip
-    // can be a second or two behind the turn changing. The answer is not reset
-    // when it stops talking — it is asked again within a frame or two of the
-    // next reply starting, and nothing reads it in between.
     const id = setInterval(() => setMetered(hasSpeechLevel()), 120);
     return () => clearInterval(id);
   }, [talking]);
@@ -123,219 +93,171 @@ export function Companion({
   useEffect(() => {
     const node = shell.current;
     if (!node || !talking || !metered) return;
-    // The reduced-motion rule in globals.css can shorten an animation but it
-    // cannot tell a transform written from JavaScript every frame to stop
-    // asking for one, so this has to check for itself — the same reason the
-    // focus timer's countdown does.
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
     let frame = 0;
     let smoothed = 0;
     const step = () => {
       const level = speechLevel();
-      // Attack fast, release slow. A mouth opens quicker than it closes, and
-      // tracking the fall as sharply as the rise is what makes a level meter
-      // look like a level meter rather than like breathing.
       smoothed = level > smoothed ? level : smoothed * 0.82 + level * 0.18;
       node.style.setProperty('--voice', smoothed.toFixed(3));
       frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(frame);
-      node.style.removeProperty('--voice');
-    };
+    return () => { cancelAnimationFrame(frame); node.style.removeProperty('--voice'); };
   }, [talking, metered]);
 
+  const size = compact ? COMPACT_SIZE : COMPANION_SIZE;
   const safe = viewport && viewport.width < 640 ? SAFE_PHONE : SAFE_DESKTOP;
-  // Clamped on every read, not only on write: a position saved on a wider
-  // window, or before the phone was turned, has to come back somewhere it can
-  // be reached rather than off the edge.
-  const position: Point | null = viewport
-    ? clampToViewport(stored ?? defaultPosition(SIZE, viewport, safe), SIZE, viewport, safe)
+  const position = viewport
+    ? clampToViewport(dragPoint ?? stored ?? defaultPosition(size, viewport, safe), size, viewport, safe)
     : null;
 
-  const react = useCallback((pose: Pose, holdMs: number) => {
-    setReaction(pose);
+  const react = useCallback((next: Physical, ms = 1100) => {
+    setReaction({ ...next, id: ++reactionSeq.current });
     if (reactionTimer.current) clearTimeout(reactionTimer.current);
-    reactionTimer.current = setTimeout(() => setReaction(null), holdMs);
+    reactionTimer.current = setTimeout(() => setReaction(null), ms);
   }, []);
 
-  const move = useCallback(
-    (next: Point) => {
-      if (!viewport) return;
-      setCompanionPosition(clampToViewport(next, SIZE, viewport, safe));
-    },
-    [viewport, safe],
-  );
+  const move = useCallback((next: Point, persist = false) => {
+    if (!viewport) return;
+    const at = clampToViewport(next, size, viewport, safe);
+    if (persist) setCompanionPosition(at);
+    else { dragRef.current = at; setDragPoint(at); }
+  }, [viewport, size, safe]);
 
-  function poke() {
-    const now = Date.now();
-    const history = [...trimPokes(pokes.current, now), now];
-    pokes.current = history;
-    const pose = pokeReaction(history, now);
-    react(pose, pose === 'angry' ? 700 : 900);
+  function clearHold() {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
   }
 
-  // ---- pointer -----------------------------------------------------------
   function onPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!position) return;
-    // Captured on the element the handlers are actually on. Capturing on the
-    // wrapper instead redirects every subsequent pointermove to an element
-    // with no listener, and the drag silently does nothing.
+    if (!position || (e.pointerType === 'mouse' && e.button !== 0)) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    grab.current = { dx: e.clientX - position.x, dy: e.clientY - position.y, x: e.clientX, y: e.clientY, moved: false };
+    grab.current = { dx: e.clientX - position.x, dy: e.clientY - position.y, x: e.clientX, y: e.clientY, moved: false, held: false };
+    setPressed(true);
+    clearHold();
+    holdTimer.current = setTimeout(() => {
+      if (!grab.current || grab.current.moved) return;
+      grab.current.held = true;
+      react({ pose: 'laughing', expression: 'patted', label: 'Stay a little ♡', motion: 'cuddle' }, 1400);
+    }, HOLD_MS);
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
     const held = grab.current;
     if (!held) return;
     if (!held.moved && Math.hypot(e.clientX - held.x, e.clientY - held.y) < TAP_SLOP) return;
-    // Past the slop it is a drag, not a tap — a few pixels of finger travel
-    // must not turn opening the panel into moving the character.
-    if (!held.moved) {
-      held.moved = true;
-      setDragging(true);
-    }
+    if (!held.moved) { held.moved = true; setDragging(true); clearHold(); }
     move({ x: e.clientX - held.dx, y: e.clientY - held.dy });
   }
 
-  function onPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+  function finishPointer(e: React.PointerEvent<HTMLButtonElement>, cancelled = false) {
     const held = grab.current;
     grab.current = null;
-    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
+    clearHold();
+    setPressed(false);
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     if (!held) return;
-
     if (held.moved) {
       setDragging(false);
-      react('jumping', 950);
+      if (dragRef.current) setCompanionPosition(dragRef.current);
+      dragRef.current = null;
+      setDragPoint(null);
+      if (!cancelled) react({ pose: 'jumping', label: 'Ta-da! ✨', motion: 'land' }, 800);
       return;
     }
-
-    // Inside the tap, before anything defers. Mobile Safari only grants
-    // audio to code running in the gesture itself, and the open below goes
-    // through a timer — so by the time the panel mounts and tries to say
-    // hello, the gesture is over and the permission is gone.
-    primeAudio();
-
+    if (cancelled || held.held) return;
     const now = Date.now();
-    if (now - lastTap.current < DOUBLE_TAP_MS) {
-      // The second tap of a double-tap is the poke, and only the poke. It no
-      // longer toggles the panel, so poking the thing you are talking to
-      // cannot close the conversation by accident.
-      lastTap.current = 0;
-      poke();
-      return;
-    }
+    const history = [...trimPokes(pokes.current, now), now];
+    pokes.current = history;
+    const annoyed = pokeReaction(history, now) === 'angry';
+    const double = now - lastTap.current < DOUBLE_TAP_MS;
     lastTap.current = now;
-    // Immediately. This used to wait out the whole double-tap window before
-    // opening, so every single tap cost 320 ms of nothing happening — paid by
-    // everyone who only ever wanted to talk to it, to keep a double-tap from
-    // opening the panel underneath itself. It cannot open underneath itself
-    // any more, because the second tap does not open anything.
-    onOpen?.();
+    const zone = touchZone(e.clientX - (position?.x ?? 0), e.clientY - (position?.y ?? 0), size);
+    react(annoyed
+      ? { pose: 'angry', label: 'Hey, gentle! ♡', motion: 'grumpy' }
+      : double
+        ? { pose: 'laughing', expression: 'winking', label: 'Got you! ✨', motion: 'wave' }
+        : TOUCH[zone]);
   }
 
-  // ---- keyboard ----------------------------------------------------------
-  function onKeyDown(e: React.KeyboardEvent) {
+  function onKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
     if (e.key === 'Enter' || e.key === ' ') {
-      // Everything else here is driven by pointer events, and a keyboard never
-      // sends any — pressing Enter on a button synthesises a click and nothing
-      // else. So this was a control that announced `aria-haspopup="dialog"`
-      // and could not be opened from a keyboard at all.
-      //
-      // `preventDefault` is what keeps that synthesised click from arriving
-      // afterwards and opening it a second time, and it also stops Space
-      // scrolling the page.
       e.preventDefault();
-      primeAudio();
-      onOpen?.();
+      react(TOUCH.head);
       return;
     }
     if (!position || !viewport) return;
     const step = e.shiftKey ? NUDGE_FAR : NUDGE;
     const delta: Record<string, Point> = {
-      ArrowUp: { x: 0, y: -step },
-      ArrowDown: { x: 0, y: step },
-      ArrowLeft: { x: -step, y: 0 },
-      ArrowRight: { x: step, y: 0 },
+      ArrowUp: { x: 0, y: -step }, ArrowDown: { x: 0, y: step },
+      ArrowLeft: { x: -step, y: 0 }, ArrowRight: { x: step, y: 0 },
     };
     const d = delta[e.key];
     if (d) {
       e.preventDefault();
-      move({ x: position.x + d.x, y: position.y + d.y });
-      react('jumping', 700);
-      return;
-    }
-    if (e.key === 'Home') {
+      move({ x: position.x + d.x, y: position.y + d.y }, true);
+      react({ pose: 'jumping', label: 'Whee!', motion: 'land' }, 700);
+    } else if (e.key === 'Home') {
       e.preventDefault();
-      move(defaultPosition(SIZE, viewport, safe));
-      react('jumping', 700);
+      move(defaultPosition(size, viewport, safe), true);
     }
   }
 
   if (!character || dismissed || !position) return null;
   if (BARE_ROUTES.some((p) => pathname.startsWith(p))) return null;
 
-  // Being carried beats everything; working out a reply beats a reaction that
-  // has already happened; otherwise it is whatever it was last poked into.
-  const pose: Pose = dragging ? 'floating' : (overridePose ?? reaction ?? 'idle');
+  // Speech and thinking keep their lip-sync/status; a pat can interrupt idle
+  // or listening without shutting the conversation down.
+  const busy = overridePose === 'talking' || overridePose === 'floating';
+  const pose: Pose = dragging ? 'floating' : (busy ? overridePose : reaction?.pose ?? overridePose ?? 'idle');
   const thinking = overridePose === 'floating' && !dragging;
   const listening = overridePose === 'listening' && !dragging;
 
   return (
-    <div
-      // Below the nav (z-30) and the celebration overlay (z-40) on purpose, so
-      // it can never take a click meant for a tab or sit over a celebration.
-      className="fixed z-20 touch-none select-none"
-      style={{ left: position.x, top: position.y, width: SIZE, height: SIZE }}
-    >
-      <button
-        type="button"
-        // The panel closes on a click outside itself, and this is outside it.
-        // Without a way to recognise the figure, tapping it to dismiss the
-        // panel closed it and then reopened it a moment later on the
-        // double-tap timer — losing the whole conversation in between.
-        data-companion-figure=""
-        aria-label="Your companion. Click to talk, drag or use the arrow keys to move it, Home to send it back to the corner."
-        aria-haspopup="dialog"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+    <div className={cn('companion-stage fixed z-20 select-none', compact && 'is-compact')}
+      style={{ left: position.x, top: position.y, width: size, height: size }}>
+      <span className="companion-aura" aria-hidden />
+      {reaction && <span key={reaction.id} className="companion-emote" role="status">{reaction.label}</span>}
+      <span className={cn('companion-particles', reaction && `companion-particles-${reaction.motion}`)} aria-hidden>
+        <i>✦</i><i>♡</i><i>✧</i>
+      </span>
+      <button type="button" data-companion-figure=""
+        aria-label="Play with Miso: tap her head, hand or body; hold to cuddle; drag or use arrow keys to move. Talk is a separate button."
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+        onPointerUp={(e) => finishPointer(e)} onPointerCancel={(e) => finishPointer(e, true)}
         onKeyDown={onKeyDown}
-        className={cn(
-          'skin-pill grid size-full touch-none place-items-center rounded-full transition-[background-color]',
+        className={cn('companion-figure group relative grid size-full touch-none place-items-center rounded-full',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-          'hover:bg-accent/10 active:scale-95',
-          dragging ? 'cursor-grabbing bg-accent/10' : 'cursor-grab',
-          listening && 'js-halo',
-        )}
-      >
-        {/* Two nested motions on purpose, because they mean different things
-            and must be able to run at once: the shell carries the state the
-            conversation is in, the inner span carries the voice itself. */}
-        <span
-          ref={shell}
-          className={cn(
-            'grid size-full place-items-center',
-            // Working out a reply is the one state worth animating the whole
-            // figure for. A second 3D canvas would have looked better still
-            // and would have been competing for the processor with the voice
-            // it is covering for, which is the wrong trade at exactly the
-            // wrong moment.
-            thinking && 'js-think',
-            // Two different claims. With a level to read, the figure moves
-            // with the syllables. Without one — the browser's own voice, which
-            // cannot be measured — it breathes instead, which says "talking"
-            // without pretending to know when the mouth opens.
-            talking && (metered ? 'js-voice' : 'js-speak'),
-          )}
-        >
-          <CharacterFigure pose={pose} size={SIZE} />
+          dragging ? 'cursor-grabbing' : 'cursor-grab', pressed && 'is-pressed',
+          reaction && `companion-gesture-${reaction.motion}`, listening && 'js-halo')}>
+        <span ref={shell} className={cn('grid size-full place-items-center', thinking && 'js-think',
+          talking && (metered ? 'js-voice' : 'js-speak'))}>
+          <CharacterFigure pose={pose} expression={busy ? null : reaction?.expression} size={size} />
         </span>
       </button>
+      <div className="companion-controls">
+        <button type="button" aria-label={compact ? 'Make Miso big again' : 'Make Miso smaller'}
+          title={compact ? 'Make Miso big again' : 'Make Miso smaller'}
+          onClick={() => {
+            const next = !compact;
+            // Keep her right/bottom edge anchored while changing sizes; a
+            // phone's minimized figure should not suddenly float mid-screen.
+            if (viewport) {
+              const nextSize = next ? COMPACT_SIZE : COMPANION_SIZE;
+              const delta = size - nextSize;
+              setCompanionPosition(clampToViewport(
+                { x: position.x + delta, y: position.y + delta }, nextSize, viewport, safe,
+              ));
+            }
+            setCompanionCompact(next);
+          }} className="companion-size-control">
+          {compact ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
+        </button>
+        <button type="button" data-companion-figure="" aria-haspopup="dialog"
+          aria-label="Talk with Miso" onClick={() => { primeAudio(); onOpen?.(); }}
+          className="companion-talk-control"><MessageCircle size={17} /><span>Talk</span></button>
+      </div>
     </div>
   );
 }

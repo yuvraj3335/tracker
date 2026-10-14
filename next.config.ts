@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   images: {
     localPatterns: [
       { pathname: '/characters/**', search: '' },
-      { pathname: '/characters/miso/**', search: '?v=anime-2' },
+      { pathname: '/characters/miso/**', search: '?v=anime-3' },
     ],
   },
   // Character discovery reads a small, known public directory at runtime.

@@ -25,6 +25,20 @@ export const NUDGE_FAR = 64;
 export const TAP_SLOP = 6;
 /** Two taps closer together than this are a double-tap. */
 export const DOUBLE_TAP_MS = 320;
+/** A press long enough to count as a cuddle instead of a tap. */
+export const HOLD_MS = 520;
+export type TouchZone = 'head' | 'hand' | 'body' | 'feet';
+
+/** Stable hit zones in the figure's box, shared by mouse, pen and touch. */
+export function touchZone(x: number, y: number, size: number): TouchZone {
+  if (!Number.isFinite(x) || !Number.isFinite(y) || size <= 0) return 'body';
+  const nx = x / size;
+  const ny = y / size;
+  if (ny < 0.43) return 'head';
+  if (nx > 0.72 && ny < 0.78) return 'hand';
+  if (ny < 0.82) return 'body';
+  return 'feet';
+}
 
 /**
  * Poking thresholds.
@@ -119,6 +133,7 @@ export function trimPokes(history: readonly number[], now: number): number[] {
  */
 export const COMPANION_POSITION_KEY = 'jst-companion-pos';
 export const COMPANION_DISMISSED_KEY = 'jst-companion-off';
+export const COMPANION_COMPACT_KEY = 'jst-companion-compact';
 
 function read(key: string): string | null {
   try {
@@ -147,6 +162,18 @@ export function setCompanionPosition(point: Point) {
   write(COMPANION_POSITION_KEY, JSON.stringify(point));
   announce();
 }
+
+let cachedCompact: boolean | undefined;
+export function getCompanionCompact(): boolean {
+  if (cachedCompact === undefined) cachedCompact = read(COMPANION_COMPACT_KEY) === 'yes';
+  return cachedCompact;
+}
+export function setCompanionCompact(value: boolean) {
+  cachedCompact = value;
+  write(COMPANION_COMPACT_KEY, value ? 'yes' : 'no');
+  announce();
+}
+export const serverCompanionCompact = (): boolean => false;
 
 let cachedDismissed: boolean | undefined;
 

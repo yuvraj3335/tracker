@@ -29,6 +29,9 @@ const MISO_MOTION: Partial<Record<Pose, string>> = {
   crying: 'miso-sad', angry: 'miso-annoyed', laughing: 'miso-laugh',
 };
 
+/** Extra cutout frames are physical reactions, not conversation moods. */
+export type MisoExpression = 'patted' | 'tickled' | 'surprised' | 'winking';
+
 /**
  * Draws whichever figure is active: an installed character's model, an
  * installed character's art, or the original SVG mascot.
@@ -48,16 +51,20 @@ export function CharacterFigure({
   size = 72,
   priority = false,
   className,
+  expression,
 }: {
   pose?: Pose;
   size?: number;
   /** Preloads the image. Only the dashboard's resting figure sets this. */
   priority?: boolean;
   className?: string;
+  expression?: MisoExpression | null;
 }) {
   const character = useActiveCharacter();
   const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
-  const src = resolvePose(character, pose);
+  const src = character?.id === 'miso' && expression
+    ? misoFrameUrl(expression)
+    : resolvePose(character, pose);
 
   // A model carries its own motion and its own pose chain, so it is checked
   // before pose images and never combined with them.
@@ -103,12 +110,13 @@ export function CharacterFigure({
         alt=""
         width={size}
         height={size}
-        priority={priority}
+        priority={priority || (size >= 200 && !expression)}
+        unoptimized={Boolean(character?.id === 'miso' && expression)}
         sizes={`${size}px`}
         className="h-full w-full object-contain"
         draggable={false}
       />
-      {character?.id === 'miso' && (pose === 'idle' || pose === 'talking') && (
+      {character?.id === 'miso' && !expression && (pose === 'idle' || pose === 'talking') && (
         <Image
           src={misoFrameUrl(pose === 'idle' ? 'blink' : 'talking-closed')}
           alt=""

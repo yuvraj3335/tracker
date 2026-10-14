@@ -25,7 +25,7 @@ export const POSES = [
 export type Pose = (typeof POSES)[number];
 
 /** Cache-bust the shipped Miso redesign without changing her persisted id. */
-export const MISO_ART_REVISION = 'anime-2';
+export const MISO_ART_REVISION = 'anime-3';
 export function misoFrameUrl(frame: string): string {
   return `/characters/miso/${frame}.webp?v=${MISO_ART_REVISION}`;
 }

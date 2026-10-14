@@ -169,7 +169,7 @@ modes.
 | --- | --- | --- |
 | **Studio** | Clean and quiet. The default. | none |
 | **Rampart** | Stark and military. Teal on charcoal, 4px corners. | a hooded scout |
-| **Blossom** | Soft and sparkly. Violet pastels, 18px corners, blush and stars. | a floating sprite |
+| **Blossom** | Lilac and blush, soft glows, 24px corners and stars. | a floating sprite |
 
 A skin changes more than colour: surfaces, ink, accent, the heatmap ramp, the
 difficulty ramp **and the corner radius**, so Rampart reads sharp and Blossom
@@ -191,24 +191,27 @@ to land with the tap, not a second later.
   painted entirely with theme tokens, so they restyle themselves and there is no
   per-theme artwork to maintain. They evoke a genre rather than copying any
   studio's characters — which is what makes this safe to deploy publicly.
-- **Miso has two original editions.** The default Miso now uses ten consistent,
+- **Miso has two original editions.** The default Miso now uses fourteen consistent,
   cel-shaded anime-fantasy frames, with a violet palette, a distinct jacket and
   notebook, separate mood gestures, natural blinks and changing mouth shapes
   while talking. She sways, studies, listens, laughs, celebrates and reacts to
-  pokes; reduced-motion mode keeps her still. The files are optimized 512px
+  pats, tickles, surprise and high-fives; reduced-motion mode keeps her still. The files are optimized 512px
   WebP cutouts (under 80 KB each), not game assets or hotlinked art. The animated
   3D wizard is still selectable as **Miso Classic** from the sparkle icon. Its
   geometry and pose clips remain reproducible with
   `scripts/make-character-model.mjs`; image provenance is recorded beside the
   new assets in `public/characters/miso/README.md`.
 
-**The companion.** `Miso` comes loose onto the page: drag it anywhere, poke it,
-or click it to talk. Position is per device and is clamped on every read, so a
+**The companion.** `Miso` comes loose onto the page at twice her former size.
+Tap her head to pat, her hand for a high-five, or her body to tickle; hold to
+cuddle, double-tap for a wink, or drag her to another spot. The separate **Talk**
+button opens the spoken conversation, and a size button tucks her back down on
+small screens. Position and compact mode are per device. Position is clamped on every read, so a
 spot saved on a wide window cannot strand it off-screen. Arrow keys nudge it,
 Shift+arrow moves it further and Home sends it back to the corner — dragging is
 never the only way in.
 
-**Clicking it starts a spoken conversation.** It says hello out loud, listens,
+**Talk starts a spoken conversation.** It says hello out loud, listens,
 answers, and listens again, hands-free, until you stop it. The figure is the
 status indicator — it speaks, listens, and studies while it thinks — and every
 turn is captioned on screen as well. Typing still

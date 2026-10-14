@@ -81,7 +81,7 @@ export const THEMES: Record<Skin, ThemeMeta> = {
   blossom: {
     id: 'blossom',
     name: 'Blossom',
-    tagline: 'Soft, sparkly, and quietly relentless.',
+    tagline: 'Lavender, blush, and a little sparkle.',
     mascot: 'sprite',
     swatch: ['#fffdfe', '#7c4dcc', '#9d7ee0'],
     cheers: [
