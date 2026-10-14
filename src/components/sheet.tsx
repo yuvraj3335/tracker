@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Rows3, Rows4, Keyboard, Check, GripVertical, RotateCcw } from 'lucide-react';
 import { Card } from './ui/card';
 import { HeadingBand } from './heading-band';
@@ -76,18 +77,32 @@ export function Sheet({
   const canonicalIds = useMemo(() => topics.map((topic) => topic.id), [topics]);
   const [sectionOrder, setSectionOrder] = useState(() => orderedSectionIds(canonicalIds, initialSectionOrder));
   const orderedIds = useMemo(() => orderedSectionIds(canonicalIds, sectionOrder), [canonicalIds, sectionOrder]);
+  const [previewOrder, setPreviewOrder] = useState<string[] | null>(null);
+  const displayOrder = previewOrder ?? orderedIds;
   const orderedTopics = useMemo(() => {
     const byId = new Map(topics.map((topic) => [topic.id, topic]));
-    return orderedIds.map((id) => byId.get(id)).filter((topic): topic is Topic => Boolean(topic));
-  }, [topics, orderedIds]);
+    return displayOrder.map((id) => byId.get(id)).filter((topic): topic is Topic => Boolean(topic));
+  }, [topics, displayOrder]);
   const savedOrder = useRef({ ids: orderedIds, version: initialSectionOrderVersion });
   const orderInFlight = useRef(false);
   const [savingOrder, startOrderTransition] = useTransition();
   const [orderMessage, setOrderMessage] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropTarget, setDropTarget] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
-  const drag = useRef<{ id: string; pointerId: number; startX: number; startY: number; x: number; y: number; moved: boolean; target: { id: string; edge: 'before' | 'after' } | null } | null>(null);
+  const drag = useRef<{
+    id: string; pointerId: number; startX: number; startY: number;
+    x: number; y: number; offsetX: number; offsetY: number; width: number;
+    moved: boolean; awaitingRender: boolean; preview: string[];
+  } | null>(null);
+  const ghost = useRef<HTMLDivElement>(null);
+  const sectionList = useRef<HTMLDivElement>(null);
+  const beforeMove = useRef<Map<string, number> | null>(null);
   const scrollFrame = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!orderMessage) return;
+    const timer = window.setTimeout(() => setOrderMessage(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [orderMessage]);
 
   // Typing stays on the urgent path; re-filtering 456 rows happens at lower
   // priority, so the input never stutters.
@@ -288,16 +303,55 @@ export function Sheet({
     });
   }, [areaId, canonicalIds, orderedIds]);
 
-  const updateDrop = useCallback((x: number, y: number) => {
+  const placeGhost = useCallback(() => {
     const current = drag.current;
-    if (!current?.moved) return;
+    if (!current || !ghost.current) return;
+    ghost.current.style.width = `${current.width}px`;
+    ghost.current.style.transform = `translate3d(${current.x - current.offsetX}px, ${current.y - current.offsetY}px, 0) rotate(-0.6deg)`;
+  }, []);
+
+  // A FLIP transition starts each displaced card at its old screen position.
+  // Only section changes trigger it; moving the pointer does not re-render the
+  // 455 question rows on every frame.
+  useLayoutEffect(() => {
+    const old = beforeMove.current;
+    beforeMove.current = null;
+    if (drag.current) drag.current.awaitingRender = false;
+    if (!old || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    for (const card of sectionList.current?.querySelectorAll<HTMLElement>('[data-section-id]') ?? []) {
+      const previousTop = old.get(card.dataset.sectionId ?? '');
+      if (previousTop === undefined) continue;
+      // A second move can arrive mid-animation. Measure the new layout only
+      // after removing the previous transform, but start from the visible spot.
+      card.getAnimations().forEach((animation) => animation.cancel());
+      const offset = previousTop - card.getBoundingClientRect().top;
+      if (Math.abs(offset) < 1) continue;
+      card.animate(
+        [{ transform: `translateY(${offset}px)` }, { transform: 'translateY(0)' }],
+        { duration: 210, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+      );
+    }
+  }, [displayOrder]);
+
+  useLayoutEffect(() => {
+    if (draggingId) placeGhost();
+  }, [draggingId, placeGhost]);
+
+  const previewAt = useCallback((x: number, y: number) => {
+    const current = drag.current;
+    if (!current?.moved || current.awaitingRender) return;
     const card = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-section-id]');
     const id = card?.dataset.sectionId;
-    const target = id && id !== current.id && root.current?.contains(card)
-      ? { id, edge: y < card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2 ? 'before' as const : 'after' as const }
-      : null;
-    current.target = target;
-    setDropTarget((old) => old?.id === target?.id && old?.edge === target?.edge ? old : target);
+    if (!id || id === current.id || !sectionList.current?.contains(card)) return;
+    const edge = y < card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2 ? 'before' : 'after';
+    const next = moveSection(current.preview, current.id, id, edge);
+    if (next.every((value, index) => value === current.preview[index])) return;
+    beforeMove.current = new Map(
+      [...sectionList.current.querySelectorAll<HTMLElement>('[data-section-id]')].map((element) => [element.dataset.sectionId ?? '', element.getBoundingClientRect().top]),
+    );
+    current.preview = next;
+    current.awaitingRender = true;
+    setPreviewOrder(next);
   }, []);
 
   const stopDrag = useCallback(() => {
@@ -305,7 +359,8 @@ export function Sheet({
     scrollFrame.current = null;
     drag.current = null;
     setDraggingId(null);
-    setDropTarget(null);
+    setPreviewOrder(null);
+    beforeMove.current = null;
   }, []);
 
   useEffect(() => () => {
@@ -314,9 +369,16 @@ export function Sheet({
 
   const startDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, id: string) => {
     if (!reorderEnabled || orderInFlight.current || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    const card = event.currentTarget.closest<HTMLElement>('[data-section-id]');
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, moved: false, target: null };
-    setDraggingId(id);
+    drag.current = {
+      id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+      x: event.clientX, y: event.clientY, offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top, width: rect.width, moved: false,
+      awaitingRender: false, preview: [...orderedIds],
+    };
     const tick = () => {
       const current = drag.current;
       if (!current) return;
@@ -325,21 +387,27 @@ export function Sheet({
         const bottom = window.innerHeight - 60;
         if (current.y < top) window.scrollBy(0, -Math.min(18, (top - current.y) / 4));
         else if (current.y > bottom) window.scrollBy(0, Math.min(18, (current.y - bottom) / 4));
-        updateDrop(current.x, current.y);
+        previewAt(current.x, current.y);
       }
       scrollFrame.current = requestAnimationFrame(tick);
     };
     scrollFrame.current = requestAnimationFrame(tick);
-  }, [reorderEnabled, updateDrop]);
+  }, [orderedIds, previewAt, reorderEnabled]);
 
-  const moveDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+  const moveDrag = useCallback((event: PointerEvent) => {
     const current = drag.current;
     if (!current || current.pointerId !== event.pointerId) return;
     current.x = event.clientX;
     current.y = event.clientY;
-    if (Math.hypot(current.x - current.startX, current.y - current.startY) > 5) current.moved = true;
-    updateDrop(current.x, current.y);
-  }, [updateDrop]);
+    if (!current.moved && Math.hypot(current.x - current.startX, current.y - current.startY) > 6) {
+      current.moved = true;
+      setDraggingId(current.id);
+    }
+    if (current.moved) {
+      placeGhost();
+      previewAt(current.x, current.y);
+    }
+  }, [placeGhost, previewAt]);
 
   const finishDrag = useCallback((pointerId: number, x?: number, y?: number, cancelled = false) => {
     const current = drag.current;
@@ -347,33 +415,38 @@ export function Sheet({
     if (x !== undefined && y !== undefined) {
       current.x = x;
       current.y = y;
-      if (Math.hypot(x - current.startX, y - current.startY) > 5) current.moved = true;
-      updateDrop(x, y);
+      if (Math.hypot(x - current.startX, y - current.startY) > 6) current.moved = true;
+      if (current.moved) previewAt(x, y);
     }
-    const target = !cancelled && current.moved ? current.target : null;
+    const next = !cancelled && current.moved ? current.preview : null;
+    const name = topics.find((topic) => topic.id === current.id)?.name ?? 'Section';
+    if (next) persistOrder(next, name);
     stopDrag();
-    if (target) {
-      const name = topics.find((topic) => topic.id === current.id)?.name ?? 'Section';
-      persistOrder(moveSection(orderedIds, current.id, target.id, target.edge), name);
-    }
-  }, [orderedIds, persistOrder, stopDrag, topics, updateDrop]);
+  }, [persistOrder, previewAt, stopDrag, topics]);
 
-  // Pointer capture normally delivers the release to the handle. A browser
-  // can also drop capture while scrolling or re-rendering; the window listener
-  // and lost-capture path ensure we never leave a section in "dragging" state.
+  // Listen on the window because moving a card in the DOM can drop pointer
+  // capture. Escape, cancellation and focus loss all restore the original order.
   useEffect(() => {
+    const move = (event: PointerEvent) => moveDrag(event);
     const up = (event: PointerEvent) => finishDrag(event.pointerId, event.clientX, event.clientY);
     const cancel = (event: PointerEvent) => finishDrag(event.pointerId, undefined, undefined, true);
     const blur = () => stopDrag();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && drag.current) { event.preventDefault(); stopDrag(); }
+    };
+    window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', cancel);
     window.addEventListener('blur', blur);
+    window.addEventListener('keydown', key);
     return () => {
+      window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', cancel);
       window.removeEventListener('blur', blur);
+      window.removeEventListener('keydown', key);
     };
-  }, [finishDrag, stopDrag]);
+  }, [finishDrag, moveDrag, stopDrag]);
 
   const handleReorderKey = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => {
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
@@ -548,7 +621,7 @@ export function Sheet({
   return (
     <div
       ref={root}
-      className="space-y-3"
+      className={cn('space-y-3', draggingId && 'select-none')}
       // Declared on the root because custom properties inherit downwards and
       // the bands and rows are siblings of the bar, not its children. This is
       // only the starting guess — the effect above measures the real thing on
@@ -671,25 +744,25 @@ export function Sheet({
       </p>
 
       {topics.length > 1 ? (
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-1 text-xs text-ink-muted">
-          <p>
+        <div className="flex items-start justify-between gap-2 px-1 text-xs text-ink-muted">
+          <p className="min-w-0 flex-1">
             {reorderEnabled
               ? 'Drag a section by its handle, or focus the handle and press ↑ / ↓.'
               : 'Show all sections and clear search to rearrange them.'}
           </p>
-          <div className="flex items-center gap-2">
-            <span role="status" aria-live="polite" className="text-ink-2">{orderMessage}</span>
-            {hasCustomOrder ? (
-              <button
-                type="button"
-                onClick={() => persistOrder(canonicalIds, 'Sections')}
-                disabled={!reorderEnabled}
-                className="skin-pill inline-flex min-h-9 items-center gap-1 px-2 text-xs font-medium text-accent transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
-              >
-                <RotateCcw className="size-3" aria-hidden /> Reset order
-              </button>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={() => persistOrder(canonicalIds, 'Sections')}
+            disabled={!reorderEnabled || !hasCustomOrder}
+            aria-label="Reset section order"
+            title="Reset section order"
+            className={cn(
+              'skin-pill inline-flex min-h-9 shrink-0 items-center gap-1 px-2 text-xs font-medium text-accent transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50',
+              !hasCustomOrder && 'invisible',
+            )}
+          >
+            <RotateCcw className="size-3" aria-hidden /> <span className="hidden sm:inline">Reset order</span>
+          </button>
         </div>
       ) : null}
 
@@ -715,15 +788,9 @@ export function Sheet({
           </div>
         </Card>
       ) : (
-        <div className="space-y-2.5">
+        <div ref={sectionList} className="space-y-2.5">
           {sections.map(({ topic, rows, done, total }) => (
-            <Card key={topic.id} className={cn('sheet-section js-lift relative overflow-hidden', draggingId === topic.id && 'opacity-65')} data-section-id={topic.id}>
-              {dropTarget?.id === topic.id ? (
-                <span
-                  aria-hidden
-                  className={cn('pointer-events-none absolute inset-x-0 z-10 h-1 bg-accent shadow-[0_0_0_2px_var(--surface)]', dropTarget.edge === 'before' ? 'top-0' : 'bottom-0')}
-                />
-              ) : null}
+            <Card key={topic.id} className={cn('sheet-section relative overflow-hidden', draggingId === topic.id && 'sheet-section--dragging')} data-section-id={topic.id}>
               <div className="flex items-stretch">
                 <button
                   type="button"
@@ -731,10 +798,6 @@ export function Sheet({
                   title={reorderEnabled ? `Drag ${topic.name} or press ↑ / ↓` : 'Clear search and filters to reorder'}
                   disabled={!reorderEnabled}
                   onPointerDown={(event) => startDrag(event, topic.id)}
-                  onPointerMove={moveDrag}
-                  onPointerUp={(event) => finishDrag(event.pointerId, event.clientX, event.clientY)}
-                  onPointerCancel={(event) => finishDrag(event.pointerId, undefined, undefined, true)}
-                  onLostPointerCapture={(event) => finishDrag(event.pointerId)}
                   onKeyDown={(event) => handleReorderKey(event, topic.id)}
                   className="sheet-drag-handle grid w-11 shrink-0 touch-none place-items-center text-ink-muted transition-colors hover:bg-surface-2 hover:text-accent active:bg-surface-2 focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 sm:w-10"
                 >
@@ -828,6 +891,24 @@ export function Sheet({
       </p>
 
       <ShortcutsOverlay open={help} onClose={() => setHelp(false)} />
+      <div role="status" aria-live="polite" className={cn(
+        'pointer-events-none fixed inset-x-4 bottom-20 z-50 mx-auto max-w-sm rounded-lg border border-hairline bg-surface px-3 py-2 text-center text-xs text-ink shadow-lg transition-opacity',
+        orderMessage ? 'opacity-100' : 'opacity-0',
+      )}>
+        {orderMessage}
+      </div>
+      {draggingId && typeof document !== 'undefined' ? createPortal(
+        <div
+          ref={ghost}
+          aria-hidden="true"
+          className="sheet-drag-ghost skin-card flex items-center gap-3 border border-accent bg-surface px-3 py-3 text-sm font-medium text-ink"
+        >
+          <GripVertical className="size-4 shrink-0 text-accent" />
+          <span className="min-w-0 truncate">{topics.find((topic) => topic.id === draggingId)?.name}</span>
+          <span className="ml-auto shrink-0 text-xs text-ink-muted">Move</span>
+        </div>,
+        document.body,
+      ) : null}
     </div>
   );
 }
