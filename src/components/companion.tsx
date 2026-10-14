@@ -31,9 +31,8 @@ import { cn } from '@/lib/utils';
 /**
  * The character, loose on the page: pick it up, move it, poke it, talk to it.
  *
- * Only appears once a character has actually been chosen. A fresh checkout has
- * none selected, so the app looks exactly as it did before this existed —
- * which is the same rule the character picker itself follows.
+ * Only appears once a character is available and selected. The shipped Miso
+ * provides the default; installations with no artwork retain the SVG fallback.
  *
  * It deliberately sits *below* the nav and the celebration overlay in the
  * stack, and its position is clamped clear of both bars, so it can never cover

@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    localPatterns: [
+      { pathname: '/characters/**', search: '' },
+      { pathname: '/characters/miso/**', search: '?v=anime-2' },
+    ],
+  },
+  // Character discovery reads a small, known public directory at runtime.
+  // Include only that directory in server functions; the eye model remains a
+  // static browser asset and must not be traced into every function bundle.
+  outputFileTracingIncludes: {
+    '/*': ['./public/characters/**/*'],
+  },
   async headers() {
     return [
       {

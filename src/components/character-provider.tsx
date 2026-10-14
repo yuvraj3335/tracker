@@ -12,8 +12,8 @@ import { usableAccent } from '@/lib/contrast';
  * The root layout does it once and hands the result down as plain data; every
  * client surface reads it from here instead of fetching.
  *
- * The catalogue is frequently empty — that is the default state of a fresh
- * checkout — so every consumer must handle "no character" as normal.
+ * The catalogue can still be empty if the owner removes both shipped folders,
+ * so every consumer must handle "no character" as normal.
  */
 const CatalogContext = createContext<readonly Character[]>([]);
 

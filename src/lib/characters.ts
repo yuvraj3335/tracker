@@ -1,16 +1,15 @@
 /**
  * Character system — types and pure resolution logic.
  *
- * A "character" is art the *owner* supplies by dropping a folder into
- * `public/characters/`. Nothing here ships artwork, and nothing here reaches
+ * A "character" is art shipped with the app or supplied by the owner by
+ * dropping a folder into `public/characters/`. Nothing here reaches
  * the network: discovery reads the filesystem once at startup (see
  * `characters.server.ts`) and hands the result to the client as plain data.
  *
  * The whole system is optional by construction. With zero folders installed
  * the catalogue is empty, `resolveCharacter` answers null, and every surface
- * falls back to the original SVG mascots in `mascot.tsx`. That fallback is the
- * default path, not an error path — it is what the app looks like out of the
- * box.
+ * falls back to the original SVG mascots in `mascot.tsx`. That remains the
+ * intentional no-art path, even though the public build now ships Miso.
  *
  * Everything in this file is pure so it can be unit-tested without a
  * filesystem; the fs walk lives in `characters.server.ts`.
@@ -24,6 +23,12 @@ export const POSES = [
   'talking', 'listening',
 ] as const;
 export type Pose = (typeof POSES)[number];
+
+/** Cache-bust the shipped Miso redesign without changing her persisted id. */
+export const MISO_ART_REVISION = 'anime-2';
+export function misoFrameUrl(frame: string): string {
+  return `/characters/miso/${frame}.webp?v=${MISO_ART_REVISION}`;
+}
 
 /** Image extensions accepted for a pose, in preference order. */
 export const POSE_EXTENSIONS = ['webp', 'avif', 'png', 'jpg', 'jpeg'] as const;

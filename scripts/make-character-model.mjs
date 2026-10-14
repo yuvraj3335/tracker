@@ -1,5 +1,5 @@
 /**
- * Builds the shipped character, "Miso", as an original glTF 2.0 binary.
+ * Builds the original 3D "Miso Classic" as a glTF 2.0 binary.
  *
  *   npm run make:character
  *
@@ -8,8 +8,8 @@
  * from anywhere: the geometry is revolved, swept and extruded from the profiles
  * in this file, the palette is chosen here, and the six pose clips are
  * keyframed here. That is the whole provenance of
- * `public/characters/miso/model.glb`, and it is why that one folder is the only
- * exception to the blanket ignore rule on public/characters.
+ * `public/characters/miso-classic/model.glb`. The newer Miso illustration is
+ * a separate character under the original `miso` id.
  *
  * WHO MISO IS
  * A small apprentice wizard, drawn in chibi proportions — a head nearly half
@@ -31,7 +31,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'characters', 'miso');
+const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'characters', 'miso-classic');
 
 // ---------------------------------------------------------------------------
 // Colour. glTF factors are LINEAR, not sRGB — handing it a hex triple directly
@@ -1301,8 +1301,8 @@ function toGlb({ json, binary }) {
  * so applying it would repaint half the themes and not the other half.
  */
 const META = {
-  id: 'miso',
-  name: 'Miso',
+  id: 'miso-classic',
+  name: 'Miso Classic',
   artist: 'Generated for this project by scripts/make-character-model.mjs',
   license: 'Original work, generated for this project',
   lines: {
@@ -1316,5 +1316,5 @@ const glb = toGlb(buildGltf());
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(join(OUT_DIR, 'model.glb'), glb);
 writeFileSync(join(OUT_DIR, 'meta.json'), JSON.stringify(META, null, 2) + '\n');
-console.log(`miso/model.glb  ${(glb.length / 1024).toFixed(1)} KB`);
-console.log(`miso/meta.json  ${CLIPS.length} poses: ${CLIPS.map((c) => c.name).join(', ')}`);
+console.log(`miso-classic/model.glb  ${(glb.length / 1024).toFixed(1)} KB`);
+console.log(`miso-classic/meta.json  ${CLIPS.length} poses: ${CLIPS.map((c) => c.name).join(', ')}`);

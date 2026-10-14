@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react';
 import { Mascot } from './mascot';
 import { useActiveCharacter } from './character-provider';
 import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
-import { resolvePose, type Character, type Pose } from '@/lib/characters';
+import { misoFrameUrl, resolvePose, type Character, type Pose } from '@/lib/characters';
 import { THEMES } from '@/lib/themes';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +23,12 @@ const CharacterCanvas = dynamic(
   { ssr: false },
 );
 
+const MISO_MOTION: Partial<Record<Pose, string>> = {
+  idle: 'miso-idle', focused: 'miso-focus', listening: 'miso-listen',
+  talking: 'miso-speak', sad: 'miso-sad', concerned: 'miso-sad',
+  crying: 'miso-sad', angry: 'miso-annoyed', laughing: 'miso-laugh',
+};
+
 /**
  * Draws whichever figure is active: an installed character's model, an
  * installed character's art, or the original SVG mascot.
@@ -34,9 +40,8 @@ const CharacterCanvas = dynamic(
  *
  * Motion depends on which of the three is drawing. A model animates itself, so
  * the CSS bob and hop are withheld from it — applying both would move the
- * figure twice. An image or a mascot keeps exactly the motion it always had:
- * a slow bob at rest, the squash-and-stretch hop for the celebratory poses,
- * transform-only and collapsed by the reduced-motion rule in globals.css.
+ * figure twice. Illustrated Miso has pose-specific motion and two near-matching
+ * facial frames for blinking and speaking; reduced-motion collapses both.
  */
 export function CharacterFigure({
   pose = 'idle',
@@ -68,7 +73,9 @@ export function CharacterFigure({
     );
   }
 
-  const motion = pose === 'celebrate' || pose === 'milestone' ? 'js-jump' : 'js-bob';
+  const motion = character?.id === 'miso'
+    ? MISO_MOTION[pose] ?? (pose === 'celebrate' || pose === 'milestone' || pose === 'jumping' ? 'js-jump' : 'miso-idle')
+    : pose === 'celebrate' || pose === 'milestone' ? 'js-jump' : 'js-bob';
 
   if (!src) {
     const mascot = THEMES[skin].mascot;
@@ -101,6 +108,18 @@ export function CharacterFigure({
         className="h-full w-full object-contain"
         draggable={false}
       />
+      {character?.id === 'miso' && (pose === 'idle' || pose === 'talking') && (
+        <Image
+          src={misoFrameUrl(pose === 'idle' ? 'blink' : 'talking-closed')}
+          alt=""
+          width={size}
+          height={size}
+          loading="eager"
+          sizes={`${size}px`}
+          className={cn('pointer-events-none absolute inset-0 h-full w-full object-contain', pose === 'idle' ? 'miso-blink-frame' : 'miso-speaking-frame')}
+          draggable={false}
+        />
+      )}
     </span>
   );
 }

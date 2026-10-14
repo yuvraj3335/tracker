@@ -27,6 +27,9 @@ const PUBLIC_PREFIXES = [
   // signed-out setup and auth screens — gating them would 307 the image
   // requests to /login and leave broken figures there.
   '/characters/',
+  // Static, non-personal eye-model assets. The signed-out development preview
+  // needs them too; camera frames never travel to these URLs.
+  '/mediapipe/',
   // Dev-only component preview, and only in development — see below.
   '/preview',
   // OAuth discovery probes from MCP clients. There is no OAuth here; letting

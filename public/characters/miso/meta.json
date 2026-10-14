@@ -1,26 +1,11 @@
 {
   "id": "miso",
   "name": "Miso",
-  "artist": "Generated for this project by scripts/make-character-model.mjs",
+  "artist": "Generated with OpenAI image generation for this project",
   "license": "Original work, generated for this project",
   "lines": {
-    "cheer": [
-      "One down.",
-      "Noted!",
-      "That one is yours.",
-      "Neat.",
-      "Onward!"
-    ],
-    "milestone": [
-      "A whole set — look at that.",
-      "Every last one.",
-      "That is the lot!"
-    ],
-    "idle": [
-      "Ready when you are.",
-      "One at a time.",
-      "Take the next one.",
-      "Still here."
-    ]
+    "cheer": ["One down.", "Noted!", "That one is yours.", "Neat.", "Onward!"],
+    "milestone": ["A whole set — look at that.", "Every last one.", "That is the lot!"],
+    "idle": ["Ready when you are.", "One at a time.", "Take the next one.", "Still here."]
   }
 }

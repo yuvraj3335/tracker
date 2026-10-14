@@ -16,7 +16,7 @@ export default function FocusPage() {
     <div className="js-content-in space-y-4">
       <PageHeader
         title="Focus"
-        sub="A countdown for one sitting. Nothing here is logged — ticking a question is still the only input."
+        sub="Work in focused rounds, take real breaks, and optionally get an on-device reminder when you look away. Nothing is logged."
       />
       {/* The same zone that decides when a day rolls over for streaks and
           the heatmap, so the clock here and the date on the dashboard cannot

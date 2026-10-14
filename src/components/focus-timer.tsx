@@ -20,6 +20,8 @@ import {
   remainingMs,
 } from '@/lib/timer';
 import { cn } from '@/lib/utils';
+import { nextPomodoroSegment, POMODORO_DEFAULTS, segmentDuration, segmentLabel, type PomodoroLengths, type PomodoroSegment } from '@/lib/pomodoro';
+import { AttentionMonitor } from './attention-monitor';
 
 /**
  * A countdown for one sitting.
@@ -48,6 +50,10 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 type Status = 'idle' | 'running' | 'paused' | 'done';
 
 export function FocusTimer({ timeZone }: { timeZone?: string }) {
+  const [mode, setMode] = useState<'pomodoro' | 'custom'>('pomodoro');
+  const [segment, setSegment] = useState<PomodoroSegment>('focus');
+  const [completedFocus, setCompletedFocus] = useState(0);
+  const [lengths, setLengths] = useState<PomodoroLengths>(POMODORO_DEFAULTS);
   const [status, setStatus] = useState<Status>('idle');
   const [total, setTotal] = useState(0);
   const [remaining, setRemaining] = useState(0);
@@ -66,8 +72,12 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
   const shell = useRef<HTMLDivElement>(null);
   const { isFullscreen, canFullscreen, toggleFullscreen } = useFullscreen(shell);
 
-  const parsed = parseDuration(input);
-  const phase = phaseFor(remaining);
+  const parsed = mode === 'pomodoro' ? segmentDuration(segment, lengths) : parseDuration(input);
+  const phase = mode === 'pomodoro' && segment !== 'focus' && remaining > 0 ? 'running' : phaseFor(remaining);
+  const cycleProgress = completedFocus > 0 && completedFocus % 4 === 0 && (segment !== 'focus' || status === 'done')
+    ? 4 : completedFocus % 4;
+  const round = segment === 'focus' && status !== 'done'
+    ? completedFocus % 4 + 1 : (completedFocus - 1 + 4) % 4 + 1;
   const live = status === 'running' || status === 'paused';
   const showing = live || status === 'done' ? remaining : (parsed ?? 0);
   const label = formatRemaining(showing);
@@ -80,19 +90,20 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
     // Comparing samples rather than testing the current value is what survives
     // a backgrounded tab: timers there are throttled to once a minute or worse,
     // so the sample after 8:00 can be 2:00 and must still count as crossing 5.
-    if (crossedBelow(prev, next, WARNING_MS)) {
+    if ((mode === 'custom' || segment === 'focus') && crossedBelow(prev, next, WARNING_MS)) {
       setAnnouncement('Five minutes left.');
       playChime('warning');
     } else if (crossedBelow(prev, next, CRITICAL_MS)) {
       setAnnouncement('One minute left.');
     }
     if (crossedBelow(prev, next, 0)) {
-      setAnnouncement('Time is up.');
+      setAnnouncement(mode === 'pomodoro' ? `${segmentLabel(segment)} complete.` : 'Time is up.');
       playChime('done');
+      if (mode === 'pomodoro' && segment === 'focus') setCompletedFocus((count) => count + 1);
       setStatus('done');
     }
     setRemaining(next);
-  }, []);
+  }, [mode, segment]);
 
   // One interval and one listener, and only while a session is actually
   // running. 250ms rather than 1000 so the displayed second is never up to a
@@ -100,7 +111,6 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
   // route, not anything that touches the 456-row sheet.
   useEffect(() => {
     if (status !== 'running') return;
-    sample();
     const id = setInterval(sample, 250);
     // Coming back to a throttled tab should repaint at once rather than
     // showing a stale number until the next tick.
@@ -143,12 +153,30 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
   }
 
   function reset() {
+    // "Restart segment" replays the just-finished work round instead of
+    // silently counting it twice toward the long break.
+    if (status === 'done' && mode === 'pomodoro' && segment === 'focus') {
+      setCompletedFocus((count) => Math.max(0, count - 1));
+    }
     deadline.current = 0;
     previous.current = 0;
     setStatus('idle');
     setRemaining(0);
     setTotal(0);
     setAnnouncement('');
+  }
+
+  function chooseMode(next: 'pomodoro' | 'custom') {
+    reset();
+    setMode(next);
+    setSegment('focus');
+    setCompletedFocus(0);
+  }
+
+  function startNextSegment() {
+    const next = nextPomodoroSegment(segment, completedFocus);
+    setSegment(next);
+    start(segmentDuration(next, lengths));
   }
 
   const ringSize = isFullscreen ? 'min(60vmin, 420px)' : 'min(52vw, 228px)';
@@ -162,7 +190,7 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
       className={cn(
         // --surface, not --plane, because the digits go to --critical in the
         // last minute and that pairing is what `npm run check:color` measures.
-        'skin-card relative flex flex-col overflow-hidden border border-hairline bg-surface text-ink',
+        'skin-card relative flex flex-col overflow-x-hidden overflow-y-auto border border-hairline bg-surface text-ink',
         isFullscreen && 'h-screen w-screen justify-center rounded-none border-0',
       )}
     >
@@ -183,6 +211,24 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
           <span>{wallClock ? formatClock(wallClock, timeZone) : '--:--'}</span>
         </p>
         <SoundToggle effects={effects} />
+      </div>
+
+      <div className="relative flex flex-wrap items-center justify-center gap-2 px-4 pt-4 sm:px-5">
+        <div className="skin-pill inline-flex gap-1 border border-hairline bg-surface-2 p-1" role="group" aria-label="Focus timer mode">
+          {(['pomodoro', 'custom'] as const).map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              aria-pressed={mode === choice}
+              disabled={status === 'running' || status === 'paused'}
+              onClick={() => chooseMode(choice)}
+              className={cn('skin-pill min-h-10 px-4 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent', mode === choice ? 'bg-accent text-accent-ink' : 'text-ink-muted hover:text-ink')}
+            >
+              {choice === 'pomodoro' ? 'Pomodoro' : 'Custom timer'}
+            </button>
+          ))}
+        </div>
+        {mode === 'pomodoro' && <span className="text-xs font-medium text-ink-muted">{segmentLabel(segment)} · {segment === 'focus' ? `Round ${round} of 4${status === 'done' ? ' complete' : ''}` : `${cycleProgress} of 4 rounds complete`}</span>}
       </div>
 
       <div
@@ -261,10 +307,10 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
 
         {/* The visual half of the warning. Colour never carries it alone — the
             words change at every tier too. */}
-        <StatusPill status={status} phase={phase} reduced={reduced} />
+        <StatusPill status={status} phase={phase} reduced={reduced} doneLabel={mode === 'pomodoro' ? `${segmentLabel(segment)} complete` : 'Session complete'} />
 
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {status === 'idle' ? (
+          {status === 'idle' && mode === 'custom' ? (
             <form
               className="flex flex-wrap items-center justify-center gap-2"
               onSubmit={(e) => {
@@ -294,6 +340,18 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
             </form>
           ) : null}
 
+          {status === 'idle' && mode === 'pomodoro' ? (
+            <Button type="button" className="min-h-11 px-6" onClick={() => start(segmentDuration(segment, lengths))}>
+              <Play className="size-4" /> Start {segmentLabel(segment).toLowerCase()}
+            </Button>
+          ) : null}
+
+          {status === 'done' && mode === 'pomodoro' ? (
+            <Button type="button" className="min-h-11 px-6" onClick={startNextSegment}>
+              <Play className="size-4" /> Start {segmentLabel(nextPomodoroSegment(segment, completedFocus)).toLowerCase()}
+            </Button>
+          ) : null}
+
           {status === 'running' ? (
             <Button type="button" variant="outline" className="min-h-11" onClick={pause}>
               <Pause className="size-4" />
@@ -311,7 +369,13 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
           {status !== 'idle' ? (
             <Button type="button" variant="outline" className="min-h-11" onClick={reset}>
               <RotateCcw className="size-4" />
-              {status === 'done' ? 'Again' : 'Reset'}
+              {status === 'done' ? (mode === 'pomodoro' ? 'Restart segment' : 'Again') : 'Reset'}
+            </Button>
+          ) : null}
+
+          {mode === 'pomodoro' && segment !== 'focus' && status !== 'done' ? (
+            <Button type="button" variant="ghost" className="min-h-11" onClick={() => { reset(); setSegment('focus'); }}>
+              Skip break
             </Button>
           ) : null}
 
@@ -326,7 +390,7 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
           ) : null}
         </div>
 
-        {status === 'idle' ? (
+        {status === 'idle' && mode === 'custom' ? (
           <div className="flex flex-col items-center gap-2">
             <div className="flex flex-wrap justify-center gap-2">
               {PRESETS.map((m) => (
@@ -349,6 +413,40 @@ export function FocusTimer({ timeZone }: { timeZone?: string }) {
             </p>
           </div>
         ) : null}
+
+        {mode === 'pomodoro' && (
+          <div className="w-full max-w-md space-y-3 text-center">
+            <div className="flex items-center justify-center gap-2" aria-label={`${cycleProgress} of 4 focus rounds finished in this cycle`}>
+              {[0, 1, 2, 3].map((round) => (
+                <span key={round} className={cn('h-1.5 w-12 rounded-full transition-colors', round < cycleProgress ? 'bg-accent' : 'bg-grid')} />
+              ))}
+            </div>
+            <p className="text-xs text-ink-muted">Four focus rounds earn a longer break. Breaks start when you choose.</p>
+            {status === 'idle' && (
+              <details className="text-left text-xs text-ink-muted">
+                <summary className="cursor-pointer text-center text-accent focus-visible:outline-2 focus-visible:outline-accent">Adjust work and break lengths</summary>
+                <div className="mt-3 flex flex-wrap justify-center gap-3">
+                  {([
+                    ['focus', 'Focus', [15, 25, 45, 50]],
+                    ['shortBreak', 'Short break', [5, 10]],
+                    ['longBreak', 'Long break', [15, 20, 30]],
+                  ] as const).map(([key, title, options]) => (
+                    <label key={key} className="flex flex-col gap-1 text-ink-2">
+                      {title}
+                      <select value={lengths[key]} onChange={(e) => setLengths((previous) => ({ ...previous, [key]: Number(e.target.value) }))} className="skin-pill min-h-11 border border-control bg-surface-2 px-3 text-ink focus-visible:outline-2 focus-visible:outline-accent">
+                        {options.map((n) => <option key={n} value={n}>{n} min</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="relative mx-4 mb-4 sm:mx-5 sm:mb-5">
+        <AttentionMonitor active={status === 'running' && (mode === 'custom' || segment === 'focus')} />
       </div>
 
       {/* The spoken half. Only the milestones go here — announcing every second
@@ -385,7 +483,7 @@ function SoundToggle({ effects }: { effects: boolean }) {
       )}
     >
       {effects ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
-      Chime at five minutes: {effects ? 'on' : 'off'}
+      Timer sounds: {effects ? 'on' : 'off'}
     </button>
   );
 }
@@ -394,10 +492,12 @@ function StatusPill({
   status,
   phase,
   reduced,
+  doneLabel,
 }: {
   status: Status;
   phase: ReturnType<typeof phaseFor>;
   reduced: boolean;
+  doneLabel: string;
 }) {
   if (status === 'done') {
     // The accent pairing rather than --good: --good has no validated ink token
@@ -406,7 +506,7 @@ function StatusPill({
     // uses for its bigger tiers, so a finished session reads like one.
     return (
       <span className="skin-pill bg-accent px-3 py-1 text-xs font-semibold text-accent-ink">
-        Session complete
+        {doneLabel}
       </span>
     );
   }

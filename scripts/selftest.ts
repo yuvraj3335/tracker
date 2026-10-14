@@ -88,6 +88,8 @@ import {
   crossedBelow, describeRemaining, elapsedFraction, finishesAt, formatClock,
   formatRemaining, parseDuration, phaseFor, remainingMs,
 } from '../src/lib/timer';
+import { nextPomodoroSegment, POMODORO_DEFAULTS, segmentDuration } from '../src/lib/pomodoro';
+import { advanceAttention, gazeFromLandmarks, INITIAL_ATTENTION, looksAtScreen, type Point } from '../src/lib/attention';
 import { usableAccent, contrastRatio, readableInk } from '../src/lib/contrast';
 import { resolveDatabaseUrl } from '../src/lib/env';
 import type { Area, Task } from '../src/lib/notion';
@@ -611,9 +613,19 @@ async function main() {
   // dropped a pose, broke the container, or started claiming a licence would
   // otherwise only show up in a browser.
   // -----------------------------------------------------------------------
-  section('Shipped character (miso)');
+  section('Shipped characters (Miso and Miso Classic)');
   {
-    const dir = join(process.cwd(), 'public', 'characters', 'miso');
+    const artDir = join(process.cwd(), 'public', 'characters', 'miso');
+    const imagePoses = ['idle', 'blink', 'celebrate', 'focused', 'sad', 'angry', 'laughing', 'talking', 'talking-closed', 'listening'] as const;
+    check('new Miso ships ten expressive animation frames', imagePoses.every((pose) => {
+      const data = readFileSync(join(artDir, `${pose}.webp`));
+      return data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP' && data.length < 80 * 1024;
+    }));
+    const artMeta = parseCharacterMeta(JSON.parse(readFileSync(join(artDir, 'meta.json'), 'utf8')), 'miso');
+    check('new Miso art is credited', /image generation/i.test(artMeta?.artist ?? ''));
+    check('new Miso art has its original-work licence', /original work/i.test(artMeta?.license ?? ''));
+
+    const dir = join(process.cwd(), 'public', 'characters', 'miso-classic');
     const glb = readFileSync(join(dir, 'model.glb'));
     check('the model is a glTF binary', glb.readUInt32LE(0) === 0x46546c67);
     check('it is glTF 2.0', glb.readUInt32LE(4) === 2);
@@ -649,18 +661,23 @@ async function main() {
     // cached after one fetch.
     check(`the model is under 550 KB (${(glb.length / 1024).toFixed(0)} KB)`, glb.length < 550 * 1024);
 
-    const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'miso');
-    check('its meta passes the same validation every character does', meta !== null);
-    check('it credits the generator, not a person', /generated for this project/i.test(meta?.artist ?? ''));
-    check('it claims only the licence it has', /original work/i.test(meta?.license ?? ''));
-    check('it claims no source it does not have', !meta?.source);
-    check('it ships its own voice lines', Boolean(meta?.lines?.cheer?.length && meta?.lines?.idle?.length));
+    const meta = parseCharacterMeta(JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8')), 'miso-classic');
+    check('classic meta passes the same validation every character does', meta !== null);
+    check('classic credits its generator', /generated for this project/i.test(meta?.artist ?? ''));
+    check('classic claims only the licence it has', /original work/i.test(meta?.license ?? ''));
+    check('classic claims no source it does not have', !meta?.source);
+    check('classic ships its own voice lines', Boolean(meta?.lines?.cheer?.length && meta?.lines?.idle?.length));
 
-    const miso = discoverCharacters().find((c) => c.id === 'miso');
-    check('discovery finds it', Boolean(miso));
-    check('discovery exposes the model, not pose images', miso?.model === '/characters/miso/model.glb');
-    check('it has no pose images to fall back to', Object.keys(miso?.poses ?? {}).length === 0);
-    check('and is renderable anyway', isRenderable(miso));
+    const catalog = discoverCharacters();
+    const miso = catalog.find((c) => c.id === 'miso');
+    const classic = catalog.find((c) => c.id === 'miso-classic');
+    check('new Miso is the default character', catalog[0]?.id === 'miso');
+    check('Miso renders cache-versioned images, not the old model', !miso?.model && miso?.poses.idle === '/characters/miso/idle.webp?v=anime-2');
+    check('Miso has dedicated conversation, focus and reaction poses', Boolean(miso?.poses.talking && miso?.poses.listening && miso?.poses.focused && miso?.poses.laughing && miso?.poses.angry));
+    check('Miso remains renderable', isRenderable(miso));
+    check('classic keeps its animated model', classic?.model === '/characters/miso-classic/model.glb');
+    check('classic has no pose images to fall back to', Object.keys(classic?.poses ?? {}).length === 0);
+    check('classic remains renderable', isRenderable(classic));
   }
 
   section('Character voice');
@@ -1001,6 +1018,28 @@ async function main() {
 
   section('Focus timer');
   {
+    check('pomodoro work defaults to 25 minutes', segmentDuration('focus', POMODORO_DEFAULTS) === 25 * MINUTE);
+    check('pomodoro short break defaults to 5 minutes', segmentDuration('short-break', POMODORO_DEFAULTS) === 5 * MINUTE);
+    check('pomodoro long break defaults to 15 minutes', segmentDuration('long-break', POMODORO_DEFAULTS) === 15 * MINUTE);
+    check('first three rounds get a short break', [1, 2, 3].every((n) => nextPomodoroSegment('focus', n) === 'short-break'));
+    check('fourth round gets a long break', nextPomodoroSegment('focus', 4) === 'long-break');
+    check('a finished break leads to focus', nextPomodoroSegment('long-break', 4) === 'focus');
+    const startedAway = advanceAttention(INITIAL_ATTENTION, false, 1000, 3 * MINUTE);
+    check('attention interval starts at first away sample', startedAway.awaySince === 1000 && !startedAway.alerted);
+    check('attention does not warn before threshold', !advanceAttention(startedAway, false, 180999, 3 * MINUTE).alerted);
+    check('attention warns at threshold', advanceAttention(startedAway, false, 181000, 3 * MINUTE).alerted);
+    check('looking back resets the interval', advanceAttention(startedAway, true, 200000, 3 * MINUTE).awaySince === null);
+    check('missing landmarks are away', !looksAtScreen(gazeFromLandmarks(undefined)));
+    const points: Point[] = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }));
+    Object.assign(points[33], { x: 0.2 }); Object.assign(points[133], { x: 0.4 });
+    Object.assign(points[362], { x: 0.6 }); Object.assign(points[263], { x: 0.8 });
+    Object.assign(points[468], { x: 0.3, y: 0.5 }); Object.assign(points[473], { x: 0.7, y: 0.5 });
+    Object.assign(points[159], { y: 0.4 }); Object.assign(points[145], { y: 0.6 });
+    Object.assign(points[386], { y: 0.4 }); Object.assign(points[374], { y: 0.6 });
+    Object.assign(points[1], { x: 0.5 });
+    check('centered iris landmarks count as looking', looksAtScreen(gazeFromLandmarks(points)));
+    points[468].x = 0.39; points[473].x = 0.79;
+    check('sideward iris landmarks count as away', !looksAtScreen(gazeFromLandmarks(points)));
     // The boundary the brief actually names, asserted rather than assumed.
     check('the warning lands at five minutes', WARNING_MS === 5 * MINUTE);
     check('the last stretch is the final minute', CRITICAL_MS === MINUTE);

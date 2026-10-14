@@ -12,6 +12,7 @@ import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   MODEL_FILES,
+  MISO_ART_REVISION,
   POSES,
   POSE_EXTENSIONS,
   parseCharacterMeta,
@@ -25,7 +26,10 @@ const ROOT = join(process.cwd(), 'public', 'characters');
 function findPose(dir: string, id: string, pose: Pose): string | null {
   for (const ext of POSE_EXTENSIONS) {
     const file = `${pose}.${ext}`;
-    if (existsSync(join(dir, file))) return `/characters/${id}/${file}`;
+    if (existsSync(/* turbopackIgnore: true */ join(/* turbopackIgnore: true */ dir, file))) {
+      const url = `/characters/${id}/${file}`;
+      return id === 'miso' ? `${url}?v=${MISO_ART_REVISION}` : url;
+    }
   }
   return null;
 }

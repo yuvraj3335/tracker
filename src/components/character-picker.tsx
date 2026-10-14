@@ -17,8 +17,8 @@ import { cn } from '@/lib/utils';
  * Renders nothing when no characters are installed — a checkout with the folder
  * deleted falls back to the built-in SVG mascots and needs no picker at all.
  * There is no longer a "default" entry: the app ships a character, so having no
- * character is not a state worth offering. With one installed this is mostly
- * the attribution surface.
+ * character is not a state worth offering. The shipped picker now offers the
+ * illustrated Miso and the original animated Miso Classic.
  *
  * The second panel is the attribution surface. Every installed character's
  * artist, source and licence is reachable in two clicks from the nav, because

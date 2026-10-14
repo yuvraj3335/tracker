@@ -1,0 +1,3 @@
+# Keep upstream MediaPipe runtime bytes intact; its generated JS contains
+# trailing spaces that are not project-authored source formatting.
+public/mediapipe/*.js -whitespace

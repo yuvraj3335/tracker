@@ -12,8 +12,8 @@ import { poseChain, type Pose } from '@/lib/characters';
  * This module is the only thing in the app that imports three.js, and nothing
  * imports it statically — `character-figure.tsx` reaches it through
  * `next/dynamic` and only when the selected character actually has a model. A
- * fresh checkout installs no characters, so the default experience never
- * downloads a renderer it has no use for.
+ * fresh checkout selects illustrated Miso, so the default experience never
+ * downloads the 3D renderer; selecting Miso Classic loads it on demand.
  *
  * Poses are animation clips on one model rather than six files, which is what
  * makes them the same character in six states by construction. A clip that is
