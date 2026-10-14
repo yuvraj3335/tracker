@@ -38,6 +38,12 @@ they no longer count in DSA rollups. Migration is chunked, resumable and
 verified before the account switches to the 455-question version. The app never
 uses another person’s Notion connection for this upgrade.
 
+Drag a section by its handle to put it above or below another section. The
+handle also supports Up/Down arrow keys, and **Reset order** restores Codolio's
+sequence. Your personal section order is saved to your tracker account, so it
+stays put after signing out or switching devices. It does not change question
+progress or reorder the source sheet in Notion.
+
 After deployment, an existing user opens the tracker and sees the upgrade
 screen automatically. Leave that tab open for the short Notion batches; if a
 batch pauses, Retry resumes from the last confirmed row. Job-hunt API keys
@@ -56,10 +62,11 @@ modify any personal Notion workspace until its owner visits the tracker.
         └──► Crawl4AI in Docker on your own computer (job boards)
 ```
 
-**Postgres holds only what Notion cannot:** usernames, password hashes, and each
-user's encrypted Notion token. It never stores a question, a completion or a
-date. Delete the database and every user's actual progress still sits safely in
-their own Notion.
+**Postgres holds only what Notion cannot:** usernames, password hashes, each
+user's encrypted Notion token, and per-account section display order. It never
+stores a question, a completion or a practice date. Delete the database and
+every user's actual progress still sits safely in their own Notion; custom
+section order would reset to Codolio's default.
 
 **Why the server talks to Notion, never the browser:** a Notion token grants
 read/write to that user's whole workspace. It never reaches the client.

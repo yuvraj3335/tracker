@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getEverything } from '@/lib/notion';
+import { getSectionOrder } from '@/lib/db';
 import { requireReady } from '@/lib/tenant';
 import { pct } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
@@ -32,6 +33,8 @@ export default async function AreaPage({
   const area = areas.find((a) => a.slug === slug || a.id === slug);
   if (!area) notFound();
 
+  const sectionOrder = await getSectionOrder(tenant.userId, area.id);
+
   const areaTopics = topics.filter((t) => t.areaIds.includes(area.id));
   const areaTasks = tasks.filter((t) => t.areaIds.includes(area.id));
   const done = areaTasks.filter((t) => t.done).length;
@@ -63,6 +66,9 @@ export default async function AreaPage({
         topics={areaTopics}
         tasks={areaTasks}
         areaName={area.name}
+        areaId={area.id}
+        initialSectionOrder={sectionOrder.ids}
+        initialSectionOrderVersion={sectionOrder.version}
         initialFilter={f}
       />
     </div>

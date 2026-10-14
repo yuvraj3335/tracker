@@ -37,7 +37,7 @@ export function PipelineSummary({ summary: s }: { summary: Summary }) {
         <ul className="grid grid-cols-3 gap-x-3 gap-y-2 sm:grid-cols-6">
           {groups.map((g) => (
             <li key={g.id}>
-              <Link href={`/jobs?stage=${g.id}`} className="group block rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              <Link href={`/jobs?stage=${g.id}`} className="job-stage-link group -mx-1.5 block rounded-md px-1.5 py-1 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                 <span className="flex items-center gap-1.5 text-micro font-medium text-ink-muted group-hover:text-ink">
                   <Dot color={GROUP_COLOR[g.id]} />
                   {g.label}

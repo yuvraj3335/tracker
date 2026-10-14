@@ -26,6 +26,7 @@ import {
 import codolioSeed from '../data/a2z-seed.json';
 import crosswalk from '../data/a2z-crosswalk.json';
 import { mergeProgress, MIGRATION_TOTAL, type ProgressSnapshot } from '../src/lib/sheet-migration';
+import { isCompleteSectionOrder, moveSection, orderedSectionIds } from '../src/lib/section-order';
 import { shiftKey, formatKey, daysBetween, heatmapGrid, keyToDate, todayKey, isDayKey } from '../src/lib/date';
 import { streaks, countsByDay, overallProgress, areaProgress, streakMood, performanceMood, summarize } from '../src/lib/derive';
 import {
@@ -181,6 +182,19 @@ async function main() {
   check('duplicate bookmark and revisit are preserved', merged.bookmarked && merged.revisit);
   check('new questions use source difficulty', mergeProgress(null, [], 'Basic').difficulty === 'Basic');
   await codolioMigrationTests(check);
+
+  section('Account-backed section order');
+  const canonical = ['arrays', 'strings', 'sliding-window', 'graphs'];
+  const changed = moveSection(canonical, 'sliding-window', 'arrays', 'before');
+  check('dragging before moves one section without changing the others', changed.join(',') === 'sliding-window,arrays,strings,graphs');
+  check('dragging after uses the target edge', moveSection(changed, 'arrays', 'graphs', 'after').join(',') === 'sliding-window,strings,graphs,arrays');
+  check('moving onto itself is a no-op', moveSection(canonical, 'arrays', 'arrays', 'after').join(',') === canonical.join(','));
+  check('unknown section cannot enter the order', moveSection(canonical, 'foreign', 'arrays', 'before').join(',') === canonical.join(','));
+  check('saved order appends newly added sections', orderedSectionIds(canonical, ['strings', 'arrays']).join(',') === 'strings,arrays,sliding-window,graphs');
+  check('stale and duplicate saved ids are discarded', orderedSectionIds(canonical, ['stale', 'strings', 'strings']).join(',') === 'strings,arrays,sliding-window,graphs');
+  check('only a full permutation can be saved', isCompleteSectionOrder(canonical, changed));
+  check('a missing section is rejected', !isCompleteSectionOrder(canonical, ['arrays', 'strings', 'graphs']));
+  check('duplicate and foreign ids are rejected', !isCompleteSectionOrder(canonical, ['arrays', 'arrays', 'graphs', 'foreign']));
   // Chunking must cover every question exactly once.
   const seen = new Set<number>();
   for (let c = 0; c < all.length; c += 15) {

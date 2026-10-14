@@ -203,7 +203,7 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
             ))}
           </div>
         </div>
-        <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
+        <div className="-mx-1 flex snap-x snap-proximity items-center gap-1.5 overflow-x-auto px-1 pb-0.5">
           {chips.map((c) => (
             <button
               key={c.id}
@@ -211,7 +211,7 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
               onClick={() => setStage(c.id)}
               aria-pressed={stage === c.id}
               className={cn(
-                'skin-pill inline-flex shrink-0 items-center gap-1.5 border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+                'job-filter-chip skin-pill inline-flex min-h-9 shrink-0 snap-start items-center gap-1.5 border px-3 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
                 stage === c.id ? 'border-transparent bg-accent text-accent-ink' : 'border-hairline text-ink-muted hover:bg-surface-2 hover:text-ink',
               )}
             >
@@ -223,9 +223,18 @@ export function Pipeline({ jobs, today, initialStage = 'open' }: { jobs: Job[]; 
         </div>
       </div>
 
-      <p className="px-1 text-xs text-ink-muted empty:hidden" role="status" aria-live="polite">
-        {searching ? `${visible.length} match${visible.length === 1 ? '' : 'es'}` : ''}
-      </p>
+      <div className="flex items-center justify-between gap-2 px-1 text-xs text-ink-muted" role="status" aria-live="polite">
+        <span>{searching ? `${visible.length} match${visible.length === 1 ? '' : 'es'}` : `Showing ${stage === 'all' ? visible.length : stage === 'open' ? counts.open : counts[stage]} of ${jobs.length} jobs`}</span>
+        {searching ? (
+          <button
+            type="button"
+            onClick={() => { setQuery(''); setSource(''); setVerdict(''); }}
+            className="job-action skin-pill min-h-9 px-2 text-xs font-medium text-accent hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Clear filters
+          </button>
+        ) : null}
+      </div>
 
       {/* ---- board (laptop) ---- */}
       {view === 'board' && boardable ? (
@@ -327,9 +336,10 @@ function Board({
               if (job && !g.statuses.includes(job.status)) onMove(job, target);
             }}
             className={cn(
-              'flex min-w-0 flex-col rounded-[min(var(--radius-card),14px)] border border-transparent bg-surface-2/60 p-2 transition-colors',
+              'job-drop-zone flex min-w-0 flex-col rounded-[min(var(--radius-card),14px)] border border-transparent bg-surface-2/60 p-2',
               over === g.id && 'border-accent/60 bg-surface-2',
             )}
+            data-over={over === g.id}
           >
             <header className="flex items-center justify-between gap-2 px-1.5 pt-0.5 pb-2">
               <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-ink">

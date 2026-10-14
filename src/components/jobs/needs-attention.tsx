@@ -56,7 +56,7 @@ function Row({ job, followUp, onCleared }: { job: Job; followUp: FollowUp; onCle
   // One line on a laptop. On a phone the badge and actions drop below the
   // role — beside it they cut "Full Stack Developer" down to "Full Stack…".
   return (
-    <li className={cn('flex items-start gap-3 border-t border-hairline px-4 py-3 sm:items-center sm:px-5', pending && 'opacity-60')}>
+    <li className={cn('job-row flex items-start gap-3 border-t border-hairline px-4 py-3 sm:items-center sm:px-5', pending && 'opacity-60')}>
       <CompanyMark name={job.company || job.role} size={30} className="mt-0.5 sm:mt-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <Link href={`/jobs/${job.id}`} className="min-w-0 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent sm:flex-1">
@@ -90,7 +90,7 @@ function Row({ job, followUp, onCleared }: { job: Job; followUp: FollowUp; onCle
 function ClosedRow({ job, onCleared }: { job: Job; onCleared: () => void }) {
   const [pending, start] = useTransition();
   return (
-    <li className={cn('flex items-start gap-3 border-t border-hairline px-4 py-3 sm:items-center sm:px-5', pending && 'opacity-60')}>
+    <li className={cn('job-row flex items-start gap-3 border-t border-hairline px-4 py-3 sm:items-center sm:px-5', pending && 'opacity-60')}>
       <CompanyMark name={job.company || job.role} size={30} className="mt-0.5 sm:mt-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <Link href={`/jobs/${job.id}`} className="min-w-0 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent sm:flex-1">
@@ -139,7 +139,7 @@ function Action({ children, onClick, disabled, primary = false }: { children: Re
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'skin-pill px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:opacity-50',
+        'job-action skin-pill min-h-9 px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:opacity-50',
         primary ? 'bg-accent text-accent-ink hover:opacity-90' : 'border border-hairline text-ink-2 hover:bg-surface-2 hover:text-ink',
       )}
     >

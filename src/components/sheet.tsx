@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Search, X, Rows3, Rows4, Keyboard, Check } from 'lucide-react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Search, X, Rows3, Rows4, Keyboard, Check, GripVertical, RotateCcw } from 'lucide-react';
 import { Card } from './ui/card';
 import { HeadingBand } from './heading-band';
 import { ProgressBar } from './progress-bar';
@@ -16,9 +16,12 @@ import { groupByHeading } from '@/lib/derive';
 import type { Task, Topic } from '@/lib/notion';
 import { pct } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { moveSection, orderedSectionIds } from '@/lib/section-order';
+import { saveSectionOrderAction } from '@/app/areas/actions';
+import { reportProblem } from '@/lib/undo';
 
 /**
- * The 456-question sheet.
+ * The 455-question sheet.
  *
  * Everything here is client-side over data the page already loaded. Filtering
  * used to be a link with `?f=`, which meant a full server round trip — and five
@@ -48,11 +51,18 @@ export function Sheet({
   topics,
   tasks,
   areaName,
+  areaId,
+  initialSectionOrder = [],
+  initialSectionOrderVersion = 0,
   initialFilter,
 }: {
   topics: Topic[];
   tasks: Task[];
   areaName: string;
+  /** Omitted by the development-only component preview. */
+  areaId?: string;
+  initialSectionOrder?: string[];
+  initialSectionOrderVersion?: number;
   initialFilter?: string;
 }) {
   const [query, setQuery] = useState('');
@@ -63,6 +73,21 @@ export function Sheet({
   const searchBox = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLDivElement>(null);
+  const canonicalIds = useMemo(() => topics.map((topic) => topic.id), [topics]);
+  const [sectionOrder, setSectionOrder] = useState(() => orderedSectionIds(canonicalIds, initialSectionOrder));
+  const orderedIds = useMemo(() => orderedSectionIds(canonicalIds, sectionOrder), [canonicalIds, sectionOrder]);
+  const orderedTopics = useMemo(() => {
+    const byId = new Map(topics.map((topic) => [topic.id, topic]));
+    return orderedIds.map((id) => byId.get(id)).filter((topic): topic is Topic => Boolean(topic));
+  }, [topics, orderedIds]);
+  const savedOrder = useRef({ ids: orderedIds, version: initialSectionOrderVersion });
+  const orderInFlight = useRef(false);
+  const [savingOrder, startOrderTransition] = useTransition();
+  const [orderMessage, setOrderMessage] = useState('');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
+  const drag = useRef<{ id: string; pointerId: number; startX: number; startY: number; x: number; y: number; moved: boolean; target: { id: string; edge: 'before' | 'after' } | null } | null>(null);
+  const scrollFrame = useRef<number | null>(null);
 
   // Typing stays on the urgent path; re-filtering 456 rows happens at lower
   // priority, so the input never stutters.
@@ -157,14 +182,14 @@ export function Sheet({
       }
     }
     const out: { topic: Topic; rows: Task[]; done: number; total: number }[] = [];
-    for (const topic of topics) {
+    for (const topic of orderedTopics) {
       const rows = byTopic.get(topic.id);
       if (!rows?.length) continue;
       const totals = sectionTotals.get(topic.id) ?? { done: 0, total: 0 };
       out.push({ topic, rows, done: totals.done, total: totals.total });
     }
     return out;
-  }, [topics, visible, sectionTotals]);
+  }, [orderedTopics, visible, sectionTotals]);
 
   // The flat keyboard order: exactly what is on screen, top to bottom.
   const flat = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
@@ -221,6 +246,147 @@ export function Sheet({
   }, [sections]);
 
   const allExpanded = sections.length > 0 && sections.every((s) => expanded.has(s.topic.id));
+
+  // A filtered list is only a subset of the sheet; reordering it would make
+  // the hidden sections jump in ways the user cannot see. Show the full list
+  // first, then allow a move. The saved order is always one complete list.
+  const reorderEnabled = filter === 'all' && !query.trim() && !savingOrder;
+  const hasCustomOrder = orderedIds.some((id, index) => id !== canonicalIds[index]);
+
+  const persistOrder = useCallback((next: string[], movedName: string) => {
+    if (orderInFlight.current || next.every((id, index) => id === orderedIds[index])) return;
+    const previous = savedOrder.current;
+    orderInFlight.current = true;
+    setSectionOrder(next);
+    setOrderMessage('Saving section order…');
+    if (!areaId) {
+      savedOrder.current = { ids: next, version: previous.version };
+      orderInFlight.current = false;
+      setOrderMessage('Preview order changed. Sign in to save it across sessions.');
+      return;
+    }
+    startOrderTransition(async () => {
+      try {
+        const result = await saveSectionOrderAction(areaId, next, previous.version);
+        if (result.ok) {
+          savedOrder.current = { ids: next, version: result.version };
+          setOrderMessage(`${movedName} moved. Order saved to your account.`);
+        } else {
+          const restored = result.ids ? orderedSectionIds(canonicalIds, result.ids) : previous.ids;
+          savedOrder.current = { ids: restored, version: result.version ?? previous.version };
+          setSectionOrder(restored);
+          setOrderMessage(result.message);
+          reportProblem(result.message);
+        }
+      } catch {
+        setSectionOrder(previous.ids);
+        setOrderMessage('Could not save the order. Your previous order is restored.');
+        reportProblem('Could not save the section order. Try again.');
+      } finally {
+        orderInFlight.current = false;
+      }
+    });
+  }, [areaId, canonicalIds, orderedIds]);
+
+  const updateDrop = useCallback((x: number, y: number) => {
+    const current = drag.current;
+    if (!current?.moved) return;
+    const card = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-section-id]');
+    const id = card?.dataset.sectionId;
+    const target = id && id !== current.id && root.current?.contains(card)
+      ? { id, edge: y < card.getBoundingClientRect().top + card.getBoundingClientRect().height / 2 ? 'before' as const : 'after' as const }
+      : null;
+    current.target = target;
+    setDropTarget((old) => old?.id === target?.id && old?.edge === target?.edge ? old : target);
+  }, []);
+
+  const stopDrag = useCallback(() => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+    drag.current = null;
+    setDraggingId(null);
+    setDropTarget(null);
+  }, []);
+
+  useEffect(() => () => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+  }, []);
+
+  const startDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>, id: string) => {
+    if (!reorderEnabled || orderInFlight.current || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, moved: false, target: null };
+    setDraggingId(id);
+    const tick = () => {
+      const current = drag.current;
+      if (!current) return;
+      if (current.moved) {
+        const top = stickyChrome(root.current) + 60;
+        const bottom = window.innerHeight - 60;
+        if (current.y < top) window.scrollBy(0, -Math.min(18, (top - current.y) / 4));
+        else if (current.y > bottom) window.scrollBy(0, Math.min(18, (current.y - bottom) / 4));
+        updateDrop(current.x, current.y);
+      }
+      scrollFrame.current = requestAnimationFrame(tick);
+    };
+    scrollFrame.current = requestAnimationFrame(tick);
+  }, [reorderEnabled, updateDrop]);
+
+  const moveDrag = useCallback((event: ReactPointerEvent<HTMLButtonElement>) => {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    current.x = event.clientX;
+    current.y = event.clientY;
+    if (Math.hypot(current.x - current.startX, current.y - current.startY) > 5) current.moved = true;
+    updateDrop(current.x, current.y);
+  }, [updateDrop]);
+
+  const finishDrag = useCallback((pointerId: number, x?: number, y?: number, cancelled = false) => {
+    const current = drag.current;
+    if (!current || current.pointerId !== pointerId) return;
+    if (x !== undefined && y !== undefined) {
+      current.x = x;
+      current.y = y;
+      if (Math.hypot(x - current.startX, y - current.startY) > 5) current.moved = true;
+      updateDrop(x, y);
+    }
+    const target = !cancelled && current.moved ? current.target : null;
+    stopDrag();
+    if (target) {
+      const name = topics.find((topic) => topic.id === current.id)?.name ?? 'Section';
+      persistOrder(moveSection(orderedIds, current.id, target.id, target.edge), name);
+    }
+  }, [orderedIds, persistOrder, stopDrag, topics, updateDrop]);
+
+  // Pointer capture normally delivers the release to the handle. A browser
+  // can also drop capture while scrolling or re-rendering; the window listener
+  // and lost-capture path ensure we never leave a section in "dragging" state.
+  useEffect(() => {
+    const up = (event: PointerEvent) => finishDrag(event.pointerId, event.clientX, event.clientY);
+    const cancel = (event: PointerEvent) => finishDrag(event.pointerId, undefined, undefined, true);
+    const blur = () => stopDrag();
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('blur', blur);
+    };
+  }, [finishDrag, stopDrag]);
+
+  const handleReorderKey = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    event.stopPropagation(); // Do not also move the question-list keyboard cursor.
+    if (!reorderEnabled || orderInFlight.current) return;
+    const index = orderedIds.indexOf(id);
+    const delta = event.key === 'ArrowUp' ? -1 : 1;
+    const neighbor = orderedIds[index + delta];
+    if (!neighbor) return;
+    const name = topics.find((topic) => topic.id === id)?.name ?? 'Section';
+    persistOrder(moveSection(orderedIds, id, neighbor, delta < 0 ? 'before' : 'after'), name);
+  }, [orderedIds, persistOrder, reorderEnabled, topics]);
 
   // ---- keyboard ---------------------------------------------------------
   // One listener for the whole sheet, not one per row.
@@ -504,6 +670,29 @@ export function Sheet({
           : ''}
       </p>
 
+      {topics.length > 1 ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-1 text-xs text-ink-muted">
+          <p>
+            {reorderEnabled
+              ? 'Drag a section by its handle, or focus the handle and press ↑ / ↓.'
+              : 'Show all sections and clear search to rearrange them.'}
+          </p>
+          <div className="flex items-center gap-2">
+            <span role="status" aria-live="polite" className="text-ink-2">{orderMessage}</span>
+            {hasCustomOrder ? (
+              <button
+                type="button"
+                onClick={() => persistOrder(canonicalIds, 'Sections')}
+                disabled={!reorderEnabled}
+                className="skin-pill inline-flex min-h-9 items-center gap-1 px-2 text-xs font-medium text-accent transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+              >
+                <RotateCcw className="size-3" aria-hidden /> Reset order
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {sections.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center gap-3 px-4 py-10 text-center">
@@ -528,12 +717,34 @@ export function Sheet({
       ) : (
         <div className="space-y-2.5">
           {sections.map(({ topic, rows, done, total }) => (
-            <Card key={topic.id} className="js-lift overflow-hidden" data-section-id={topic.id}>
+            <Card key={topic.id} className={cn('sheet-section js-lift relative overflow-hidden', draggingId === topic.id && 'opacity-65')} data-section-id={topic.id}>
+              {dropTarget?.id === topic.id ? (
+                <span
+                  aria-hidden
+                  className={cn('pointer-events-none absolute inset-x-0 z-10 h-1 bg-accent shadow-[0_0_0_2px_var(--surface)]', dropTarget.edge === 'before' ? 'top-0' : 'bottom-0')}
+                />
+              ) : null}
+              <div className="flex items-stretch">
+                <button
+                  type="button"
+                  aria-label={`Reorder ${topic.name}. Drag, or use the up and down arrow keys.`}
+                  title={reorderEnabled ? `Drag ${topic.name} or press ↑ / ↓` : 'Clear search and filters to reorder'}
+                  disabled={!reorderEnabled}
+                  onPointerDown={(event) => startDrag(event, topic.id)}
+                  onPointerMove={moveDrag}
+                  onPointerUp={(event) => finishDrag(event.pointerId, event.clientX, event.clientY)}
+                  onPointerCancel={(event) => finishDrag(event.pointerId, undefined, undefined, true)}
+                  onLostPointerCapture={(event) => finishDrag(event.pointerId)}
+                  onKeyDown={(event) => handleReorderKey(event, topic.id)}
+                  className="sheet-drag-handle grid w-11 shrink-0 touch-none place-items-center text-ink-muted transition-colors hover:bg-surface-2 hover:text-accent active:bg-surface-2 focus-visible:z-10 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-40 sm:w-10"
+                >
+                  <GripVertical className="size-4" aria-hidden />
+                </button>
               <button
                 type="button"
                 onClick={() => toggleSection(topic.id)}
                 aria-expanded={isOpen(topic.id)}
-                className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:px-5"
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-3 pr-4 pl-1 text-left transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent sm:pr-5"
               >
                 <Chevron open={isOpen(topic.id)} />
                 <span className="min-w-0 flex-1">
@@ -571,6 +782,7 @@ export function Sheet({
                   </span>
                 </span>
               </button>
+              </div>
 
               {isOpen(topic.id) ? (
                 <div className="border-t border-hairline">

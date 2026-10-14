@@ -226,7 +226,64 @@ export async function ensureSchema(): Promise<void> {
   `;
   await q`create index if not exists api_keys_user_idx on api_keys (user_id)`;
 
+  // Only display order lives here. The canonical sections, questions and
+  // progress remain in each user's Notion workspace. One atomic row per area
+  // survives sign-out, devices and serverless instance changes.
+  await q`
+    create table if not exists sheet_section_orders (
+      user_id uuid not null references users(id) on delete cascade,
+      area_id text not null,
+      topic_ids jsonb not null check (jsonb_typeof(topic_ids) = 'array'),
+      version integer not null default 1,
+      updated_at timestamptz not null default now(),
+      primary key (user_id, area_id)
+    )
+  `;
+
   migrated = true;
+}
+
+export type SectionOrderRecord = { ids: string[]; version: number };
+
+export async function getSectionOrder(userId: string, areaId: string): Promise<SectionOrderRecord> {
+  await ensureSchema();
+  const rows = (await sql()`
+    select topic_ids, version from sheet_section_orders
+    where user_id = ${userId}::uuid and area_id = ${areaId}
+  `) as any[];
+  const row = rows[0];
+  return {
+    ids: Array.isArray(row?.topic_ids) ? row.topic_ids.filter((id: unknown): id is string => typeof id === 'string') : [],
+    version: typeof row?.version === 'number' ? row.version : 0,
+  };
+}
+
+/** Compare-and-swap prevents two open tabs silently overwriting each other. */
+export async function saveSectionOrder(
+  userId: string,
+  areaId: string,
+  ids: readonly string[],
+  expectedVersion: number,
+): Promise<SectionOrderRecord | null> {
+  await ensureSchema();
+  const rows = expectedVersion === 0
+    ? (await sql()`
+        insert into sheet_section_orders (user_id, area_id, topic_ids, version)
+        values (${userId}::uuid, ${areaId}, ${JSON.stringify(ids)}::jsonb, 1)
+        on conflict (user_id, area_id) do nothing
+        returning topic_ids, version
+      `) as any[]
+    : (await sql()`
+        update sheet_section_orders
+        set topic_ids = ${JSON.stringify(ids)}::jsonb,
+            version = version + 1,
+            updated_at = now()
+        where user_id = ${userId}::uuid and area_id = ${areaId}
+          and version = ${expectedVersion}
+        returning topic_ids, version
+      `) as any[];
+  if (!rows.length) return null;
+  return { ids: rows[0].topic_ids, version: rows[0].version };
 }
 
 // ---------------------------------------------------------------------------

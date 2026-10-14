@@ -47,7 +47,7 @@ export function JobSearchCard({ summary }: { summary: PipelineSummary | null }) 
         <ul className="grid grid-cols-5 gap-2">
           {stages.map((g) => (
             <li key={g.id}>
-              <Link href={`/jobs?stage=${g.id}`} className="group block rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              <Link href={`/jobs?stage=${g.id}`} className="job-stage-link group -mx-1 block rounded-md px-1 py-1 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
                 <span className="flex items-center gap-1 text-micro text-ink-muted group-hover:text-ink">
                   <Dot color={GROUP_COLOR[g.id]} />
                   <span className="truncate">{g.label}</span>
@@ -61,7 +61,7 @@ export function JobSearchCard({ summary }: { summary: PipelineSummary | null }) 
           <ul className="space-y-1.5 border-t border-hairline pt-3">
             {summary.followUps.slice(0, 3).map(({ job, followUp }) => (
               <li key={job.id}>
-                <Link href={`/jobs/${job.id}`} className="-mx-1.5 flex items-center gap-2.5 rounded-md px-1.5 py-1 hover:bg-surface-2">
+                <Link href={`/jobs/${job.id}`} className="job-stage-link -mx-1.5 flex items-center gap-2.5 rounded-md px-1.5 py-1 hover:bg-surface-2">
                   <CompanyMark name={job.company || job.role} size={24} />
                   <span className="min-w-0 flex-1 truncate text-xs">
                     <span className="font-medium text-ink">{job.role}</span>

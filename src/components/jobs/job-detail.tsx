@@ -111,7 +111,7 @@ export function JobDetail({
       </div>
 
       {/* ---- header ---- */}
-      <section className="skin-card relative overflow-hidden border border-hairline bg-surface shadow-lift-1">
+      <section className="skin-card job-detail-hero relative overflow-hidden border border-hairline bg-surface shadow-lift-1">
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.07]"
@@ -250,7 +250,7 @@ function StageStepper({ status, onPick, disabled }: { status: JobStatus; onPick:
                 onClick={() => onPick(s)}
                 disabled={disabled || current}
                 aria-current={current ? 'step' : undefined}
-                className="group flex min-w-8 flex-col items-center gap-1.5 rounded-md px-1 py-1 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default sm:min-w-[4.5rem]"
+                className="job-action group flex min-w-8 flex-col items-center gap-1.5 rounded-md px-1 py-1 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default sm:min-w-[4.5rem]"
               >
                 <span
                   className={cn(
@@ -319,7 +319,7 @@ function QuickActions({ id, status, appliedOn }: { id: string; status: JobStatus
           type="button"
           onClick={a.onClick}
           disabled={pending}
-          className="skin-pill inline-flex items-center gap-1 border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+          className="job-action skin-pill inline-flex min-h-9 items-center gap-1 border border-hairline bg-surface px-2.5 py-1 text-xs font-medium text-ink-2 hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
         >
           {a.icon}
           {a.label}

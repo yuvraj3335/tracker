@@ -26,7 +26,7 @@ export function JobsNav() {
               href={t.href}
               aria-current={active ? 'page' : undefined}
               className={cn(
-                'skin-pill inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+                'job-nav-link skin-pill inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
                 active ? 'bg-surface text-ink shadow-lift-1' : 'text-ink-muted hover:text-ink',
               )}
             >

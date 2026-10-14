@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { ExternalLink, MapPin } from 'lucide-react';
 import { followUpFor, type Job } from '@/lib/jobs';
@@ -16,6 +16,7 @@ import {
   PostingBadge,
   RedFlagChip,
   StatusSelect,
+  STATUS_COLOR,
   VerdictBadge,
   ago,
   safeHref,
@@ -67,7 +68,8 @@ export const JobTile = memo(function JobTile({
         onDragStart(job.id);
       }}
       onDragEnd={onDragEnd}
-      className={cn('js-lift skin-card group relative border border-hairline bg-surface transition-opacity', dragging && 'opacity-40')}
+      className={cn('job-tile skin-card group relative border border-hairline bg-surface', dragging && 'opacity-40')}
+      style={{ '--job-accent': STATUS_COLOR[job.status] } as CSSProperties}
     >
       <Link
         href={`/jobs/${job.id}`}
@@ -75,7 +77,7 @@ export const JobTile = memo(function JobTile({
         draggable={false}
       >
         <div className="flex items-start gap-2.5">
-          <CompanyMark name={job.company || job.role} size={28} />
+          <CompanyMark name={job.company || job.role} size={28} className="job-company-mark" />
           <div className="min-w-0">
             <p className="line-clamp-2 text-sm leading-snug font-medium text-ink">{job.role}</p>
             <p className="truncate text-xs text-ink-muted">{job.company}</p>
@@ -127,7 +129,7 @@ export const JobRow = memo(function JobRow({
           target="_blank"
           rel="noreferrer noopener"
           aria-label={`Open the ${job.role} posting`}
-          className="rounded-md p-2 text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          className="job-action rounded-md p-2 text-ink-muted hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
         >
           <ExternalLink className="size-3.5" />
         </a>
@@ -136,8 +138,8 @@ export const JobRow = memo(function JobRow({
     </>
   );
   return (
-    <li className={cn('group flex items-start gap-3 border-b border-hairline px-3 py-3 transition-colors last:border-0 hover:bg-surface-2/40 sm:px-4', pending && 'opacity-60')}>
-      <CompanyMark name={job.company || job.role} size={36} className="mt-0.5" />
+    <li className={cn('job-row group flex items-start gap-3 border-b border-hairline px-3 py-3 last:border-0 hover:bg-surface-2/40 sm:px-4', pending && 'opacity-60')}>
+      <CompanyMark name={job.company || job.role} size={36} className="job-company-mark mt-0.5" />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
