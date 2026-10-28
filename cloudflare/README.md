@@ -1,51 +1,40 @@
-# Free study tutor deployment
+# Free cloud Miso
 
-The tracker calls this Worker from its authenticated `/api/tutor` route. The
-browser receives neither the shared access key nor any Cloudflare credentials.
-The only inference provider is Workers AI, model `@cf/zai-org/glm-4.7-flash`.
-Keep the account on **Workers Free**, with no paid fallback. Its 10,000 neurons
-per day reset at 00:00 UTC; exhausting them returns an error instead of a bill.
-Model availability, capacity and free allowances can change.
+The signed-in tracker routes `/api/companion/chat`, `/voice`, and `/transcribe`
+proxy to this private Worker. The browser never receives its shared key.
 
-1. Use a 32-byte base64url key kept in a private file, outside the repository.
+- Conversation: `@cf/zai-org/glm-4.7-flash`.
+- Transcription: `@cf/openai/whisper-large-v3-turbo`.
+- Natural speech: `@cf/deepgram/aura-2-en`, Luna.
+- Optional longer-session speech: `@cf/myshell-ai/melotts`.
+
+Keep the account on **Workers Free**. Its shared 10,000 neurons/day reset at
+00:00 UTC (05:30 India time). Exhaustion fails requests rather than billing.
+Aura-2 consumes 2,727.27 neurons per 1,000 characters: at most about 3,666
+characters of speech if no other model uses the allowance. This is a short
+natural-voice session, not unlimited free voice. There is no paid fallback.
+
+1. Keep a 32-byte base64url key in a private file outside Git.
 2. Run `node cloudflare/build.mjs /absolute/path/to/private-key-file`.
-3. Deploy `build/tutor-worker.mjs` to a Cloudflare Worker with a Workers AI
-   binding named `AI`. The generated bundle contains only the SHA-256 key hash.
-4. Set Vercel **secret** environment variables `TUTOR_API_KEY` to that key and
-   `TUTOR_API_URL` to `https://<worker-host>/api/tutor`. Redeploy the tracker.
-5. Open `/tutor` while signed in. Test a question and a follow-up. Requests to
-   the Worker without the key must return 401; browser-origin requests return 403.
+3. Deploy `build/tutor-worker.mjs` with a Workers AI binding named `AI`.
+   Historical filenames are retained; the bundle contains only a SHA-256 hash.
+4. Keep Vercel secret variables `TUTOR_API_KEY` and `TUTOR_API_URL` configured.
+   The URL must use HTTPS on this Worker; the app chooses each operation path.
+5. Test Talk while signed in. Unauthenticated Worker calls return 401 and
+   browser-origin calls return 403. Never publish the raw shared key.
 
-The current deployment reuses the `cloud-dictation` Worker created earlier for
-this account. Its root redirects to the tracker's tutor. Its former speech UI
-and transcription endpoint are replaced by this tutor service. Existing
-Cloudflare versions retain the prior implementation for rollback.
+The existing `cloud-dictation` Worker is reused. Its root now redirects to the
+DSA sheet. Prior versions are retained by Cloudflare for rollback. Logs remain
+disabled. Audio and chat are processed by Cloudflare; the app does not persist
+audio recordings. User question content is read server-side from their own
+Notion workspace. It is never placed in the public repository.
 
-`npm run test:tutor` tests access control, bounded requests, stream parsing,
-quota failure, study prompts and reference search. The tracker also has its
-normal `test`, `typecheck`, `lint` and `build` commands.
+`npm run test:miso` checks access control, limits, fixed providers, streams,
+question selection, and wake-phrase parsing. Actual microphone permission,
+recording and playback also need a browser check. Wake mode requires a visible
+page and a per-session user gesture. It sends spoken segments to cloud Whisper;
+there is no local wake-word model. Closing/locking/hiding cannot keep it active.
 
-Chat lives in the current tab's memory, and a reload/new chat clears it. The
-client shows a Stop control and preserves partial responses after failure.
-Conversations are bounded to 24 messages and 36,000 characters. User messages
-are limited to 8,000 characters. The model cannot run code, change tracker
-progress, or read external accounts. The study page does not mount the voice
-companion and starts no local speech/model inference.
-
-Reference search uses Wikipedia and Stack Overflow's public APIs without a key.
-Only the separate, explicit search phrase is sent to those sites. Retrieved
-titles, URLs and short excerpts are shared with Cloudflare alongside the chat.
-Repeated phrases reuse results for five minutes per server instance, and Stack
-Overflow backoff instructions are respected for that instance.
-The interface identifies sources and reports failures. This is limited reference
-search, not a Google results API or unrestricted browsing. A separate Google
-link opens the query in the user's browser. Code and queries are not logged by
-the tutor code. Leave Cloudflare request logging disabled on this personal app.
-
-Sources checked October 28, 2026:
-
-- [Cloudflare Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
-- [GLM-4.7-Flash model and schema](https://developers.cloudflare.com/workers-ai/models/glm-4.7-flash/)
-- [Google Custom Search availability](https://developers.google.com/custom-search/v1/overview)
-- [MediaWiki search API](https://www.mediawiki.org/wiki/API:Search)
-- [Stack Exchange advanced search](https://api.stackexchange.com/docs/advanced-search)
+[Pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
+· [Aura-2](https://developers.cloudflare.com/workers-ai/models/aura-2-en/)
+· [Whisper](https://developers.cloudflare.com/workers-ai/models/whisper-large-v3-turbo/)

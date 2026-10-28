@@ -211,45 +211,25 @@ spot saved on a wide window cannot strand it off-screen. Arrow keys nudge it,
 Shift+arrow moves it further and Home sends it back to the corner — dragging is
 never the only way in.
 
-**Talk starts a spoken conversation.** It says hello out loud, listens,
-answers, and listens again, hands-free, until you stop it. The figure is the
-status indicator — it speaks, listens, and studies while it thinks — and every
-turn is captioned on screen as well. Typing still
-works and is the only path in a browser without speech recognition.
+**Talk uses the cloud.** Miso listens through Whisper, responds with GLM-4.7-Flash,
+and speaks through Deepgram Aura-2. No speech or language model is downloaded
+or run on the device. Browser work is limited to microphone recording, simple
+audio-level measurement, and playback. The optional Simple voice uses MeloTTS
+for longer sessions within the same free allowance; there is no paid fallback.
 
-**You can talk over it.** The microphone stays open while it speaks, and what
-stops it hearing itself is not a closed microphone but knowing exactly what it
-is saying: anything coming back that repeats its own words in its own order is
-discarded, and anything that plainly is not cuts it off mid-sentence and
-listens. Biased towards discarding, deliberately — a missed interruption has to
-be repeated, while a false one means it stops and answers itself. There is a
-**Stop** control too, for a room where talking is not the thing to do.
+**Hey Miso is opt-in for each session.** Enable it inside Talk, allow the
+microphone, and keep the tracker visible. Spoken segments go to Cloudflare to
+recognize the wake phrase. After “Hey Miso”, conversation continues turn by
+turn. Stop disables the microphone and wake mode. Hiding the page pauses it;
+it cannot wake from a locked phone or a closed browser. Use **Interrupt & talk**
+to cut a reply short. Speech capture pauses during Miso’s answer to avoid echo.
 
-**Closing it does not throw the conversation away.** Reopening picks up where
-you left off, without greeting you again. A reload is still a fresh start.
-
-**It can see your tracker.** Ask how many you have done, how the hard ones are
-going, what you are part-way through, what is next — it answers from the real
-numbers, derived through `derive.ts` so what it says out loud and what the
-dashboard shows cannot drift apart. It is read server-side, never taken from
-the browser, and it is told to use those numbers and only those: rounding a
-streak up to be encouraging is the one thing it must never do. If Notion is
-slow or down the conversation still works, it just says it cannot see.
-
-Talking needs `ANTHROPIC_API_KEY` (Claude Haiku); without one it says so
-plainly rather than failing.
-
-**The natural voice is measured before it is used.** Kokoro runs on the
-listener's own machine, and whether that machine can generate speech as fast as
-speech is spoken decides whether a reply flows or stops dead after every
-sentence. Measured on a four-core laptop it runs at about 1.7x real time, which
-is four and a half seconds of silence between sentences — so the engine times
-itself on load and, past a ceiling, the browser's own voice is used instead and
-the verdict is remembered rather than re-learned with another download. Picking
-a natural voice by hand is still honoured. Nothing is downloaded at all until a
-second conversation on that device: the browser reports the same connection
-type for wi-fi and mobile data, so the only unambiguous signal that somebody
-wants this is that they came back.
+**It knows your sheet.** The server loads the signed-in user’s question catalog,
+relevant notes, progress, and the selected question. A question page’s written
+explanation joins that context when available. Java is the default. Notion
+failure is reported honestly to the model; it must not invent progress. Chat
+lives in tab memory and is cleared on reload. Miso does not execute code or
+change tracker records.
 
 - **Accessible.** The overlay is `position: fixed` and `pointer-events: none`, so
   it can never block a tap or shift the page, and every message goes through an
@@ -268,24 +248,25 @@ wants this is that they came back.
 
 ## Setup
 
-### Free DSA study tutor
+### Free cloud Miso and question explanations
 
-Open **Tutor** in the navigation, or **Ask tutor** beside a practice question.
-Discuss concepts, request incremental hints, review pasted code, or practise a
-quiz with follow-up questions. Answers stream with readable code blocks and a
-copy button. All tutor inference runs on Cloudflare; no model runs on the device.
-The existing spoken character companion remains a separate feature.
+Use Miso’s existing **Talk** button. Question titles and **Explanation** links
+open `/questions/<id>` with source links, notes, and an original written Java
+article when available. **Talk about this with Miso** supplies that question as
+context. The old `/tutor` URL redirects to the sheet.
 
-The tutor uses Workers AI's free daily allowance, with no paid fallback. It needs
-the server-only `TUTOR_API_URL` and `TUTOR_API_KEY` variables. See
-[the Worker deployment guide](cloudflare/README.md). The account must stay on
-Workers Free for the provider's hard $0 limit.
+The server-only `TUTOR_API_URL` and `TUTOR_API_KEY` names are retained for
+compatibility with the existing deployment. See [cloud deployment](cloudflare/README.md).
+Keep the account on Workers Free: its daily allowance is shared across text,
+transcription, and speech. Aura-2 has natural speech but uses the allowance
+quickly (about 3,666 output characters if nothing else uses the allowance).
+The app cannot promise unlimited conversations or guaranteed availability.
 
-Optional reference search covers Wikipedia and Stack Overflow, with source
-links and explicit errors when retrieval fails. It sends only the separate
-search phrase. The Google link opens a browser search; it does not give the
-model unrestricted Google access. Chat lasts for the current tab session and
-does not execute code or change progress.
+Articles are repository content, not generated on page visits. Coverage is
+reported by `node scripts/check-guides.mjs`; `--java` compiles and executes
+examples, and `--complete` fails until all 455 source questions are covered.
+Unwritten articles are explicitly marked as in preparation. Existing Codolio
+IDs, ordering, completion, bookmarks and notes are unchanged.
 
 ### 1. Database
 

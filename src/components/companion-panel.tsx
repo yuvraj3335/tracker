@@ -1,1201 +1,189 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowUp, AudioLines, Keyboard, Mic, Square, Volume2, VolumeX, X } from 'lucide-react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { ArrowUp, Mic, Square, Volume2, VolumeX, X } from 'lucide-react';
+import type { Turn } from '@/lib/conversation';
+import { openCloudMicrophone, speechPieces, speechQueue, unlockMisoAudio } from '@/lib/miso-audio';
+import { wakeCommand } from '@/lib/miso-context';
 import { useActiveCharacter } from './character-provider';
 import { CharacterThumb } from './character-figure';
-import { getSkin, serverSkin, subscribe } from '@/lib/appearance';
-import { pickCharacterLine } from '@/lib/character-voice';
-import { THEMES } from '@/lib/themes';
-import {
-  KOKORO_PREFIX,
-  KOKORO_VOICES,
-  engineKind,
-  engineProgress,
-  engineState,
-  countConversation,
-  modelMegabytes,
-  serverEngineKind,
-  serverEngineProgress,
-  serverEngineState,
-  warm,
-} from '@/lib/kokoro';
-import {
-  HOSTED_PREFIX,
-  checkHosted,
-  hostedConfigured,
-  serverHostedConfigured,
-} from '@/lib/hosted-voice';
-import {
-  FIRST_MIN,
-  SENTENCE_MIN,
-  shouldBargeIn,
-  speakingAloud,
-  canListen,
-  canSpeak,
-  getVoice,
-  getVoiceName,
-  listVoices,
-  cutSentences,
-  leadCut,
-  listen,
-  loadEngine,
-  naturalVoice,
-  serverVoice,
-  serverVoiceList,
-  serverVoiceName,
-  setVoice,
-  setVoiceName,
-  speak,
-  speakStream,
-  splitForSpeech,
-  stopSpeaking,
-  whenVoicesKnown,
-} from '@/lib/speech';
-import { captionFor, isHearing, isTalking, micOpen, nextTurn, type Turn, type TurnEvent } from '@/lib/conversation';
-import type { EngineKind } from '@/lib/kokoro';
-import { MAX_HISTORY, MAX_MESSAGE_CHARS, readable, type ChatMessage } from '@/lib/companion-prompt';
-import { cn } from '@/lib/utils';
+import type { ChatMessage } from '@/lib/companion-prompt';
 
-/** How tall the message box is allowed to grow before it scrolls instead. */
-const MAX_FIELD_PX = 120;
+export type MisoControls = { talk: () => void; show: () => void };
+type Mode = 'off' | 'wake' | 'talk';
+type Props = { open: boolean; onOpen: () => void; onClose: () => void; onTurn: (turn: Turn) => void; questionId?: string };
 
-/**
- * How long a reply may go without delivering a byte before it is given up on.
- *
- * A connection that drops raises an error and is handled. A connection that
- * simply stops — a phone walking out of signal, a proxy that holds the socket
- * open with nothing on it — raises nothing at all, and `reader.read()` waits
- * for ever. Measured: bytes stop arriving and thirty seconds later the panel
- * still reads "Miso is talking…", the microphone is still shut, and nothing
- * has been said. That is the reload-to-recover state this must not have.
- *
- * Generous, because it is a deadline on silence rather than on the reply: the
- * model streams continuously once it starts, so eight seconds without a single
- * character means the connection, not the model.
- */
-const STREAM_STALL_MS = 8_000;
-
-/**
- * What was said last time the panel was open, for as long as this page lives.
- *
- * Closing it used to throw the conversation away, so glancing at something
- * else and coming back meant starting again from hello with no memory of what
- * you had just told it. Deliberately module state rather than storage: a
- * conversation is a thing you are in the middle of, not a document, and it
- * should not still be there tomorrow — a reload is a fresh start, as it was.
- */
-let carried: ChatMessage[] = [];
-
-/** Testing seam, and what a sign-out would call if one ever needed to. */
-export function forgetConversation() {
-  carried = [];
-}
-
-/**
- * A conversation you have out loud.
- *
- * Opening it is the whole gesture: it says hello, listens, answers, and
- * listens again, hands-free, until you stop it. Typing is still there — it is
- * the only thing that works in a browser without speech recognition, and the
- * only thing that works in a room where you cannot talk — but it is the
- * fallback now rather than the interface.
- *
- * Every turn is still captioned on screen. That is the accessibility floor,
- * and it is the only reason any of this is debuggable.
- */
-export function CompanionPanel({
-  onClose,
-  onTurn,
-}: {
-  onClose: () => void;
-  /** Drives the figure outside: it talks, listens and casts in step with this. */
-  onTurn: (turn: Turn) => void;
-}) {
+/** One persistent session belongs to the existing Miso character, across routes. */
+export const CompanionPanel = forwardRef<MisoControls, Props>(function CompanionPanel({ open, onOpen, onClose, onTurn, questionId }, ref) {
   const character = useActiveCharacter();
-  const skin = useSyncExternalStore(subscribe, getSkin, serverSkin);
-  const voice = useSyncExternalStore(subscribe, getVoice, serverVoice);
-
-  const [canHear] = useState(canListen);
-  const [canTalk] = useState(canSpeak);
-  // Mounted only while open, so the opening turn and the greeting are the
-  // initial state rather than something an effect has to set afterwards.
-  const [hello] = useState(() => pickCharacterLine(character, 'idle', THEMES[skin], 0));
-  /** Picking up where it left off, if it was left somewhere. */
-  const [resumed] = useState(() => carried.length > 0);
-  const [turn, setTurn] = useState<Turn>(() =>
-    // Resuming does not say hello again. Greeting somebody you were already
-    // talking to thirty seconds ago is the tell that nothing was remembered.
-    nextTurn('closed', 'open', {
-      canHear: canListen(),
-      canSpeak: canSpeak() && carried.length === 0,
-    }),
-  );
-  const [messages, setMessages] = useState<ChatMessage[]>(() =>
-    carried.length ? carried : [{ role: 'assistant', content: hello }],
-  );
-  const [heard, setHeard] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
-  const [typing, setTyping] = useState(false);
-  const [problem, setProblem] = useState('');
-
-  const box = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState('Ready when you are.');
+  const [error, setError] = useState('');
+  const [mode, setMode] = useState<Mode>('off');
+  const [wake, setWake] = useState(false);
+  const [voice, setVoice] = useState<'natural' | 'longer'>('natural');
+  const [muted, setMuted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const history = useRef<ChatMessage[]>([]);
+  const modeRef = useRef<Mode>('off');
+  const wakeRef = useRef(false);
+  const voiceRef = useRef(voice);
+  const mutedRef = useRef(muted);
+  const selected = useRef(questionId);
+  const mic = useRef<AbortController | null>(null);
+  const request = useRef<AbortController | null>(null);
+  const lastAsked = useRef<ChatMessage[] | null>(null);
   const log = useRef<HTMLDivElement>(null);
-  const field = useRef<HTMLTextAreaElement>(null);
-  const stopHearing = useRef<(() => void) | null>(null);
-  /**
-   * The transcript, kept where a callback can read the current one.
-   *
-   * `messages` is what renders; this is what is true right now. A reply
-   * streams in over several seconds and a second message can be sent in the
-   * middle of it, at which point every closure created before that point is
-   * holding a transcript that is missing a turn. Writing to the array by
-   * position, from a closure, is how a typed message vanished from the screen
-   * *and* from the history posted to the model.
-   */
-  const thread = useRef<ChatMessage[]>(
-    carried.length ? carried : [{ role: 'assistant', content: hello }],
-  );
-  /** Whichever reply is still arriving, so it can be called off. */
-  const inFlight = useRef<AbortController | null>(null);
-  /**
-   * Whether the microphone is wanted at all.
-   *
-   * A ref as well as state because `advance` must not be rebuilt when it
-   * changes — it is a dependency of the effect that owns the microphone, and
-   * rebuilding it there would tear the microphone down mid-sentence.
-   */
-  const typingRef = useRef(false);
-  /** The completed reply, for a screen reader. See the live region below. */
-  const [spoken, setSpoken] = useState('');
-  /**
-   * Whether a voice has actually started, as opposed to a reply having begun
-   * to arrive.
-   *
-   * The turn moves to `speaking` on the first byte, because that is when the
-   * dots should go and the bubble should start filling. But the caption read
-   * "…is talking…" from that instant, and on the natural voice the first sound
-   * is seconds later — measured at 4.4 s on a machine where the model runs at
-   * twice real time. A caption that says it is talking while it is silent is
-   * the thing that makes people wonder whether it broke.
-   */
-  const [voiced, setVoiced] = useState(false);
+  useEffect(() => { selected.current = questionId; }, [questionId]);
+  useEffect(() => { voiceRef.current = voice; }, [voice]);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [messages, open]);
 
-  const name = character?.name ?? 'Your companion';
-  /** The keyboard is up — either by choice, or because there is no other way. */
-  const composing = typing || !canHear;
+  const changeMode = useCallback((next: Mode) => { modeRef.current = next; setMode(next); }, []);
+  const stop = useCallback((message = 'Paused. Tap Talk to continue.') => {
+    mic.current?.abort(); request.current?.abort(); mic.current = null; request.current = null;
+    modeRef.current = 'off'; wakeRef.current = false; setMode('off'); setWake(false); setBusy(false); setStatus(message); onTurn('resting');
+  }, [onTurn]);
 
-  const commit = useCallback((next: ChatMessage[]) => {
-    thread.current = next;
-    carried = next;
-    setMessages(next);
-  }, []);
+  useEffect(() => {
+    const pause = () => { if (document.hidden && modeRef.current !== 'off') stop('Microphone paused while the tracker is hidden. Tap Talk or enable Hey Miso again.'); };
+    document.addEventListener('visibilitychange', pause);
+    return () => { document.removeEventListener('visibilitychange', pause); mic.current?.abort(); request.current?.abort(); };
+  }, [stop]);
 
-  /**
-   * The single way the turn ever changes.
-   *
-   * A functional update rather than a read of `turn`, because half of these
-   * arrive from callbacks — a finished utterance, a closed microphone, a reply
-   * — that fire long after the render they were created in and would otherwise
-   * decide from a stale turn.
-   *
-   * `canHear` is asked about the moment rather than the browser. Having
-   * chosen to type, the machine must not route back through `listening` when
-   * a reply finishes — that opened the microphone under a text box, with no
-   * level meter and nothing on screen saying it was on.
-   */
-  const advance = useCallback(
-    (event: TurnEvent) =>
-      setTurn((from) =>
-        nextTurn(from, event, { canHear: canHear && !typingRef.current, canSpeak: canTalk }),
-      ),
-    [canHear, canTalk],
-  );
-
-  /** Calls off whatever reply is still arriving. Safe to call at any time. */
-  const abandon = useCallback(() => {
-    inFlight.current?.abort();
-    inFlight.current = null;
-  }, []);
-
-  /**
-   * Cuts it off and listens instead.
-   *
-   * The microphone is shut while it talks, so that it never hears itself and
-   * answers it — which means interrupting cannot be a barge-in and has to be
-   * something you do. There was no way to do it: the only control on screen
-   * while it talked was "Type instead", so cutting it off short also meant
-   * giving up talking and reaching for a keyboard. This is the missing half.
-   */
-  const cutIn = useCallback(() => {
-    typingRef.current = false;
-    abandon();
-    setProblem('');
-    advance('listen');
-    // After the turn, not before: `stopSpeaking` settles the utterance, which
-    // dispatches `spoke`, and `spoke` out of `listening` is a no-op — the
-    // other order works too, but only by accident of both landing on the same
-    // state.
-    stopSpeaking();
-  }, [abandon, advance]);
-
-  const say = useCallback(
-    (text: string) => {
-      // No reset here: this is only ever called from the mount effect, where
-      // `voiced` is already false, and setting state synchronously in an
-      // effect body is a cascading render.
-      // `speak` calls back even when muted or unsupported, so the loop hands
-      // the turn on either way rather than stopping dead the first time
-      // someone mutes it.
-      speak(text, () => advance('spoke'), false, () => setVoiced(true));
-    },
-    [advance],
-  );
-
-  const send = useCallback(
-    async (text: string) => {
-      const trimmed = text.trim().slice(0, MAX_MESSAGE_CHARS);
-      if (!trimmed) return;
-      stopHearing.current?.();
-      stopHearing.current = null;
-      // Talking over it is an interruption, not a queue. Saying something
-      // while it is still reading a reply should stop the reply, not leave
-      // two of them to be got through in order.
-      abandon();
-      stopSpeaking();
-      setHeard('');
-      setDraft('');
-      setProblem('');
-      advance('heard');
-
-      const mine = new AbortController();
-      inFlight.current = mine;
-      const next: ChatMessage[] = [...thread.current, { role: 'user', content: trimmed }];
-      commit(next);
+  const ask = useCallback(async (text: string, retryHistory?: ChatMessage[]) => {
+    request.current?.abort();
+    const controller = new AbortController(); request.current = controller;
+    const thread = retryHistory ?? [...history.current, { role: 'user' as const, content: text.slice(0, 1200) }].slice(-12);
+    lastAsked.current = thread;
+    history.current = thread;
+    setMessages([...thread, { role: 'assistant', content: '' }]); setBusy(true); setError(''); setStatus('Miso is thinking…'); onTurn('thinking');
+    let spoken = '', answer = '', finished = false;
+    const queue = mutedRef.current ? null : speechQueue(voiceRef.current, controller.signal, () => { if (!controller.signal.aborted) { setStatus('Miso is speaking…'); onTurn('speaking'); } });
+    const timeout = setTimeout(() => controller.abort('timeout'), 60000);
+    try {
+      const res = await fetch('/api/companion/chat', { method: 'POST', signal: controller.signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: thread, ...(selected.current ? { questionId: selected.current } : {}) }) });
+      if (!res.ok || !res.body) { const data = await res.json().catch(() => null); throw new Error(data?.error || 'Miso could not respond. Please retry.'); }
+      const reader = res.body.getReader(), decoder = new TextDecoder();
+      let buffer = '';
       try {
-        const res = await fetch('/api/companion/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // Only the turns the model will actually be given. `sanitiseHistory`
-          // keeps the last `MAX_HISTORY` and drops the rest, so sending the
-          // whole transcript uploaded an ever-growing body for the server to
-          // throw away — on a phone, on every single thing you say.
-          body: JSON.stringify({
-            messages: next.slice(-MAX_HISTORY),
-            characterId: character?.id ?? null,
-          }),
-          signal: mine.signal,
-        });
-
-        // Anything that went wrong is JSON; the reply itself is a plain text
-        // stream. The content type is the test, rather than guessing from the
-        // shape of what arrives.
-        const streamed = res.ok && res.body && !(res.headers.get('content-type') ?? '').includes('json');
-
-        if (streamed && res.body) {
-          const reader = res.body.getReader();
-          const decoder = new TextDecoder();
-          let buffer = '';
-          let whole = '';
-          let started = false;
-          /** Where this reply's bubble lives. Never `length - 1`. */
-          let at = -1;
-          /** The connection went quiet rather than ending. */
-          let stalled = false;
-          let deadline: ReturnType<typeof setTimeout> | null = null;
-          // Cancelling the reader rather than aborting the request, because
-          // the two mean different things here: an abort is the person
-          // stopping it and must say nothing more, while this is the network
-          // giving up and should still say whatever already arrived.
-          const armStall = () => {
-            if (deadline) clearTimeout(deadline);
-            deadline = setTimeout(() => {
-              stalled = true;
-              void reader.cancel().catch(() => {});
-            }, STREAM_STALL_MS);
-          };
-
-          // One utterance for the whole reply, written to as it arrives.
-          //
-          // It used to be one call to `speak` per sentence, which made every
-          // sentence an independent playback — so the silence between two of
-          // them was two schedules meeting by luck, and that luck was bad. A
-          // stream is a single timeline: the pause after a full stop is the
-          // one `pauseAfter` asked for and nothing else.
-          setVoiced(false);
-          const voice = speakStream(() => advance('spoke'), true, () => setVoiced(true));
-          let said = 0;
-          const utter = (line: string) => {
-            said += 1;
-            voice.push(line);
-          };
-
-          try {
-            armStall();
-            for (;;) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              // Called off — the panel closed, or they went back to typing.
-              // `abort()` does not stop a read that has already resolved, so
-              // without this the reply carried on being spoken to a panel that
-              // was no longer on screen, with nothing left to stop it.
-              if (mine.signal.aborted) break;
-              armStall();
-              const piece = decoder.decode(value, { stream: true });
-              if (!piece) continue;
-              buffer += piece;
-              whole += piece;
-
-              if (!started) {
-                // The dots go the moment there are words, not when the whole
-                // reply has landed.
-                started = true;
-                advance('reply');
-                at = thread.current.length;
-                commit([...thread.current, { role: 'assistant', content: whole }]);
-              } else {
-                const copy = [...thread.current];
-                copy[at] = { role: 'assistant', content: whole };
-                commit(copy);
-              }
-
-              // Finished sentences first. The first one is allowed to be
-              // short — it is the reaction the prompt asks every reply to
-              // open with, and holding it back until the sentence after it
-              // arrives is paying the whole wait to avoid a brief utterance.
-              const [sentences, rest] = cutSentences(buffer, said ? SENTENCE_MIN : FIRST_MIN);
-              buffer = rest;
-              for (const sentence of sentences) utter(sentence);
-
-              // Only if the first sentence has not finished arriving. Then the
-              // wait is the cost of generating one line and nothing else, so
-              // it is cut at the first clause instead: "Nice, that is four
-              // today." can start being said at the comma. Running this before
-              // the split above made it cut ACROSS a full stop — "Nice one.
-              // That is four today," went out as a single utterance.
-              if (!said) {
-                const lead = leadCut(buffer);
-                if (lead) {
-                  utter(lead[0]);
-                  buffer = lead[1];
-                }
-              }
+        for (;;) {
+          const part = await reader.read(); if (part.done) break;
+          buffer += decoder.decode(part.value, { stream: true });
+          let end;
+          while ((end = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, end); buffer = buffer.slice(end + 1); if (!line.trim()) continue;
+            const event = JSON.parse(line);
+            if (event.type === 'error') throw new Error(event.message || 'Miso’s answer was interrupted.');
+            if (event.type === 'done') finished = true;
+            if (event.type === 'delta' && typeof event.text === 'string') {
+              answer += event.text; spoken += event.text;
+              setMessages([...thread, { role: 'assistant', content: answer }]);
+              const [pieces, rest] = speechPieces(spoken); spoken = rest; pieces.forEach(piece => queue?.push(piece));
             }
-
-            // Whatever is left of a multi-byte character at the very end of
-            // the stream. Without this a reply can lose its last letter.
-            const rest = decoder.decode();
-            if (rest) {
-              buffer += rest;
-              whole += rest;
-              if (at >= 0) {
-                const copy = [...thread.current];
-                copy[at] = { role: 'assistant', content: whole };
-                commit(copy);
-              }
-            }
-            setSpoken(whole.trim());
-          } finally {
-            if (deadline) clearTimeout(deadline);
-            // Whatever is left over is still worth saying, unless they stopped
-            // it on purpose.
-            const tail = buffer.trim();
-            if (tail && !mine.signal.aborted) utter(tail);
-            // Whatever happened — the reply ended, the connection dropped, the
-            // reader threw — this utterance has to be closed.
-            //
-            // An open one sits at the head of the speech queue for ever: the
-            // queue is serial and it waits for more text that is never coming,
-            // so every reply after it is silent and the turn never comes back.
-            // A dropped connection mid-reply used to break the companion for
-            // the rest of the session, and it took a reload to get it back.
-            voice.end();
           }
+        }
+      } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+      if (!finished || !answer.trim()) throw new Error('Miso’s answer was interrupted. Please retry.');
+      history.current = [...thread, { role: 'assistant' as const, content: answer }].slice(-12);
+      speechPieces(spoken, true)[0].forEach(piece => queue?.push(piece));
+      clearTimeout(timeout);
+      await queue?.end();
+      if (!controller.signal.aborted) { setStatus('Your turn.'); onTurn(modeRef.current === 'off' ? 'resting' : 'listening'); }
+    } catch (e) {
+      const intentional = controller.signal.aborted && controller.signal.reason !== 'timeout';
+      controller.abort();
+      await queue?.end().catch(() => {});
+      if (!intentional) {
+        const message = e instanceof Error ? e.message : 'Miso could not respond. Please retry.';
+        setError(message); setStatus('Paused.'); mic.current?.abort(); changeMode('off'); wakeRef.current = false; setWake(false); onTurn('resting');
+        if (answer) history.current = [...thread, { role: 'assistant', content: answer + ' [Reply interrupted.]' }];
+      }
+    } finally { clearTimeout(timeout); if (request.current === controller) { request.current = null; setBusy(false); } }
+  }, [changeMode, onTurn]);
 
-          if (mine.signal.aborted) return;
-
-          if (!started) {
-            setProblem(
-              stalled
-                ? 'The connection went quiet before your companion could answer. Try again.'
-                : 'Your companion did not have anything to say to that. Try asking another way.',
-            );
-            advance('error');
+  const startListening = useCallback(async (next: Mode) => {
+    mic.current?.abort(); request.current?.abort(); setBusy(false);
+    const controller = new AbortController(); mic.current = controller;
+    changeMode(next); setError(''); setStatus('Opening microphone…');
+    try {
+      await unlockMisoAudio();
+      await openCloudMicrophone({
+        signal: controller.signal,
+        onReady: () => { if (!controller.signal.aborted) { setStatus(modeRef.current === 'wake' ? 'Listening for “Hey Miso”…' : 'Listening. Speak naturally.'); onTurn('listening'); } },
+        onSpeech: () => setStatus('Hearing you…'),
+        onTranscribing: () => setStatus('Understanding what you said…'),
+        onText: async (text) => {
+          if (controller.signal.aborted) return;
+          if (modeRef.current === 'wake') {
+            const command = wakeCommand(text); if (command === null) return;
+            changeMode('talk'); onOpen();
+            if (command) await ask(command);
+            else {
+              setStatus('I’m here. What are you working on?');
+              if (!mutedRef.current) { const q = speechQueue(voiceRef.current, controller.signal, () => onTurn('speaking')); q.push('I’m here. What are you working on?'); await q.end(); }
+            }
             return;
           }
-
-          // Nothing more is coming; the turn is handed back once the last of
-          // it has actually been heard.
-          return;
-        }
-
-        const data = (await res.json().catch(() => null)) as { message?: string } | null;
-        setProblem(
-          res.status === 401
-            ? 'Your session has ended. Sign in again to keep talking.'
-            : (data?.message ?? 'Could not reach your companion just now.'),
-        );
-      } catch {
-        // Called off on purpose — the panel was closed, or they went back to
-        // typing. That is not a failure and must not be reported as one.
-        if (mine.signal.aborted) return;
-        setProblem('Could not reach your companion just now. Check your connection and try again.');
-      } finally {
-        if (inFlight.current === mine) inFlight.current = null;
-      }
-      if (mine.signal.aborted) return;
-      advance('error');
-    },
-    [character, advance, abandon, commit],
-  );
-
-  // ---- the microphone, open the whole time the loop says to ---------------
-  // Including while the companion is talking, which is what makes talking over
-  // it possible. What keeps it from hearing itself is `shouldBargeIn`, not a
-  // closed microphone: we know exactly what it is saying, so anything coming
-  // back that matches is thrown away rather than acted on.
-  // Keyed on whether the microphone is wanted at all, never on the turn
-  // itself. Going from speaking to listening must not tear the session down
-  // and open a new one — that is the exact moment somebody is mid-word, and
-  // a new session starts with an empty buffer.
-  // Not while they are typing, and not in a browser that cannot listen. The
-  // turn alone used to imply both — `listening` was unreachable with the
-  // keyboard up — but `micOpen` is wider than `listening` now, so having
-  // chosen to type must be said out loud here or the microphone opens under
-  // the text box with nothing on screen saying it is on.
-  const wantMic = canHear && !composing && micOpen(turn);
-  useEffect(() => {
-    if (!wantMic) {
-      stopHearing.current?.();
-      stopHearing.current = null;
-      return;
-    }
-    const stop = listen({
-      onPartial: (text) => {
-        // `shouldBargeIn` answers yes outright when nothing is being said, so
-        // this is the ordinary live caption the rest of the time. While a
-        // voice IS playing it is the gate: the companion's own words coming
-        // back are discarded, and anything that is plainly not them cuts it
-        // off so they are being listened to rather than talked over.
-        if (!shouldBargeIn(text)) return;
-        if (speakingAloud()) cutIn();
-        setHeard(text);
-      },
-      onUtterance: (text) => {
-        if (!shouldBargeIn(text)) return;
-        void send(text);
-      },
-      onError: (message) => {
-        if (message) setProblem(message);
-        advance('error');
-      },
-    });
-    stopHearing.current = stop;
-    return () => {
-      stop();
-      stopHearing.current = null;
-    };
-    // `send`, `cutIn` and `advance` are all stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantMic]);
-
-  // The voice downloads itself when a conversation starts, rather than when
-  // somebody finds the dropdown. Until it lands the browser's own voice
-  // answers, so this costs nothing but the bytes — and on a metered or
-  // low-powered device it does not happen at all.
-  //
-  // Once it is here, the lines this panel opens with are generated and kept.
-  // They never change, they are short, and the second conversation of a
-  // session then starts talking immediately instead of pausing on hello.
-  useEffect(() => {
-    let gone = false;
-    let stop = () => {};
-    // Both answers before anything is decided. Which voices the browser has
-    // arrives a tick or two after load, and whether this deployment has a
-    // hosted voice is a round trip — and guessing at either is how a machine
-    // that needed no download at all starts a 155 MB one.
-    // Counted on the way in, before anything decides whether to download. The
-    // first conversation on a device never fetches the model; see
-    // `CONVERSATIONS_BEFORE_DOWNLOAD`.
-    countConversation();
-    void checkHosted().then(() => {
-      if (gone) return;
-      stop = whenVoicesKnown(() => {
-        const id = naturalVoice();
-        if (!id || gone) return;
-        void loadEngine(id).then((ok) => {
-          if (!ok || gone) return;
-          // Just the greeting. There is one model behind one worker, so a
-          // warm-up still running when a reply arrives is a reply waiting
-          // behind it — the exact wait this was meant to remove. `hello` is
-          // picked deterministically, so warming that one line is what makes
-          // the next conversation open without a pause.
-          //
-          // Split first. The cache is keyed on the exact text and speed the
-          // queue will ask for, and the queue asks per sentence — warming the
-          // raw line cached something nothing would ever look up the moment
-          // the greeting was more than one sentence long.
-          void warm(splitForSpeech(hello), id);
-        });
+          if (/^(?:stop listening|go to sleep(?: miso)?|thanks? miso[, ]*(?:that is|that’s|that's) all)[.!?]*$/i.test(text)) {
+            if (wakeRef.current) changeMode('wake'); else stop('Microphone off.');
+            return;
+          }
+          await ask(text);
+        },
+        onError: e => { if (!controller.signal.aborted) { stop('Microphone paused.'); setError(e.name === 'NotAllowedError' ? 'Microphone access was denied. Allow it in your browser, then tap Talk.' : e.message); } },
       });
-    });
-    return () => {
-      gone = true;
-      stop();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ---- opening and closing ------------------------------------------------
-  // Says hello on mount. Only an external call — the turn it hands back
-  // arrives through `speak`'s callback, not from this effect's body.
-  useEffect(() => {
-    if (!resumed) say(hello);
-    return () => {
-      stopHearing.current?.();
-      stopHearing.current = null;
-      // Both halves. Silencing the voice without calling off the reply that
-      // is still arriving meant closing the panel mid-question and then
-      // hearing the answer read out with nothing on screen and no way to
-      // stop it.
-      inFlight.current?.abort();
-      inFlight.current = null;
-      stopSpeaking();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** Keeps the figure outside in step. */
-  useEffect(() => {
-    onTurn(turn);
-  }, [turn, onTurn]);
-
-  /**
-   * And tells it the conversation is over.
-   *
-   * Nothing dispatches `close` — the panel simply unmounts — so without this
-   * the figure kept whatever pose it was last in: a talking loop with the
-   * panel shut, driven by a `requestAnimationFrame` callback that rescheduled
-   * itself for the rest of the page's life.
-   */
-  useEffect(() => () => onTurn('closed'), [onTurn]);
-
-  /**
-   * Focus goes into the panel when it opens and back where it came from when
-   * it closes.
-   *
-   * Opening it moved focus nowhere, so a keyboard user's next Tab carried on
-   * from wherever they were on the page behind. Switching between talking and
-   * typing unmounts the control that was focused, which dropped focus to the
-   * body and restarted tabbing from the top of the document.
-   */
-  useEffect(() => {
-    const before = document.activeElement as HTMLElement | null;
-    // Unless something inside has already taken it. The message box
-    // autofocuses when the panel opens straight into typing, and pulling
-    // focus back to the dialog would close the keyboard on a phone the
-    // instant it opened.
-    if (!box.current?.contains(document.activeElement)) {
-      box.current?.focus({ preventScroll: true });
+    } catch (e) {
+      if (!controller.signal.aborted) { stop('Microphone paused.'); setError((e as Error).name === 'NotAllowedError' ? 'Allow microphone access in your browser, then tap Talk.' : (e as Error).message); }
     }
-    return () => {
-      if (before?.isConnected) before.focus({ preventScroll: true });
-    };
-  }, []);
+  }, [ask, changeMode, onOpen, onTurn, stop]);
 
-  /**
-   * On a phone the panel is a sheet across the whole screen, and a sheet you
-   * can tab out of into a page you cannot see is a trap of the other kind.
-   *
-   * Only there. On a laptop it is a panel beside the figure with the page
-   * plainly visible around it — genuinely non-modal — and trapping focus in a
-   * non-modal dialog is its own bug. So the media query decides, and it is the
-   * same breakpoint the layout uses.
-   */
-  const [sheet, setSheet] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)');
-    const read = () => setSheet(mq.matches);
-    read();
-    mq.addEventListener('change', read);
-    return () => mq.removeEventListener('change', read);
-  }, []);
+  useImperativeHandle(ref, () => ({ talk: () => { onOpen(); void startListening('talk'); }, show: onOpen }), [onOpen, startListening]);
 
-  useEffect(() => {
-    if (!sheet) return;
-    const onTab = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab' || !box.current) return;
-      const stops = [...box.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), select, textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
-      )].filter((el) => el.offsetParent !== null || el === document.activeElement);
-      if (!stops.length) return;
-      const first = stops[0];
-      const last = stops[stops.length - 1];
-      const here = document.activeElement;
-      // Wrapping, rather than blocking: the order inside is untouched, it
-      // simply has no way out while the sheet is covering everything.
-      if (!e.shiftKey && (here === last || !box.current.contains(here))) {
-        e.preventDefault();
-        first.focus();
-      } else if (e.shiftKey && (here === first || !box.current.contains(here))) {
-        e.preventDefault();
-        last.focus();
-      }
-    };
-    document.addEventListener('keydown', onTab);
-    return () => document.removeEventListener('keydown', onTab);
-  }, [sheet]);
+  function close() {
+    if (wakeRef.current) void startListening('wake'); else stop('Ready when you are.');
+    onClose();
+  }
+  function toggleWake() {
+    if (wakeRef.current) { stop('Hey Miso is off.'); return; }
+    wakeRef.current = true; setWake(true); void startListening('wake');
+  }
+  async function send() {
+    if (!draft.trim()) return;
+    const text = draft.trim(); setDraft('');
+    mic.current?.abort(); changeMode('off'); wakeRef.current = false; setWake(false);
+    try { if (!mutedRef.current) await unlockMisoAudio(); await ask(text); } catch (e) { setError((e as Error).message); }
+  }
 
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      const target = e.target as Element | null;
-      if (!box.current || box.current.contains(target as Node)) return;
-      // The character is the control that opens this, so it is also the one
-      // that closes it. Treating a tap on it as "clicked outside" shut the
-      // panel here and let the figure's own double-tap timer reopen it a
-      // moment later — with a new greeting and the conversation gone.
-      if (target?.closest?.('[data-companion-figure]')) return;
-      onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
-
-  useEffect(() => {
-    if (log.current) log.current.scrollTop = log.current.scrollHeight;
-  }, [messages, heard, turn]);
-
-  /**
-   * The message box grows with what is being written.
-   *
-   * Driven by the value rather than by the keystroke that changed it, so it is
-   * also right when the draft is cleared on send, and when the window is
-   * narrow enough that the same text takes two lines instead of one. Doing it
-   * in the change handler meant a box that was the right height for the width
-   * it was typed at.
-   */
-  useLayoutEffect(() => {
-    const el = field.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, MAX_FIELD_PX)}px`;
-  }, [draft, typing]);
-
-  const busy = turn === 'thinking';
-  // While it is lining up a voice there is nothing true to say, and the reply
-  // filling in on screen is the feedback. Same silence `thinking` uses, and
-  // for the same reason.
-  const caption = problem || (isTalking(turn) && !voiced ? '' : captionFor(turn, name));
-  /** There is something in flight worth cutting off. */
-  const interruptible = isTalking(turn) || turn === 'thinking';
-
-  return (
-    <div
-      ref={box}
-      role="dialog"
-      // True only where it actually is one. On a phone the sheet covers the
-      // page and focus is trapped inside it; on a laptop it sits beside the
-      // figure with everything still reachable, and claiming modality there
-      // would tell a screen reader the page had gone away when it had not.
-      aria-modal={sheet || undefined}
-      // Focusable but not in the tab order: the panel takes focus when it
-      // opens so tabbing starts inside it, and gives it back when it closes.
-      tabIndex={-1}
-      aria-label={`Talk to ${name}`}
-      className={cn(
-        'js-panel-in fixed z-40 flex flex-col overflow-hidden bg-surface shadow-lift-3',
-        // Phone: a sheet off the bottom edge, square where it meets the edge
-        // so it reads as attached rather than as a card that missed.
-        'inset-x-0 bottom-0 max-h-[86dvh] rounded-t-2xl border-t border-hairline',
-        'pb-[env(safe-area-inset-bottom)]',
-        // Desktop: a panel beside the figure, clear of it.
-        'sm:skin-card sm:inset-x-auto sm:right-6 sm:bottom-32 sm:max-h-[min(72vh,40rem)] sm:w-[25rem]',
-        'sm:rounded-2xl sm:border sm:pb-0',
-      )}
-    >
-      {/* A grab bar. It does nothing, which is the point: it is the shape that
-          says "this came up from the bottom edge" on a phone, and it is the
-          only chrome the sheet needs above the name. */}
-      <span
-        aria-hidden
-        className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-control/50 sm:hidden"
-      />
-
-      <header className="flex items-center gap-2.5 px-3.5 pt-3 pb-3 sm:pt-4">
-        <span className="relative shrink-0">
-          <Avatar turn={turn} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[0.9375rem] leading-tight font-semibold tracking-tight text-ink">
-            {name}
-          </span>
-          <span
-            role="status"
-            aria-live="polite"
-            className={cn(
-              'mt-0.5 block truncate text-meta',
-              problem ? 'text-critical' : 'text-ink-muted',
-            )}
-          >
-            {caption || ' '}
-          </span>
-        </span>
-        {canTalk && voice ? <VoicePicker name={name} onSpoke={() => advance('spoke')} /> : null}
-        {canTalk ? (
-          <IconButton
-            label={voice ? 'Mute' : 'Unmute'}
-            pressed={!voice}
-            onClick={() => {
-              setVoice(!voice);
-              if (voice) stopSpeaking();
-            }}
-          >
-            {voice ? <Volume2 className="size-[1.125rem]" /> : <VolumeX className="size-[1.125rem]" />}
-          </IconButton>
-        ) : null}
-        <IconButton label="Close" onClick={onClose}>
-          <X className="size-[1.125rem]" />
-        </IconButton>
-      </header>
-
-      {/* Captions. Everything said in either direction lands here, whether or
-          not the microphone or the voice was ever used. */}
-      <div className="relative min-h-40 flex-1">
-        {/* What is scrolling away passes under the header rather than being
-            cut off by it. Sits above the list and takes no clicks. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-surface to-transparent"
-        />
-        <div
-          ref={log}
-          className="h-full space-y-2 overflow-y-auto overscroll-contain px-4 pt-3 pb-4"
-        >
-          {messages.map((m, i) => (
-          <Bubble
-            // By position. Keying on the text remounted the bubble every time
-            // the streamed reply grew past the slice, which restarted its
-            // entry animation two or three times at the start of every reply.
-            key={i}
-            role={m.role}
-            first={m.role !== messages[i - 1]?.role}
-          >
-            {/* The model is told not to use markdown and sometimes does it
-                anyway. `sayable` already strips it for the voice, so the
-                screen was the one place where ignoring the instruction
-                showed — as literal asterisks and backticks. Only what they
-                typed is left exactly as they typed it. */}
-            {m.role === 'assistant' ? readable(m.content) : m.content}
-          </Bubble>
-        ))}
-        {turn === 'thinking' ? (
-          <span className="js-rise-in flex w-fit items-center gap-1.5 rounded-2xl rounded-bl-md bg-surface-2 px-4 py-3.5">
-            <span className="sr-only">Working on a reply</span>
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                aria-hidden
-                className="js-dot size-[0.3125rem] rounded-full bg-ink-muted"
-                style={{ animationDelay: `${i * 150}ms` }}
-              />
-            ))}
-          </span>
-        ) : null}
-        {heard ? (
-          <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md border border-dashed border-control px-3.5 py-2.5 text-sm leading-relaxed text-ink-muted italic">
-            {heard}
-          </p>
-        ) : null}
-        {/* The reply itself, once, when it is complete.
-            The status line above announces whose turn it is, which is the
-            cheap half; the half worth hearing is what was actually said, and
-            it was being announced to nobody. Not the log itself, because that
-            is rewritten on every streamed chunk and would be read out a
-            syllable at a time. */}
-        <span className="sr-only" role="status" aria-live="polite">
-          {spoken}
-        </span>
-        </div>
-      </div>
-
-      <div className="shrink-0 border-t border-hairline p-2.5 sm:p-3">
-        {composing ? (
-          <form
-            className="flex items-end gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send(draft);
-            }}
-          >
-            <label htmlFor="companion-draft" className="sr-only">
-              Message
-            </label>
-            {/* One container holds the field and the send key, so the focus
-                ring lands on the whole control rather than on a box with a
-                button floating beside it. */}
-            <div
-              className={cn(
-                'flex min-w-0 flex-1 items-end gap-1 rounded-2xl border border-control bg-surface-2 py-1 pr-1 pl-3.5',
-                'focus-within:border-accent focus-within:outline-2 focus-within:outline-offset-[-1px] focus-within:outline-accent',
-                busy && 'opacity-60',
-              )}
-            >
-              <textarea
-                id="companion-draft"
-                ref={field}
-                autoFocus
-                rows={1}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    void send(draft);
-                  }
-                }}
-                maxLength={MAX_MESSAGE_CHARS}
-                autoComplete="off"
-                placeholder={`Say something to ${name}…`}
-                disabled={busy}
-                className="min-w-0 flex-1 resize-none bg-transparent py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-muted focus:outline-none"
-                style={{ maxHeight: MAX_FIELD_PX }}
-              />
-              <button
-                type="submit"
-                aria-label="Send"
-                disabled={busy || !draft.trim()}
-                className={cn(
-                  'mb-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-accent text-accent-ink transition',
-                  'hover:opacity-90 disabled:bg-control disabled:opacity-40',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                )}
-              >
-                <ArrowUp className="size-4" strokeWidth={2.5} />
-              </button>
-            </div>
-            {canHear ? (
-              <IconButton
-                label="Talk instead"
-                big
-                onClick={() => {
-                  // The ref before the state: `advance` reads it synchronously
-                  // and would otherwise decide from the previous mode.
-                  typingRef.current = false;
-                  setTyping(false);
-                  setProblem('');
-                  advance('listen');
-                }}
-              >
-                <Mic className="size-[1.125rem]" />
-              </IconButton>
-            ) : null}
-          </form>
-        ) : (
-          <div className="flex items-center gap-2 pl-1">
-            {/* No Talk button: the microphone is open for as long as the
-                conversation is, and the cross in the corner is how it ends —
-                which is what "just talk to it" has to mean. What is here is
-                the level while it listens, a way to cut it off while it
-                talks, and a way out to the keyboard at any point. */}
-            <Level turn={turn} />
-            {interruptible ? (
-              <button
-                type="button"
-                onClick={cutIn}
-                className={cn(
-                  'inline-flex h-10 items-center gap-2 rounded-full border border-control pr-4 pl-3.5 text-sm font-medium text-ink',
-                  'transition hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                )}
-              >
-                <Square className="size-3.5 fill-current" strokeWidth={0} />
-                {isTalking(turn) ? 'Stop' : 'Never mind'}
-              </button>
-            ) : null}
-            {turn === 'resting' ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setProblem('');
-                  advance('listen');
-                }}
-                className={cn(
-                  'inline-flex h-10 items-center gap-2 rounded-full bg-accent px-4 text-sm font-medium text-accent-ink',
-                  'transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                )}
-              >
-                <Mic className="size-4" />
-                Listen again
-              </button>
-            ) : null}
-            <IconButton
-              label="Type instead"
-              big
-              className="ml-auto"
-              onClick={() => {
-                // Calling off the reply as well as the voice. Stopping only
-                // the voice left a reply already on its way, which arrived a
-                // second later and was read out over a panel that said
-                // "Paused".
-                typingRef.current = true;
-                abandon();
-                stopSpeaking();
-                advance('stop');
-                setTyping(true);
-              }}
-            >
-              <Keyboard className="size-[1.125rem]" />
-            </IconButton>
-          </div>
-        )}
-      </div>
+  if (!open) return wake ? <button type="button" onClick={onOpen} className="fixed right-4 bottom-24 z-40 rounded-full border border-accent bg-plane px-4 py-2 text-xs text-accent sm:bottom-6">● Hey Miso is listening · Manage</button> : null;
+  return <section role="dialog" aria-label="Talk with Miso" className="fixed right-3 bottom-24 z-50 flex max-h-[78dvh] w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-hairline bg-plane shadow-2xl sm:right-6 sm:bottom-6">
+    <header className="flex items-center gap-3 border-b border-hairline px-4 py-3">
+      {character ? <CharacterThumb character={character} size={40} /> : null}
+      <div className="min-w-0 flex-1"><h2 className="font-semibold">Talk with Miso</h2><p className="text-xs text-ink-muted">{questionId ? 'With your current question · Java' : 'Your questions, concepts, and Java practice'}</p></div>
+      <button onClick={close} aria-label="Close Miso" className="rounded-lg p-2 hover:bg-surface-2"><X size={18} /></button>
+    </header>
+    <div ref={log} className="min-h-24 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite" aria-relevant="additions">
+      {!messages.length ? <p className="text-sm leading-6 text-ink-muted">Talk through a question, ask for a hint, or practise explaining your approach. I can see your tracker’s questions and notes.</p> : messages.map((message, i) => <div key={i} className={`rounded-xl p-3 text-sm leading-6 whitespace-pre-wrap [overflow-wrap:anywhere] ${message.role === 'user' ? 'ml-6 bg-surface-2' : 'mr-3 border border-hairline'}`}><span className="mb-1 block text-[10px] font-semibold tracking-wide text-ink-muted uppercase">{message.role === 'user' ? 'You' : 'Miso'}</span>{message.content || 'Thinking…'}</div>)}
     </div>
-  );
-}
-
-/** One message. */
-function Bubble({
-  role,
-  first,
-  children,
-}: {
-  role: ChatMessage['role'];
-  /** First of a run from the same speaker — only that one gets the tail. */
-  first: boolean;
-  children: React.ReactNode;
-}) {
-  const mine = role === 'user';
-  return (
-    <p
-      className={cn(
-        'js-rise-in w-fit max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed',
-        // A generous radius with one corner pulled in is the shape everyone
-        // already reads as "someone said this". Only the first of a run gets
-        // the pulled-in corner, so consecutive lines read as one turn.
-        'rounded-2xl',
-        mine
-          ? ['ml-auto bg-accent text-accent-ink', first && 'rounded-br-md']
-          : ['bg-surface-2 text-ink', first && 'rounded-bl-md'],
-        !first && 'mt-1',
-      )}
-    >
-      {children}
-    </p>
-  );
-}
-
-/** A square, comfortable tap target for the header and the composer. */
-function IconButton({
-  label,
-  pressed,
-  big,
-  className,
-  onClick,
-  children,
-}: {
-  label: string;
-  pressed?: boolean;
-  big?: boolean;
-  className?: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={pressed}
-      className={cn(
-        'grid shrink-0 place-items-center rounded-full text-ink-muted transition-colors',
-        'hover:bg-surface-2 hover:text-ink',
-        'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
-        big ? 'size-11' : 'size-9',
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-/**
- * The figure, small, with a ring that says what it is doing.
- *
- * The same information as the caption beside it, in the shape people check
- * first. Decorative: the caption is the live region, this is not.
- */
-function Avatar({ turn }: { turn: Turn }) {
-  const character = useActiveCharacter();
-  const active = isTalking(turn) || isHearing(turn) || turn === 'thinking';
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        'grid size-10 place-items-center rounded-full bg-surface-2 transition-shadow',
-        active && 'shadow-[0_0_0_2px_var(--accent)]',
-        isHearing(turn) && 'js-halo',
-      )}
-    >
-      {character ? <CharacterThumb character={character} size={34} /> : null}
-    </span>
-  );
-}
-
-/**
- * That the microphone is open, shown rather than stated.
- *
- * Five bars breathing is read at a glance and does not need reading at all,
- * which is what a status line asks of you. Decorative only — the caption in
- * the header carries the same thing for a screen reader, and the animation
- * collapses under the reduced-motion rule in globals.css.
- */
-const BARS = [0.45, 0.75, 1, 0.7, 0.4];
-
-function Level({ turn }: { turn: Turn }) {
-  const active = isHearing(turn);
-  // Five flat dots and no label is not a resting state, it is debris. The row
-  // keeps its height from the controls either side of it.
-  if (!active) return null;
-  return (
-    <span className="flex items-center gap-2.5" aria-hidden>
-      <span className="flex h-6 items-center gap-[3px]">
-        {BARS.map((scale, i) => (
-          <span
-            key={i}
-            className={cn(
-              'w-[3px] rounded-full transition-[height,background-color] duration-200',
-              active ? 'js-level bg-accent' : 'h-1 bg-control',
-            )}
-            style={active ? { animationDelay: `${i * 110}ms`, ['--level' as string]: scale } : undefined}
-          />
-        ))}
-      </span>
-      {/* It used to read "Tap to talk, or type" in every other state, including
-          while the companion was talking — beside five flat bars, neither of
-          which is a control, and at the one moment when tapping is not what to
-          do. A label that is wrong is worse than no label. */}
-      <span className="text-xs text-ink-muted">Just talk</span>
-    </span>
-  );
-}
-
-/**
- * What the auto setting has actually landed on, said plainly.
- *
- * Three engines can be behind it and they differ in ways worth knowing about
- * — one of them is not running on this machine — so the control says which
- * rather than leaving "Auto" to mean whatever it happens to mean today.
- */
-const ENGINE_LABEL: Record<EngineKind, string> = {
-  hosted: 'hosted voice',
-  webgpu: 'on your GPU',
-  wasm: 'on this machine',
-  none: 'browser voice',
-  // Measured, and it cannot generate speech as fast as speech is spoken here,
-  // so Auto does not use it. Choosing one below still works.
-  slow: 'browser voice — this machine is too slow for the natural one',
-};
-
-/**
- * Which of the installed voices to use.
- *
- * Every browser ships a pile of them and picks the worst one by default, and
- * the ranking in speech.ts can only get to the best one *installed* — which on
- * some machines is still a formant synthesiser from 1998. The honest fix is to
- * hand over the list, best first, and say the name out loud on change so the
- * choice is made by ear in one click rather than by reading voice names.
- */
-function VoicePicker({ name, onSpoke }: { name: string; onSpoke: () => void }) {
-  const voices = useSyncExternalStore(subscribe, listVoices, serverVoiceList);
-  const chosen = useSyncExternalStore(subscribe, getVoiceName, serverVoiceName);
-  const state = useSyncExternalStore(subscribe, engineState, serverEngineState);
-  const percent = useSyncExternalStore(subscribe, engineProgress, serverEngineProgress);
-  const hosted = useSyncExternalStore(subscribe, hostedConfigured, serverHostedConfigured);
-  const kind = useSyncExternalStore(subscribe, engineKind, serverEngineKind);
-  // Device-dependent, and this panel is never server-rendered — it mounts on
-  // a click — so reading it once on mount is safe and cannot mismatch.
-  const [megabytes] = useState(modelMegabytes);
-
-  return (
-    // The native control, kept and made invisible over an icon. A select wide
-    // enough to show "Nicole — soft, American" is wider than the name of the
-    // person you are talking to, which is the wrong thing to give the room
-    // to; the labels are worth reading in the list and worth nothing on the
-    // closed control. Everything about the select still works — keyboard,
-    // screen reader, the platform's own picker on a phone — and the ring is
-    // carried by the wrapper through `focus-within`.
-    <span
-      className={cn(
-        'relative grid size-9 shrink-0 place-items-center rounded-full text-ink-muted transition-colors',
-        'hover:bg-surface-2 hover:text-ink focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-accent',
-        state === 'loading' && 'text-accent',
-      )}
-    >
-      {/* Shown, never announced. This is a live region no more: `announce`
-          fires on every whole percent, so a screen reader read out a bare
-          number up to ninety-nine times during the download. The state is on
-          the control's own label instead, where it is read when it is asked
-          for. */}
-      {state === 'loading' ? (
-        <span className="text-micro tabular-nums" aria-hidden>
-          {percent}
-        </span>
-      ) : (
-        <AudioLines className="size-[1.125rem]" aria-hidden />
-      )}
-      <select
-        value={chosen}
-        aria-label={state === 'loading' ? `Voice — downloading, ${percent} per cent` : 'Voice'}
-        onChange={(e) => {
-          setVoiceName(e.target.value);
-          // Heard immediately, in the voice just picked. Choosing by ear is
-          // the entire point of the control — and for a natural voice this is
-          // also what the download is for, so it plays the moment it lands.
-          //
-          // It carries the turn, because it takes it. Picking a voice mid-
-          // reply cuts that reply off, and a preview with no callback left
-          // nothing to hand the conversation back — the panel sat on "…is
-          // talking…" with the microphone shut until it was closed.
-          speak(`Hi, I'm ${name}.`, onSpoke);
-        }}
-        className="absolute inset-0 cursor-pointer appearance-none opacity-0 focus:outline-none"
-      >
-        <option value="">{`Auto — ${ENGINE_LABEL[kind]}`}</option>
-        {/* Only where somebody has configured one. It costs money per reply
-            and the reply text leaves the device, so it is never a default
-            this code chooses — it is a key an owner set. */}
-        {hosted ? (
-          <optgroup label="Hosted">
-            <option value={HOSTED_PREFIX}>Studio — instant, off this machine</option>
-          </optgroup>
-        ) : null}
-        {/* The real answer to "it sounds like a robot". These run on this
-            machine, so the only cost is the one-off download, and saying so
-            in the label is the difference between a choice and a surprise. */}
-        <optgroup label={state === 'ready' ? 'Natural' : `Natural — ${megabytes} MB once`}>
-          {KOKORO_VOICES.map((v) => (
-            <option key={v.id} value={`${KOKORO_PREFIX}${v.id}`}>
-              {v.label}
-            </option>
-          ))}
-        </optgroup>
-        {voices.length ? (
-          <optgroup label="This browser">
-            {voices.map((v) => (
-              <option key={v.name} value={v.name}>
-                {v.name}
-              </option>
-            ))}
-          </optgroup>
-        ) : null}
-      </select>
-    </span>
-  );
-}
+    <div className="space-y-3 border-t border-hairline p-4">
+      <p role="status" className="text-xs text-accent">{status}</p>
+      {error ? <div role="alert" className="rounded-lg border border-hairline p-2 text-xs leading-5">{error}{lastAsked.current ? <button className="ml-2 underline" onClick={() => { void unlockMisoAudio().then(() => ask('', lastAsked.current ?? undefined)); }}>Retry reply</button> : null}</div> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink" onClick={() => void startListening('talk')}><Mic size={16} />{busy ? 'Interrupt & talk' : 'Talk'}</button>
+        <button type="button" onClick={() => stop()} className="rounded-full border border-hairline p-2" aria-label="Stop Miso and microphone"><Square size={16} /></button>
+        <button type="button" onClick={() => { setMuted(v => !v); if (!muted) { request.current?.abort(); setBusy(false); setStatus('Voice muted. Tap Talk to continue.'); } }} aria-label={muted ? 'Unmute Miso' : 'Mute Miso'} className="rounded-full border border-hairline p-2">{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button>
+        <span className="text-xs text-ink-muted">{mode === 'off' ? 'Mic off' : '● Mic on'}</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={wake} onChange={toggleWake} />Enable “Hey Miso”</label>
+        <select aria-label="Miso cloud voice" value={voice} onChange={e => setVoice(e.target.value as 'natural' | 'longer')} className="max-w-44 rounded-lg border border-hairline bg-plane px-2 py-1.5"><option value="natural">Natural · shorter allowance</option><option value="longer">Simple · longer allowance</option></select>
+      </div>
+      <p className="text-[11px] leading-4 text-ink-muted">Wake mode sends speech to the cloud to detect “Hey Miso”. Keep this page visible. Mic pauses when hidden. Both voices use your free daily allowance.</p>
+      <form onSubmit={e => { e.preventDefault(); void send(); }} className="flex items-end gap-2">
+        <textarea aria-label="Message Miso" rows={2} maxLength={1200} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Or type to Miso…" className="min-w-0 flex-1 resize-none rounded-xl border border-hairline bg-surface-2 p-2.5 text-sm" />
+        <button aria-label="Send message to Miso" disabled={!draft.trim() || busy} className="rounded-xl bg-accent p-3 text-accent-ink disabled:opacity-40"><ArrowUp size={17} /></button>
+      </form>
+    </div>
+  </section>;
+});

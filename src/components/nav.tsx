@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Briefcase, LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut, Timer, MessageSquare } from 'lucide-react';
+import { Briefcase, LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut, Timer } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import { SkinPicker } from './skin-picker';
 import { CharacterPicker } from './character-picker';
@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 const LINKS = [
   { href: '/', label: 'Today', icon: LayoutDashboard },
   { href: '/areas/dsa', label: 'DSA', icon: ListChecks },
-  { href: '/tutor', label: 'Tutor', icon: MessageSquare },
   { href: '/daily', label: 'Daily', icon: CalendarDays },
   { href: '/analytics', label: 'Stats', icon: ChartNoAxesColumn },
   { href: '/jobs', label: 'Jobs', icon: Briefcase },

@@ -1,273 +1,40 @@
-import { NextResponse } from 'next/server';
 import { currentUser, tenantStatus } from '@/lib/tenant';
 import { getEverything } from '@/lib/notion';
-import { discoverCharacters } from '@/lib/characters.server';
-import { resolveCharacter } from '@/lib/characters';
-import { createRateLimiter, retryAfterSeconds } from '@/lib/rate-limit';
 import { buildSnapshot } from '@/lib/companion-context';
-import { MAX_REPLY_CHARS, sanitiseHistory, systemPrompt } from '@/lib/companion-prompt';
-import { getPersona, personaPrompt } from '@/lib/persona';
-import { splitEvents, textOfEvent } from '@/lib/anthropic-stream';
-import { snapshotFor } from '@/lib/companion-cache';
+import { sanitiseHistory } from '@/lib/companion-prompt';
+import { guideFor } from '@/lib/question-guides';
+import { questionContext } from '@/lib/miso-context';
+import { boundedJSON, cloudRequest, cloudFailure, CloudError, sameOrigin } from '@/lib/cloud-ai';
+import { createRateLimiter } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
-/** A conversation, so it either answers quickly or it has not answered. */
-export const maxDuration = 30;
+export const maxDuration = 60;
+const take = createRateLimiter(40, 5 * 60000);
 
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_VERSION = '2023-06-01';
-
-/**
- * Claude Haiku 4.5. The id was read off the account's own model list rather
- * than guessed — the last two providers this was built against both turned out
- * not to have the model everyone assumes they do.
- */
-const MODEL = 'claude-haiku-4-5-20251001';
-const MAX_TOKENS = 260;
-const TIMEOUT_MS = 20_000;
-
-/**
- * The whole answer, start to finish.
- *
- * `TIMEOUT_MS` only covers getting the response headers back — once the body
- * starts arriving it was cleared and nothing bounded the stream at all, so an
- * upstream that opened a connection and then went quiet held this function,
- * and the tokens behind it, until the platform killed it. Under `maxDuration`
- * so the deadline is ours rather than the platform's, and the client keeps its
- * own shorter one on silence.
- */
-const STREAM_MS = 25_000;
-
-/**
- * Twenty messages in five minutes, per user.
- *
- * This guards a billed key against a loop in the client or someone leaning on
- * the endpoint, not against a determined attacker — it is per instance and
- * resets when one recycles. A signed-in session is the real gate; this is the
- * ceiling behind it.
- */
-const take = createRateLimiter(20, 5 * 60_000);
-
-/** Everything the client is ever told. No upstream text reaches any of these. */
-const COPY = {
-  signedOut: 'Sign in to talk to your companion.',
-  notConfigured:
-    'Your companion is not set up on this deployment yet. Once a key is configured it will be able to talk back.',
-  badRequest: 'That message did not come through. Try saying it again.',
-  tooMany: 'Give your companion a moment to catch up, then try again.',
-  slow: 'Your companion took too long to answer. Try again in a moment.',
-  upstream: 'Your companion could not be reached just now. Try again in a moment.',
-  empty: 'Your companion did not have anything to say to that. Try asking another way.',
-} as const;
-
-type Reply = { ok: true; reply: string } | { ok: false; message: string; configured?: boolean };
-
-const fail = (status: number, message: string, extra: Record<string, unknown> = {}) =>
-  NextResponse.json<Reply>({ ok: false, message, ...extra } as Reply, { status });
-
-/**
- * The companion's one endpoint.
- *
- * Signed-in only, exactly like every other route here — this spends a real
- * billed key, so an unauthenticated caller hitting it directly would be
- * spending someone else's money. `currentUser()` is the same check the rest of
- * the app gates on, and it is the first thing that happens.
- *
- * The key is read here and only here. It is never sent to the browser, never
- * prefixed NEXT_PUBLIC_, and when it is absent the route answers with a state
- * rather than an error — the same shape `hasEncryptionKey()` gives the Notion
- * flow, because "not set up" is a thing the product can say, not a fault.
- */
 export async function POST(req: Request) {
-  const user = await currentUser();
-  if (!user) return fail(401, COPY.signedOut);
-
-  const key = process.env.ANTHROPIC_API_KEY?.trim();
-  // 200, deliberately: the request worked, the feature is simply not turned on
-  // here, and the panel renders that as a state rather than as a failure.
-  if (!key) return NextResponse.json<Reply>({ ok: false, message: COPY.notConfigured, configured: false });
-
-  const limit = take(user.id);
-  if (!limit.allowed) {
-    return NextResponse.json<Reply>(
-      { ok: false, message: COPY.tooMany },
-      { status: 429, headers: { 'Retry-After': String(retryAfterSeconds(limit.retryAfterMs)) } },
-    );
-  }
-
-  let body: unknown;
   try {
-    body = await req.json();
-  } catch {
-    return fail(400, COPY.badRequest);
-  }
-  const messages = sanitiseHistory((body as { messages?: unknown } | null)?.messages);
-  if (!messages) return fail(400, COPY.badRequest);
-
-  // The character the model is asked to be is the one this device has chosen,
-  // so the companion sounds like the figure on screen rather than a generic
-  // assistant. Discovery is a cached filesystem walk, not a fetch.
-  const characterId = (body as { characterId?: unknown } | null)?.characterId;
-  const character = resolveCharacter(
-    discoverCharacters(),
-    typeof characterId === 'string' ? characterId : null,
-  );
-
-  // What it actually knows about them. Derived through derive.ts so the
-  // numbers it says out loud are the same ones the dashboard shows, and read
-  // here rather than trusted from the client, which could claim anything.
-  //
-  // Notion being slow or down must never take the conversation with it: a
-  // companion that cannot see the tracker is a far smaller loss than one that
-  // refuses to talk at all.
-  // Cached and served stale while it refreshes, because three Notion queries
-  // in front of every reply is where "it is laggy" mostly came from. A cold
-  // cache is waited on briefly and then given up on — the companion can talk
-  // about being tired and hungry perfectly well without knowing a streak, and
-  // the read still lands in time for the next message.
-  //
-  // Notion being slow or down must never take the conversation with it.
-  let snapshot: string | null = null;
-  try {
-    snapshot = await snapshotFor(user.id, async () => {
+    const user = await currentUser();
+    if (!user) throw new CloudError('Sign in to talk with Miso.', 401);
+    if (!sameOrigin(req)) throw new CloudError('Open Miso inside your tracker.', 403);
+    if (!take(user.id).allowed) throw new CloudError('Please give Miso a moment before asking again.', 429);
+    const input = await boundedJSON(req) as Record<string, unknown> | null;
+    if (!input || Object.keys(input).some(k => !['messages', 'questionId'].includes(k)) || (input.questionId !== undefined && (typeof input.questionId !== 'string' || input.questionId.length > 80))) throw new CloudError('Invalid conversation.', 400);
+    const messages = sanitiseHistory(input.messages);
+    if (!messages) throw new CloudError('Please send a message to Miso.', 400);
+    let context = 'Tracker unavailable. Never guess progress or claim to see their questions.';
+    try {
       const status = await tenantStatus();
-      if (status.kind !== 'ready') return null;
-      const { areas, topics, tasks } = await getEverything(status.tenant);
-      return buildSnapshot(areas, topics, tasks);
-    });
-  } catch (e) {
-    console.error('[companion] could not read the tracker:', (e as Error)?.message);
-  }
-
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      signal: abort.signal,
-      headers: {
-        'x-api-key': key,
-        'anthropic-version': ANTHROPIC_VERSION,
-        'content-type': 'application/json',
-      },
-      // The system prompt is a top-level field here rather than a first
-      // message, which is the one thing that differs from every
-      // OpenAI-shaped API this has talked to.
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        temperature: 1,
-        system: systemPrompt(character, snapshot, personaPrompt(getPersona())),
-        messages,
-        // Streamed, because the wait that matters is the wait before the
-        // first word is heard. The voice is generated a sentence at a time on
-        // the listener's machine, so the moment one sentence is complete it
-        // can start being spoken while the rest is still being written.
-        // Waiting for the whole reply first stacked the two waits end to end.
-        stream: true,
-      }),
-    });
-
-    if (!res.ok) {
-      // Logged where it is useful, never returned. Upstream error text names
-      // models, quotas and internal mechanics, and is written for whoever is
-      // integrating rather than whoever is talking to a cartoon wizard.
-      console.error('[companion] anthropic responded', res.status, (await res.text()).slice(0, 300));
-      clearTimeout(timer);
-      return fail(502, res.status === 429 ? COPY.tooMany : COPY.upstream);
-    }
-
-    if (!res.body) {
-      clearTimeout(timer);
-      return fail(502, COPY.upstream);
-    }
-
-    // Past this point the answer is a stream of text and nothing else. Errors
-    // before it are JSON, which is how the client tells the two apart — it
-    // reads the content type rather than guessing from the shape.
-    clearTimeout(timer);
-    const overall = setTimeout(() => abort.abort(), STREAM_MS);
-    return new Response(textOf(res.body, abort, () => clearTimeout(overall)), {
-      headers: {
-        'content-type': 'text/plain; charset=utf-8',
-        'cache-control': 'no-store',
-        // Proxies that buffer would undo the entire point of streaming.
-        'x-accel-buffering': 'no',
-      },
-    });
-  } catch (e) {
-    clearTimeout(timer);
-    const aborted = (e as Error)?.name === 'AbortError';
-    if (!aborted) console.error('[companion] request failed:', (e as Error)?.message);
-    return fail(504, aborted ? COPY.slow : COPY.upstream);
-  }
-}
-
-/**
- * Anthropic's event stream, turned into plain text on the wire.
- *
- * The parsing itself lives in `anthropic-stream.ts` so it can be tested
- * without a network or a key. This is the pump around it: read, split on
- * event boundaries, write out whatever words came back.
- *
- * Capped at the same reply length as before. A model that runs away mid
- * sentence is a model reading aloud for a minute, and the cap is enforced
- * where the bytes are rather than trusted to the prompt.
- */
-function textOf(
-  body: ReadableStream<Uint8Array>,
-  abort: AbortController,
-  release: () => void,
-): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-  let buffer = '';
-  let written = 0;
-
-  return new ReadableStream({
-    async start(controller) {
-      const reader = body.getReader();
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          const [events, rest] = splitEvents(buffer);
-          buffer = rest;
-
-          for (const event of events) {
-            const text = textOfEvent(event);
-            if (!text) continue;
-
-            const room = MAX_REPLY_CHARS - written;
-            if (room <= 0) {
-              release();
-              abort.abort();
-              controller.close();
-              return;
-            }
-            const piece = text.slice(0, room);
-            written += piece.length;
-            controller.enqueue(encoder.encode(piece));
-          }
-        }
-        controller.close();
-      } catch (e) {
-        // A stream that dies mid-sentence has still said something, and the
-        // client speaks what it got rather than throwing the turn away.
-        console.error('[companion] stream ended early:', (e as Error)?.message);
-        controller.close();
-      } finally {
-        release();
-        reader.releaseLock();
+      if (status.kind === 'ready') {
+        const { areas, topics, tasks } = await getEverything(status.tenant);
+        const selectedId = typeof input.questionId === 'string' ? input.questionId : undefined;
+        if (selectedId && !tasks.some(t => t.id === selectedId)) throw new CloudError('That question is not in your tracker.', 404);
+        context = buildSnapshot(areas, topics, tasks) + '\n' + questionContext(tasks, topics, messages.slice(-4).map(m => m.content).join(' '), selectedId);
+        const task = tasks.find(t => t.id === selectedId);
+        const guide = task ? guideFor(task) : null;
+        if (guide) context += '\nCurrent question explanation: ' + JSON.stringify({ ...guide, tests: undefined }).slice(0, 16000);
       }
-    },
-    cancel() {
-      // The listener closed the panel or interrupted. Stop paying for tokens
-      // nobody is going to hear.
-      release();
-      abort.abort();
-    },
-  });
+    } catch (e) { if (e instanceof CloudError) throw e; console.error('[miso] tracker read failed for user', user.id); }
+    const response = await cloudRequest('/api/miso/chat', { messages, context }, AbortSignal.any([req.signal, AbortSignal.timeout(55000)]));
+    return new Response(response.body, { headers: { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store', 'x-accel-buffering': 'no' } });
+  } catch (e) { return cloudFailure(e); }
 }

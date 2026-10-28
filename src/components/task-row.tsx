@@ -150,14 +150,14 @@ function TaskRowImpl({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="w-5 shrink-0 text-right text-meta text-ink-muted tnum">{index}</span>
-          <span
+          <Link prefetch={false} href={`/questions/${task.id}`}
             className={cn(
               'text-sm leading-snug font-medium transition-colors',
               done ? 'text-ink-muted line-through decoration-ink-muted/50' : 'text-ink',
             )}
           >
             {task.name}
-          </span>
+          </Link>
           <DifficultyPicker
             value={difficulty}
             onChange={(next) =>
@@ -175,7 +175,7 @@ function TaskRowImpl({
         {/* Links and the completion stamp share one line, which keeps rows
             short enough that a 456-question list stays scrollable. */}
         <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-7">
-          <Link prefetch={false} href={`/tutor?question=${encodeURIComponent(task.name)}`} className="text-meta font-medium text-accent underline-offset-2 hover:underline">Ask tutor</Link>
+          <Link prefetch={false} href={`/questions/${task.id}`} className="text-meta font-medium text-accent underline-offset-2 hover:underline">Explanation</Link>
           {links.length ? (
             links.map((l) => (
               <a

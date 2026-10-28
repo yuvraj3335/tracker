@@ -1,0 +1,912 @@
+{
+  "79": {
+    "problem": "Find an index of a target value in an ascending sorted integer array. Return -1 when it is absent.",
+    "assumptions": "Duplicates are allowed; any matching index is acceptable. The array is not modified.",
+    "example": {
+      "input": "[2, 5, 8, 12, 16], target = 12",
+      "output": "3",
+      "explanation": "Start with indices 0 through 4. The midpoint is 2, whose value is 8, so retain indices 3 through 4. The next midpoint is 3 and its value is 12."
+    },
+    "baseline": "A linear scan is correct and takes O(n) time. Sorting an unsorted input first changes indices and adds O(n log n) work; binary search assumes the input is already sorted.",
+    "approach": "Maintain the invariant that any matching element still under consideration lies between lo and hi, inclusive. Comparing the midpoint eliminates one half. Excluding the midpoint after a mismatch guarantees that the interval shrinks.",
+    "steps": [
+      "Set lo to 0 and hi to n − 1.",
+      "Use lo + (hi − lo) / 2 to avoid overflow.",
+      "On a match return mid. Otherwise move lo to mid + 1 or hi to mid − 1.",
+      "When lo exceeds hi, no candidate remains."
+    ],
+    "java": "static int search(int[] a, int target) {\n    int lo = 0, hi = a.length - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) return mid;\n        if (a[mid] < target) lo = mid + 1;\n        else hi = mid - 1;\n    }\n    return -1;\n}",
+    "time": "O(log n): every unsuccessful comparison at least halves the candidate interval.",
+    "space": "O(1) for the iterative implementation.",
+    "pitfalls": [
+      "Do not use lo = mid with an inclusive interval: it can repeat a state.",
+      "An empty array starts with hi = -1 and immediately returns -1.",
+      "This version does not guarantee the first duplicate. Use lower bound when that is required."
+    ],
+    "tests": [
+      "assert search(new int[]{2,5,8,12,16},12)==3;",
+      "assert search(new int[]{},3)==-1;",
+      "assert search(new int[]{1},2)==-1;",
+      "assert search(new int[]{1},1)==0;",
+      "assert search(new int[]{1,2,3},4)==-1;",
+      "assert search(new int[]{2,2},2)>=0;"
+    ]
+  },
+  "12": {
+    "problem": "Choose Java collections according to the operation you need: ordered traversal, uniqueness, key lookup, a stack or queue, or repeated extraction of the smallest item.",
+    "assumptions": "This lesson demonstrates a frequency table. HashMap iteration order is unspecified; sort keys explicitly when output order matters.",
+    "example": {
+      "input": "[4, 2, 4, 3, 2, 4]",
+      "output": "2 → 2, 3 → 1, 4 → 3",
+      "explanation": "The first 4 creates a count of one. Each later 4 increments that entry. The final table has three keys even though the input has six values."
+    },
+    "baseline": "You can count each distinct value by scanning the whole array again, using O(n²) time in the worst case. A map remembers previous work.",
+    "approach": "Use ArrayList for indexed sequences, HashSet for membership, HashMap for key/value associations, ArrayDeque for stacks and queues, and PriorityQueue for smallest-first extraction. A TreeMap provides sorted keys at O(log d) per operation. For frequency counting, increment one map entry per element.",
+    "steps": [
+      "Create an empty map.",
+      "For every value, combine one with the existing count.",
+      "Read counts with getOrDefault(value, 0). Copy keys into a TreeMap when sorted display is required."
+    ],
+    "java": "static Map<Integer, Integer> frequencies(int[] a) {\n    Map<Integer, Integer> counts = new HashMap<>();\n    for (int value : a) counts.merge(value, 1, Integer::sum);\n    return counts;\n}",
+    "time": "Expected O(n) for the frequency table using ordinary HashMap operations.",
+    "space": "O(d), where d is the number of distinct values.",
+    "pitfalls": [
+      "Use equals for object equality; == compares object references.",
+      "PriorityQueue iteration is not sorted; repeatedly poll to get priority order.",
+      "ArrayDeque rejects null. Use push/pop consistently for a stack and offer/poll for a queue.",
+      "List<Integer>.remove(1) removes index 1; remove(Integer.valueOf(1)) removes a value."
+    ],
+    "tests": [
+      "assert frequencies(new int[]{4,2,4,3,2,4}).equals(Map.of(2,2,3,1,4,3));",
+      "assert frequencies(new int[]{}).isEmpty();"
+    ]
+  },
+  "13": {
+    "problem": "Count the decimal digits of an integer, ignoring its sign.",
+    "assumptions": "Zero has one digit. Inputs fit in a Java int.",
+    "example": {
+      "input": "n = -12040",
+      "output": "5",
+      "explanation": "The absolute value becomes 12040. Repeated divisions by ten leave 1204, 120, 12, 1, then 0, so five digits were removed."
+    },
+    "baseline": "Converting the magnitude to a string and taking its length works, but creates an extra character representation.",
+    "approach": "Each integer division by ten removes the least significant decimal digit. A do-while loop counts zero correctly without a special return.",
+    "steps": [
+      "Promote to long before taking the absolute value.",
+      "Increment the count once for each division by ten.",
+      "Stop when the remaining magnitude becomes zero."
+    ],
+    "java": "static int digits(int n) {\n    long value = Math.abs((long) n);\n    int count = 0;\n    do { count++; value /= 10; } while (value != 0);\n    return count;\n}",
+    "time": "O(d), where d is the number of decimal digits.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Math.abs(Integer.MIN_VALUE) overflows as an int; promotion must happen first.",
+      "A while loop without a special case returns zero digits for zero."
+    ],
+    "tests": [
+      "assert digits(-12040)==5;",
+      "assert digits(0)==1;",
+      "assert digits(Integer.MIN_VALUE)==10;"
+    ]
+  },
+  "14": {
+    "problem": "Reverse the decimal digits of a signed 32-bit integer. Return zero if the reversed value cannot fit in an int.",
+    "assumptions": "Leading zeroes of the reversed number are discarded. The sign is preserved.",
+    "example": {
+      "input": "n = -120",
+      "output": "-21",
+      "explanation": "The remainders are 0, -2, and -1 in Java. Building result = result * 10 + remainder gives 0, -2, then -21."
+    },
+    "baseline": "Reverse a string representation and parse it, taking special care with the sign and overflow.",
+    "approach": "Remove digits with division and append them to a long accumulator. There are at most ten digits, so the accumulator fits in long; check the int bounds before returning.",
+    "steps": [
+      "Take n % 10 as the next digit.",
+      "Append it to the accumulator and divide n by ten.",
+      "Check the final value against the signed int range."
+    ],
+    "java": "static int reverse(int n) {\n    long result = 0;\n    while (n != 0) { result = result * 10 + n % 10; n /= 10; }\n    return result < Integer.MIN_VALUE || result > Integer.MAX_VALUE ? 0 : (int) result;\n}",
+    "time": "O(d).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not multiply an int accumulator before checking overflow.",
+      "Reversing 120 gives 21, not 021 as a numeric value."
+    ],
+    "tests": [
+      "assert reverse(-120)==-21;",
+      "assert reverse(0)==0;",
+      "assert reverse(1534236469)==0;",
+      "assert reverse(123)==321;"
+    ]
+  },
+  "15": {
+    "problem": "Decide whether an integer reads the same from left to right and right to left in decimal.",
+    "assumptions": "Negative integers are not palindromes; zero is a palindrome.",
+    "example": {
+      "input": "n = 1221",
+      "output": "true",
+      "explanation": "Reversing its digits produces 1221 again, equal to the original number."
+    },
+    "baseline": "Convert to a string and compare characters from both ends, using O(d) space for the string.",
+    "approach": "Reject negatives, then construct the reversed number in long and compare it with the original. A long safely holds the reverse of any nonnegative int.",
+    "steps": [
+      "Save the original value.",
+      "Reverse its digits into a long accumulator.",
+      "Return whether both numbers are equal."
+    ],
+    "java": "static boolean palindrome(int n) {\n    if (n < 0) return false;\n    int remaining = n;\n    long reversed = 0;\n    while (remaining > 0) { reversed = reversed * 10 + remaining % 10; remaining /= 10; }\n    return reversed == n;\n}",
+    "time": "O(d).",
+    "space": "O(1).",
+    "pitfalls": [
+      "A minus sign is not ignored in this variant.",
+      "A positive number ending in zero cannot be a palindrome unless it is zero itself."
+    ],
+    "tests": [
+      "assert palindrome(1221);",
+      "assert palindrome(0);",
+      "assert !palindrome(-121);",
+      "assert !palindrome(10);"
+    ]
+  },
+  "16": {
+    "problem": "Find the greatest common divisor of two integers.",
+    "assumptions": "The result is nonnegative. This implementation defines gcd(0, 0) as 0 and returns long to cover Integer.MIN_VALUE.",
+    "example": {
+      "input": "a = 48, b = 18",
+      "output": "6",
+      "explanation": "Euclid transforms (48,18) into (18,12), then (12,6), then (6,0). The final nonzero value is 6."
+    },
+    "baseline": "Try every positive divisor up to the smaller magnitude. This can take linear time in that magnitude.",
+    "approach": "The common divisors of a and b are exactly the common divisors of b and a % b. Repeating that reduction preserves the answer while rapidly shrinking the inputs.",
+    "steps": [
+      "Normalize magnitudes after promoting to long.",
+      "Replace (a,b) with (b,a%b) until b is zero.",
+      "Return a."
+    ],
+    "java": "static long gcd(int a, int b) {\n    long x = Math.abs((long) a), y = Math.abs((long) b);\n    while (y != 0) { long remainder = x % y; x = y; y = remainder; }\n    return x;\n}",
+    "time": "O(log(min(|a|, |b|))) when both are nonzero; constant work when one is zero.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Avoid division by zero by checking y before taking the remainder.",
+      "If you later compute lcm, divide by gcd before multiplying and handle zero explicitly."
+    ],
+    "tests": [
+      "assert gcd(48,18)==6;",
+      "assert gcd(-12,18)==6;",
+      "assert gcd(0,0)==0;",
+      "assert gcd(Integer.MIN_VALUE,0)==2147483648L;"
+    ]
+  },
+  "17": {
+    "problem": "Check whether a nonnegative integer equals the sum of each decimal digit raised to the number of digits.",
+    "assumptions": "This is the general Armstrong-number definition, not only the three-digit version.",
+    "example": {
+      "input": "n = 153",
+      "output": "true",
+      "explanation": "There are three digits: 1³ + 5³ + 3³ = 1 + 125 + 27 = 153."
+    },
+    "baseline": "Extract the digits as a string and raise each digit to the string length. That works but needs extra storage.",
+    "approach": "Count the digits, then scan them again. Compute each small integer power with multiplication to avoid floating-point rounding.",
+    "steps": [
+      "Count digits with zero treated as one digit.",
+      "For each digit, multiply it by itself d times.",
+      "Sum using long and compare with the original."
+    ],
+    "java": "static boolean armstrong(int n) {\n    if (n < 0) return false;\n    int d = 0, x = n;\n    do { d++; x /= 10; } while (x > 0);\n    long sum = 0; x = n;\n    do {\n        int digit = x % 10;\n        long power = 1;\n        for (int i = 0; i < d; i++) power *= digit;\n        sum += power; x /= 10;\n    } while (x > 0);\n    return sum == n;\n}",
+    "time": "O(d²) with the small repeated-multiplication power calculation.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not assume every input has three digits.",
+      "Using Math.pow introduces floating-point values into an exact integer comparison."
+    ],
+    "tests": [
+      "assert armstrong(153);",
+      "assert armstrong(9474);",
+      "assert armstrong(0);",
+      "assert !armstrong(154);",
+      "assert !armstrong(-153);"
+    ]
+  },
+  "18": {
+    "problem": "Return all positive divisors of a positive integer in ascending order.",
+    "assumptions": "n must be positive; zero has infinitely many nonzero integer divisors and is rejected.",
+    "example": {
+      "input": "n = 36",
+      "output": "[1, 2, 3, 4, 6, 9, 12, 18, 36]",
+      "explanation": "Pairs (1,36), (2,18), (3,12), (4,9), and (6,6) cover every divisor. Include the square-root divisor only once."
+    },
+    "baseline": "Check every value from 1 through n, requiring O(n) divisibility tests.",
+    "approach": "Every divisor below the square root has a partner above it. Collect the smaller partners in increasing order and the larger partners in decreasing order, then reverse the larger list.",
+    "steps": [
+      "Loop while i <= n / i to avoid squaring overflow.",
+      "When divisible, add i and add n/i only if it differs.",
+      "Append the larger partners in reverse order."
+    ],
+    "java": "static List<Integer> divisors(int n) {\n    if (n <= 0) throw new IllegalArgumentException();\n    List<Integer> small = new ArrayList<>(), large = new ArrayList<>();\n    for (int i = 1; i <= n / i; i++) {\n        if (n % i != 0) continue;\n        small.add(i);\n        if (i != n / i) large.add(n / i);\n    }\n    for (int i = large.size() - 1; i >= 0; i--) small.add(large.get(i));\n    return small;\n}",
+    "time": "O(√n + d), where d is the number of returned divisors.",
+    "space": "O(d), including the result.",
+    "pitfalls": [
+      "A perfect square must not emit its square root twice.",
+      "Testing i*i <= n with int arithmetic can overflow for large inputs."
+    ],
+    "tests": [
+      "assert divisors(36).equals(List.of(1,2,3,4,6,9,12,18,36));",
+      "assert divisors(1).equals(List.of(1));",
+      "assert divisors(7).equals(List.of(1,7));"
+    ]
+  },
+  "19": {
+    "problem": "Decide whether an integer is prime: it must be greater than one and have no positive divisor other than one and itself.",
+    "assumptions": "Inputs are signed Java ints.",
+    "example": {
+      "input": "n = 29",
+      "output": "true",
+      "explanation": "After excluding divisibility by 2, test 3 and 5. Neither divides 29, and any factor larger than √29 would need a smaller partner already tested."
+    },
+    "baseline": "Count divisors from 1 through n, which takes O(n) time.",
+    "approach": "A composite number has a divisor no larger than its square root. Handle 2 separately, reject other even values, and test only odd candidates.",
+    "steps": [
+      "Reject n < 2; accept 2.",
+      "Reject even n.",
+      "Test odd divisors while d <= n/d."
+    ],
+    "java": "static boolean prime(int n) {\n    if (n < 2) return false;\n    if (n == 2) return true;\n    if (n % 2 == 0) return false;\n    for (int d = 3; d <= n / d; d += 2) if (n % d == 0) return false;\n    return true;\n}",
+    "time": "O(√n) trial divisions in the worst case.",
+    "space": "O(1).",
+    "pitfalls": [
+      "One is neither prime nor composite.",
+      "A square such as 49 requires testing its square root, so use <= rather than <."
+    ],
+    "tests": [
+      "assert prime(29);",
+      "assert prime(2);",
+      "assert !prime(1);",
+      "assert !prime(49);",
+      "assert !prime(-7);"
+    ]
+  },
+  "24": {
+    "problem": "Compute the sum 1 + 2 + … + n.",
+    "assumptions": "n is a nonnegative int. Return long so the sum fits for every valid input.",
+    "example": {
+      "input": "n = 5",
+      "output": "15",
+      "explanation": "Pair 1 with 5 and 2 with 4; each pair totals 6, with 3 left over. The formula gives 5 × 6 / 2 = 15."
+    },
+    "baseline": "A loop or recursion that adds one number per step costs O(n) time; recursive addition also uses O(n) stack frames.",
+    "approach": "Pair the first and last terms. There are n terms and each has average (n+1)/2, giving n(n+1)/2. Promote before addition and multiplication.",
+    "steps": [
+      "Reject negative n.",
+      "Compute n * (n + 1) in long.",
+      "Divide the even product by two."
+    ],
+    "java": "static long sumTo(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    return (long) n * (n + 1L) / 2;\n}",
+    "time": "O(1) arithmetic operations.",
+    "space": "O(1).",
+    "pitfalls": [
+      "n*(n+1) overflows int well before the result is large by long standards.",
+      "The empty sum for n=0 is zero."
+    ],
+    "tests": [
+      "assert sumTo(5)==15;",
+      "assert sumTo(0)==0;",
+      "assert sumTo(100000)==5000050000L;"
+    ]
+  },
+  "25": {
+    "problem": "Compute n factorial, the product of the integers from 1 through n.",
+    "assumptions": "This long-returning implementation supports 0 through 20. Larger factorials need BigInteger.",
+    "example": {
+      "input": "n = 5",
+      "output": "120",
+      "explanation": "The recursive chain is 5 × factorial(4), continuing until factorial(0)=1, then multiplying while calls return."
+    },
+    "baseline": "Multiply iteratively from 2 to n. This has the same arithmetic work and avoids recursion-stack space.",
+    "approach": "The recurrence factorial(n)=n×factorial(n−1) mirrors the product definition. The base case must be one because one is multiplication’s identity.",
+    "steps": [
+      "Validate the range so overflow cannot silently produce an answer.",
+      "Use 0! = 1 as the base case.",
+      "Multiply n by the factorial of n−1."
+    ],
+    "java": "static long factorial(int n) {\n    if (n < 0 || n > 20) throw new IllegalArgumentException();\n    return n == 0 ? 1 : n * factorial(n - 1);\n}",
+    "time": "O(n) for this bounded fixed-width implementation.",
+    "space": "O(n) recursion stack; an iterative version uses O(1).",
+    "pitfalls": [
+      "Returning zero at the base case makes every factorial zero.",
+      "21! exceeds long; use arbitrary precision rather than allowing wraparound."
+    ],
+    "tests": [
+      "assert factorial(5)==120;",
+      "assert factorial(0)==1;",
+      "assert factorial(20)==2432902008176640000L;"
+    ]
+  },
+  "26": {
+    "problem": "Reverse an array in place.",
+    "assumptions": "The array may be empty. Element values and duplicates are unrestricted.",
+    "example": {
+      "input": "[1, 2, 3, 4]",
+      "output": "[4, 3, 2, 1]",
+      "explanation": "Swap positions 0 and 3, giving [4,2,3,1]. Swap positions 1 and 2, giving [4,3,2,1]."
+    },
+    "baseline": "Copy elements into a new array in reverse order, using O(n) additional storage.",
+    "approach": "The left and right endpoints belong in each other’s positions. After swapping, the only unfinished work is the smaller interior interval. This version uses recursion to expose that shrinking subproblem.",
+    "steps": [
+      "Call the helper with both end indices.",
+      "Stop when the indices meet or cross.",
+      "Swap the endpoints, then recurse inward."
+    ],
+    "java": "static void reverse(int[] a) { reverse(a, 0, a.length - 1); }\nstatic void reverse(int[] a, int left, int right) {\n    if (left >= right) return;\n    int value = a[left]; a[left] = a[right]; a[right] = value;\n    reverse(a, left + 1, right - 1);\n}",
+    "time": "O(n).",
+    "space": "O(n) recursion stack. Replacing recursion with a while loop reduces extra space to O(1).",
+    "pitfalls": [
+      "The middle element in an odd-length array stays in place.",
+      "Do not recurse without advancing both endpoints.",
+      "Prefer iteration for large arrays to avoid StackOverflowError."
+    ],
+    "tests": [
+      "int[] a={1,2,3,4}; reverse(a); assert Arrays.equals(a,new int[]{4,3,2,1});",
+      "int[] b={}; reverse(b); assert b.length==0;",
+      "int[] c={7}; reverse(c); assert c[0]==7;"
+    ]
+  },
+  "27": {
+    "problem": "Check whether a string is a palindrome by comparing characters from its ends.",
+    "assumptions": "This version is case-sensitive and compares UTF-16 code units exactly, including spaces and punctuation.",
+    "example": {
+      "input": "s = \"racecar\"",
+      "output": "true",
+      "explanation": "Compare r with r, a with a, and c with c. The remaining middle e cannot break the palindrome."
+    },
+    "baseline": "Reverse the string into a new buffer and compare it with the original, using O(n) extra space.",
+    "approach": "A string is a palindrome when its endpoints match and its interior is also a palindrome. A mismatch lets us return immediately.",
+    "steps": [
+      "Start at the first and last positions.",
+      "Return true when the interval has zero or one character.",
+      "Otherwise compare endpoints and recurse inward only if they match."
+    ],
+    "java": "static boolean palindrome(String s) { return pal(s, 0, s.length() - 1); }\nstatic boolean pal(String s, int lo, int hi) {\n    return lo >= hi || (s.charAt(lo) == s.charAt(hi) && pal(s, lo + 1, hi - 1));\n}",
+    "time": "O(n) comparisons in the worst case.",
+    "space": "O(n) recursion stack; iteration uses O(1).",
+    "pitfalls": [
+      "Clarify whether a platform wants punctuation removed or case ignored; that is a different normalization step.",
+      "Supplementary Unicode characters require code-point handling rather than char indexing."
+    ],
+    "tests": [
+      "assert palindrome(\"racecar\");",
+      "assert palindrome(\"\");",
+      "assert !palindrome(\"Racecar\");",
+      "assert !palindrome(\"ab\");"
+    ]
+  },
+  "28": {
+    "problem": "Return the nth Fibonacci number with F(0)=0 and F(1)=1.",
+    "assumptions": "The implementation supports 0 through 92, the largest index whose Fibonacci value fits in signed long.",
+    "example": {
+      "input": "n = 7",
+      "output": "13",
+      "explanation": "Starting with 0 and 1, successive sums are 1, 2, 3, 5, 8, and 13."
+    },
+    "baseline": "The direct recursive formula computes the same smaller values repeatedly, taking exponential time. Memoization reduces that to O(n) time and space.",
+    "approach": "Only the previous two values are needed. Advance the pair instead of storing the entire sequence. The loop computes up to F(n), avoiding an unnecessary F(93) overflow when n=92.",
+    "steps": [
+      "Handle n=0 directly.",
+      "Initialize the pair to F(0) and F(1).",
+      "For each index from 2 through n, compute the sum and shift the pair."
+    ],
+    "java": "static long fib(int n) {\n    if (n < 0 || n > 92) throw new IllegalArgumentException();\n    if (n == 0) return 0;\n    long previous = 0, current = 1;\n    for (int i = 2; i <= n; i++) {\n        long next = previous + current; previous = current; current = next;\n    }\n    return current;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "State the indexing convention; some sources call the first 1 term one.",
+      "Int overflows at F(47); long overflows at F(93)."
+    ],
+    "tests": [
+      "assert fib(7)==13;",
+      "assert fib(0)==0;",
+      "assert fib(1)==1;",
+      "assert fib(92)==7540113804746346429L;"
+    ]
+  },
+  "1": {
+    "problem": "Read a value from standard input and write it to standard output. The important distinction is between input data and explanatory output intended only for a person.",
+    "assumptions": "This introductory example reads one signed integer token and echoes it. Adapt parsing to the exact format specified by a practice judge.",
+    "example": {
+      "input": "42",
+      "output": "42",
+      "explanation": "Scanner reads the token 42 as an int; converting that value back to decimal gives the same text."
+    },
+    "baseline": "Hardcoding the example produces the right output for only one input. A solution must parse the supplied data.",
+    "approach": "Scanner is convenient for learning token-based input. For large inputs, BufferedReader plus tokenization avoids much of Scanner’s parsing overhead. Print only what the problem requests.",
+    "steps": [
+      "Create a reader for the input.",
+      "Read a value using the correct type.",
+      "Write the result without extra prompts on an online judge."
+    ],
+    "java": "static String echo(String input) {\n    Scanner scanner = new Scanner(input);\n    return Integer.toString(scanner.nextInt());\n}",
+    "time": "O(L), where L is the input length examined by the parser.",
+    "space": "O(L) for this String-based test helper; a stream-based program need not retain all input.",
+    "pitfalls": [
+      "nextInt leaves a following newline; a later nextLine can therefore return an empty string.",
+      "Use long for values outside the int range.",
+      "Do not print “Enter a number” when a judge expects only the answer."
+    ],
+    "tests": [
+      "assert echo(\"42\").equals(\"42\");",
+      "assert echo(\"  -7\n\").equals(\"-7\");"
+    ]
+  },
+  "2": {
+    "problem": "Understand arrays as indexed collections and strings as text sequences. Practise reading every element without going outside the valid index range.",
+    "assumptions": "The example sums an int array; strings in Java are immutable UTF-16 sequences.",
+    "example": {
+      "input": "[3, 5, -2]",
+      "output": "6",
+      "explanation": "Read indices 0, 1, and 2. Accumulating 3 + 5 − 2 gives 6."
+    },
+    "baseline": "Separate variables work only for a fixed number of values. An array gives one uniform way to process an arbitrary-sized sequence.",
+    "approach": "Array indices run from zero through length−1. A traversal can use an enhanced for loop when the index itself is unnecessary. Strings use length() and charAt(index), while arrays use the length field.",
+    "steps": [
+      "Initialize an accumulator.",
+      "Read each array element once.",
+      "Use a long accumulator when the sum may exceed int."
+    ],
+    "java": "static long sum(int[] values) {\n    long total = 0;\n    for (int value : values) total += value;\n    return total;\n}",
+    "time": "O(n) for a complete array traversal; indexed access is O(1).",
+    "space": "O(1) extra space.",
+    "pitfalls": [
+      "The last index is length−1, not length.",
+      "Assigning one array variable to another shares the array; use clone when you need a copy.",
+      "Use StringBuilder for repeated text concatenation in a loop."
+    ],
+    "tests": [
+      "assert sum(new int[]{3,5,-2})==6;",
+      "assert sum(new int[]{})==0;",
+      "assert sum(new int[]{Integer.MAX_VALUE,1})==2147483648L;"
+    ]
+  },
+  "3": {
+    "problem": "Choose numeric types that can represent both the input and intermediate results.",
+    "assumptions": "The example multiplies two ints and returns their exact product as long.",
+    "example": {
+      "input": "a = 50000, b = 50000",
+      "output": "2500000000",
+      "explanation": "The result exceeds Integer.MAX_VALUE. Promoting one operand before multiplication makes Java compute the product as a long."
+    },
+    "baseline": "Storing a*b into a long after int multiplication is too late: overflow has already happened.",
+    "approach": "The arithmetic type is decided from the operands, not the destination variable. Cast before the operation. Floating-point types represent approximations and should not replace exact integer arithmetic without a reason.",
+    "steps": [
+      "Check the input range.",
+      "Estimate the largest intermediate result.",
+      "Promote an operand before the risky operation."
+    ],
+    "java": "static long product(int a, int b) {\n    return (long) a * b;\n}",
+    "time": "O(1) fixed-width arithmetic.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Java int and long arithmetic normally wraps on overflow; it does not automatically throw.",
+      "Integer division truncates toward zero. Use a floating-point operand when a fractional answer is intended.",
+      "For values beyond long, use BigInteger."
+    ],
+    "tests": [
+      "assert product(50000,50000)==2500000000L;",
+      "assert product(-7,3)==-21;",
+      "assert product(Integer.MIN_VALUE,Integer.MIN_VALUE)==4611686018427387904L;"
+    ]
+  },
+  "4": {
+    "problem": "Select exactly one branch according to whether an integer is negative, zero, or positive.",
+    "assumptions": "This lesson demonstrates mutually exclusive conditions.",
+    "example": {
+      "input": "n = -3",
+      "output": "negative",
+      "explanation": "The first condition n<0 is true, so the later branches are skipped."
+    },
+    "baseline": "Three independent if statements can work for disjoint tests, but they do not express that exactly one branch should run.",
+    "approach": "An if/else-if/else chain evaluates conditions in order and stops after the first match. Put narrow conditions before broader conditions that would otherwise swallow them.",
+    "steps": [
+      "Test the first case.",
+      "Use else-if for the next mutually exclusive case.",
+      "Use else for the remaining inputs."
+    ],
+    "java": "static String sign(int n) {\n    if (n < 0) return \"negative\";\n    else if (n == 0) return \"zero\";\n    else return \"positive\";\n}",
+    "time": "O(1) for a fixed number of conditions.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Use == for comparison and = for assignment.",
+      "Boundary values belong in exactly one branch; test zero and threshold values."
+    ],
+    "tests": [
+      "assert sign(-3).equals(\"negative\");",
+      "assert sign(0).equals(\"zero\");",
+      "assert sign(5).equals(\"positive\");"
+    ]
+  },
+  "5": {
+    "problem": "Choose an operation from a small fixed set using switch.",
+    "assumptions": "The example supports integer addition and subtraction; arithmetic is promoted to long. Unknown operators are rejected.",
+    "example": {
+      "input": "op = +, a = 8, b = 5",
+      "output": "13",
+      "explanation": "The + case returns the sum immediately. No other case runs."
+    },
+    "baseline": "An if/else chain is equivalent and useful for conditions that are not equality checks against fixed values.",
+    "approach": "Switch makes a finite set of discrete choices explicit. In a traditional switch, break or return prevents accidental fall-through. A default branch handles unsupported inputs.",
+    "steps": [
+      "Switch on the operator.",
+      "Return the result for each supported case.",
+      "Reject unsupported operators in default."
+    ],
+    "java": "static long calculate(char op, int a, int b) {\n    switch (op) {\n        case '+': return (long) a + b;\n        case '-': return (long) a - b;\n        default: throw new IllegalArgumentException(\"Unsupported operator\");\n    }\n}",
+    "time": "O(1) for this fixed set of operators.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Traditional cases can fall through without break or return.",
+      "If division is added, specify integer versus floating-point behavior and handle a zero divisor."
+    ],
+    "tests": [
+      "assert calculate('+',8,5)==13;",
+      "assert calculate('-',8,5)==3;",
+      "boolean failed=false; try { calculate('*',2,3); } catch(IllegalArgumentException e) { failed=true; } assert failed;"
+    ]
+  },
+  "6": {
+    "problem": "Repeat a computation a known number of times with a for loop.",
+    "assumptions": "The example returns the first n positive integers; n must be nonnegative.",
+    "example": {
+      "input": "n = 4",
+      "output": "[1, 2, 3, 4]",
+      "explanation": "The loop starts at 1, includes 4, and stops when the counter becomes 5."
+    },
+    "baseline": "Writing one statement per item cannot adapt to a changing n.",
+    "approach": "A for loop groups initialization, continuation condition, and update in one place. The loop invariant here is that the list contains exactly 1 through i−1 before iteration i.",
+    "steps": [
+      "Start the counter at one.",
+      "Continue while i <= n.",
+      "Append i and increment the counter."
+    ],
+    "java": "static List<Integer> firstNumbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    for (int i = 1; i <= n; i++) result.add(i);\n    return result;\n}",
+    "time": "O(n).",
+    "space": "O(n) for the returned list; O(1) auxiliary state.",
+    "pitfalls": [
+      "Distinguish < n from <= n.",
+      "Very large n can exceed memory and, at Integer.MAX_VALUE, an int loop counter can wrap; this educational list example assumes a feasible list size."
+    ],
+    "tests": [
+      "assert firstNumbers(4).equals(List.of(1,2,3,4));",
+      "assert firstNumbers(0).isEmpty();"
+    ]
+  },
+  "7": {
+    "problem": "Repeat while a condition remains true, updating the state so the loop eventually stops.",
+    "assumptions": "The example sums decimal digits of a nonnegative int.",
+    "example": {
+      "input": "n = 4023",
+      "output": "9",
+      "explanation": "Extract 3, then 2, then 0, then 4. Their sum is 9."
+    },
+    "baseline": "Convert to text and iterate over characters, using an extra string representation.",
+    "approach": "A while loop is useful when the number of iterations follows from changing state. Dividing by ten makes the remaining value smaller on every iteration.",
+    "steps": [
+      "Initialize the sum to zero.",
+      "While digits remain, add n % 10.",
+      "Remove that digit with n /= 10."
+    ],
+    "java": "static int digitSum(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    int sum = 0;\n    while (n > 0) { sum += n % 10; n /= 10; }\n    return sum;\n}",
+    "time": "O(d), where d is the number of digits.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Forgetting the state update can create an infinite loop.",
+      "A while loop may execute zero times; a do-while loop executes at least once."
+    ],
+    "tests": [
+      "assert digitSum(4023)==9;",
+      "assert digitSum(0)==0;",
+      "assert digitSum(999)==27;"
+    ]
+  },
+  "8": {
+    "problem": "Understand Java’s pass-by-value semantics for primitives and object references.",
+    "assumptions": "Every parameter receives a copy of a value. For arrays, the copied value is a reference to the same array object.",
+    "example": {
+      "input": "array = [1]; call change(array)",
+      "output": "[9]",
+      "explanation": "The first assignment changes the shared array element. Reassigning the local parameter to a new array does not replace the caller’s reference, so the caller still sees [9]."
+    },
+    "baseline": "Trying to swap caller variables by reassigning two parameters does not work in Java, because only local copies change.",
+    "approach": "Distinguish changing an object from changing the variable that refers to it. Mutations through a copied reference affect the shared object; rebinding the parameter affects only the method.",
+    "steps": [
+      "Receive a copy of the caller’s reference.",
+      "Mutate the referenced object to demonstrate shared state.",
+      "Rebind the local reference and observe that the caller is unchanged by the rebind."
+    ],
+    "java": "static void change(int[] values) {\n    if (values.length == 0) return;\n    values[0] = 9;\n    values = new int[]{100};\n}",
+    "time": "O(1) for this demonstration.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Java does not switch to pass-by-reference for objects.",
+      "Return a new object explicitly when the caller should replace its reference."
+    ],
+    "tests": [
+      "int[] a={1}; change(a); assert a[0]==9;",
+      "int[] b={}; change(b); assert b.length==0;"
+    ]
+  },
+  "9": {
+    "problem": "Analyze how the number of operations grows with input size rather than relying on a particular machine’s timing.",
+    "assumptions": "The example counts all index pairs i<j in an array of length n.",
+    "example": {
+      "input": "n = 4",
+      "output": "6",
+      "explanation": "The outer iterations contribute 3, 2, 1, and 0 pairs. Their total is 6 = n(n−1)/2."
+    },
+    "baseline": "Measuring a few elapsed times can suggest a trend but does not establish a growth bound.",
+    "approach": "Count the inner-loop executions: (n−1)+(n−2)+…+1. This is a quadratic polynomial, so its dominant growth is Θ(n²), despite the changing inner-loop bound. A formula computes the same count in O(1), but does not enumerate the pairs.",
+    "steps": [
+      "Write the number of iterations for each outer-loop position.",
+      "Add those counts as a sum.",
+      "Keep the dominant term and distinguish time from storage."
+    ],
+    "java": "static long countPairs(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    long pairs = 0;\n    for (int i = 0; i < n; i++)\n        for (int j = i + 1; j < n; j++) pairs++;\n    return pairs;\n}",
+    "time": "Θ(n²) for the nested-loop implementation.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "Not all nested loops imply quadratic time: a shared monotonic pointer can advance only O(n) times overall.",
+      "Include recursion-stack memory when analyzing space.",
+      "Big-O is a bound, not an exact operation count."
+    ],
+    "tests": [
+      "assert countPairs(4)==6;",
+      "assert countPairs(0)==0;",
+      "assert countPairs(1)==0;"
+    ]
+  },
+  "10": {
+    "problem": "Build a text pattern by identifying what each row contains.",
+    "assumptions": "Codolio groups pattern practice into one entry. This example covers a centered pyramid of height n; the same row/column reasoning extends to other shapes.",
+    "example": {
+      "input": "n = 3",
+      "output": "\"  *\n ***\n*****\"",
+      "explanation": "Row r, starting at zero, has n−r−1 leading spaces and 2r+1 stars. For n=3 those counts are (2,1), (1,3), and (0,5)."
+    },
+    "baseline": "Hardcoding each row works for one height only and hides the rule that generates the shape.",
+    "approach": "Derive spaces and symbols separately before writing loops. Express both counts as functions of the row number, then build each row with those exact counts.",
+    "steps": [
+      "For row r, append n−r−1 spaces.",
+      "Append 2r+1 stars.",
+      "Separate rows with newlines, avoiding an extra newline after the last row."
+    ],
+    "java": "static String pyramid(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    StringBuilder result = new StringBuilder();\n    for (int r = 0; r < n; r++) {\n        if (r > 0) result.append('\\n');\n        result.append(\" \".repeat(n - r - 1));\n        result.append(\"*\".repeat(2 * r + 1));\n    }\n    return result.toString();\n}",
+    "time": "Θ(n²), proportional to the number of output characters.",
+    "space": "Θ(n²) for the returned text.",
+    "pitfalls": [
+      "Inspect spaces as well as visible symbols; formatting is part of the answer.",
+      "One pattern entry can contain many exercises; derive each shape rather than treating this pyramid as every possible pattern.",
+      "String.repeat requires Java 11 or newer."
+    ],
+    "tests": [
+      "assert pyramid(3).equals(\"  *\\n ***\\n*****\");",
+      "assert pyramid(0).equals(\"\");",
+      "assert pyramid(1).equals(\"*\");"
+    ]
+  },
+  "11": {
+    "problem": "Translate common C++ STL roles into Java collections and utility methods.",
+    "assumptions": "This is a language-bridge lesson. The example sorts an array; it does not attempt to reproduce C++ iterator syntax in Java.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "Sorting places the duplicate ones first, then 3 and 4. The input is copied so the caller’s original order remains intact."
+    },
+    "baseline": "Implementing every container and sorting routine from scratch is useful for learning, but unnecessary for most problem-solving tasks.",
+    "approach": "Use ArrayList for a dynamic sequence, HashMap or TreeMap for dictionaries, HashSet or TreeSet for sets, ArrayDeque for stack/queue operations, and PriorityQueue for a heap. Arrays.sort handles arrays; List.sort handles lists.",
+    "steps": [
+      "Choose the collection by its required operations and ordering.",
+      "Copy the input if mutation is not allowed.",
+      "Call the standard sorting utility and return the copy."
+    ],
+    "java": "static int[] sortedCopy(int[] input) {\n    int[] result = input.clone();\n    Arrays.sort(result);\n    return result;\n}",
+    "time": "Sorting is typically O(n log n); precise algorithm guarantees depend on the Java version and array element type. Copying costs O(n).",
+    "space": "O(n) for the returned copy, plus the sorting implementation’s workspace.",
+    "pitfalls": [
+      "Java PriorityQueue is a min-heap by default, unlike the common C++ priority_queue default.",
+      "Use Integer.compare(a,b), not a-b, in comparators that might overflow.",
+      "Do not apply object comparators directly to primitive int[] arrays."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; assert Arrays.equals(sortedCopy(a),new int[]{1,1,3,4}); assert a[0]==4;",
+      "assert sortedCopy(new int[]{}).length==0;"
+    ]
+  },
+  "20": {
+    "problem": "Use recursion to produce a fixed message.",
+    "assumptions": "n is nonnegative. The implementation collects output in a list so it can be tested; printing each added item gives the corresponding console exercise.",
+    "example": {
+      "input": "n = 3, text = \"Miso\"",
+      "output": "[Miso, Miso, Miso]",
+      "explanation": "Each call reduces n by one. Appending before the recursive call emits one copy per level."
+    },
+    "baseline": "A loop produces the same sequence without recursion-stack overhead.",
+    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "steps": [
+      "Return immediately when n is zero.",
+      "Perform the append before or after recursion according to the desired order.",
+      "Recurse with n−1 so the base case is reachable."
+    ],
+    "java": "static List<String> repeat(int n, String text) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<String> result = new ArrayList<>();\n    fill(n, text, result); return result;\n}\nstatic void fill(int n, String text, List<String> result) {\n    if (n == 0) return;\n    result.add(text);\n    fill(n - 1, text, result);\n}",
+    "time": "O(n).",
+    "space": "O(n) for the recursion stack and O(n) for the result.",
+    "pitfalls": [
+      "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
+      "Do not confuse the return order with the order in which recursive calls begin."
+    ],
+    "tests": [
+      "assert repeat(3,\"Miso\").equals(List.of(\"Miso\",\"Miso\",\"Miso\"));",
+      "assert repeat(0,\"Miso\").isEmpty();"
+    ]
+  },
+  "21": {
+    "problem": "Use recursion to produce a name.",
+    "assumptions": "n is nonnegative. The implementation collects output in a list so it can be tested; printing each added item gives the corresponding console exercise.",
+    "example": {
+      "input": "n = 3, text = \"Miso\"",
+      "output": "[Miso, Miso, Miso]",
+      "explanation": "Each call reduces n by one. Appending before the recursive call emits one copy per level."
+    },
+    "baseline": "A loop produces the same sequence without recursion-stack overhead.",
+    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "steps": [
+      "Return immediately when n is zero.",
+      "Perform the append before or after recursion according to the desired order.",
+      "Recurse with n−1 so the base case is reachable."
+    ],
+    "java": "static List<String> repeat(int n, String text) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<String> result = new ArrayList<>();\n    fill(n, text, result); return result;\n}\nstatic void fill(int n, String text, List<String> result) {\n    if (n == 0) return;\n    result.add(text);\n    fill(n - 1, text, result);\n}",
+    "time": "O(n).",
+    "space": "O(n) for the recursion stack and O(n) for the result.",
+    "pitfalls": [
+      "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
+      "Do not confuse the return order with the order in which recursive calls begin."
+    ],
+    "tests": [
+      "assert repeat(3,\"Miso\").equals(List.of(\"Miso\",\"Miso\",\"Miso\"));",
+      "assert repeat(0,\"Miso\").isEmpty();"
+    ]
+  },
+  "22": {
+    "problem": "Use recursion to produce the numbers from 1 through n.",
+    "assumptions": "n is nonnegative. The implementation collects output in a list so it can be tested; printing each added item gives the corresponding console exercise.",
+    "example": {
+      "input": "n = 3",
+      "output": "[1, 2, 3]",
+      "explanation": "Each call reduces n by one. Appending after the recursive call emits the smaller numbers first."
+    },
+    "baseline": "A loop produces the same sequence without recursion-stack overhead.",
+    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "steps": [
+      "Return immediately when n is zero.",
+      "Perform the append before or after recursion according to the desired order.",
+      "Recurse with n−1 so the base case is reachable."
+    ],
+    "java": "static List<Integer> numbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    fill(n, result); return result;\n}\nstatic void fill(int n, List<Integer> result) {\n    if (n == 0) return;\n    fill(n - 1, result);\n    result.add(n);\n}",
+    "time": "O(n).",
+    "space": "O(n) for the recursion stack and O(n) for the result.",
+    "pitfalls": [
+      "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
+      "Do not confuse the return order with the order in which recursive calls begin."
+    ],
+    "tests": [
+      "assert numbers(3).equals(List.of(1,2,3));",
+      "assert numbers(0).isEmpty();"
+    ]
+  },
+  "23": {
+    "problem": "Use recursion to produce the numbers from n down to 1.",
+    "assumptions": "n is nonnegative. The implementation collects output in a list so it can be tested; printing each added item gives the corresponding console exercise.",
+    "example": {
+      "input": "n = 3",
+      "output": "[3, 2, 1]",
+      "explanation": "Each call reduces n by one. Appending before the recursive call emits the larger numbers first."
+    },
+    "baseline": "A loop produces the same sequence without recursion-stack overhead.",
+    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "steps": [
+      "Return immediately when n is zero.",
+      "Perform the append before or after recursion according to the desired order.",
+      "Recurse with n−1 so the base case is reachable."
+    ],
+    "java": "static List<Integer> numbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    fill(n, result); return result;\n}\nstatic void fill(int n, List<Integer> result) {\n    if (n == 0) return;\n    result.add(n);\n    fill(n - 1, result);\n}",
+    "time": "O(n).",
+    "space": "O(n) for the recursion stack and O(n) for the result.",
+    "pitfalls": [
+      "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
+      "Do not confuse the return order with the order in which recursive calls begin."
+    ],
+    "tests": [
+      "assert numbers(3).equals(List.of(3,2,1));",
+      "assert numbers(0).isEmpty();"
+    ]
+  },
+  "29": {
+    "problem": "Understand hash-based lookup and build a frequency table.",
+    "assumptions": "HashMap provides expected constant-time basic operations under normal hashing assumptions; it does not preserve sorted order.",
+    "example": {
+      "input": "[5, 2, 5, 2, 5, 9]",
+      "output": "{2=2, 5=3, 9=1}",
+      "explanation": "The map accumulates three occurrences of 5, two of 2, and one of 9. Repeated values update an existing key."
+    },
+    "baseline": "For each value, scan the entire input to count matches. Repeating that work can take O(n²) time.",
+    "approach": "Hashing maps a key to a bucket so a lookup can avoid scanning all previous keys. Collisions still require resolution; equal hash codes do not mean equal keys. A frequency table stores one count per distinct value.",
+    "steps": [
+      "Create an empty map.",
+      "For each element, insert one or increment its existing count.",
+      "Query a missing key with getOrDefault(key,0)."
+    ],
+    "java": "static Map<Integer, Integer> counts(int[] a) {\n    Map<Integer, Integer> frequency = new HashMap<>();\n    for (int value : a) frequency.merge(value, 1, Integer::sum);\n    return frequency;\n}",
+    "time": "Expected O(n) to build the table.",
+    "space": "O(d), with d distinct values.",
+    "pitfalls": [
+      "A direct-indexed array is useful only when the key range is small and known.",
+      "Do not assume HashMap iteration gives numeric order.",
+      "Mutable keys can become unfindable if their equality/hashCode-relevant state changes after insertion."
+    ],
+    "tests": [
+      "assert counts(new int[]{5,2,5,2,5,9}).equals(Map.of(2,2,5,3,9,1));",
+      "assert counts(new int[]{}).isEmpty();"
+    ]
+  },
+  "30": {
+    "problem": "Count how often every distinct integer appears in an array.",
+    "assumptions": "HashMap provides expected constant-time basic operations under normal hashing assumptions; it does not preserve sorted order.",
+    "example": {
+      "input": "[5, 2, 5, 2, 5, 9]",
+      "output": "{2=2, 5=3, 9=1}",
+      "explanation": "The map accumulates three occurrences of 5, two of 2, and one of 9. Repeated values update an existing key."
+    },
+    "baseline": "For each value, scan the entire input to count matches. Repeating that work can take O(n²) time.",
+    "approach": "Hashing maps a key to a bucket so a lookup can avoid scanning all previous keys. Collisions still require resolution; equal hash codes do not mean equal keys. A frequency table stores one count per distinct value.",
+    "steps": [
+      "Create an empty map.",
+      "For each element, insert one or increment its existing count.",
+      "Query a missing key with getOrDefault(key,0)."
+    ],
+    "java": "static Map<Integer, Integer> counts(int[] a) {\n    Map<Integer, Integer> frequency = new HashMap<>();\n    for (int value : a) frequency.merge(value, 1, Integer::sum);\n    return frequency;\n}",
+    "time": "Expected O(n) to build the table.",
+    "space": "O(d), with d distinct values.",
+    "pitfalls": [
+      "A direct-indexed array is useful only when the key range is small and known.",
+      "Do not assume HashMap iteration gives numeric order.",
+      "Mutable keys can become unfindable if their equality/hashCode-relevant state changes after insertion."
+    ],
+    "tests": [
+      "assert counts(new int[]{5,2,5,2,5,9}).equals(Map.of(2,2,5,3,9,1));",
+      "assert counts(new int[]{}).isEmpty();"
+    ]
+  },
+  "31": {
+    "problem": "Find the values with the highest and lowest occurrence counts in an array.",
+    "assumptions": "For ties choose the smaller value. The input must be nonempty. Return [mostFrequent, leastFrequent].",
+    "example": {
+      "input": "[5, 2, 5, 2, 5, 9]",
+      "output": "[5, 9]",
+      "explanation": "Counts are 5→3, 2→2, and 9→1. Thus 5 is most frequent and 9 is least frequent."
+    },
+    "baseline": "Count each candidate by a full scan, taking O(n²) time.",
+    "approach": "Build a frequency table once, then compare its entries. Tie-breaking is part of the contract and must be explicit because HashMap order is unspecified.",
+    "steps": [
+      "Count every distinct value.",
+      "Initialize both answers from an actual input value.",
+      "Replace an answer on a better frequency or an equal frequency with a smaller key."
+    ],
+    "java": "static int[] extremes(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    Map<Integer, Integer> count = new HashMap<>();\n    for (int x : a) count.merge(x, 1, Integer::sum);\n    int high = a[0], low = a[0];\n    for (int x : count.keySet()) {\n        if (count.get(x) > count.get(high) || (count.get(x).equals(count.get(high)) && x < high)) high = x;\n        if (count.get(x) < count.get(low) || (count.get(x).equals(count.get(low)) && x < low)) low = x;\n    }\n    return new int[]{high, low};\n}",
+    "time": "Expected O(n+d).",
+    "space": "O(d).",
+    "pitfalls": [
+      "Clarify whether the question wants element values or frequency counts.",
+      "Initializing to zero fails when zero is absent or every input is negative."
+    ],
+    "tests": [
+      "assert Arrays.equals(extremes(new int[]{5,2,5,2,5,9}),new int[]{5,9});",
+      "assert Arrays.equals(extremes(new int[]{4,2}),new int[]{2,2});",
+      "assert Arrays.equals(extremes(new int[]{-3,-3}),new int[]{-3,-3});"
+    ]
+  }
+}

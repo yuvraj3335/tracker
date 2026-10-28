@@ -50,3 +50,22 @@ test('quota errors stop without a fallback or exposing provider details', async 
   const r = await handle(req(), { AI: { run() { calls++; throw new Error('daily limit 10000 secret-provider-context'); } } }, hash);
   assert.equal(r.status, 429); assert.equal(calls, 1); assert.ok(!(await r.text()).includes('secret-provider-context'));
 });
+
+test('cloud speech fixes the model and speaker, refuses arbitrary provider selection', async () => {
+  const make = body => new Request('https://miso.test/api/miso/voice', { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  let calls = 0;
+  const env = { AI: { run(model, input) { calls++; assert.equal(model, '@cf/deepgram/aura-2-en'); assert.equal(input.speaker, 'luna'); assert.equal(input.text, 'Hello.'); return new Uint8Array([73, 68, 51]); } } };
+  const good = await handle(make({ text: 'Hello.', voice: 'natural' }), env, hash);
+  assert.equal(good.status, 200); assert.equal(good.headers.get('content-type'), 'audio/mpeg');
+  assert.equal((await handle(make({ text: 'Hello.', voice: 'natural', model: 'paid' }), env, hash)).status, 400);
+  assert.equal((await handle(make({ text: 'x'.repeat(1201), voice: 'natural' }), env, hash)).status, 400);
+  assert.equal(calls, 1);
+});
+test('cloud transcription accepts bounded base64 and never returns provider metadata', async () => {
+  const make = body => new Request('https://miso.test/api/miso/transcribe', { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  let calls = 0;
+  const env = { AI: { run(model) { calls++; assert.equal(model, '@cf/openai/whisper-large-v3-turbo'); return { text: 'Hey Miso, explain Java.', secret: 'hidden' }; } } };
+  assert.deepEqual(await (await handle(make({ audio: 'YQ=='.repeat(25) }), env, hash)).json(), { error: 'Invalid audio' });
+  const response = await handle(make({ audio: 'Y'.repeat(100) }), env, hash);
+  assert.equal(response.status, 200); assert.deepEqual(await response.json(), { text: 'Hey Miso, explain Java.' }); assert.equal(calls, 1);
+});

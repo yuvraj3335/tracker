@@ -15,7 +15,6 @@ import {
   type Point, type Safe, type TouchZone,
 } from '@/lib/companion';
 import { hasSpeechLevel, speechLevel } from '@/lib/kokoro';
-import { primeAudio } from '@/lib/speech';
 import { cn } from '@/lib/utils';
 
 /** Double the old 104px figure. Compact is an opt-in escape hatch on phones. */
@@ -255,7 +254,7 @@ export function Companion({ onOpen, overridePose }: { onOpen?: () => void; overr
           {compact ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
         </button>
         <button type="button" data-companion-figure="" aria-haspopup="dialog"
-          aria-label="Talk with Miso" onClick={() => { primeAudio(); onOpen?.(); }}
+          aria-label="Talk with Miso" onClick={() => onOpen?.()}
           className="companion-talk-control"><MessageCircle size={17} /><span>Talk</span></button>
       </div>
     </div>
