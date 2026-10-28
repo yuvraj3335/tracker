@@ -5972,5 +5972,194 @@
     },
     "baselineJava": "static Node copyWithMap(Node head) {\n    Map<Node, Node> copies = new HashMap<>();\n    for (Node current = head; current != null; current = current.next) {\n        copies.put(current, new Node(current.data));\n    }\n    for (Node current = head; current != null; current = current.next) {\n        Node copy = copies.get(current);\n        copy.next = copies.get(current.next);\n        copy.random = copies.get(current.random);\n    }\n    return copies.get(head);\n}",
     "baselineTime": "O(n) expected time and O(n) map space, in addition to the new output nodes."
+  },
+  "157": {
+    "problem": "Read an integer from the beginning of a string, using recursion for the digit conversion. Return a 32-bit signed result.",
+    "assumptions": "Ignore leading spaces only, then accept at most one sign. Read consecutive ASCII digits and stop at the first other character. If no digits were read, return 0. Clamp overflow to Integer.MIN_VALUE or Integer.MAX_VALUE. The source limits the string to 200 characters.",
+    "example": {
+      "input": "s = \"  -0072java\"",
+      "output": "-72",
+      "explanation": "Skip the spaces and sign. The digits build 0, 0, 7, then 72. Stop at j and apply the minus sign."
+    },
+    "baseline": "A loop can read the same characters in O(n) time and O(1) extra space. The tracker specifically asks for a recursive implementation, so each digit here is handled by one call.",
+    "approach": "Think of value as the number formed by the digits already read. Reading digit 4 after value 23 gives 23 × 10 + 4 = 234. Pass that new value and the next position to the next call. Stop when the string ends or the next character is not a digit.\n\nCheck the limit before multiplying. The negative limit has magnitude 2147483648, one more than the positive limit. Store this magnitude in a long. If the next digit would cross the limit, we can return the clamped answer immediately: later digits cannot bring the number back into range.",
+    "steps": [
+      "Skip leading spaces and read an optional sign.",
+      "Choose the magnitude limit for that sign.",
+      "For each digit, check whether value × 10 + digit would exceed the limit.",
+      "Recurse with the updated magnitude. Stop at the first non-digit.",
+      "Apply the sign and return the int result."
+    ],
+    "java": "static int myAtoi(String s) {\n    int index = 0;\n    while (index < s.length() && s.charAt(index) == ' ') index++;\n    int sign = 1;\n    if (index < s.length() && (s.charAt(index) == '+' || s.charAt(index) == '-')) {\n        if (s.charAt(index) == '-') sign = -1;\n        index++;\n    }\n    long limit = sign == 1 ? Integer.MAX_VALUE : 2147483648L;\n    long magnitude = readDigits(s, index, 0, limit);\n    return (int) (sign * magnitude);\n}\n\nstatic long readDigits(String s, int index, long value, long limit) {\n    if (index == s.length()) return value;\n    char ch = s.charAt(index);\n    if (ch < '0' || ch > '9') return value;\n    int digit = ch - '0';\n    if (value > (limit - digit) / 10) return limit;\n    return readDigits(s, index + 1, value * 10 + digit, limit);\n}",
+    "time": "O(n), where n is the number of characters examined.",
+    "space": "O(n) recursive call space; the source bounds n by 200.",
+    "pitfalls": [
+      "Do not skip letters to find a later number: \"word 12\" gives 0.",
+      "A second sign ends the digit scan: \"+-12\" gives 0.",
+      "Checking after int multiplication is too late because it may already have overflowed."
+    ],
+    "tests": [
+      "assert myAtoi(\"  -0072java\")==-72;assert myAtoi(\"4193 with words\")==4193;assert myAtoi(\"3.14\")==3;",
+      "for(String s:List.of(\"\",\" \",\"+\",\"-\",\"+-12\",\"word 12\"))assert myAtoi(s)==0;",
+      "assert myAtoi(\"2147483647\")==Integer.MAX_VALUE;assert myAtoi(\"2147483648\")==Integer.MAX_VALUE;assert myAtoi(\"-2147483648\")==Integer.MIN_VALUE;assert myAtoi(\"-2147483649\")==Integer.MIN_VALUE;assert myAtoi(\"9\".repeat(200))==Integer.MAX_VALUE;",
+      "Random r=new Random(157);for(int i=0;i<2000;i++){int x=r.nextInt();assert myAtoi(\"   \"+x+\"end\")==x;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/string-to-integer-atoi",
+      "title": "String to Integer (atoi)",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet exposes a practice problem without a public Java editorial. This is an original, tested Java implementation for that exact task."
+    }
+  },
+  "158": {
+    "problem": "Calculate x raised to the integer power n, including negative powers.",
+    "assumptions": "x is a double and n is any Java int. Zero is allowed only with a positive exponent. Floating-point results are approximate. The helper also returns 1 for exponent 0.",
+    "example": {
+      "input": "x = 3, n = -3",
+      "output": "1/27, approximately 0.037037",
+      "explanation": "A negative exponent means take the reciprocal: 3^-3 = 1/(3 × 3 × 3)."
+    },
+    "baseline": "Multiply x by itself |n| times, then invert for a negative exponent. That takes O(|n|) multiplications and is too slow when the exponent is near two billion.",
+    "approach": "We do not need one multiplication per unit of the exponent. For an even power, x^10 = (x^5)^2. For an odd power, x^11 = x × (x^5)^2. Repeatedly halving the exponent leaves only about 32 steps for an int.\n\nThe loop keeps a result and a base. When the remaining exponent is odd, use one copy of base in result. Then square base and halve the exponent. For a negative exponent, replace x with 1/x first. Convert n to long before negating it, because -Integer.MIN_VALUE does not fit in an int.",
+    "steps": [
+      "Copy n into a long. For a negative exponent, invert x and negate the long.",
+      "Start result at 1.",
+      "If the exponent is odd, multiply result by the current base.",
+      "Square the base and halve the exponent. Repeat until it is 0."
+    ],
+    "java": "static double myPow(double x, int n) {\n    long exponent = n;\n    if (exponent < 0) {\n        x = 1.0 / x;\n        exponent = -exponent;\n    }\n    double result = 1.0;\n    while (exponent > 0) {\n        if (exponent % 2 == 1) result *= x;\n        x *= x;\n        exponent /= 2;\n    }\n    return result;\n}",
+    "time": "O(log(|n| + 1)).",
+    "space": "O(1) for the iterative method.",
+    "pitfalls": [
+      "Do not call Math.abs(n) while n is still an int; MIN_VALUE stays negative.",
+      "In the recursive version, compute the half power once. Calling the same recursion twice loses the logarithmic running time.",
+      "Use a tolerance when testing doubles, rather than exact decimal equality."
+    ],
+    "tests": [
+      "assert Math.abs(myPow(3,-3)-1.0/27)<1e-15;assert myPow(-2,3)==-8;assert myPow(7,0)==1;assert myPow(0,5)==0;",
+      "assert myPow(-1,Integer.MIN_VALUE)==1;assert myPow(2,Integer.MIN_VALUE)==0;assert myPow(1,Integer.MAX_VALUE)==1;",
+      "for(int n=-25;n<=25;n++)for(double x:new double[]{-1.5,-0.8,0.5,1.01,2}){double expected=Math.pow(x,n);assert Math.abs(myPow(x,n)-expected)<=1e-12*Math.max(1,Math.abs(expected));assert Math.abs(powRecursive(x,n)-expected)<=1e-12*Math.max(1,Math.abs(expected));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/pow(x%2Cn)",
+      "title": "Pow(x,n)",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet exposes a practice problem without a public Java editorial. This is an original, tested Java implementation for that exact task."
+    },
+    "better": {
+      "explanation": "The same halving idea can be written recursively. Ask for the half power once, square it, and multiply by x once more when the exponent is odd. This version fits the recursion chapter; the loop above saves the call stack.",
+      "java": "static double powRecursive(double x, int n) {\n    long exponent = n;\n    if (exponent < 0) { x = 1.0 / x; exponent = -exponent; }\n    return positivePower(x, exponent);\n}\n\nstatic double positivePower(double x, long exponent) {\n    if (exponent == 0) return 1;\n    double half = positivePower(x, exponent / 2);\n    double squared = half * half;\n    return exponent % 2 == 0 ? squared : squared * x;\n}",
+      "time": "O(log(|n| + 1)).",
+      "space": "O(log(|n| + 1)) recursive call space."
+    }
+  },
+  "159": {
+    "problem": "Count digit strings whose even positions contain even digits and whose odd positions contain prime digits. Return the count modulo 1,000,000,007.",
+    "assumptions": "Positions start at 0. Even digits are 0, 2, 4, 6, 8; prime digits are 2, 3, 5, 7. Leading zeroes are allowed. The source permits lengths up to 10^15. The code also defines the empty string count as 1.",
+    "example": {
+      "input": "n = 3",
+      "output": "100",
+      "explanation": "The three positions have 5, 4, and 5 choices, so there are 5 × 4 × 5 = 100 strings."
+    },
+    "baseline": "Try every allowed digit at each position and recurse to the next position. This visits exponentially many branches, about 5^ceil(n/2) × 4^floor(n/2) leaves, and uses O(n) call space. It is only useful for tiny examples.",
+    "approach": "Choosing a digit does not change the choices at any other position. So multiply the number of choices: one factor of 5 for every even index and one factor of 4 for every odd index. There are (n + 1)/2 even indices and n/2 odd indices.\n\nThe answer is 5^even × 4^odd. Use repeated squaring to calculate each power in logarithmic time. Take the remainder after every multiplication; otherwise even long will overflow long before we reach a large n. Two remainders below 1,000,000,007 can safely be multiplied in a Java long.",
+    "steps": [
+      "Count even and odd positions.",
+      "Compute each modular power by squaring the base and halving the exponent.",
+      "Multiply the two results and take the remainder once more."
+    ],
+    "java": "static final long MOD = 1_000_000_007L;\n\nstatic long modPower(long base, long exponent) {\n    long result = 1;\n    while (exponent > 0) {\n        if (exponent % 2 == 1) result = result * base % MOD;\n        base = base * base % MOD;\n        exponent /= 2;\n    }\n    return result;\n}\n\nstatic int countGoodNumbers(long n) {\n    long even = (n + 1) / 2;\n    long odd = n / 2;\n    return (int) (modPower(5, even) * modPower(4, odd) % MOD);\n}",
+    "time": "O(log n) for positive n.",
+    "space": "O(1).",
+    "pitfalls": [
+      "An even index is about its position, not whether the whole number is even.",
+      "Zero is a valid first digit here.",
+      "Use long for n and for multiplication before taking the remainder."
+    ],
+    "tests": [
+      "assert countGoodNumbers(0)==1;assert countGoodNumbers(1)==5;assert countGoodNumbers(3)==100;assert countGoodNumbers(4)==400;",
+      "long expected=1;for(int n=0;n<=2000;n++){assert countGoodNumbers(n)==expected;expected=expected*(n%2==0?5:4)%MOD;}",
+      "for(long n:new long[]{999999999999999L,1000000000000000L}){BigInteger m=BigInteger.valueOf(MOD);int expected=BigInteger.valueOf(5).modPow(BigInteger.valueOf((n+1)/2),m).multiply(BigInteger.valueOf(4).modPow(BigInteger.valueOf(n/2),m)).mod(m).intValue();assert countGoodNumbers(n)==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-good-numbers",
+      "title": "Count Good Numbers Using Modular Exponentiation",
+      "checkedOn": "2026-10-29",
+      "approach": "Count independent digit choices and use iterative modular exponentiation.",
+      "adaptation": "The public Java implementation was checked. This follows the same two-power calculation with shorter comments. The recursive baseline uses O(n) call space, despite the article labelling it O(1)."
+    }
+  },
+  "160": {
+    "problem": "Sort a stack recursively so its greatest element is on top.",
+    "assumptions": "Use only push, pop, peek, isEmpty and recursive calls in the algorithm. Values may repeat or be negative. In the examples below, stack order is written from top to bottom.",
+    "example": {
+      "input": "top → [2, 7, 1, 5]",
+      "output": "top → [7, 5, 2, 1]",
+      "explanation": "Popping the sorted stack should produce values in descending order."
+    },
+    "baseline": "Copying into an array and sorting would take O(n log n), but it breaks this exercise’s stack-operation and recursion rules.",
+    "approach": "Remove the top value and ask recursion to sort the smaller stack. Now only that removed value is out of place. To insert it, compare it with the top: if it is at least as large, push it immediately. Otherwise temporarily pop the larger top value, insert into the smaller stack, and put that larger value back.\n\nThe empty stack is already sorted. Building back from this case means every insertion starts with an already sorted stack. No loop or second collection is needed; the recursive calls hold the temporarily removed values.",
+    "steps": [
+      "Pop one value unless the stack is empty.",
+      "Recursively sort what remains.",
+      "Insert the saved value by temporarily removing any larger top values.",
+      "Restore those removed values as the insertion calls return."
+    ],
+    "java": "static void sortStack(Deque<Integer> stack) {\n    if (stack.isEmpty()) return;\n    int value = stack.pop();\n    sortStack(stack);\n    insertSorted(stack, value);\n}\n\nstatic void insertSorted(Deque<Integer> stack, int value) {\n    if (stack.isEmpty() || value >= stack.peek()) {\n        stack.push(value);\n        return;\n    }\n    int top = stack.pop();\n    insertSorted(stack, value);\n    stack.push(top);\n}",
+    "time": "O(n²) in the worst case: an insertion may pass through every value already sorted.",
+    "space": "O(n) recursive call space.",
+    "pitfalls": [
+      "Largest must be on top. Reversing the comparison sorts in the opposite direction.",
+      "Do not describe this as O(1) space just because there is no extra collection: recursive calls take space."
+    ],
+    "tests": [
+      "Deque<Integer>s=new ArrayDeque<>(List.of(2,7,1,5));sortStack(s);assert new ArrayList<>(s).equals(List.of(7,5,2,1));",
+      "Deque<Integer>s=new ArrayDeque<>();sortStack(s);assert s.isEmpty();s.push(4);sortStack(s);assert s.pop()==4;",
+      "Random r=new Random(160);for(int n=0;n<=100;n++){List<Integer>a=new ArrayList<>();for(int j=0;j<n;j++)a.add(r.nextInt(21)-10);Deque<Integer>s=new ArrayDeque<>(a);sortStack(s);a.sort(Comparator.reverseOrder());assert new ArrayList<>(s).equals(a);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/sort-a-stack",
+      "title": "Sort a Stack",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet exposes a practice problem without a public Java editorial. This is an original, tested Java implementation for that exact task."
+    }
+  },
+  "161": {
+    "problem": "Reverse a stack using recursion and only standard stack operations.",
+    "assumptions": "No loops, arrays or additional collections may be used by the algorithm. The supplied Deque is used strictly as a stack. The source limits its size to 100. Empty stacks are also supported.",
+    "example": {
+      "input": "top → [8, 2, 5]",
+      "output": "top → [5, 2, 8]",
+      "explanation": "The old top becomes the bottom, and the old bottom becomes the top."
+    },
+    "baseline": "An extra stack or list would make reversal straightforward, but the exercise rules exclude those extra data structures.",
+    "approach": "Pop the top and reverse the remaining stack. The popped value was first before reversal, so it must be last afterward: insert it at the bottom.\n\nTo reach the bottom using only stack operations, pop until the stack is empty, push the new bottom value, then restore every saved top value. These restoration calls keep the already reversed part in the right order.",
+    "steps": [
+      "Pop and save the top value.",
+      "Reverse the smaller stack recursively.",
+      "Insert the saved value at the bottom using another recursive helper."
+    ],
+    "java": "static void reverseStack(Deque<Integer> stack) {\n    if (stack.isEmpty()) return;\n    int top = stack.pop();\n    reverseStack(stack);\n    insertBottom(stack, top);\n}\n\nstatic void insertBottom(Deque<Integer> stack, int value) {\n    if (stack.isEmpty()) {\n        stack.push(value);\n        return;\n    }\n    int top = stack.pop();\n    insertBottom(stack, value);\n    stack.push(top);\n}",
+    "time": "O(n²), because bottom insertion scans stacks of sizes 0 through n − 1.",
+    "space": "O(n) recursive call space.",
+    "pitfalls": [
+      "Pushing the saved value straight onto the top would rebuild the original order.",
+      "The call stack is allowed auxiliary space; an extra explicit stack is not."
+    ],
+    "tests": [
+      "Deque<Integer>s=new ArrayDeque<>(List.of(8,2,5));reverseStack(s);assert new ArrayList<>(s).equals(List.of(5,2,8));",
+      "Deque<Integer>s=new ArrayDeque<>();reverseStack(s);assert s.isEmpty();",
+      "Random r=new Random(161);for(int n=0;n<=100;n++){List<Integer>a=new ArrayList<>();for(int j=0;j<n;j++)a.add(r.nextInt(11)-5);Deque<Integer>s=new ArrayDeque<>(a);reverseStack(s);Collections.reverse(a);assert new ArrayList<>(s).equals(a);reverseStack(s);Collections.reverse(a);assert new ArrayList<>(s).equals(a);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/reverse-a-stack",
+      "title": "Reverse a Stack",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet exposes a practice problem without a public Java editorial. This is an original, tested Java implementation for that exact task."
+    }
   }
 }
