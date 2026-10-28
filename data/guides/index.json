@@ -5689,5 +5689,121 @@
     },
     "baselineJava": "static Node addNumbersBuffered(Node a, Node b) {\n    List<Integer> first = new ArrayList<>();\n    List<Integer> second = new ArrayList<>();\n    for (Node p = a; p != null; p = p.next) first.add(p.data);\n    for (Node p = b; p != null; p = p.next) second.add(p.data);\n    Node dummy = new Node(0);\n    Node tail = dummy;\n    int carry = 0;\n    for (int i = 0; i < first.size() || i < second.size() || carry != 0; i++) {\n        int sum = carry;\n        if (i < first.size()) sum += first.get(i);\n        if (i < second.size()) sum += second.get(i);\n        tail.next = new Node(sum % 10);\n        tail = tail.next;\n        carry = sum / 10;\n    }\n    return dummy.next == null ? new Node(0) : dummy.next;\n}",
     "baselineTime": "O(n + m) time and O(n + m) extra digit storage, in addition to the result."
+  },
+  "150": {
+    "problem": "Remove every node whose value equals key from a doubly linked list.",
+    "assumptions": "The list has consistent next and prev links and no cycle. It may be empty. Keep all nonmatching nodes in their original order.",
+    "example": {
+      "input": "5 ⇄ 2 ⇄ 5 ⇄ 7 ⇄ 5, key = 5",
+      "output": "2 ⇄ 7",
+      "explanation": "Remove matches at the head, in the middle and at the tail. The remaining two nodes must point to each other in both directions."
+    },
+    "baseline": "Building a new list containing only nonmatching values would work, but would allocate extra nodes. The existing prev and next references already identify both neighbours of every node to remove.",
+    "approach": "Walk through the list and save current.next before changing links. For a matching node, connect its previous node to its next node, then connect the next node back to the previous one. If there is no previous node, update head instead.\n\nThen continue using the saved next reference. This visits consecutive matches too. The method below also clears the removed node’s own links so an outside reference to it no longer leads into the surviving list.",
+    "steps": [
+      "Save next = current.next.",
+      "For a match, update the previous node’s next, or head if there is no previous node.",
+      "Update next.prev when next exists, and detach current.",
+      "Continue at the saved next and return the final head."
+    ],
+    "java": "static class Node {\n    int data;\n    Node prev;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node deleteAll(Node head, int key) {\n    Node current = head;\n    while (current != null) {\n        Node next = current.next;\n        if (current.data == key) {\n            if (current.prev == null) {\n                head = next;\n            } else {\n                current.prev.next = next;\n            }\n            if (next != null) next.prev = current.prev;\n            current.prev = null;\n            current.next = null;\n        }\n        current = next;\n    }\n    return head;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "A matching head can occur several times in a row. Keep updating head until a survivor remains.",
+      "Changing next links alone leaves a broken backward chain.",
+      "Save the next node before detaching the current one."
+    ],
+    "tests": [
+      "int[] values={5,2,5,7,5};Node[] a=new Node[5];for(int i=0;i<5;i++){a[i]=new Node(values[i]);if(i>0){a[i-1].next=a[i];a[i].prev=a[i-1];}}Node h=deleteAll(a[0],5);assert h==a[1]&&h.prev==null&&h.next==a[3]&&a[3].prev==h&&a[3].next==null;",
+      "assert deleteAll(null,1)==null;Node a=new Node(2);assert deleteAll(a,2)==null;",
+      "Random r=new Random(150);for(int run=0;run<400;run++){int n=1+r.nextInt(35),key=r.nextInt(5);Node[] a=new Node[n];List<Node> expected=new ArrayList<>();for(int i=0;i<n;i++){a[i]=new Node(r.nextInt(5));if(i>0){a[i-1].next=a[i];a[i].prev=a[i-1];}if(a[i].data!=key)expected.add(a[i]);}Node p=deleteAll(a[0],key),prev=null;for(Node x:expected){assert p==x&&p.prev==prev;prev=p;p=p.next;}assert p==null;for(int i=expected.size()-1;i>=0;i--){assert prev==expected.get(i);prev=prev.prev;}assert prev==null;for(Node x:a)if(x.data==key)assert x.prev==null&&x.next==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/delete-all-occurrences-of-a-key-in-a-doubly-linked-list",
+      "title": "Delete All Occurrences of a Key in a Doubly Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "One pass reconnecting both neighbours around every matching node.",
+      "adaptation": "The public Java solution was checked. This version also clears each removed node’s own references after reconnecting its neighbours."
+    }
+  },
+  "151": {
+    "problem": "Find all pairs of values that add to target in a sorted doubly linked list.",
+    "assumptions": "The source promises positive, distinct values in increasing order. Use two different nodes. Return pairs in increasing order of the first value. An empty list returns an empty result.",
+    "example": {
+      "input": "1 ⇄ 3 ⇄ 4 ⇄ 6 ⇄ 8 ⇄ 10, target = 11",
+      "output": "[[1, 10], [3, 8]]",
+      "explanation": "1 + 10 and 3 + 8 both give 11. No other pair does."
+    },
+    "baseline": "Keep previously visited values in a set. For each value, check whether target − value is already present. Collect matching pairs, then sort them by their first value.",
+    "approach": "Find the tail and put one pointer at each end. If their sum is too small, move the left pointer forward. The current left value cannot work with any smaller right value, so it is safe to discard it. If the sum is too large, move the right pointer backward for the symmetric reason.\n\nOn a match, save the pair and move both pointers inward. Distinct values mean neither value has another partner for the same target. Stop when the pointers meet or pass each other; using one node twice is not allowed.",
+    "steps": [
+      "Set left = head and walk right to the tail.",
+      "Compare the two values using long arithmetic.",
+      "On equality, record the pair and move both. Otherwise move the side that makes the sum closer to target.",
+      "Stop at the same node or when right.next equals left."
+    ],
+    "java": "static class Node {\n    int data;\n    Node prev;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic List<List<Integer>> pairsWithSum(Node head, int target) {\n    List<List<Integer>> answer = new ArrayList<>();\n    if (head == null) return answer;\n    Node left = head;\n    Node right = head;\n    while (right.next != null) right = right.next;\n    while (left != right && right.next != left) {\n        long sum = (long) left.data + right.data;\n        if (sum == target) {\n            answer.add(List.of(left.data, right.data));\n            left = left.next;\n            right = right.prev;\n        } else if (sum < target) {\n            left = left.next;\n        } else {\n            right = right.prev;\n        }\n    }\n    return answer;\n}",
+    "time": "O(n), including finding the tail.",
+    "space": "O(1) working space plus O(p) returned pairs.",
+    "pitfalls": [
+      "Sorted order is what makes moving one pointer safe. This method is not for an unsorted list.",
+      "The source assumes distinct values. Counting all index pairs with duplicates is a different task.",
+      "Promote before adding: (long) left.data + right.data avoids int overflow."
+    ],
+    "tests": [
+      "int[] values={1,3,4,6,8,10};Node head=null,tail=null;for(int v:values){Node x=new Node(v);x.prev=tail;if(tail==null)head=x;else tail.next=x;tail=x;}assert pairsWithSum(head,11).equals(List.of(List.of(1,10),List.of(3,8)));assert pairsWithSumHash(head,11).equals(pairsWithSum(head,11));",
+      "assert pairsWithSum(null,1).isEmpty()&&pairsWithSumHash(null,1).isEmpty();assert pairsWithSum(new Node(5),10).isEmpty();",
+      "Random r=new Random(151);for(int run=0;run<200;run++){TreeSet<Integer> values=new TreeSet<>();for(int i=0;i<20;i++)values.add(1+r.nextInt(50));Node head=null,tail=null;for(int v:values){Node x=new Node(v);x.prev=tail;if(tail==null)head=x;else tail.next=x;tail=x;}for(int target=1;target<=100;target++){List<List<Integer>> expected=new ArrayList<>();for(int x:values)for(int y:values)if(x<y&&x+y==target)expected.add(List.of(x,y));assert pairsWithSum(head,target).equals(expected);assert pairsWithSumHash(head,target).equals(expected);}}",
+      "Node a=new Node(1),b=new Node(Integer.MAX_VALUE-1),d=new Node(Integer.MAX_VALUE);a.next=b;b.prev=a;b.next=d;d.prev=b;assert pairsWithSum(a,Integer.MAX_VALUE).equals(List.of(List.of(1,Integer.MAX_VALUE-1)));assert pairsWithSumHash(a,Integer.MAX_VALUE).equals(pairsWithSum(a,Integer.MAX_VALUE));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-pairs-with-given-sum-in-doubly-linked-list",
+      "title": "Find pairs with given sum in Doubly Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Complement hashing with sorted output, then inward pointers from head and tail.",
+      "adaptation": "Both public Java approaches were checked. Long arithmetic prevents sum/complement overflow, and the pair comparator avoids subtraction."
+    },
+    "baselineJava": "static List<List<Integer>> pairsWithSumHash(Node head, int target) {\n    Set<Long> seen = new HashSet<>();\n    List<List<Integer>> answer = new ArrayList<>();\n    for (Node current = head; current != null; current = current.next) {\n        long complement = (long) target - current.data;\n        if (seen.contains(complement)) {\n            answer.add(List.of((int) complement, current.data));\n        }\n        seen.add((long) current.data);\n    }\n    answer.sort(Comparator.comparingInt(pair -> pair.get(0)));\n    return answer;\n}",
+    "baselineTime": "O(n + p log p) expected time and O(n) set space, plus the p result pairs."
+  },
+  "152": {
+    "problem": "Remove repeated values from a sorted doubly linked list, keeping one node for each value.",
+    "assumptions": "The list is sorted in increasing or equal order, with consistent next/prev links and no cycle. Keep the first node of each equal-value group. Empty input returns null.",
+    "example": {
+      "input": "2 ⇄ 2 ⇄ 2 ⇄ 5 ⇄ 7 ⇄ 7",
+      "output": "2 ⇄ 5 ⇄ 7",
+      "explanation": "Keep the first 2, remove its two repeats, then keep 5 and the first 7."
+    },
+    "baseline": "Collect one value from each equal-value group and build a fresh doubly linked list. This leaves the original list unchanged but allocates a new node for every distinct value.",
+    "approach": "Sorted order puts equal values next to each other. Compare current with current.next. If they match, skip the next node and fix the following node’s prev link. Keep current where it is, because another duplicate may now follow it.\n\nMove current only when the next value differs. This preserves the first node in every group and removes each later duplicate once.",
+    "steps": [
+      "Start current at head.",
+      "While current and current.next exist, compare their data.",
+      "On equality, bypass current.next in both directions and keep current fixed.",
+      "Otherwise advance current. Return the original head."
+    ],
+    "java": "static class Node {\n    int data;\n    Node prev;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node removeDuplicates(Node head) {\n    Node current = head;\n    while (current != null && current.next != null) {\n        if (current.data == current.next.data) {\n            Node duplicate = current.next;\n            current.next = duplicate.next;\n            if (current.next != null) current.next.prev = current;\n            duplicate.prev = null;\n            duplicate.next = null;\n        } else {\n            current = current.next;\n        }\n    }\n    return head;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not advance current after deletion; a run of three equal values needs another comparison at the same node.",
+      "Update the backward reference of the next surviving node.",
+      "This removes duplicates from a sorted list. Nonadjacent repeated values in an unsorted list will not be removed."
+    ],
+    "tests": [
+      "int[] values={2,2,2,5,7,7};Node[] a=new Node[6];for(int i=0;i<6;i++){a[i]=new Node(values[i]);if(i>0){a[i-1].next=a[i];a[i].prev=a[i-1];}}Node h=removeDuplicates(a[0]);assert h==a[0]&&h.next==a[3]&&a[3].prev==h&&a[3].next==a[4]&&a[4].prev==a[3]&&a[4].next==null;",
+      "assert removeDuplicates(null)==null&&uniqueCopy(null)==null;Node a=new Node(3);assert removeDuplicates(a)==a;",
+      "Random r=new Random(152);for(int run=0;run<300;run++){int n=1+r.nextInt(40);int[] values=new int[n];for(int i=0;i<n;i++)values[i]=r.nextInt(12)-6;Arrays.sort(values);Node[] a=new Node[n];List<Node> expected=new ArrayList<>();for(int i=0;i<n;i++){a[i]=new Node(values[i]);if(i>0){a[i-1].next=a[i];a[i].prev=a[i-1];}if(i==0||values[i]!=values[i-1])expected.add(a[i]);}Node copy=uniqueCopy(a[0]);Node p=removeDuplicates(a[0]),prev=null,q=copy;for(Node x:expected){assert p==x&&p.prev==prev&&q.data==x.data;assert q!=x;if(q.next!=null)assert q.next.prev==q;prev=p;p=p.next;q=q.next;}assert p==null&&q==null;for(int i=expected.size()-1;i>=0;i--){assert prev==expected.get(i);prev=prev.prev;}assert prev==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/remove-duplicates-from-a-sorted-doubly-linked-list",
+      "title": "Remove Duplicates from a Sorted Doubly Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Collect unique values and rebuild, then remove adjacent duplicate nodes in place.",
+      "adaptation": "Both public Java approaches were checked. Removed nodes are additionally detached from the surviving chain."
+    },
+    "baselineJava": "static Node uniqueCopy(Node head) {\n    List<Integer> values = new ArrayList<>();\n    while (head != null) {\n        int value = head.data;\n        values.add(value);\n        while (head != null && head.data == value) head = head.next;\n    }\n    Node newHead = null;\n    Node tail = null;\n    for (int value : values) {\n        Node node = new Node(value);\n        node.prev = tail;\n        if (tail == null) newHead = node;\n        else tail.next = node;\n        tail = node;\n    }\n    return newHead;\n}",
+    "baselineTime": "O(n) time and O(n) space for the collected values and new nodes."
   }
 }
