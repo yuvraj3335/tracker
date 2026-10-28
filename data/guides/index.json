@@ -7534,5 +7534,81 @@
       "approach": "Binary exponentiation with a long exponent and reciprocal handling for negative powers.",
       "adaptation": "The public practice contract and linked LeetCode task were checked. No public Java editorial is linked. This repeats the earlier power problem with the exponent’s bit representation made explicit."
     }
+  },
+  "200": {
+    "problem": "Implement a last-in, first-out stack using an array.",
+    "assumptions": "The practice API is push, pop, top and isEmpty. At most 100 calls are made, so the no-argument constructor uses capacity 100. An optional capacity constructor makes full-stack behaviour testable. This version throws on overflow or empty pop/top; the article prints messages instead.",
+    "example": {
+      "input": "push(4), push(9), top(), pop(), top()",
+      "output": "9, 9, 4",
+      "explanation": "The most recently pushed value, 9, is read and removed first. Reading top alone does not remove it."
+    },
+    "baseline": "Keeping the top at array index 0 would require shifting existing values on insertion or removal. Keep the top at the end of the occupied part instead.",
+    "approach": "Use topIndex to remember the last occupied slot. It starts at −1, meaning the stack is empty. A push moves it forward and writes the value. A pop reads the value and moves it backward. Old numbers can remain in unused slots; only indices through topIndex belong to the stack.\n\nThe size is topIndex + 1. Check the array boundary before pushing and the empty state before reading. A failed operation must leave the stack exactly as it was.",
+    "steps": [
+      "Create the fixed array and set topIndex to −1.",
+      "On push, reject a full stack, then increment the index and store the value.",
+      "On pop, reject an empty stack, return its top value and decrement the index.",
+      "On top, read the same value without changing the index."
+    ],
+    "java": "static class ArrayStack {\n    private final int[] values;\n    private int topIndex = -1;\n\n    ArrayStack() { this(100); }\n    ArrayStack(int capacity) {\n        if (capacity < 0) throw new IllegalArgumentException(\"Negative capacity\");\n        values = new int[capacity];\n    }\n    void push(int value) {\n        if (topIndex + 1 == values.length) throw new IllegalStateException(\"Stack full\");\n        values[++topIndex] = value;\n    }\n    int pop() {\n        if (isEmpty()) throw new NoSuchElementException(\"Stack empty\");\n        return values[topIndex--];\n    }\n    int top() {\n        if (isEmpty()) throw new NoSuchElementException(\"Stack empty\");\n        return values[topIndex];\n    }\n    boolean isEmpty() { return topIndex == -1; }\n    int size() { return topIndex + 1; }\n}",
+    "time": "O(1) per operation; construction allocates and zero-initializes O(capacity) storage.",
+    "space": "O(capacity).",
+    "pitfalls": [
+      "Increment before writing on push; read before decrementing on pop.",
+      "top() must not change the size.",
+      "Java judge scaffolding may require removing static when pasting the nested class as a top-level class.",
+      "The default capacity follows the stated call limit, not an unlimited-stack guarantee."
+    ],
+    "tests": [
+      "ArrayStack s=new ArrayStack();s.push(4);s.push(9);assert s.top()==9&&s.size()==2;assert s.pop()==9;assert s.top()==4;assert s.pop()==4;assert s.isEmpty();",
+      "ArrayStack s=new ArrayStack(1);s.push(7);boolean full=false;try{s.push(8);}catch(IllegalStateException e){full=true;}assert full&&s.size()==1&&s.top()==7;s.pop();boolean empty=false;try{s.pop();}catch(NoSuchElementException e){empty=true;}assert empty&&s.isEmpty();try{s.top();assert false;}catch(NoSuchElementException expected){}",
+      "Random r=new Random(200);ArrayStack actual=new ArrayStack(50);Deque<Integer>expected=new ArrayDeque<>();for(int i=0;i<10000;i++){if(expected.isEmpty()||(expected.size()<50&&r.nextBoolean())){int value=r.nextInt();actual.push(value);expected.push(value);}else assert actual.pop()==expected.pop();assert actual.size()==expected.size();assert actual.isEmpty()==expected.isEmpty();if(!expected.isEmpty())assert actual.top()==expected.peek();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/implement-a-stack-using-an-array",
+      "title": "Implement a Stack Using an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Fixed array with a top index starting at −1.",
+      "adaptation": "The public Java and practice API were checked. The article logs operation results; this class returns values as the judge expects. top() replaces the article’s peek name. Overflow and underflow use exceptions, and the default capacity covers the 100-call practice limit."
+    }
+  },
+  "201": {
+    "problem": "Implement a first-in, first-out queue using a circular array.",
+    "assumptions": "The practice API is push, pop, peek and isEmpty. Its no-argument constructor and at-most-100-call limit are supported with capacity 100. This follows the public article’s boundary behaviour: a full push is ignored, and empty pop/peek return −1. Practice values are positive, so −1 is unambiguous.",
+    "example": {
+      "input": "capacity = 3; push(4), push(8), pop(), push(2), push(6)",
+      "output": "The pops now return 8, 2, 6",
+      "explanation": "Removing 4 frees index 0. The later push wraps around to reuse that slot without moving 8 or 2."
+    },
+    "baseline": "Keep the front at index 0 and shift every remaining value left after each pop. Push and peek are O(1), but pop is O(n).",
+    "approach": "Keep front at the oldest value and rear at the next insertion slot. After using an index, advance it modulo the capacity so it wraps to zero at the end. Store count separately: front and rear can be equal when the queue is empty or full.\n\nOnly count active values belong to the queue. A popped value may remain physically in the array, but it is outside the active range and will be overwritten later. Checking full or empty before index arithmetic also makes capacity zero safe.",
+    "steps": [
+      "Initialize front, rear and count to zero.",
+      "On push, return if full; otherwise write at rear, advance rear and increase count.",
+      "On pop, return −1 if empty; otherwise read front, advance it and decrease count.",
+      "peek reads front without moving it; isEmpty checks count."
+    ],
+    "java": "static class ArrayQueue {\n    private final int[] values;\n    private int front = 0, rear = 0, count = 0;\n\n    ArrayQueue() { this(100); }\n    ArrayQueue(int capacity) {\n        if (capacity < 0) throw new IllegalArgumentException(\"Negative capacity\");\n        values = new int[capacity];\n    }\n    void push(int value) {\n        if (count == values.length) return;\n        values[rear] = value;\n        rear = (rear + 1) % values.length;\n        count++;\n    }\n    int pop() {\n        if (isEmpty()) return -1;\n        int value = values[front];\n        front = (front + 1) % values.length;\n        count--;\n        return value;\n    }\n    int peek() { return isEmpty() ? -1 : values[front]; }\n    boolean isEmpty() { return count == 0; }\n    int size() { return count; }\n}",
+    "time": "O(1) per operation; array construction takes O(capacity).",
+    "space": "O(capacity).",
+    "pitfalls": [
+      "front == rear alone cannot distinguish full from empty in this design.",
+      "Advance indices with modulo to reuse freed slots.",
+      "A failed full push must not overwrite the oldest value.",
+      "The −1 sentinel follows this article; a general-purpose queue allowing all int values should expose emptiness separately or throw."
+    ],
+    "tests": [
+      "ArrayQueue q=new ArrayQueue(3);q.push(4);q.push(8);assert q.pop()==4;q.push(2);q.push(6);q.push(99);assert q.size()==3;assert q.pop()==8;assert q.pop()==2;assert q.pop()==6;assert q.pop()==-1&&q.peek()==-1&&q.isEmpty();",
+      "ArrayQueue q=new ArrayQueue(0);q.push(1);assert q.isEmpty()&&q.pop()==-1;ArrayQueue single=new ArrayQueue(1);for(int i=1;i<=100;i++){single.push(i);assert single.peek()==i;assert single.pop()==i;assert single.isEmpty();}",
+      "Random r=new Random(201);for(int cap=1;cap<=20;cap++){ArrayQueue actual=new ArrayQueue(cap);Deque<Integer>expected=new ArrayDeque<>();for(int t=0;t<2000;t++){if(r.nextBoolean()){int x=1+r.nextInt(100);actual.push(x);if(expected.size()<cap)expected.add(x);}else{int x=expected.isEmpty()?-1:expected.remove();assert actual.pop()==x;}assert actual.size()==expected.size();assert actual.peek()==(expected.isEmpty()?-1:expected.peek());assert actual.isEmpty()==expected.isEmpty();}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/implement-a-queue-using-an-array",
+      "title": "Implement a Queue Using an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Shifting-array baseline and circular-array implementation with front, rear and size.",
+      "adaptation": "Both public Java methods and the practice API were checked. This follows the circular method and its full/empty behaviour. The class and isEmpty method use the practice names, with a default capacity covering its 100-call limit."
+    }
   }
 }
