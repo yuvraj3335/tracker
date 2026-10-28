@@ -5547,5 +5547,147 @@
       "time": "O(n + m) expected.",
       "space": "O(n) for references from A."
     }
+  },
+  "148": {
+    "problem": "Add one to a number whose digits are stored from most significant to least significant in a linked list.",
+    "assumptions": "Each node stores a digit from 0 to 9. The list normally contains at least one digit; this implementation treats an empty list as zero and returns a single 1. The digits are updated in place.",
+    "example": {
+      "input": "4 → 9 → 9",
+      "output": "5 → 0 → 0",
+      "explanation": "The last 9 becomes 0 and carries 1. The next 9 does the same. Finally, 4 + 1 becomes 5 and the carry stops."
+    },
+    "baseline": "Recurse to the end and return a carry of 1 from the null base case. While the calls return, update each digit and pass any carry towards the head. This uses O(n) call-stack space.",
+    "approach": "Addition starts at the last digit, but a singly linked list only moves forward. Reverse the list so the last digit becomes first, then carry out ordinary addition. Store sum % 10 in the current node and carry = sum / 10.\n\nStop changing digits once carry becomes zero. If a carry remains after the last node, append a 1 to the reversed list. Reverse the whole list again to restore the required digit order. The number may gain a new head when every old digit was 9.",
+    "steps": [
+      "Reverse the list and start carry at 1.",
+      "Add carry to each digit until it becomes zero or the list ends.",
+      "Append a node if a final carry remains.",
+      "Reverse again and return the resulting head."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node reverse(Node head) {\n    Node previous = null;\n    while (head != null) {\n        Node next = head.next;\n        head.next = previous;\n        previous = head;\n        head = next;\n    }\n    return previous;\n}\n\nstatic Node addOne(Node head) {\n    if (head == null) return new Node(1);\n    Node reversed = reverse(head);\n    Node current = reversed;\n    Node previous = null;\n    int carry = 1;\n    while (current != null && carry != 0) {\n        int sum = current.data + carry;\n        current.data = sum % 10;\n        carry = sum / 10;\n        previous = current;\n        current = current.next;\n    }\n    if (carry != 0) previous.next = new Node(carry);\n    return reverse(reversed);\n}",
+    "time": "O(n).",
+    "space": "O(1) working space; at most one new output node.",
+    "pitfalls": [
+      "These digits are in forward order. The next question stores the units digit first.",
+      "Do not convert the entire number into int or long; a long list can represent a much larger number.",
+      "The recursive approach is for learning; long lists can exceed Java’s call-stack limit."
+    ],
+    "tests": [
+      "Node a=new Node(4),b=new Node(9),d=new Node(9);a.next=b;b.next=d;Node h=addOne(a);assert h==a&&a.data==5&&b.data==0&&d.data==0&&a.next==b&&b.next==d&&d.next==null;",
+      "assert addOne(null).data==1&&addOneRecursive(null).data==1;Node a=new Node(0);assert addOne(a)==a&&a.data==1;",
+      "for(int value=0;value<1000;value++)for(int method=0;method<2;method++){String digits=Integer.toString(value);Node dummy=new Node(0),tail=dummy;for(char ch:digits.toCharArray()){tail.next=new Node(ch-'0');tail=tail.next;}Node h=method==0?addOne(dummy.next):addOneRecursive(dummy.next);StringBuilder result=new StringBuilder();for(Node p=h;p!=null;p=p.next)result.append(p.data);assert result.toString().equals(Integer.toString(value+1));}",
+      "for(int method=0;method<2;method++){Node head=null;for(int i=0;i<100;i++){Node x=new Node(9);x.next=head;head=x;}Node h=method==0?addOne(head):addOneRecursive(head);assert h.data==1;h=h.next;int count=0;while(h!=null){assert h.data==0;count++;h=h.next;}assert count==100;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/add-one-to-number-linked-list",
+      "title": "Add One to a Number Represented by a Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Recursive carry propagation, then reverse/add/reverse using constant working space.",
+      "adaptation": "Both public Java methods were checked. Empty input is handled explicitly instead of dereferencing an absent previous node."
+    },
+    "trace": {
+      "columns": [
+        "Reversed digit",
+        "Sum with carry",
+        "Stored digit",
+        "New carry"
+      ],
+      "rows": [
+        [
+          "9",
+          "9 + 1 = 10",
+          "0",
+          "1"
+        ],
+        [
+          "9",
+          "9 + 1 = 10",
+          "0",
+          "1"
+        ],
+        [
+          "4",
+          "4 + 1 = 5",
+          "5",
+          "0"
+        ],
+        [
+          "Reverse back",
+          "0 → 0 → 5 becomes 5 → 0 → 0",
+          "—",
+          "—"
+        ]
+      ]
+    },
+    "baselineJava": "static int addCarry(Node node) {\n    if (node == null) return 1;\n    int sum = node.data + addCarry(node.next);\n    node.data = sum % 10;\n    return sum / 10;\n}\n\nstatic Node addOneRecursive(Node head) {\n    int carry = addCarry(head);\n    if (carry == 0) return head;\n    Node newHead = new Node(carry);\n    newHead.next = head;\n    return newHead;\n}",
+    "baselineTime": "O(n) time and O(n) recursive stack space."
+  },
+  "149": {
+    "problem": "Add two numbers stored as linked lists with the units digit first. Return the sum in the same reverse digit order.",
+    "assumptions": "Each input normally has at least one digit, each digit is 0 through 9, and neither number has unnecessary leading zeros. Build a new result without changing either input. Empty inputs are treated as zero.",
+    "example": {
+      "input": "a = 8 → 4, b = 7 → 3",
+      "output": "5 → 8",
+      "explanation": "The lists represent 48 and 37. Their sum is 85, stored with 5 first and 8 second."
+    },
+    "baseline": "Copy each input’s digits into an array, then add by matching array positions and carrying. It works, but copying is unnecessary because the list order already matches the order used in addition.",
+    "approach": "The heads already hold the units digits, so walk both lists together. Start each sum with the previous carry, then add any available digit from each list. A missing digit contributes zero.\n\nAppend sum % 10 to a new result and carry sum / 10 into the next turn. Continue while either input still has digits or carry is nonzero. That final condition handles 9 + 1: the first output digit is 0, and a second turn creates the 1.",
+    "steps": [
+      "Create a dummy result node, a tail, and carry = 0.",
+      "While digits or carry remain, add the available digits to carry.",
+      "Append a new node holding sum % 10 and set carry = sum / 10.",
+      "Return dummy.next; the dummy is not a result digit."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node addNumbers(Node a, Node b) {\n    Node dummy = new Node(0);\n    Node tail = dummy;\n    int carry = 0;\n    while (a != null || b != null || carry != 0) {\n        int sum = carry;\n        if (a != null) {\n            sum += a.data;\n            a = a.next;\n        }\n        if (b != null) {\n            sum += b.data;\n            b = b.next;\n        }\n        tail.next = new Node(sum % 10);\n        tail = tail.next;\n        carry = sum / 10;\n    }\n    return dummy.next == null ? new Node(0) : dummy.next;\n}",
+    "time": "O(max(n, m)).",
+    "space": "O(1) working space, plus O(max(n, m)) nodes in the returned result.",
+    "pitfalls": [
+      "Do not reverse these inputs; the units digit is already first.",
+      "Use OR in the loop condition. AND would stop when the shorter list ends.",
+      "Keep going for a final carry even when both input pointers are null.",
+      "Output nodes are new objects. Reusing an input node would let later result edits affect the input."
+    ],
+    "tests": [
+      "Node a=new Node(8);a.next=new Node(4);Node b=new Node(7);b.next=new Node(3);Node h=addNumbers(a,b);assert h.data==5&&h.next.data==8&&h.next.next==null;assert a.data==8&&a.next.data==4&&b.data==7&&b.next.data==3;assert h!=a&&h!=b;",
+      "assert addNumbers(null,null).data==0&&addNumbersBuffered(null,null).data==0;Node a=new Node(9);Node b=new Node(1);Node h=addNumbers(a,b);assert h.data==0&&h.next.data==1&&h.next.next==null;",
+      "Random r=new Random(149);for(int run=0;run<300;run++){String left=new BigInteger(180,r).toString(),right=new BigInteger(160,r).toString();Node a=null,b=null;for(char ch:left.toCharArray()){Node x=new Node(ch-'0');x.next=a;a=x;}for(char ch:right.toCharArray()){Node x=new Node(ch-'0');x.next=b;b=x;}Set<Node> inputs=new HashSet<>();for(Node p=a;p!=null;p=p.next)inputs.add(p);for(Node p=b;p!=null;p=p.next)inputs.add(p);String expected=new BigInteger(left).add(new BigInteger(right)).toString();for(Node h:new Node[]{addNumbers(a,b),addNumbersBuffered(a,b)}){StringBuilder digits=new StringBuilder();for(Node p=h;p!=null;p=p.next){assert !inputs.contains(p);digits.append(p.data);}assert digits.reverse().toString().equals(expected);}StringBuilder x=new StringBuilder(),y=new StringBuilder();for(Node p=a;p!=null;p=p.next)x.append(p.data);for(Node p=b;p!=null;p=p.next)y.append(p.data);assert x.reverse().toString().equals(left)&&y.reverse().toString().equals(right);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/add-two-numbers-linked-lists-reverse-order",
+      "title": "Add Two Numbers in Linked Lists with Digits in Reverse Order",
+      "checkedOn": "2026-10-29",
+      "approach": "Copy digits then add, followed by direct simultaneous list traversal with carry.",
+      "adaptation": "Both public Java approaches were checked. Empty inputs are treated as zero; the normal nonempty-input behavior follows the lesson."
+    },
+    "trace": {
+      "columns": [
+        "Place",
+        "Digits + carry",
+        "Output digit",
+        "Next carry"
+      ],
+      "rows": [
+        [
+          "Units",
+          "8 + 7 + 0 = 15",
+          "5",
+          "1"
+        ],
+        [
+          "Tens",
+          "4 + 3 + 1 = 8",
+          "8",
+          "0"
+        ],
+        [
+          "End",
+          "No digits or carry remain",
+          "Return 5 → 8",
+          "—"
+        ]
+      ]
+    },
+    "baselineJava": "static Node addNumbersBuffered(Node a, Node b) {\n    List<Integer> first = new ArrayList<>();\n    List<Integer> second = new ArrayList<>();\n    for (Node p = a; p != null; p = p.next) first.add(p.data);\n    for (Node p = b; p != null; p = p.next) second.add(p.data);\n    Node dummy = new Node(0);\n    Node tail = dummy;\n    int carry = 0;\n    for (int i = 0; i < first.size() || i < second.size() || carry != 0; i++) {\n        int sum = carry;\n        if (i < first.size()) sum += first.get(i);\n        if (i < second.size()) sum += second.get(i);\n        tail.next = new Node(sum % 10);\n        tail = tail.next;\n        carry = sum / 10;\n    }\n    return dummy.next == null ? new Node(0) : dummy.next;\n}",
+    "baselineTime": "O(n + m) time and O(n + m) extra digit storage, in addition to the result."
   }
 }
