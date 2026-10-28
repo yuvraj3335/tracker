@@ -5891,5 +5891,86 @@
     },
     "baselineJava": "static Node rotateRightRepeated(Node head, int k) {\n    if (k < 0) throw new IllegalArgumentException(\"k must be nonnegative\");\n    if (head == null || head.next == null) return head;\n    int length = 0;\n    for (Node p = head; p != null; p = p.next) length++;\n    k %= length;\n    while (k-- > 0) {\n        Node previous = null;\n        Node tail = head;\n        while (tail.next != null) {\n            previous = tail;\n            tail = tail.next;\n        }\n        previous.next = null;\n        tail.next = head;\n        head = tail;\n    }\n    return head;\n}",
     "baselineTime": "O(n + n × (k % n)) time, O(1) extra space."
+  },
+  "155": {
+    "problem": "Merge several sorted bottom-linked chains into one sorted chain using bottom pointers.",
+    "assumptions": "Top-level heads are connected by next. Each head begins a sorted bottom chain. Chains contain separate nodes and have no cycles. The final result reuses every node, follows bottom links, and clears next links.",
+    "example": {
+      "input": "Bottom chains: [2, 7], [1, 6, 9], [4, 8]",
+      "output": "1 → 2 → 4 → 6 → 7 → 8 → 9, using bottom",
+      "explanation": "Keep the smallest available front node from the chains. After taking 1, the next candidate from that chain becomes 6."
+    },
+    "baseline": "Collect all values, sort them, and build a new bottom-linked list. This ignores the order already present in each chain and uses O(T) extra space for T total nodes.",
+    "approach": "The smallest remaining value must be at the front of one of the sorted chains. Put those front nodes in a min-heap, which lets us remove the smallest candidate quickly.\n\nAfter removing a node, add its bottom child to the heap. That child is now the first remaining node in the same chain. Append the removed node to the result through bottom, and clear its old next link.\n\nThere is at most one candidate per chain in the heap. With K chains and T total nodes, this takes O(T log K) time rather than sorting all T values together. This is the heap approach in the current Striver article.",
+    "steps": [
+      "Add every top-level head to a min-heap ordered by data.",
+      "Remove the smallest node and add its bottom child, if any.",
+      "Detach its old links and append it to the result’s bottom chain.",
+      "Repeat until the heap is empty, then return the first result node."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node bottom;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node flatten(Node root) {\n    PriorityQueue<Node> heap = new PriorityQueue<>(\n        Comparator.comparingInt(node -> node.data)\n    );\n    for (Node head = root; head != null; head = head.next) heap.add(head);\n    Node dummy = new Node(0);\n    Node tail = dummy;\n    while (!heap.isEmpty()) {\n        Node node = heap.remove();\n        if (node.bottom != null) heap.add(node.bottom);\n        node.next = null;\n        node.bottom = null;\n        tail.bottom = node;\n        tail = node;\n    }\n    return dummy.bottom;\n}",
+    "time": "O(T log(K + 1)), where T is the total node count and K is the number of chains.",
+    "space": "O(K) working space for the heap; the result reuses input nodes.",
+    "pitfalls": [
+      "Use bottom to walk the final result, not next.",
+      "Save or enqueue the old bottom child before clearing the link.",
+      "This tracker item is the next/bottom structure. A related merge-k-lists problem supplies an array of ordinary list heads instead.",
+      "Use a safe integer comparator; subtracting two values can overflow."
+    ],
+    "tests": [
+      "Node a=new Node(2);a.bottom=new Node(7);Node b=new Node(1);b.bottom=new Node(6);b.bottom.bottom=new Node(9);Node d=new Node(4);d.bottom=new Node(8);a.next=b;b.next=d;Node p=flatten(a);for(int v:new int[]{1,2,4,6,7,8,9}){assert p.data==v&&p.next==null;p=p.bottom;}assert p==null;",
+      "assert flatten(null)==null&&flattenCopy(null)==null;",
+      "Random r=new Random(155);for(int run=0;run<300;run++){int k=1+r.nextInt(8);Node root=null,lastHead=null;Set<Node> originals=new HashSet<>();List<Integer> values=new ArrayList<>();for(int chain=0;chain<k;chain++){int[] v=new int[1+r.nextInt(10)];for(int i=0;i<v.length;i++)v[i]=r.nextInt(31)-15;Arrays.sort(v);Node head=null,tail=null;for(int x:v){Node node=new Node(x);originals.add(node);values.add(x);if(head==null)head=node;else tail.bottom=node;tail=node;}if(root==null)root=head;else lastHead.next=head;lastHead=head;}Collections.sort(values);Node copy=flattenCopy(root),p=flatten(root);Set<Node> remaining=new HashSet<>(originals);for(int v:values){assert p!=null&&remaining.remove(p)&&p.data==v&&p.next==null;assert copy!=null&&!originals.contains(copy)&&copy.data==v&&copy.next==null;p=p.bottom;copy=copy.bottom;}assert p==null&&copy==null&&remaining.isEmpty();}",
+      "Node a=new Node(Integer.MAX_VALUE),b=new Node(Integer.MIN_VALUE);a.next=b;Node h=flatten(a);assert h==b&&h.bottom==a&&a.bottom==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/flatten-linked-list",
+      "title": "Flatten a Linked List with Sorted Bottom Pointers",
+      "checkedOn": "2026-10-29",
+      "approach": "Collect/sort/rebuild, then min-heap merging with one active node per sorted chain.",
+      "adaptation": "Both public Java approaches were checked. The primary implementation clears both old links after enqueuing the bottom child, then rebuilds only bottom links."
+    },
+    "baselineJava": "static Node flattenCopy(Node root) {\n    List<Integer> values = new ArrayList<>();\n    for (Node head = root; head != null; head = head.next) {\n        for (Node current = head; current != null; current = current.bottom) {\n            values.add(current.data);\n        }\n    }\n    Collections.sort(values);\n    Node dummy = new Node(0);\n    Node tail = dummy;\n    for (int value : values) {\n        tail.bottom = new Node(value);\n        tail = tail.bottom;\n    }\n    return dummy.bottom;\n}",
+    "baselineTime": "O(T log T) time and O(T) space for values and newly allocated nodes."
+  },
+  "156": {
+    "problem": "Make an independent copy of a linked list whose nodes have next and random references.",
+    "assumptions": "The next chain is finite and has no cycle. Each random reference is null or points to a node in that same chain, possibly itself. Every result node must be new, and the original list must be restored before return.",
+    "example": {
+      "input": "Nodes A(5) → B(5) → C(9); random: A→C, B→A, C→C",
+      "output": "New nodes A′(5) → B′(5) → C′(9); random: A′→C′, B′→A′, C′→C′",
+      "explanation": "Matching values do not make A and B the same node. Each original needs its own copy, and copied references must stay inside the copied list."
+    },
+    "baseline": "Create a map from each original node to a new node. In a second pass, set the copied next and random references by looking up the corresponding original targets.",
+    "approach": "Place each copy immediately after its original: A → A′ → B → B′. This temporarily makes original.next a direct way to find that original’s copy, so we do not need a map.\n\nFor an original node whose random target is R, the copied target is R.next. Assign those random links while every copy is still interleaved. Then separate the chains: restore each original next and connect each copy to the next copy. Save the copied head before separation.\n\nThis uses constant working space, excluding the required output nodes. It temporarily changes the original chain, so the map version is a better fit if other code must read the original while copying is in progress.",
+    "steps": [
+      "Insert one copied node immediately after every original.",
+      "Set each copy’s random to original.random.next, or null if there is no target.",
+      "Save head.next as the copied head.",
+      "Restore original next links and connect copied next links, then return the saved copied head."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node random;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node copyRandomList(Node head) {\n    if (head == null) return null;\n    Node current = head;\n    while (current != null) {\n        Node copy = new Node(current.data);\n        copy.next = current.next;\n        current.next = copy;\n        current = copy.next;\n    }\n    current = head;\n    while (current != null) {\n        current.next.random = current.random == null ? null : current.random.next;\n        current = current.next.next;\n    }\n    Node copiedHead = head.next;\n    current = head;\n    while (current != null) {\n        Node copy = current.next;\n        Node nextOriginal = copy.next;\n        current.next = nextOriginal;\n        copy.next = nextOriginal == null ? null : nextOriginal.next;\n        current = nextOriginal;\n    }\n    return copiedHead;\n}",
+    "time": "O(n), across three passes.",
+    "space": "O(1) working space plus O(n) new output nodes.",
+    "pitfalls": [
+      "Assigning copy.random = original.random points into the old list and is not a deep copy.",
+      "Set every random link before separating the interleaved lists.",
+      "Map keys must identify original nodes, not data values. Repeated data is allowed.",
+      "Save the copied head before restoring head.next."
+    ],
+    "tests": [
+      "Node a=new Node(5),b=new Node(5),d=new Node(9);a.next=b;b.next=d;a.random=d;b.random=a;d.random=d;Node h=copyRandomList(a);assert h!=a&&h.data==5&&h.next!=b&&h.next.data==5&&h.next.next!=d;assert h.random==h.next.next&&h.next.random==h&&h.next.next.random==h.next.next;assert a.next==b&&b.next==d&&d.next==null&&a.random==d;",
+      "assert copyRandomList(null)==null&&copyWithMap(null)==null;Node a=new Node(7);a.random=a;Node h=copyRandomList(a);assert h!=a&&h.random==h&&h.next==null&&a.next==null&&a.random==a;",
+      "Random r=new Random(156);for(int run=0;run<300;run++){int n=1+r.nextInt(40);Node[] a=new Node[n];int[] target=new int[n],data=new int[n];for(int i=0;i<n;i++){data[i]=r.nextInt(5);a[i]=new Node(data[i]);if(i>0)a[i-1].next=a[i];}for(int i=0;i<n;i++){target[i]=r.nextInt(n+1)-1;a[i].random=target[i]<0?null:a[target[i]];}Set<Node> originals=new HashSet<>(Arrays.asList(a));for(int method=0;method<2;method++){Node p=method==0?copyRandomList(a[0]):copyWithMap(a[0]);Node[] copies=new Node[n];Set<Node> unique=new HashSet<>();for(int i=0;i<n;i++){assert p!=null&&!originals.contains(p)&&unique.add(p)&&p.data==data[i];copies[i]=p;p=p.next;}assert p==null;for(int i=0;i<n;i++){assert copies[i].random==(target[i]<0?null:copies[target[i]]);assert a[i].next==(i+1==n?null:a[i+1]);assert a[i].random==(target[i]<0?null:a[target[i]]);assert a[i].data==data[i];}copies[0].data++;assert a[0].data==data[0];}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/clone-linked-list-random-pointer",
+      "title": "Clone a Linked List with Random and Next Pointers",
+      "checkedOn": "2026-10-29",
+      "approach": "Original-to-copy mapping, then interleave, assign random links and separate.",
+      "adaptation": "Both public Java methods were checked. The separating pass explicitly names the saved nextOriginal to make restoration easier to follow."
+    },
+    "baselineJava": "static Node copyWithMap(Node head) {\n    Map<Node, Node> copies = new HashMap<>();\n    for (Node current = head; current != null; current = current.next) {\n        copies.put(current, new Node(current.data));\n    }\n    for (Node current = head; current != null; current = current.next) {\n        Node copy = copies.get(current);\n        copy.next = copies.get(current.next);\n        copy.random = copies.get(current.random);\n    }\n    return copies.get(head);\n}",
+    "baselineTime": "O(n) expected time and O(n) map space, in addition to the new output nodes."
   }
 }
