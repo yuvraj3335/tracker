@@ -8059,5 +8059,153 @@
       "approach": "The current public conversion problem and token rules were checked.",
       "adaptation": "No public Java editorial is linked. The Java implements the checked stack conversion. The tracker’s saved link is a postfix task. Both wrappers are included and labelled; ^ support is an explicit extension to the current prefix task’s four operators."
     }
+  },
+  "214": {
+    "problem": "For each query value in nums1, return its first strictly greater value to the right in nums2.",
+    "assumptions": "The tracker links to LeetCode Next Greater Element I, which has two arrays. All values in nums2 are distinct and every nums1 value occurs there. The current Striver article solves the underlying one-array next-greater task; this guide adds the required query mapping.",
+    "example": {
+      "input": "nums1 = [6, 2, 4], nums2 = [2, 6, 4, 7]",
+      "output": "[7, 6, 7]",
+      "explanation": "For 6, skip 4 and find 7. For 2, the first greater value is 6, even though 7 is larger."
+    },
+    "baseline": "For each query, locate it in nums2 and scan right until a larger value appears. This takes O(m × n) for m queries and n reference values.",
+    "approach": "Scan nums2 from right to left, keeping useful greater-value candidates on a stack. Remove candidates no larger than the current value. They cannot answer the current query, and for any earlier position the current value is at least as large and closer, so those removed candidates are no longer needed.\n\nThe surviving top is the first greater candidate. Store it in a map keyed by the current value, then push that value. Distinct nums2 values make the map unambiguous. Finally answer nums1 in its own order using the map.",
+    "steps": [
+      "Scan nums2 right to left.",
+      "Pop stack values ≤ the current value.",
+      "Map the current value to the top, or −1 if the stack is empty.",
+      "Push the current value.",
+      "Look up each nums1 value in order."
+    ],
+    "java": "static int[] nextGreaterElement(int[] nums1, int[] nums2) {\n    Map<Integer, Integer> next = new HashMap<>();\n    Deque<Integer> candidates = new ArrayDeque<>();\n    for (int i = nums2.length - 1; i >= 0; i--) {\n        int value = nums2[i];\n        while (!candidates.isEmpty() && candidates.peek() <= value) candidates.pop();\n        next.put(value, candidates.isEmpty() ? -1 : candidates.peek());\n        candidates.push(value);\n    }\n    int[] answer = new int[nums1.length];\n    for (int i = 0; i < nums1.length; i++) answer[i] = next.get(nums1[i]);\n    return answer;\n}",
+    "time": "Expected O(n + m), including hash-map lookups. Each reference value is pushed and popped at most once.",
+    "space": "O(n) working space plus O(m) output.",
+    "pitfalls": [
+      "Next greater means first greater, not maximum on the right.",
+      "A value-keyed map depends on nums2 having distinct values.",
+      "Answer in nums1 order, not nums2 order."
+    ],
+    "tests": [
+      "assert Arrays.equals(nextGreaterElement(new int[]{6,2,4},new int[]{2,6,4,7}),new int[]{7,6,7});assert Arrays.equals(nextGreaterElement(new int[]{4,1,2},new int[]{1,3,4,2}),new int[]{-1,3,-1});",
+      "Random r=new Random(214);for(int n=1;n<=100;n++){List<Integer>values=new ArrayList<>();for(int i=0;i<n;i++)values.add(i*3);Collections.shuffle(values,r);int[]a=values.stream().mapToInt(Integer::intValue).toArray();Collections.shuffle(values,r);int[]q=values.stream().limit((n+1)/2).mapToInt(Integer::intValue).toArray();int[]expected=new int[q.length];Arrays.fill(expected,-1);for(int i=0;i<q.length;i++){int at=0;while(a[at]!=q[i])at++;for(int j=at+1;j<n;j++)if(a[j]>q[i]){expected[i]=a[j];break;}}assert Arrays.equals(nextGreaterElement(q,a),expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/next-greater-element",
+      "title": "Next Greater Element Using a Monotonic Stack",
+      "checkedOn": "2026-10-29",
+      "approach": "Right-to-left scan, removing smaller or equal stack candidates.",
+      "adaptation": "Both public Java approaches were checked. The article returns an answer for every position of one array; the tracker’s LeetCode task requires two arrays. A value-to-answer map supplies that distinct-value query interface."
+    }
+  },
+  "215": {
+    "problem": "Find the first strictly greater value after every position in a circular array.",
+    "assumptions": "After the final index, continue at index 0, stopping after one full trip. Equal values do not count. Return −1 if no greater value exists. The helper also handles an empty array.",
+    "example": {
+      "input": "nums = [5, 1, 4]",
+      "output": "[-1, 4, 5]",
+      "explanation": "The last value 4 wraps around to 5. The maximum value 5 has no greater answer."
+    },
+    "baseline": "For each position, inspect the next n − 1 circular positions using modulo and stop at the first greater value. Worst-case time is O(n²).",
+    "approach": "Imagine writing the array twice without actually copying it. Scan virtual indices from 2n − 1 down to 0, reading nums[i % n]. The first reverse pass prepares candidates that represent wraparound positions. The second pass records real answers.\n\nFor each value, remove candidates that are smaller or equal, use the surviving top if one exists, then push the current value. Equal copies of the current value are removed, so an element cannot use itself after wrapping as a greater answer.",
+    "steps": [
+      "Create an answer array initialized to −1.",
+      "Visit virtual indices 2n − 1 down to 0.",
+      "Map each index with modulo n and pop candidates ≤ that value.",
+      "Write the answer only when i < n.",
+      "Push the current value after answering."
+    ],
+    "java": "static int[] nextGreaterElements(int[] nums) {\n    int n = nums.length;\n    int[] answer = new int[n];\n    Arrays.fill(answer, -1);\n    Deque<Integer> candidates = new ArrayDeque<>();\n    for (int i = 2 * n - 1; i >= 0; i--) {\n        int index = i % n;\n        while (!candidates.isEmpty() && candidates.peek() <= nums[index]) candidates.pop();\n        if (i < n && !candidates.isEmpty()) answer[index] = candidates.peek();\n        candidates.push(nums[index]);\n    }\n    return answer;\n}",
+    "time": "O(n), because the two passes push each position twice and each pushed value is popped at most once.",
+    "space": "O(n) working stack and output.",
+    "pitfalls": [
+      "The comparison is strict: equal values must be removed.",
+      "A single reverse pass misses answers reached by wrapping.",
+      "Store results only for the real pass."
+    ],
+    "tests": [
+      "assert Arrays.equals(nextGreaterElements(new int[]{5,1,4}),new int[]{-1,4,5});assert Arrays.equals(nextGreaterElements(new int[]{3,3,3}),new int[]{-1,-1,-1});assert nextGreaterElements(new int[]{}).length==0;assert Arrays.equals(nextGreaterElements(new int[]{2}),new int[]{-1});",
+      "Random r=new Random(215);for(int n=1;n<=70;n++)for(int trial=0;trial<20;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(21)-10;int[]expected=new int[n];Arrays.fill(expected,-1);for(int i=0;i<n;i++)for(int offset=1;offset<n;offset++)if(a[(i+offset)%n]>a[i]){expected[i]=a[(i+offset)%n];break;}assert Arrays.equals(nextGreaterElements(a),expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/next-greater-element-ii-circular-array",
+      "title": "Next Greater Element II: Circular Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Two virtual reverse passes with modulo indexing and a candidate stack.",
+      "adaptation": "Both public Java approaches were checked. The final method follows the same doubled-index scan and strict comparison, using the linked LeetCode method name."
+    }
+  },
+  "216": {
+    "problem": "Find the nearest strictly smaller value on the left for the tracker’s InterviewBit problem; also show the current Striver right-side variant.",
+    "assumptions": "The tracker title says Next Smaller Element, but its saved InterviewBit link formally requires j < i and the largest possible j. Current TUF Next Smaller Element requires j > i and the smallest possible j. Methods below are named by direction. Return values, not indices, with −1 when absent.",
+    "example": {
+      "input": "values = [6, 3, 5, 2]",
+      "output": "Left: [-1, -1, 3, -1]; right: [3, 2, 2, -1]",
+      "explanation": "For 5, the nearest smaller on the left is 3, while the first smaller on the right is 2."
+    },
+    "baseline": "For each position, scan outward in the required direction until a smaller value appears. This takes O(n²) in the worst case.",
+    "approach": "For the linked left-side task, scan left to right. Remove stack values greater than or equal to the current value. They cannot be its smaller answer, and the current value is a closer, no-larger alternative for later positions. The surviving top is the nearest smaller value.\n\nFor the right-side version, use exactly the same comparisons but scan right to left. The traversal direction determines which side the stack represents; the inequality alone does not.",
+    "steps": [
+      "Choose the traversal direction required by the problem.",
+      "Pop candidates ≥ the current value.",
+      "Use the stack top or −1 as the answer.",
+      "Push the current value for later positions."
+    ],
+    "java": "// InterviewBit’s linked task: nearest smaller on the LEFT.\nstatic ArrayList<Integer> prevSmaller(ArrayList<Integer> values) {\n    ArrayList<Integer> answer = new ArrayList<>();\n    Deque<Integer> candidates = new ArrayDeque<>();\n    for (int value : values) {\n        while (!candidates.isEmpty() && candidates.peek() >= value) candidates.pop();\n        answer.add(candidates.isEmpty() ? -1 : candidates.peek());\n        candidates.push(value);\n    }\n    return answer;\n}\n\n// Current TUF task: first smaller on the RIGHT.\nstatic int[] nextSmallerRight(int[] values) {\n    int[] answer = new int[values.length];\n    Deque<Integer> candidates = new ArrayDeque<>();\n    for (int i = values.length - 1; i >= 0; i--) {\n        while (!candidates.isEmpty() && candidates.peek() >= values[i]) candidates.pop();\n        answer[i] = candidates.isEmpty() ? -1 : candidates.peek();\n        candidates.push(values[i]);\n    }\n    return answer;\n}",
+    "time": "O(n) for either direction.",
+    "space": "O(n) for candidates and answers.",
+    "pitfalls": [
+      "Read the formal side condition; the two linked sources disagree on direction.",
+      "Equal values are not smaller.",
+      "The smallest value anywhere on that side is not necessarily the nearest smaller value."
+    ],
+    "tests": [
+      "assert prevSmaller(new ArrayList<>(List.of(6,3,5,2))).equals(List.of(-1,-1,3,-1));assert Arrays.equals(nextSmallerRight(new int[]{6,3,5,2}),new int[]{3,2,2,-1});",
+      "Random r=new Random(216);for(int n=0;n<=100;n++)for(int trial=0;trial<10;trial++){int[]a=new int[n];ArrayList<Integer>input=new ArrayList<>();for(int i=0;i<n;i++){a[i]=r.nextInt(31)-15;input.add(a[i]);}ArrayList<Integer>left=new ArrayList<>();int[]right=new int[n];Arrays.fill(right,-1);for(int i=0;i<n;i++){int answer=-1;for(int j=i-1;j>=0;j--)if(a[j]<a[i]){answer=a[j];break;}left.add(answer);for(int j=i+1;j<n;j++)if(a[j]<a[i]){right[i]=a[j];break;}}assert prevSmaller(input).equals(left);assert Arrays.equals(nextSmallerRight(a),right);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/next-smaller-element",
+      "title": "Next Smaller Element",
+      "checkedOn": "2026-10-29",
+      "approach": "Discard greater-or-equal candidates while scanning from the side required by the task.",
+      "adaptation": "The public TUF practice statement asks for the right side. The tracker’s InterviewBit statement was also read and asks for the left side. Both versions are labelled and tested; no public TUF Java editorial is linked."
+    }
+  },
+  "217": {
+    "problem": "For each queried index, count all strictly greater values anywhere to its right.",
+    "assumptions": "This asks for a count, not the nearest greater value or the length of a next-greater chain. The current source has n ≤ 10,000 and at most 100 queried indices, so direct scans require at most about one million comparisons. Duplicate values equal to the queried value do not count.",
+    "example": {
+      "input": "arr = [4, 9, 6, 8], indices = [0, 2]",
+      "output": "[3, 1]",
+      "explanation": "After 4, all three values are greater. After 6, only 8 remains and is greater."
+    },
+    "baseline": "A separate rightward scan for each query is already appropriate under the checked limits. If every index were queried in a much larger array, merge-sort counting or a Fenwick tree could preprocess counts in O(n log n).",
+    "approach": "For a query index, inspect every later position and increment the count when its value is strictly greater. Return counts in query order. Repeated query indices are allowed and receive the same answer.\n\nA monotonic next-greater stack cannot simply answer this by its size or by following links. It deliberately discards some values that are no longer needed as nearest answers, but those discarded values may still need to be counted here. The example [4,9,6,8] makes that distinction visible: 4 has three greater values even though its next-greater chain starts at 9 and stops.",
+    "steps": [
+      "Allocate one result slot per query.",
+      "Start just after the queried index.",
+      "Count every later value greater than the queried value.",
+      "Store that count in the corresponding query slot."
+    ],
+    "java": "static int[] countGreaterToRight(int[] arr, int[] indices) {\n    int[] answer = new int[indices.length];\n    for (int query = 0; query < indices.length; query++) {\n        int index = indices[query];\n        for (int j = index + 1; j < arr.length; j++) {\n            if (arr[j] > arr[index]) answer[query]++;\n        }\n    }\n    return answer;\n}",
+    "time": "O(q × n), at most roughly 10^6 comparisons under the current source limits.",
+    "space": "O(q) output and O(1) other working space.",
+    "pitfalls": [
+      "Count all greater values, including those hidden behind an earlier larger value.",
+      "Use >, not ≥.",
+      "The query index itself is excluded.",
+      "Do not claim an O(n) monotonic-stack solution to this counting problem without a valid counting structure."
+    ],
+    "tests": [
+      "assert Arrays.equals(countGreaterToRight(new int[]{4,9,6,8},new int[]{0,2}),new int[]{3,1});assert Arrays.equals(countGreaterToRight(new int[]{5,5,5},new int[]{0,1,2,0}),new int[]{0,0,0,0});",
+      "int n=10000;int[]a=new int[n],queries=new int[100];for(int i=0;i<n;i++)a[i]=i;for(int i=0;i<100;i++)queries[i]=i*100;int[]answer=countGreaterToRight(a,queries);for(int i=0;i<100;i++)assert answer[i]==n-1-queries[i];for(int i=0;i<n;i++)a[i]=n-i;for(int x:countGreaterToRight(a,queries))assert x==0;",
+      "int[]a={Integer.MIN_VALUE,0,Integer.MAX_VALUE,Integer.MIN_VALUE};assert Arrays.equals(countGreaterToRight(a,new int[]{0,1,2,3}),new int[]{2,1,0,0});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/number-of-greater-elements-to-the-right",
+      "title": "Number of Greater Elements to the Right",
+      "checkedOn": "2026-10-29",
+      "approach": "Count every strictly larger value in each queried suffix.",
+      "adaptation": "The public practice task and its n ≤ 10,000, q ≤ 100 limits were checked. No public Java editorial is linked. Direct scans fit those limits; the guide explains why nearest-greater stack shortcuts would be incorrect."
+    }
   }
 }
