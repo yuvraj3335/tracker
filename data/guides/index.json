@@ -1,27 +1,27 @@
 {
   "79": {
-    "problem": "Find an index of a target value in an ascending sorted integer array. Return -1 when it is absent.",
-    "assumptions": "Duplicates are allowed; any matching index is acceptable. The array is not modified.",
+    "problem": "You have a sorted array and a number to find. Return the number’s index. If it is missing, return -1.",
+    "assumptions": "The array is already sorted. If the number appears more than once, this version may return any matching index.",
     "example": {
       "input": "[2, 5, 8, 12, 16], target = 12",
       "output": "3",
       "explanation": "Start with indices 0 through 4. The midpoint is 2, whose value is 8, so retain indices 3 through 4. The next midpoint is 3 and its value is 12."
     },
-    "baseline": "A linear scan is correct and takes O(n) time. Sorting an unsorted input first changes indices and adds O(n log n) work; binary search assumes the input is already sorted.",
-    "approach": "Maintain the invariant that any matching element still under consideration lies between lo and hi, inclusive. Comparing the midpoint eliminates one half. Excluding the midpoint after a mismatch guarantees that the interval shrinks.",
+    "baseline": "Start at the first element and check each value. This works, but a missing target makes you read the whole array.",
+    "approach": "Suppose the middle value is 8 and you need 12. Because the array is sorted, every value before 8 is also too small. You can skip that whole part.\n\nIf the middle value is too large, do the same thing on the other side. Keep checking the middle of the part that remains. Each check either finds the answer or removes about half the remaining elements.",
     "steps": [
-      "Set lo to 0 and hi to n − 1.",
-      "Use lo + (hi − lo) / 2 to avoid overflow.",
-      "On a match return mid. Otherwise move lo to mid + 1 or hi to mid − 1.",
-      "When lo exceeds hi, no candidate remains."
+      "Use low and high to mark the first and last positions you still need to check.",
+      "Calculate mid. If arr[mid] is the target, return mid.",
+      "If the middle value is too small, set low to mid + 1. Otherwise, set high to mid - 1.",
+      "Stop when low passes high. There is nowhere left to look, so return -1."
     ],
-    "java": "static int search(int[] a, int target) {\n    int lo = 0, hi = a.length - 1;\n    while (lo <= hi) {\n        int mid = lo + (hi - lo) / 2;\n        if (a[mid] == target) return mid;\n        if (a[mid] < target) lo = mid + 1;\n        else hi = mid - 1;\n    }\n    return -1;\n}",
-    "time": "O(log n): every unsuccessful comparison at least halves the candidate interval.",
-    "space": "O(1) for the iterative implementation.",
+    "java": "static int search(int[] arr, int target) {\n    int low = 0;\n    int high = arr.length - 1;\n\n    while (low <= high) {\n        int mid = low + (high - low) / 2;\n        if (arr[mid] == target) return mid;\n\n        if (arr[mid] < target) {\n            low = mid + 1;\n        } else {\n            high = mid - 1;\n        }\n    }\n    return -1;\n}",
+    "time": "O(log n): the part you search becomes about half as large after each miss.",
+    "space": "O(1): only low, high and mid are needed.",
     "pitfalls": [
-      "Do not use lo = mid with an inclusive interval: it can repeat a state.",
-      "An empty array starts with hi = -1 and immediately returns -1.",
-      "This version does not guarantee the first duplicate. Use lower bound when that is required."
+      "Use mid + 1 and mid - 1 after a miss. Keeping mid can make the same check repeat forever.",
+      "Use low <= high so the final remaining element is checked.",
+      "This method needs sorted input. Sorting just to search once would add extra work and change the original indices."
     ],
     "tests": [
       "assert search(new int[]{2,5,8,12,16},12)==3;",
@@ -29,8 +29,39 @@
       "assert search(new int[]{1},2)==-1;",
       "assert search(new int[]{1},1)==0;",
       "assert search(new int[]{1,2,3},4)==-1;",
-      "assert search(new int[]{2,2},2)>=0;"
-    ]
+      "assert search(new int[]{2,2},2)>=0;",
+      "assert linearSearch(new int[]{2,5,8,12,16},12)==3;assert linearSearch(new int[]{2,5},7)==-1;"
+    ],
+    "baselineTime": "O(n): up to n comparisons.",
+    "baselineJava": "static int linearSearch(int[] arr, int target) {\n    for (int index = 0; index < arr.length; index++) {\n        if (arr[index] == target) return index;\n    }\n    return -1;\n}",
+    "trace": {
+      "columns": [
+        "low",
+        "high",
+        "mid / value",
+        "What happens next"
+      ],
+      "rows": [
+        [
+          "0",
+          "4",
+          "2 / 8",
+          "8 is smaller than 12. Move low to 3."
+        ],
+        [
+          "3",
+          "4",
+          "3 / 12",
+          "The value matches. Return index 3."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-search-algorithm",
+      "title": "binary search",
+      "checkedOn": "2026-10-28",
+      "approach": "linear search first, then iterative binary search"
+    }
   },
   "12": {
     "problem": "Choose Java collections according to the operation you need: ordered traversal, uniqueness, key lookup, a stack or queue, or repeated extraction of the smallest item.",
@@ -1134,31 +1165,80 @@
     ]
   },
   "40": {
-    "problem": "Return the second-largest distinct value without sorting.",
-    "assumptions": "Return OptionalInt.empty when fewer than two distinct values exist.",
+    "problem": "Find the second-largest distinct number in the array. Return -1 if it does not exist.",
+    "assumptions": "Repeated copies of the largest number do not count as second place. Negative numbers are allowed.",
     "example": {
-      "input": "[7, 7, 3, 5]",
-      "output": "5",
-      "explanation": "The maximum stays 7. The second distinct maximum improves from 3 to 5; a repeated 7 does not occupy second place."
+      "input": "[7, 7, 3, 5, 9]",
+      "output": "7",
+      "explanation": "Before 9 arrives, 7 is the largest and 5 is second. When 9 becomes the largest, the old largest, 7, takes second place."
     },
-    "baseline": "Sort and scan backward for a value different from the maximum, costing O(n log n).",
-    "approach": "Maintain the greatest and second-greatest distinct values seen. A new greatest value demotes the old greatest; a smaller value may improve only the second slot.",
+    "baseline": "Sort a copy. Walk backwards past any repeated largest values; the next value is the answer.",
+    "baselineTime": "O(n log n), with O(n) space for the copy.",
+    "baselineJava": "static int secondLargestSorted(int[] nums) {\n    if (nums.length < 2) return -1;\n    int[] sorted = nums.clone();\n    Arrays.sort(sorted);\n    for (int i = sorted.length - 2; i >= 0; i--) {\n        if (sorted[i] < sorted[sorted.length - 1]) return sorted[i];\n    }\n    return -1;\n}",
+    "better": {
+      "explanation": "First find the largest number. Scan again and find the largest number strictly below it. Two scans still take linear time.",
+      "time": "O(n)",
+      "space": "O(1)",
+      "java": "static int secondLargestTwoPass(int[] nums) {\n    if (nums.length < 2) return -1;\n    int largest = nums[0];\n    for (int value : nums) largest = Math.max(largest, value);\n\n    int second = 0;\n    boolean found = false;\n    for (int value : nums) {\n        if (value < largest && (!found || value > second)) {\n            second = value;\n            found = true;\n        }\n    }\n    return found ? second : -1;\n}"
+    },
+    "approach": "Keep two places: largest and second largest. A new largest pushes the old largest into second place. A smaller number can improve second place without changing first.\n\nUse a separate flag for whether second place is filled. Starting second at zero must not make zero a candidate in an all-negative array.",
     "steps": [
-      "Track whether the second slot exists separately from its numeric value.",
-      "On a new maximum, move the old maximum into second.",
-      "Otherwise update second only for a distinct smaller value."
+      "Start largest at the first value; second place is empty.",
+      "Read each remaining value and update the two places. Ignore equal largest values.",
+      "Return second when filled, otherwise -1."
     ],
-    "java": "static OptionalInt secondLargest(int[] a) {\n    if (a.length < 2) return OptionalInt.empty();\n    int first = a[0], second = 0; boolean hasSecond = false;\n    for (int x : a) {\n        if (x > first) { second = first; hasSecond = true; first = x; }\n        else if (x < first && (!hasSecond || x > second)) { second = x; hasSecond = true; }\n    }\n    return hasSecond ? OptionalInt.of(second) : OptionalInt.empty();\n}",
-    "time": "O(n).",
+    "java": "static int secondLargest(int[] nums) {\n    if (nums.length < 2) return -1;\n    int largest = nums[0];\n    int second = 0;\n    boolean hasSecond = false;\n\n    for (int i = 1; i < nums.length; i++) {\n        int value = nums[i];\n        if (value > largest) {\n            second = largest;\n            largest = value;\n            hasSecond = true;\n        } else if (value < largest && (!hasSecond || value > second)) {\n            second = value;\n            hasSecond = true;\n        }\n    }\n    return hasSecond ? second : -1;\n}",
+    "time": "O(n): one scan.",
     "space": "O(1).",
     "pitfalls": [
-      "Distinctness matters: [7,7] has no second distinct maximum.",
-      "A sentinel such as Integer.MIN_VALUE may itself be a valid answer."
+      "Do not count duplicate maximums twice.",
+      "The return value -1 can also be a valid second-largest value; that ambiguity is part of this problem’s return convention."
     ],
+    "trace": {
+      "columns": [
+        "Value read",
+        "Largest",
+        "Second largest"
+      ],
+      "rows": [
+        [
+          "7",
+          "7",
+          "Not found"
+        ],
+        [
+          "7",
+          "7",
+          "Not found"
+        ],
+        [
+          "3",
+          "7",
+          "3"
+        ],
+        [
+          "5",
+          "7",
+          "5"
+        ],
+        [
+          "9",
+          "9",
+          "7"
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/second-largest-element",
+      "title": "second-largest element",
+      "checkedOn": "2026-10-28",
+      "approach": "sorting, two scans, then one scan"
+    },
     "tests": [
-      "assert secondLargest(new int[]{7,7,3,5}).orElseThrow()==5;",
-      "assert secondLargest(new int[]{7,7}).isEmpty();",
-      "assert secondLargest(new int[]{0,Integer.MIN_VALUE}).orElseThrow()==Integer.MIN_VALUE;"
+      "assert secondLargest(new int[]{7,7,3,5,9})==7;",
+      "assert secondLargest(new int[]{7,7})==-1;assert secondLargest(new int[]{})==-1;assert secondLargest(new int[]{5})==-1;",
+      "assert secondLargest(new int[]{0,Integer.MIN_VALUE})==Integer.MIN_VALUE;assert secondLargest(new int[]{-8,-3,-6})==-6;",
+      "Random random=new Random(40);for(int t=0;t<300;t++){int[] a=new int[random.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=random.nextInt(21)-10;int expected=secondLargestSorted(a);assert secondLargest(a)==expected;assert secondLargestTwoPass(a)==expected;}"
     ]
   },
   "41": {
@@ -1900,31 +1980,69 @@
     ]
   },
   "67": {
-    "problem": "Generate the first n rows of Pascal’s triangle.",
-    "assumptions": "Rows are zero-indexed; row r has r+1 values. BigInteger avoids overflow in larger rows.",
+    "problem": "Build the first n rows of Pascal’s triangle. Every row starts and ends with 1. Each inside number is the sum of the two numbers above it.",
+    "assumptions": "Striver’s first-N-rows lesson allows 1 to 30 rows. These values fit in int. This method also returns an empty list for zero rows.",
     "example": {
-      "input": "n = 5",
-      "output": "[[1],[1,1],[1,2,1],[1,3,3,1],[1,4,6,4,1]]",
-      "explanation": "Each border is 1. The middle value 6 in row 4 is the sum of the two 3s directly above it."
+      "input": "n = 4",
+      "output": "[[1], [1, 1], [1, 2, 1], [1, 3, 3, 1]]",
+      "explanation": "To build the fourth row, keep 1 at each end. Its two middle values are 1 + 2 = 3 and 2 + 1 = 3."
     },
-    "baseline": "Compute every cell independently with factorials or repeated binomial products; this repeats arithmetic.",
-    "approach": "The recurrence C(r,c)=C(r−1,c−1)+C(r−1,c) derives each interior value from the previous row. The boundaries are one, so no outside-row reads are needed.",
+    "baseline": "Calculate each cell recursively from its two parents. This repeatedly calculates the same earlier cells.",
+    "baselineTime": "O(2ⁿ) across the triangle; O(n) recursion depth, plus the output.",
+    "baselineJava": "static int pascalCell(int row, int column) {\n    if (column == 0 || column == row) return 1;\n    return pascalCell(row - 1, column - 1) + pascalCell(row - 1, column);\n}\n\nstatic List<List<Integer>> pascalRecursive(int n) {\n    List<List<Integer>> triangle = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        List<Integer> current = new ArrayList<>();\n        for (int column = 0; column <= row; column++) {\n            current.add(pascalCell(row, column));\n        }\n        triangle.add(current);\n    }\n    return triangle;\n}",
+    "approach": "The previous row is already in the answer. Read its numbers instead of calculating them again.\n\nBegin the new row with 1s. Leave the ends alone and replace each inside entry with the sum of its two parents.",
     "steps": [
-      "Start each row with all entries set to one.",
-      "Replace interior entries with adjacent sums from the previous row.",
-      "Append each completed row to the result."
+      "Make a new list for each row. Row 0 has one entry, row 1 has two, and so on.",
+      "Fill columns 1 through row - 1 using the previous row.",
+      "Add the finished row to the triangle."
     ],
-    "java": "static List<List<BigInteger>> pascal(int n) {\n    if(n<0)throw new IllegalArgumentException();\n    List<List<BigInteger>> rows=new ArrayList<>();\n    for(int r=0;r<n;r++){\n        List<BigInteger> row=new ArrayList<>(Collections.nCopies(r+1,BigInteger.ONE));\n        for(int c=1;c<r;c++)row.set(c,rows.get(r-1).get(c-1).add(rows.get(r-1).get(c)));\n        rows.add(row);\n    }\n    return rows;\n}",
-    "time": "O(n²) additions. With arbitrary-precision bit costs, the upper bound is O(n³) bit operations.",
-    "space": "O(n²) numbers in the output; up to O(n³) bits.",
+    "java": "static List<List<Integer>> pascal(int n) {\n    List<List<Integer>> triangle = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        List<Integer> current = new ArrayList<>(Collections.nCopies(row + 1, 1));\n        for (int column = 1; column < row; column++) {\n            List<Integer> previous = triangle.get(row - 1);\n            current.set(column, previous.get(column - 1) + previous.get(column));\n        }\n        triangle.add(current);\n    }\n    return triangle;\n}",
+    "time": "O(n²): that many numbers must be written.",
+    "space": "O(n²) for the returned rows; O(1) beyond those rows.",
     "pitfalls": [
-      "int overflows for larger binomial coefficients; even long has a limit.",
-      "For only one cell, a binomial product is more appropriate than generating the full triangle."
+      "Create a fresh list for each row. Reusing one list changes earlier rows too.",
+      "The int version relies on the row limit; it is not suitable for arbitrarily large triangles."
     ],
+    "trace": {
+      "columns": [
+        "Row being built",
+        "Calculation",
+        "Finished row"
+      ],
+      "rows": [
+        [
+          "First",
+          "Only the border",
+          "[1]"
+        ],
+        [
+          "Second",
+          "Two borders",
+          "[1, 1]"
+        ],
+        [
+          "Third",
+          "1 + 1",
+          "[1, 2, 1]"
+        ],
+        [
+          "Fourth",
+          "1 + 2 and 2 + 1",
+          "[1, 3, 3, 1]"
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/pascals-triangle-first-n-rows",
+      "title": "Pascal’s triangle",
+      "checkedOn": "2026-10-28",
+      "approach": "recursive cells, then building rows from the previous row"
+    },
     "tests": [
-      "assert pascal(5).get(4).equals(List.of(BigInteger.ONE,BigInteger.valueOf(4),BigInteger.valueOf(6),BigInteger.valueOf(4),BigInteger.ONE));",
-      "assert pascal(0).isEmpty();",
-      "List<List<BigInteger>> rows=pascal(40);for(int i=0;i<rows.size();i++){BigInteger sum=BigInteger.ZERO;for(BigInteger x:rows.get(i))sum=sum.add(x);assert sum.equals(BigInteger.ONE.shiftLeft(i));}"
+      "assert pascal(4).equals(List.of(List.of(1),List.of(1,1),List.of(1,2,1),List.of(1,3,3,1)));",
+      "assert pascal(1).equals(List.of(List.of(1)));assert pascal(0).isEmpty();",
+      "for(int n=0;n<=10;n++)assert pascal(n).equals(pascalRecursive(n));",
+      "List<List<Integer>> rows=pascal(30);for(int i=0;i<rows.size();i++){long sum=0;for(int x:rows.get(i))sum+=x;assert sum==(1L<<i);assert rows.get(i).size()==i+1;for(int j=0;j<=i;j++)assert rows.get(i).get(j).equals(rows.get(i).get(i-j));}"
     ]
   },
   "68": {
@@ -2211,92 +2329,224 @@
     ]
   },
   "78": {
-    "problem": "Return the largest product of a nonempty contiguous subarray.",
-    "assumptions": "Input is nonempty. This exact-arithmetic implementation uses BigInteger so products do not silently overflow.",
+    "problem": "Find the largest product you can make by multiplying a nonempty run of neighbouring numbers.",
+    "assumptions": "Return 0 for an empty array, as in the linked lesson. The long implementation assumes every intermediate product fits in long.",
     "example": {
-      "input": "[2,3,-2,4]",
-      "output": "6",
-      "explanation": "The product 2×3 is 6. Including -2 makes it negative, while starting at the final 4 yields only 4."
+      "input": "[-3, 2, -4]",
+      "output": "24",
+      "explanation": "After reading 2, the smallest product ending there is -6. Multiplying that by -4 gives 24. Keeping only the largest product would miss this answer."
     },
-    "baseline": "Enumerate all subarrays and multiply incrementally in O(n²) arithmetic operations.",
-    "approach": "Keep both the largest and smallest products ending at the previous position. A negative new value can turn the smallest product into the largest. The new candidates are the value alone, value×previous maximum, and value×previous minimum.",
+    "baseline": "Choose every start and end. Multiply the numbers in each selected range from scratch.",
+    "baselineTime": "O(n³), with O(1) extra space.",
+    "baselineJava": "static long maxProductBrute(int[] nums) {\n    if (nums.length == 0) return 0;\n    long best = nums[0];\n    for (int start = 0; start < nums.length; start++) {\n        for (int end = start; end < nums.length; end++) {\n            long product = 1;\n            for (int i = start; i <= end; i++) product *= nums[i];\n            best = Math.max(best, product);\n        }\n    }\n    return best;\n}",
+    "better": {
+      "explanation": "For each start, extend the end one place at a time. Multiply only the newly included number.",
+      "time": "O(n²)",
+      "space": "O(1)",
+      "java": "static long maxProductBetter(int[] nums) {\n    if (nums.length == 0) return 0;\n    long best = nums[0];\n    for (int start = 0; start < nums.length; start++) {\n        long product = 1;\n        for (int end = start; end < nums.length; end++) {\n            product *= nums[end];\n            best = Math.max(best, product);\n        }\n    }\n    return best;\n}"
+    },
+    "approach": "A negative number can turn a very small product into a very large one. Remember both the smallest and largest products ending at the previous position.\n\nAt the next number, either start again there or extend one of those two products. Choose the smallest and largest of the three results.",
     "steps": [
-      "Initialize minimum, maximum, and answer from the first element.",
-      "Compute both extended products before updating either state.",
-      "Take the minimum and maximum of the three candidates; update the global maximum."
+      "Set both ending products and the overall answer to the first number.",
+      "Save both old products before updating either one.",
+      "Calculate the new minimum and maximum. Compare the maximum with the overall answer."
     ],
-    "java": "static BigInteger maxProduct(int[] a) {\n    if(a.length==0)throw new IllegalArgumentException();\n    BigInteger high=BigInteger.valueOf(a[0]),low=high,best=high;\n    for(int i=1;i<a.length;i++){\n        BigInteger x=BigInteger.valueOf(a[i]),p=x.multiply(high),q=x.multiply(low);\n        high=x.max(p).max(q);low=x.min(p).min(q);best=best.max(high);\n    }\n    return best;\n}",
-    "time": "O(n) state updates. BigInteger bit-operation cost grows with product length; it is not constant-time arithmetic.",
-    "space": "A constant number of BigInteger values, each potentially O(n) bits for bounded int inputs.",
+    "java": "static long maxProduct(int[] nums) {\n    if (nums.length == 0) return 0;\n    long currentMax = nums[0];\n    long currentMin = nums[0];\n    long best = nums[0];\n\n    for (int i = 1; i < nums.length; i++) {\n        long value = nums[i];\n        long previousMax = currentMax;\n        long previousMin = currentMin;\n        long extendMax = previousMax * value;\n        long extendMin = previousMin * value;\n\n        currentMax = Math.max(value, Math.max(extendMax, extendMin));\n        currentMin = Math.min(value, Math.min(extendMax, extendMin));\n        best = Math.max(best, currentMax);\n    }\n    return best;\n}",
+    "time": "O(n): one pass.",
+    "space": "O(1).",
     "pitfalls": [
-      "A single maximum state loses large positive products formed from two negatives.",
-      "Updating high before computing the old low extension corrupts the recurrence.",
-      "If platform constraints guarantee all products fit long, the same recurrence can use long with O(1) machine-word storage."
+      "Do not initialise the answer to 0: a single negative number must return itself.",
+      "Use the old minimum and maximum for both calculations.",
+      "Zero needs no special reset: starting at the current number is already an option."
     ],
+    "trace": {
+      "columns": [
+        "Value",
+        "Largest ending here",
+        "Smallest ending here",
+        "Best so far"
+      ],
+      "rows": [
+        [
+          "-3",
+          "-3",
+          "-3",
+          "-3"
+        ],
+        [
+          "2",
+          "2",
+          "-6",
+          "2"
+        ],
+        [
+          "-4",
+          "24",
+          "-8",
+          "24"
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/maximum-product-subarray",
+      "title": "maximum product subarray",
+      "checkedOn": "2026-10-28",
+      "approach": "all ranges, reused running products, then minimum/maximum ending products"
+    },
     "tests": [
-      "assert maxProduct(new int[]{2,3,-2,4}).equals(BigInteger.valueOf(6));",
-      "assert maxProduct(new int[]{-2,3,-4}).equals(BigInteger.valueOf(24));",
-      "assert maxProduct(new int[]{-2,0,-1}).equals(BigInteger.ZERO);",
-      "assert maxProduct(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE}).equals(BigInteger.valueOf(Integer.MAX_VALUE).pow(3));"
+      "assert maxProduct(new int[]{-3,2,-4})==24;",
+      "assert maxProduct(new int[]{-2,0,-1})==0;assert maxProduct(new int[]{-7})==-7;assert maxProduct(new int[]{})==0;",
+      "assert maxProduct(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE})==4611686014132420609L;",
+      "Random random=new Random(78);for(int t=0;t<300;t++){int[] a=new int[random.nextInt(9)];for(int i=0;i<a.length;i++)a[i]=random.nextInt(7)-3;long expected=maxProductBrute(a);assert maxProduct(a)==expected;assert maxProductBetter(a)==expected;}"
     ]
   },
   "80": {
-    "problem": "Find the first index whose value is at least x.",
-    "assumptions": "The array is sorted in nondecreasing order. Return n when every value is smaller.",
+    "problem": "Find the first position where the value is at least the target. The target itself does not have to be in the array.",
+    "assumptions": "The array is sorted. If no value is large enough, return the array length.",
     "example": {
-      "input": "[1,2,2,4], x = 2",
+      "input": "[1, 2, 2, 2, 4], target = 2",
       "output": "1",
-      "explanation": "Both indices 1 and 2 contain 2; lower bound chooses index 1. It is the boundary between values below 2 and values at least 2."
+      "explanation": "Indices 1, 2 and 3 all contain 2. We need the first one, so finding a matching 2 is a reason to look farther left."
     },
-    "baseline": "Scan until the first value >=x in O(n) time.",
-    "approach": "Binary search a monotone predicate a[i]>=x. Keep a half-open candidate range [lo,hi); when mid qualifies, the first qualifying index is at or before mid, so retain mid as the upper boundary.",
+    "baseline": "Read from left to right. Return as soon as a value is at least the target. If you reach the end, return the array length.",
+    "approach": "Finding a value that works is only half the job: you need the earliest one. Save its index in answer, then look to its left. If you find an earlier valid index, replace answer.\n\nWhen the middle value is too small, everything before it is too small too. Move low past the middle. Start answer at the array length so the no-answer case is already covered.",
     "steps": [
-      "Initialize lo=0 and hi=n.",
-      "Move lo to mid+1 when a[mid]<x; otherwise set hi=mid.",
-      "Return the common boundary when lo==hi."
+      "Start low at 0, high at the final index, and answer at the array length.",
+      "If arr[mid] >= target, remember mid and set high to mid - 1.",
+      "Otherwise, set low to mid + 1.",
+      "When the search ends, return the last saved answer."
     ],
-    "java": "static int lowerBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<x)lo=mid+1;else hi=mid;}\n    return lo;\n}",
-    "time": "O(log n).",
-    "space": "O(1).",
+    "java": "static int lowerBound(int[] arr, int target) {\n    int low = 0;\n    int high = arr.length - 1;\n    int answer = arr.length;\n\n    while (low <= high) {\n        int mid = low + (high - low) / 2;\n        if (arr[mid] >= target) {\n            answer = mid;\n            high = mid - 1;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return answer;\n}",
+    "time": "O(log n): each check removes about half the remaining positions.",
+    "space": "O(1): a few index variables, with no extra array.",
     "pitfalls": [
-      "Returning -1 loses the useful insertion boundary n.",
-      "Unlike exact-match search, finding equality must continue toward the left."
+      "Do not return immediately on equality; another equal value may appear earlier.",
+      "The result may equal the array length. That is a valid result, but it is not a valid index to read.",
+      "Keep >= here. Changing it to > solves upper bound instead."
     ],
     "tests": [
       "assert lowerBound(new int[]{1,2,2,4},2)==1;",
       "assert lowerBound(new int[]{1,2},3)==2;",
       "assert lowerBound(new int[]{},3)==0;",
-      "assert lowerBound(new int[]{2,2},1)==0;"
-    ]
+      "assert lowerBound(new int[]{2,2},1)==0;",
+      "Random random=new Random(80);for(int run=0;run<100;run++){int[] arr=new int[random.nextInt(20)];for(int i=0;i<arr.length;i++)arr[i]=random.nextInt(11)-5;Arrays.sort(arr);for(int target=-6;target<=6;target++)assert lowerBound(arr,target)==lowerBoundLinear(arr,target);}"
+    ],
+    "baselineJava": "static int lowerBoundLinear(int[] arr, int target) {\n    for (int index = 0; index < arr.length; index++) {\n        if (arr[index] >= target) return index;\n    }\n    return arr.length;\n}",
+    "baselineTime": "O(n): you may need to inspect every element.",
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/lower-bound-in-sorted-array",
+      "title": "lower bound",
+      "checkedOn": "2026-10-28",
+      "approach": "binary search with a saved answer, continuing left after a valid candidate"
+    },
+    "trace": {
+      "columns": [
+        "low",
+        "high",
+        "mid / value",
+        "Saved answer / next step"
+      ],
+      "rows": [
+        [
+          "0",
+          "4",
+          "2 / 2",
+          "Save 2. Search left: high = 1."
+        ],
+        [
+          "0",
+          "1",
+          "0 / 1",
+          "Too small. Move low to 1."
+        ],
+        [
+          "1",
+          "1",
+          "1 / 2",
+          "Save 1. Move high to 0."
+        ],
+        [
+          "1",
+          "0",
+          "Search finished",
+          "Return the saved index, 1."
+        ]
+      ]
+    }
   },
   "81": {
-    "problem": "Find the first index whose value is strictly greater than x.",
-    "assumptions": "The array is sorted in nondecreasing order. Return n if no value qualifies.",
+    "problem": "Find the first position whose value is larger than the target. Equal values do not count.",
+    "assumptions": "The array is sorted. If all values are smaller than or equal to the target, return the array length.",
     "example": {
-      "input": "[1,2,2,4], x = 2",
-      "output": "3",
-      "explanation": "The two occurrences of 2 belong to the left partition. The first value greater than 2 is 4 at index 3."
+      "input": "[1, 2, 2, 2, 4], target = 2",
+      "output": "4",
+      "explanation": "Skip every 2. The first larger value is 4, which is at index 4."
     },
-    "baseline": "Scan from the beginning in O(n) time.",
-    "approach": "Upper bound locates the boundary between values <=x and values >x. Its binary search differs from lower bound exactly in the treatment of equality.",
+    "baseline": "Scan from the left and return the first index whose value is larger than the target. Return the array length if you find none.",
+    "approach": "This is almost the same search as lower bound. The difference is what you do with equality: a 2 is not an answer when you need something larger than 2, so keep looking right.\n\nWhen you find a larger value, save its index and search left. There may be an earlier value that is also large enough. The saved answer lets you keep searching without losing a valid result.",
     "steps": [
-      "Search the half-open range [0,n).",
-      "Move lo past mid when a[mid]<=x.",
-      "Otherwise keep mid by moving hi to it."
+      "Set answer to the array length and search between low = 0 and high = n - 1.",
+      "If arr[mid] > target, save mid and move high to mid - 1.",
+      "If arr[mid] <= target, move low to mid + 1.",
+      "Return answer after low passes high."
     ],
-    "java": "static int upperBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<=x)lo=mid+1;else hi=mid;}\n    return lo;\n}",
-    "time": "O(log n).",
-    "space": "O(1).",
+    "java": "static int upperBound(int[] arr, int target) {\n    int low = 0;\n    int high = arr.length - 1;\n    int answer = arr.length;\n\n    while (low <= high) {\n        int mid = low + (high - low) / 2;\n        if (arr[mid] > target) {\n            answer = mid;\n            high = mid - 1;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return answer;\n}",
+    "time": "O(log n): each check removes about half the remaining positions.",
+    "space": "O(1): a few index variables, with no extra array.",
     "pitfalls": [
-      "Do not implement this as lowerBound(x+1): x+1 can overflow.",
-      "For an all-equal array matching x, the answer is n."
+      "Use > when checking a candidate. >= would include equal values and give lower bound.",
+      "Avoid computing target + 1 to reuse another search; it overflows at Integer.MAX_VALUE.",
+      "Returning n is expected when the target is at least the largest element."
     ],
     "tests": [
       "assert upperBound(new int[]{1,2,2,4},2)==3;",
       "assert upperBound(new int[]{2,2},2)==2;",
       "assert upperBound(new int[]{Integer.MAX_VALUE},Integer.MAX_VALUE)==1;",
-      "assert upperBound(new int[]{},0)==0;"
-    ]
+      "assert upperBound(new int[]{},0)==0;",
+      "Random random=new Random(81);for(int run=0;run<100;run++){int[] arr=new int[random.nextInt(20)];for(int i=0;i<arr.length;i++)arr[i]=random.nextInt(11)-5;Arrays.sort(arr);for(int target=-6;target<=6;target++)assert upperBound(arr,target)==upperBoundLinear(arr,target);}"
+    ],
+    "baselineJava": "static int upperBoundLinear(int[] arr, int target) {\n    for (int index = 0; index < arr.length; index++) {\n        if (arr[index] > target) return index;\n    }\n    return arr.length;\n}",
+    "baselineTime": "O(n): you may need to inspect every element.",
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/upper-bound-in-sorted-array",
+      "title": "upper bound",
+      "checkedOn": "2026-10-28",
+      "approach": "binary search with a saved answer, continuing left after a valid candidate"
+    },
+    "trace": {
+      "columns": [
+        "low",
+        "high",
+        "mid / value",
+        "What happens next"
+      ],
+      "rows": [
+        [
+          "0",
+          "4",
+          "2 / 2",
+          "Equal is not enough. Move low to 3."
+        ],
+        [
+          "3",
+          "4",
+          "3 / 2",
+          "Still equal. Move low to 4."
+        ],
+        [
+          "4",
+          "4",
+          "4 / 4",
+          "Save 4. Move high to 3."
+        ],
+        [
+          "4",
+          "3",
+          "Search finished",
+          "Return the saved index, 4."
+        ]
+      ]
+    }
   },
   "82": {
     "problem": "Find where a target should be inserted to keep an array sorted.",

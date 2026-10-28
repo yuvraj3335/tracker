@@ -11,10 +11,13 @@ for (const [number, guide] of Object.entries(guides)) {
   for (const field of ['problem', 'assumptions', 'baseline', 'approach', 'java', 'time', 'space']) if (typeof guide[field] !== 'string' || !guide[field].trim()) throw new Error(`Question ${number} missing ${field}`);
   for (const field of ['input', 'output', 'explanation']) if (!guide.example?.[field]) throw new Error(`Question ${number} missing example ${field}`);
   if (!guide.steps?.length || !guide.pitfalls?.length || !guide.tests?.length) throw new Error(`Question ${number} missing checks or reasoning`);
+  if (guide.trace && (!guide.trace.columns?.length || !guide.trace.rows?.length || guide.trace.rows.some(row => row.length !== guide.trace.columns.length))) throw new Error(`Question ${number} has an incomplete walkthrough table`);
+  if (guide.reference && (!guide.reference.url.startsWith('https://takeuforward.org/') || !guide.reference.approach || !guide.reference.checkedOn)) throw new Error(`Question ${number} has an incomplete source check`);
+  if (guide.better && ['explanation', 'java', 'time', 'space'].some(field => !guide.better[field]?.trim())) throw new Error(`Question ${number} has an incomplete intermediate approach`);
   if (process.argv.includes('--java')) {
     const name = `Guide${number}Test`;
     const file = `build/guide-tests/${name}.java`;
-    await fs.writeFile(file, `import java.util.*;\nimport java.io.*;\nimport java.math.*;\npublic class ${name} {\n${guide.java}\npublic static void main(String[] args) throws Exception {\n${guide.tests.map(check => `{ ${check} }`).join('\n')}\n}\n}\n`);
+    await fs.writeFile(file, `import java.util.*;\nimport java.io.*;\nimport java.math.*;\npublic class ${name} {\n${guide.baselineJava ?? ''}\n${guide.better?.java ?? ''}\n${guide.java}\npublic static void main(String[] args) throws Exception {\n${guide.tests.map(check => `{ ${check} }`).join('\n')}\n}\n}\n`);
     javaFiles.push(file); classes.push(name);
 
   }

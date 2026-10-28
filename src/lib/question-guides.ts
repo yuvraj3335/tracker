@@ -6,6 +6,9 @@ export type Guide = {
   assumptions: string;
   example: { input: string; output: string; explanation: string };
   baseline: string;
+  baselineJava?: string;
+  baselineTime?: string;
+  better?: { explanation: string; java: string; time: string; space: string };
   approach: string;
   steps: string[];
   java: string;
@@ -13,6 +16,8 @@ export type Guide = {
   space: string;
   pitfalls: string[];
   tests: string[];
+  trace?: { columns: string[]; rows: string[][] };
+  reference?: { url: string; title: string; checkedOn: string; approach: string; adaptation?: string };
 };
 const bySource = new Map(seed.sections.flatMap(s => s.headings.flatMap(h => h.questions.map(q => [q.sourceId, String(q.globalOrder + 1)] as const))));
 export function guideFor(task: Pick<Task, 'sourceId'>): Guide | null {
