@@ -8656,5 +8656,123 @@
     },
     "baselineJava": "static int[] spansByScanning(int[] prices) {\n    int[] answer = new int[prices.length];\n    for (int day = 0; day < prices.length; day++) {\n        int previous = day - 1;\n        while (previous >= 0 && prices[previous] <= prices[day]) previous--;\n        answer[day] = day - previous;\n    }\n    return answer;\n}",
     "baselineTime": "O(n²) time and O(1) working space beyond the returned array."
+  },
+  "227": {
+    "problem": "Find a person known by every other person who knows nobody else. Return that person’s index, or −1 if no celebrity exists.",
+    "assumptions": "The pinned tracker’s title says Celebrity Problem but its practice link incorrectly opens Word Break. This guide follows the title and the correct current TUF Celebrity Problem linked below. M[i][j] is 1 when i knows j. Ignore the diagonal when checking a person.",
+    "example": {
+      "input": "M = [[0,0,1], [1,0,1], [0,0,0]]",
+      "output": "2",
+      "explanation": "Persons 0 and 1 both know person 2. Person 2 knows neither of them."
+    },
+    "baseline": "Try every person. Check that their row has no outgoing acquaintance and their column has an incoming acquaintance from everyone else. This takes O(n²) matrix checks.",
+    "approach": "One comparison can rule out one of two people. If candidate knows person i, candidate cannot be the celebrity, so replace candidate with i. If candidate does not know i, then i cannot be the celebrity because at least one person does not know them.\n\nA single pass leaves only one possible candidate. It does not prove that this person is a celebrity: everyone may have been unsuitable. Make a second pass to check both conditions for the remaining person. Skip their diagonal entry because knowing oneself is irrelevant.",
+    "steps": [
+      "Start with candidate 0.",
+      "Compare candidate with each later person and replace candidate if they know that person.",
+      "Verify candidate knows no other person and every other person knows candidate.",
+      "Return −1 on any failed check; otherwise return candidate."
+    ],
+    "java": "static int celebrity(int[][] matrix) {\n    int n = matrix.length;\n    if (n == 0) return -1;\n    int candidate = 0;\n    for (int person = 1; person < n; person++) {\n        if (matrix[candidate][person] == 1) candidate = person;\n    }\n    for (int person = 0; person < n; person++) {\n        if (person == candidate) continue;\n        if (matrix[candidate][person] == 1 || matrix[person][candidate] == 0) return -1;\n    }\n    return candidate;\n}",
+    "time": "O(n) matrix lookups, even though the supplied matrix occupies O(n²) storage.",
+    "space": "O(1) extra space.",
+    "pitfalls": [
+      "Candidate elimination is not enough; always verify the final person.",
+      "Both directions matter: knows nobody, and is known by everybody else.",
+      "Ignore matrix[candidate][candidate].",
+      "Do not follow the pinned Word Break link for this item; use the correct reference below."
+    ],
+    "tests": [
+      "assert celebrity(new int[][]{{0,0,1},{1,0,1},{0,0,0}})==2;assert celebrity(new int[][]{{0,1},{1,0}})==-1;assert celebrity(new int[][]{{0}})==0;assert celebrity(new int[0][0])==-1;",
+      "for(int n=1;n<=4;n++){int bits=n*(n-1);for(int mask=0;mask<(1<<bits);mask++){int[][]m=new int[n][n];int bit=0;for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)m[i][j]=(mask>>bit++)&1;assert celebrity(m)==celebrityByCheckingEveryone(m);}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/celebrity-problem",
+      "title": "Celebrity Problem",
+      "checkedOn": "2026-10-29",
+      "approach": "Eliminate impossible candidates with pairwise acquaintance checks, then verify the survivor.",
+      "adaptation": "The correct public matrix-based problem was checked. The tracker’s pinned practice URL points to Word Break and is not used as the problem definition. No public Java editorial is exposed on this practice page; the candidate-elimination Java is authored and tested here."
+    },
+    "baselineJava": "static int celebrityByCheckingEveryone(int[][] matrix) {\n    for (int candidate = 0; candidate < matrix.length; candidate++) {\n        boolean valid = true;\n        for (int person = 0; person < matrix.length; person++) {\n            if (person != candidate && (matrix[candidate][person] == 1\n                    || matrix[person][candidate] == 0)) valid = false;\n        }\n        if (valid) return candidate;\n    }\n    return -1;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space."
+  },
+  "228": {
+    "problem": "Build a cache with a fixed capacity. get(key) returns the stored value or −1. put(key,value) inserts or updates a value. When a new key needs space, remove the least recently used key.",
+    "assumptions": "A successful get and every put make that key most recently used. A failed get changes nothing. Both operations must take average O(1) time. The task uses positive capacity; this implementation also treats capacity zero as a cache that retains nothing.",
+    "example": {
+      "input": "capacity 2: put(4,40), put(7,70), get(4), put(9,90), get(7)",
+      "output": "get results: 40, −1",
+      "explanation": "Reading 4 makes it more recent than 7. Inserting 9 therefore evicts 7."
+    },
+    "baseline": "Keep entries in a list ordered by last use. Search the list for each key, move a found entry to the front, and remove the last entry when full. Searching costs O(capacity) per operation.",
+    "approach": "A hash map finds a key’s node quickly. A doubly linked list keeps those nodes in usage order: most recent near head, least recent near tail. Knowing a node lets us remove it in constant time because it points to both neighbours.\n\nOn a successful get, detach the node and put it after head. Updating a value does the same. For a new key in a full cache, remove tail.prev from both the list and the map, then insert the new node at the front. Two dummy nodes make empty and one-entry cases use the same pointer updates.",
+    "steps": [
+      "Map each key to its list node.",
+      "Keep dummy head and tail nodes around the real entries.",
+      "Move accessed or updated nodes immediately after head.",
+      "For a full-cache insertion, evict tail.prev and remove its key from the map."
+    ],
+    "java": "static class LRUCache {\n    private static class Entry {\n        final int key;\n        int value;\n        Entry prev, next;\n        Entry(int key, int value) { this.key = key; this.value = value; }\n    }\n    private final int capacity;\n    private final Map<Integer, Entry> entries = new HashMap<>();\n    private final Entry head = new Entry(0, 0), tail = new Entry(0, 0);\n\n    LRUCache(int capacity) {\n        if (capacity < 0) throw new IllegalArgumentException(\"Negative capacity\");\n        this.capacity = capacity;\n        head.next = tail;\n        tail.prev = head;\n    }\n\n    public int get(int key) {\n        Entry entry = entries.get(key);\n        if (entry == null) return -1;\n        detach(entry);\n        addFirst(entry);\n        return entry.value;\n    }\n\n    public void put(int key, int value) {\n        Entry entry = entries.get(key);\n        if (entry != null) {\n            entry.value = value;\n            detach(entry);\n            addFirst(entry);\n            return;\n        }\n        if (capacity == 0) return;\n        if (entries.size() == capacity) {\n            Entry victim = tail.prev;\n            detach(victim);\n            entries.remove(victim.key);\n        }\n        entry = new Entry(key, value);\n        addFirst(entry);\n        entries.put(key, entry);\n    }\n\n    private void detach(Entry entry) {\n        entry.prev.next = entry.next;\n        entry.next.prev = entry.prev;\n    }\n\n    private void addFirst(Entry entry) {\n        entry.prev = head;\n        entry.next = head.next;\n        head.next.prev = entry;\n        head.next = entry;\n    }\n}",
+    "time": "Average O(1) per get or put, using hash-map lookup and constant-time list changes.",
+    "space": "O(capacity) retained entries and map records.",
+    "pitfalls": [
+      "Move an entry on a successful get, not only on put.",
+      "Updating an existing key must not evict another entry.",
+      "Eviction must update both the map and the list.",
+      "Keep the key in each node so its map entry can be removed during eviction.",
+      "Dummy head and tail nodes are never cache entries."
+    ],
+    "tests": [
+      "LRUCache c=new LRUCache(2);c.put(4,40);c.put(7,70);assert c.get(4)==40;c.put(9,90);assert c.get(7)==-1;assert c.get(9)==90;assert c.get(4)==40;",
+      "LRUCache c=new LRUCache(2);c.put(1,10);c.put(2,20);c.put(1,11);c.put(3,30);assert c.get(2)==-1;assert c.get(1)==11;LRUCache zero=new LRUCache(0);zero.put(1,1);assert zero.get(1)==-1;",
+      "Random r=new Random(228);for(int capacity=0;capacity<=8;capacity++){LRUCache actual=new LRUCache(capacity);LinkedHashMap<Integer,Integer> expected=new LinkedHashMap<>(16,0.75f,true);for(int op=0;op<5000;op++){int key=r.nextInt(15);if(r.nextBoolean()){int value=r.nextInt(1000);actual.put(key,value);expected.put(key,value);if(expected.size()>capacity)expected.remove(expected.keySet().iterator().next());}else{Integer value=expected.get(key);assert actual.get(key)==(value==null?-1:value);}}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/lru-cache",
+      "title": "LRU Cache",
+      "checkedOn": "2026-10-29",
+      "approach": "Use a key-to-node map and a doubly linked list ordered by recent use.",
+      "adaptation": "The current public specification and doubly-linked-list prompts were checked. Its public editor contains only a starter class, not a Java editorial. This authored implementation exposes the map and list operations rather than hiding the design inside LinkedHashMap."
+    }
+  },
+  "229": {
+    "problem": "Build a cache that evicts the least frequently used key when full. If several keys have the same lowest frequency, evict the least recently used among them.",
+    "assumptions": "New keys start at frequency 1. A successful get or put of an existing key increases its frequency by 1 and makes it most recent at its new frequency. Missing get returns −1 without changing state. Capacity zero retains nothing.",
+    "example": {
+      "input": "capacity 2: put(4,40), put(7,70), get(4), put(9,90), get(9), put(2,20)",
+      "output": "7 is evicted, then 4 is evicted",
+      "explanation": "Reading 4 raises its frequency to 2, so 7 is removed first. Reading 9 also raises it to 2. Between equal-frequency keys 4 and 9, 4 was used earlier."
+    },
+    "baseline": "Store each key’s value, frequency and last-use time. When evicting, scan all keys for the smallest frequency, breaking ties by the oldest time. This is simple, but eviction costs O(capacity).",
+    "approach": "Group keys by frequency. Each group keeps its keys from least recent to most recent. A second map finds a key’s value and current frequency. Keep minFrequency so eviction can jump directly to the lowest-frequency group.\n\nUsing a key moves it from frequency f to f + 1, at the recent end of that new group. If the old group was the minimum and becomes empty, the new minimum is f + 1: the moved key itself is now there. A new key always enters frequency 1, so insertion resets the minimum to 1.\n\nLinkedHashSet gives each group both fast removal by key and insertion order. Its first key is the one to evict on a frequency tie. This is the same job a separate doubly linked list performs for each frequency; Java’s collection handles those links here.",
+    "steps": [
+      "Map keys to value/frequency records and frequencies to ordered sets of keys.",
+      "On a hit or update, remove the key from its old group and append it to the next group.",
+      "Remove empty groups and update minFrequency when necessary.",
+      "When full, evict the first key in the minimum-frequency group.",
+      "Insert a new key at frequency 1 and set minFrequency to 1."
+    ],
+    "java": "static class LFUCache {\n    private static class Entry {\n        int value, frequency = 1;\n        Entry(int value) { this.value = value; }\n    }\n    private final int capacity;\n    private int minFrequency = 0;\n    private final Map<Integer, Entry> entries = new HashMap<>();\n    private final Map<Integer, LinkedHashSet<Integer>> groups = new HashMap<>();\n\n    LFUCache(int capacity) {\n        if (capacity < 0) throw new IllegalArgumentException(\"Negative capacity\");\n        this.capacity = capacity;\n    }\n\n    public int get(int key) {\n        Entry entry = entries.get(key);\n        if (entry == null) return -1;\n        touch(key, entry);\n        return entry.value;\n    }\n\n    public void put(int key, int value) {\n        Entry entry = entries.get(key);\n        if (entry != null) {\n            entry.value = value;\n            touch(key, entry);\n            return;\n        }\n        if (capacity == 0) return;\n        if (entries.size() == capacity) {\n            LinkedHashSet<Integer> least = groups.get(minFrequency);\n            int victim = least.iterator().next();\n            least.remove(victim);\n            if (least.isEmpty()) groups.remove(minFrequency);\n            entries.remove(victim);\n        }\n        entries.put(key, new Entry(value));\n        groups.computeIfAbsent(1, ignored -> new LinkedHashSet<>()).add(key);\n        minFrequency = 1;\n    }\n\n    private void touch(int key, Entry entry) {\n        int oldFrequency = entry.frequency;\n        LinkedHashSet<Integer> oldGroup = groups.get(oldFrequency);\n        oldGroup.remove(key);\n        if (oldGroup.isEmpty()) {\n            groups.remove(oldFrequency);\n            if (minFrequency == oldFrequency) minFrequency++;\n        }\n        entry.frequency++;\n        groups.computeIfAbsent(entry.frequency, ignored -> new LinkedHashSet<>()).add(key);\n    }\n}",
+    "time": "Average O(1) per get or put with hash maps and insertion-ordered hash sets.",
+    "space": "O(capacity): each live key belongs to one frequency group, and empty groups are removed.",
+    "pitfalls": [
+      "Updating an existing value counts as a use and increases frequency.",
+      "Tie-breaking uses recent access within the lowest-frequency group, not global recency alone.",
+      "A newly inserted key starts at frequency 1, even if that key was evicted earlier.",
+      "Remove empty groups so repeated hits do not leave unbounded historical buckets.",
+      "A missing get must not create a key or change its frequency."
+    ],
+    "tests": [
+      "LFUCache c=new LFUCache(2);c.put(4,40);c.put(7,70);assert c.get(4)==40;c.put(9,90);assert c.get(7)==-1;assert c.get(9)==90;c.put(2,20);assert c.get(4)==-1;assert c.get(9)==90;assert c.get(2)==20;",
+      "LFUCache c=new LFUCache(2);c.put(1,1);c.put(2,2);c.put(1,11);c.put(3,3);assert c.get(2)==-1;assert c.get(1)==11;LFUCache zero=new LFUCache(0);zero.put(1,2);assert zero.get(1)==-1;",
+      "Random r=new Random(229);for(int capacity=0;capacity<=8;capacity++){LFUCache actual=new LFUCache(capacity);Map<Integer,int[]> expected=new HashMap<>();for(int time=1;time<=5000;time++){int key=r.nextInt(15);if(r.nextBoolean()){int value=r.nextInt(1000);actual.put(key,value);int[]entry=expected.get(key);if(entry!=null){entry[0]=value;entry[1]++;entry[2]=time;}else if(capacity>0){if(expected.size()==capacity){int victim=-1;for(int candidate:expected.keySet()){if(victim==-1||expected.get(candidate)[1]<expected.get(victim)[1]||(expected.get(candidate)[1]==expected.get(victim)[1]&&expected.get(candidate)[2]<expected.get(victim)[2]))victim=candidate;}expected.remove(victim);}expected.put(key,new int[]{value,1,time});}}else{int[]entry=expected.get(key);int want=entry==null?-1:entry[0];assert actual.get(key)==want;if(entry!=null){entry[1]++;entry[2]=time;}}}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/lfu-cache",
+      "title": "LFU Cache",
+      "checkedOn": "2026-10-29",
+      "approach": "Group keys by frequency and maintain least-to-most-recent order within each group.",
+      "adaptation": "The current public statement, update-frequency rule and tie-breaking examples were checked. No public Java editorial is exposed there. This authored implementation uses LinkedHashSet for each frequency’s ordered group rather than writing another linked-list class."
+    }
   }
 }
