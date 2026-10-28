@@ -1496,7 +1496,8 @@
       "assert longestSum(new int[]{1,-1,5,-2,3},3)==4;",
       "assert longestSum(new int[]{0,0,0},0)==3;",
       "assert longestSum(new int[]{},0)==0;",
-      "assert longestSum(new int[]{-2,-1,2,1},1)==3;"
+      "assert longestSum(new int[]{-2,-1,2,1},1)==2;",
+      "Random r=new Random(52); for(int run=0;run<200;run++){int[] a=new int[r.nextInt(12)]; for(int i=0;i<a.length;i++)a[i]=r.nextInt(9)-4; int k=r.nextInt(11)-5,best=0; for(int i=0;i<a.length;i++){long sum=0;for(int j=i;j<a.length;j++){sum+=a[j];if(sum==k)best=Math.max(best,j-i+1);}} assert longestSum(a,k)==best;}"
     ]
   }
 }
