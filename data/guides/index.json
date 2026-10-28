@@ -4898,5 +4898,376 @@
         ]
       ]
     }
+  },
+  "135": {
+    "problem": "Return the middle node of a linked list. For an even-length list, return the second of the two middle nodes.",
+    "assumptions": "The list is finite and has no cycle. The tracker links to LeetCode 876, which returns a node reference. This implementation also returns null for an empty list.",
+    "example": {
+      "input": "2 → 4 → 6 → 8 → null",
+      "output": "The node holding 6",
+      "explanation": "There are four nodes. The two middle nodes hold 4 and 6; the required second middle is 6."
+    },
+    "baseline": "Count n nodes in one pass, then move n / 2 steps from the head. That reaches the required node in a second pass.",
+    "approach": "Let slow move one node per turn and fast move two. After two turns, slow has moved two places while fast has moved four. When fast runs out of list, slow has covered half of it.\n\nStarting both references at head and allowing fast to become null makes the even-length case return the second middle. We return slow itself, so the caller can still access the nodes after it.",
+    "steps": [
+      "Set slow and fast to head.",
+      "While fast and fast.next both exist, advance slow once and fast twice.",
+      "Return slow."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node middle(Node head) {\n    Node slow = head;\n    Node fast = head;\n    while (fast != null && fast.next != null) {\n        slow = slow.next;\n        fast = fast.next.next;\n    }\n    return slow;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Check fast != null before reading fast.next. Java && stops at the first false condition.",
+      "Returning slow.data answers a different return contract. The tracker’s linked problem needs slow."
+    ],
+    "tests": [
+      "Node a=new Node(2),b=new Node(4),d=new Node(6),e=new Node(8);a.next=b;b.next=d;d.next=e;assert middle(a)==d;assert middleByCounting(a)==d;",
+      "assert middle(null)==null;assert middleByCounting(null)==null;Node a=new Node(9);assert middle(a)==a;",
+      "for(int n=1;n<=101;n++){Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(7);if(i>0)nodes[i-1].next=nodes[i];}assert middle(nodes[0])==nodes[n/2];assert middleByCounting(nodes[0])==nodes[n/2];}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-middle-of-linked-list",
+      "title": "Find Middle of Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Count and walk, then use slow/fast pointers to reach the second middle.",
+      "adaptation": "Both Java variants were checked. The article returns data; the tracker-linked problem returns a node, so both methods here return Node. The article’s C++-style if (!head) in Java is replaced with a valid null-safe implementation."
+    },
+    "trace": {
+      "columns": [
+        "After turn",
+        "slow",
+        "fast"
+      ],
+      "rows": [
+        [
+          "Start",
+          "2",
+          "2"
+        ],
+        [
+          "1",
+          "4",
+          "6"
+        ],
+        [
+          "2",
+          "6",
+          "null"
+        ],
+        [
+          "Stop",
+          "Return node 6",
+          "No next turn"
+        ]
+      ]
+    },
+    "baselineJava": "static Node middleByCounting(Node head) {\n    int count = 0;\n    for (Node current = head; current != null; current = current.next) count++;\n    Node current = head;\n    for (int step = 0; step < count / 2; step++) current = current.next;\n    return current;\n}",
+    "baselineTime": "O(n) time and O(1) extra space; two passes."
+  },
+  "136": {
+    "problem": "Reverse a singly linked list by changing next links, then return its new head.",
+    "assumptions": "The list has no cycle. Empty input returns null. The final solution reuses the same node objects and keeps their data unchanged.",
+    "example": {
+      "input": "3 → 7 → 1 → null",
+      "output": "1 → 7 → 3 → null",
+      "explanation": "The original node holding 1 becomes the head. The original 3 becomes the tail and points to null."
+    },
+    "baseline": "Striver first shows a stack of values: save every value, then pop them back into the existing nodes. This reverses the value sequence but leaves node order unchanged. It uses O(n) extra space.",
+    "approach": "Keep prev at the front of the part already reversed and current at the next node to process. Before changing current.next, save it as next. Otherwise we would lose the rest of the original chain.\n\nPoint current.next back to prev, then move prev to current and current to the saved next. Each turn transfers one node from the remaining chain to the front of the reversed chain. When no nodes remain, prev is the new head.",
+    "steps": [
+      "Start prev at null and current at head.",
+      "Save next = current.next.",
+      "Point current.next to prev, then advance prev and current.",
+      "Return prev after current becomes null."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node reverse(Node head) {\n    Node prev = null;\n    Node current = head;\n    while (current != null) {\n        Node next = current.next;\n        current.next = prev;\n        prev = current;\n        current = next;\n    }\n    return prev;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Save the original next before overwriting the link.",
+      "The first processed node must point to null; that is why prev starts at null.",
+      "Stack-based value rewriting does not preserve the data attached to each object. Use link reversal when node identity matters."
+    ],
+    "tests": [
+      "Node a=new Node(3),b=new Node(7),d=new Node(1);a.next=b;b.next=d;Node h=reverse(a);assert h==d&&d.next==b&&b.next==a&&a.next==null;assert a.data==3&&b.data==7&&d.data==1;",
+      "assert reverse(null)==null;Node a=new Node(5);assert reverse(a)==a&&a.next==null;",
+      "for(int n=1;n<=100;n++){Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(i);if(i>0)nodes[i-1].next=nodes[i];}Node p=reverse(nodes[0]);for(int i=n-1;i>=0;i--){assert p==nodes[i]&&p.data==i;p=p.next;}assert p==null;}",
+      "Node a=new Node(3),b=new Node(7),d=new Node(1);a.next=b;b.next=d;assert reverseValues(a)==a;assert a.data==1&&b.data==7&&d.data==3&&a.next==b&&b.next==d;",
+      "assert reverseValues(null)==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/reverse-a-singly-linked-list",
+      "title": "Reverse a Singly Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Stack-based value rewriting, then iterative reversal of the links.",
+      "adaptation": "Both public Java variants were checked. The stack uses ArrayDeque rather than the older Stack class. Node data is named data consistently across these guides."
+    },
+    "trace": {
+      "columns": [
+        "Current",
+        "Saved next",
+        "Link changed",
+        "Reversed part"
+      ],
+      "rows": [
+        [
+          "3",
+          "7",
+          "3.next = null",
+          "3"
+        ],
+        [
+          "7",
+          "1",
+          "7.next = 3",
+          "7 → 3"
+        ],
+        [
+          "1",
+          "null",
+          "1.next = 7",
+          "1 → 7 → 3"
+        ]
+      ]
+    },
+    "baselineJava": "static Node reverseValues(Node head) {\n    Deque<Integer> values = new ArrayDeque<>();\n    for (Node current = head; current != null; current = current.next) {\n        values.push(current.data);\n    }\n    for (Node current = head; current != null; current = current.next) {\n        current.data = values.pop();\n    }\n    return head;\n}",
+    "baselineTime": "O(n) time and O(n) extra space."
+  },
+  "137": {
+    "problem": "Reverse a singly linked list using recursion and return its new head.",
+    "assumptions": "This is the tracker’s separate recursive version of list reversal. The list is finite and has no cycle. Use the iterative version for very long lists to avoid Java stack overflow.",
+    "example": {
+      "input": "2 → 8 → 5 → null",
+      "output": "5 → 8 → 2 → null",
+      "explanation": "First reverse 8 → 5 into 5 → 8. Then connect 8 back to 2 and clear 2.next."
+    },
+    "baseline": "The previous question reverses links in a loop using O(1) extra space. Here the call stack remembers the unfinished nodes instead.",
+    "approach": "Ask the recursive call to reverse everything after head. When it returns, the old second node is the tail of that reversed part. Its next should now point back to head. Then clear head.next, because head becomes the new tail.\n\nThe new head comes from the recursive call and stays the same while the calls return. Empty and single-node lists are already reversed, so they stop the recursion.",
+    "steps": [
+      "Return head when it is null or its next is null.",
+      "Save newHead = reverseRecursive(head.next).",
+      "Set head.next.next = head, then head.next = null.",
+      "Return newHead."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node reverseRecursive(Node head) {\n    if (head == null || head.next == null) return head;\n    Node newHead = reverseRecursive(head.next);\n    head.next.next = head;\n    head.next = null;\n    return newHead;\n}",
+    "time": "O(n).",
+    "space": "O(n) for the recursive calls.",
+    "pitfalls": [
+      "Clearing head.next is essential. Without it, the last two nodes point at each other and create a cycle.",
+      "Return newHead, not head, while unwinding.",
+      "The source’s current public article shows iterative Java and mentions recursion only in its follow-up; this saved lesson supplies the recursive variant required by the tracker."
+    ],
+    "tests": [
+      "Node a=new Node(2),b=new Node(8),d=new Node(5);a.next=b;b.next=d;Node h=reverseRecursive(a);assert h==d&&d.next==b&&b.next==a&&a.next==null;",
+      "assert reverseRecursive(null)==null;Node a=new Node(1);assert reverseRecursive(a)==a&&a.next==null;",
+      "for(int n=1;n<=200;n++){Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(i);if(i>0)nodes[i-1].next=nodes[i];}Node p=reverseRecursive(nodes[0]);for(int i=n-1;i>=0;i--){assert p==nodes[i]&&p.data==i;p=p.next;}assert p==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/reverse-a-singly-linked-list",
+      "title": "Reverse a Singly Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Recursive reversal is discussed as a follow-up to the iterative solution.",
+      "adaptation": "The public lesson and its recursion follow-up were checked. It has no recursive Java snippet; this is an original implementation for the tracker’s separate recursive question."
+    },
+    "trace": {
+      "columns": [
+        "Returning call",
+        "Links to set",
+        "New head returned"
+      ],
+      "rows": [
+        [
+          "reverse(5)",
+          "Single node: no change",
+          "5"
+        ],
+        [
+          "reverse(8)",
+          "5.next = 8; 8.next = null",
+          "5"
+        ],
+        [
+          "reverse(2)",
+          "8.next = 2; 2.next = null",
+          "5"
+        ]
+      ]
+    }
+  },
+  "138": {
+    "problem": "Return whether following next links eventually revisits the same node.",
+    "assumptions": "The list may be empty or contain a cycle. Compare Node references, not their integer data. Do not change any next link.",
+    "example": {
+      "input": "4 → 7 → 2 → 9, with 9.next pointing back to 7",
+      "output": "true",
+      "explanation": "The walk repeats 7 → 2 → 9 forever. Repeated values alone would not prove a cycle; the same node must be revisited."
+    },
+    "baseline": "Keep a set of visited Node references. Finding a reference already in the set proves that the walk has returned to an earlier node. Reaching null proves there is no cycle.",
+    "approach": "Move slow one node per turn and fast two. If there is no cycle, fast reaches the end. If there is a cycle, both pointers eventually enter it. Inside the loop, fast gains one position on slow each turn, so it must catch slow within one lap.\n\nCompare them after moving. They start together at head, which by itself says nothing about whether a cycle exists.",
+    "steps": [
+      "Start slow and fast at head.",
+      "While fast and fast.next exist, move slow once and fast twice.",
+      "Return true if the references meet after a move.",
+      "Return false when fast reaches the end."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic boolean hasCycle(Node head) {\n    Node slow = head;\n    Node fast = head;\n    while (fast != null && fast.next != null) {\n        slow = slow.next;\n        fast = fast.next.next;\n        if (slow == fast) return true;\n    }\n    return false;\n}",
+    "time": "O(n), where n is the number of reachable distinct nodes.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Check equality after the first move, not before it.",
+      "A single node can have a cycle when its next points to itself.",
+      "Storing or comparing only data falsely detects cycles when separate nodes have equal values."
+    ],
+    "tests": [
+      "Node a=new Node(4),b=new Node(7),d=new Node(2),e=new Node(9);a.next=b;b.next=d;d.next=e;e.next=b;assert hasCycle(a)&&hasCycleWithSet(a);assert e.next==b;",
+      "assert !hasCycle(null)&&!hasCycleWithSet(null);Node a=new Node(1);assert !hasCycle(a);a.next=a;assert hasCycle(a);",
+      "for(int n=1;n<=50;n++){Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(5);if(i>0)nodes[i-1].next=nodes[i];}assert !hasCycle(nodes[0])&&!hasCycleWithSet(nodes[0]);for(int entry=0;entry<n;entry++){nodes[n-1].next=nodes[entry];assert hasCycle(nodes[0])&&hasCycleWithSet(nodes[0]);for(int i=0;i<n-1;i++)assert nodes[i].next==nodes[i+1];assert nodes[n-1].next==nodes[entry];}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/detect-cycle-linked-list",
+      "title": "Detect a Cycle in a Linked List: Floyd's Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Visited-node hashing, then Floyd’s slow/fast pointer method.",
+      "adaptation": "Both public Java approaches were checked. The local Node class keeps Java’s default identity-based equality."
+    },
+    "trace": {
+      "columns": [
+        "Turn",
+        "slow",
+        "fast"
+      ],
+      "rows": [
+        [
+          "Start",
+          "4",
+          "4"
+        ],
+        [
+          "1",
+          "7",
+          "2"
+        ],
+        [
+          "2",
+          "2",
+          "7"
+        ],
+        [
+          "3",
+          "9",
+          "9: they meet, so a cycle exists"
+        ]
+      ]
+    },
+    "baselineJava": "static boolean hasCycleWithSet(Node head) {\n    Set<Node> seen = new HashSet<>();\n    for (Node current = head; current != null; current = current.next) {\n        if (!seen.add(current)) return true;\n    }\n    return false;\n}",
+    "baselineTime": "O(n) expected time and O(n) space."
+  },
+  "139": {
+    "problem": "Return the node where a linked-list cycle begins, or null if there is no cycle.",
+    "assumptions": "The list may be empty or contain a cycle. Compare Node references, not their integer data. Do not change any next link.",
+    "example": {
+      "input": "4 → 7 → 2 → 9, with 9.next pointing back to 7",
+      "output": "The original node holding 7",
+      "explanation": "The first traversal enters the repeating part at 7. The answer is that node reference, not a new node with the same data."
+    },
+    "baseline": "Walk with a set of visited references. The first repeated reference is the cycle entry. This uses O(n) extra space.",
+    "approach": "First use slow and fast to find a meeting inside the cycle. Then reset slow to head and leave fast at the meeting point. Move both one step per turn. Their next meeting is the cycle entry.\n\nWhy does resetting work? Let a be the distance before the cycle, b the distance from the entry to the first meeting, and L the loop length. When they meet, fast has travelled twice as far as slow. Its extra distance is a whole number of laps, so a + b is a multiple of L. Starting at that meeting, another a steps therefore lands at the entry. The pointer from head also needs exactly a steps.",
+    "steps": [
+      "Find a slow/fast meeting, returning null if fast reaches the end.",
+      "Reset slow to head; keep fast at the meeting.",
+      "Move both one step until their references agree.",
+      "Return that shared reference without changing the list."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node cycleStart(Node head) {\n    Node slow = head;\n    Node fast = head;\n    while (fast != null && fast.next != null) {\n        slow = slow.next;\n        fast = fast.next.next;\n        if (slow == fast) {\n            slow = head;\n            while (slow != fast) {\n                slow = slow.next;\n                fast = fast.next;\n            }\n            return slow;\n        }\n    }\n    return null;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The first meeting may be anywhere in the cycle. Do not return it immediately.",
+      "After the reset, both pointers move one step; fast no longer moves two.",
+      "A cycle that begins at head may need zero moves in the second phase."
+    ],
+    "tests": [
+      "Node a=new Node(4),b=new Node(7),d=new Node(2),e=new Node(9);a.next=b;b.next=d;d.next=e;e.next=b;assert cycleStart(a)==b&&cycleStartWithSet(a)==b;",
+      "assert cycleStart(null)==null&&cycleStartWithSet(null)==null;Node a=new Node(5);assert cycleStart(a)==null;a.next=a;assert cycleStart(a)==a;",
+      "for(int n=1;n<=50;n++){Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(5);if(i>0)nodes[i-1].next=nodes[i];}assert cycleStart(nodes[0])==null&&cycleStartWithSet(nodes[0])==null;for(int entry=0;entry<n;entry++){nodes[n-1].next=nodes[entry];assert cycleStart(nodes[0])==nodes[entry];assert cycleStartWithSet(nodes[0])==nodes[entry];assert nodes[n-1].next==nodes[entry];}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-start-of-cycle-linked-list",
+      "title": "Find the Starting Node of a Cycle in a Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Visited-node hashing, then a Floyd meeting followed by equal-speed traversal.",
+      "adaptation": "Both public Java methods were checked. This version preserves the source’s node-reference return contract."
+    },
+    "trace": {
+      "columns": [
+        "Phase",
+        "Pointer from head",
+        "Pointer from first meeting"
+      ],
+      "rows": [
+        [
+          "First meeting",
+          "—",
+          "Node 9"
+        ],
+        [
+          "Reset",
+          "Node 4",
+          "Node 9"
+        ],
+        [
+          "One equal-speed step",
+          "Node 7",
+          "Node 7"
+        ],
+        [
+          "Answer",
+          "Return this node",
+          "Cycle entry"
+        ]
+      ]
+    },
+    "baselineJava": "static Node cycleStartWithSet(Node head) {\n    Set<Node> seen = new HashSet<>();\n    for (Node current = head; current != null; current = current.next) {\n        if (!seen.add(current)) return current;\n    }\n    return null;\n}",
+    "baselineTime": "O(n) expected time and O(n) space."
+  },
+  "140": {
+    "problem": "Count the distinct nodes inside a linked-list cycle. Return 0 if there is no cycle.",
+    "assumptions": "The list may be empty or contain a cycle. Compare Node references, not their integer data. Do not change any next link.",
+    "example": {
+      "input": "4 → 7 → 2 → 9, with 9.next pointing back to 7",
+      "output": "3",
+      "explanation": "Only 7, 2 and 9 belong to the loop. The node holding 4 is before the loop and is not counted."
+    },
+    "baseline": "Save visited references until one repeats. Starting at that repeated node, walk one full lap and count its nodes. The set needs O(n) space.",
+    "approach": "Use slow and fast to find any meeting inside the loop. Keep that meeting reference fixed and walk another pointer from its next node until it returns to the meeting. Start the count at 1 because the meeting node itself already counts.\n\nThere is no need to find the entry first. A complete lap contains the same number of nodes regardless of where in the loop you start.",
+    "steps": [
+      "Run slow/fast cycle detection. Return 0 if fast reaches the end.",
+      "At a meeting, set length = 1 and current = meeting.next.",
+      "Advance current and count until current is the meeting node again.",
+      "Return the count."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic int countLap(Node meeting) {\n    int length = 1;\n    for (Node current = meeting.next; current != meeting; current = current.next) {\n        length++;\n    }\n    return length;\n}\n\nstatic int cycleLength(Node head) {\n    Node slow = head;\n    Node fast = head;\n    while (fast != null && fast.next != null) {\n        slow = slow.next;\n        fast = fast.next.next;\n        if (slow == fast) return countLap(slow);\n    }\n    return 0;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not include the nodes before the loop.",
+      "Count the meeting node once, not zero times or twice.",
+      "Only call countLap after confirming its argument lies inside a cycle."
+    ],
+    "tests": [
+      "Node a=new Node(4),b=new Node(7),d=new Node(2),e=new Node(9);a.next=b;b.next=d;d.next=e;e.next=b;assert cycleLength(a)==3&&cycleLengthWithSet(a)==3;",
+      "assert cycleLength(null)==0&&cycleLengthWithSet(null)==0;Node a=new Node(4);assert cycleLength(a)==0;a.next=a;assert cycleLength(a)==1;",
+      "for(int n=1;n<=50;n++){Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(5);if(i>0)nodes[i-1].next=nodes[i];}assert cycleLength(nodes[0])==0&&cycleLengthWithSet(nodes[0])==0;for(int entry=0;entry<n;entry++){nodes[n-1].next=nodes[entry];assert cycleLength(nodes[0])==n-entry;assert cycleLengthWithSet(nodes[0])==n-entry;assert nodes[n-1].next==nodes[entry];}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/length-of-cycle-linked-list",
+      "title": "Find the Length of a Cycle in a Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Hash-set detection or Floyd detection, followed by one complete lap.",
+      "adaptation": "Both public Java approaches were checked, including the helper that counts from a meeting point. The helper is shared by the two displayed methods."
+    },
+    "baselineJava": "static int cycleLengthWithSet(Node head) {\n    Set<Node> seen = new HashSet<>();\n    for (Node current = head; current != null; current = current.next) {\n        if (!seen.add(current)) return countLap(current);\n    }\n    return 0;\n}",
+    "baselineTime": "O(n) expected time and O(n) space."
   }
 }
