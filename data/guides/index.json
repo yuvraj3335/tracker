@@ -7756,5 +7756,82 @@
       "approach": "Head removal and tail insertion for FIFO order.",
       "adaptation": "The public practice API was checked. No public Java editorial is linked for this entry. Empty behaviour is defined here as −1; the tests include removing the last node and inserting again."
     }
+  },
+  "206": {
+    "problem": "Check whether round, square and curly brackets are correctly paired and nested.",
+    "assumptions": "The linked task contains only ()[]{}. Every opening bracket needs the same type of closing bracket, in reverse nesting order. The helper also accepts the empty string as balanced and rejects other characters.",
+    "example": {
+      "input": "s = \"[({})]\"",
+      "output": "true",
+      "explanation": "Close the innermost { first, then (, then [. The string [(]) has equal counts but the wrong closing order."
+    },
+    "baseline": "Repeatedly remove adjacent (), [] and {} pairs until none remain. An empty result means balanced, but repeated string scans and copies can take O(n²).",
+    "approach": "The latest unmatched opening bracket must close first. Push opening brackets onto a stack. For a closing bracket, require a matching opening bracket at the top and remove it. An empty stack at that moment means there was nothing to close.\n\nAfter reading the whole string, the stack must be empty. Otherwise some opening brackets never received a closing partner. Counting each bracket type cannot check the nesting order, which is why a stack is needed.",
+    "steps": [
+      "Push each opening bracket.",
+      "For a closing bracket, reject an empty stack or a different opening type on top.",
+      "Pop a correctly matched opening bracket.",
+      "At the end, accept only if no openings remain."
+    ],
+    "java": "static boolean isValid(String s) {\n    Deque<Character> openings = new ArrayDeque<>();\n    for (int i = 0; i < s.length(); i++) {\n        char ch = s.charAt(i);\n        if (ch == '(' || ch == '[' || ch == '{') {\n            openings.push(ch);\n            continue;\n        }\n        if (ch != ')' && ch != ']' && ch != '}') return false;\n        if (openings.isEmpty()) return false;\n        char open = openings.pop();\n        if ((ch == ')' && open != '(') || (ch == ']' && open != '[')\n                || (ch == '}' && open != '{')) return false;\n    }\n    return openings.isEmpty();\n}",
+    "time": "O(n).",
+    "space": "O(n) in the worst case when many openings are waiting.",
+    "pitfalls": [
+      "Matching counts do not guarantee matching nesting.",
+      "A closing bracket at the start is invalid.",
+      "Do not forget to check for leftover opening brackets at the end."
+    ],
+    "tests": [
+      "assert isValid(\"[({})]\");assert isValid(\"()[]{}\");assert isValid(\"\");assert !isValid(\"[(])\");assert !isValid(\")(\");assert !isValid(\"((\");assert !isValid(\"a\");",
+      "String alphabet=\"()[]{}\";for(int length=0;length<=6;length++){int possibilities=1;for(int i=0;i<length;i++)possibilities*=6;for(int encoded=0;encoded<possibilities;encoded++){int value=encoded;StringBuilder b=new StringBuilder();for(int i=0;i<length;i++){b.append(alphabet.charAt(value%6));value/=6;}String s=b.toString(),reduced=s;while(true){String next=reduced.replace(\"()\",\"\").replace(\"[]\",\"\").replace(\"{}\",\"\");if(next.equals(reduced))break;reduced=next;}assert isValid(s)==reduced.isEmpty();}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/check-balanced-parentheses-using-a-stack",
+      "title": "Check Balanced Parentheses Using a Stack",
+      "checkedOn": "2026-10-29",
+      "approach": "Push unmatched openings and match each closing bracket against the stack top.",
+      "adaptation": "The public Java was checked. This follows the same stack method using ArrayDeque instead of legacy Stack and the linked LeetCode isValid method name. It additionally rejects characters outside the stated bracket alphabet."
+    }
+  },
+  "207": {
+    "problem": "Implement a stack whose push, pop, top and getMin operations all take constant time.",
+    "assumptions": "Pop, top and getMin are called only on a non-empty stack. The tracker links to LeetCode, which permits the full signed-int value range. The encoded method therefore stores long values internally. It returns int values to callers.",
+    "example": {
+      "input": "push(5), push(2), push(2), pop(), getMin(), pop(), getMin()",
+      "output": "2, then 5",
+      "explanation": "Removing one copy of the minimum must leave the other copy active. Removing the last 2 restores the previous minimum, 5."
+    },
+    "baseline": "Save a pair at each level: the pushed value and the minimum through that level. Then the top pair always knows the current minimum. This is a straightforward O(1)-per-operation solution with O(n) storage; the PairMinStack code is included.",
+    "approach": "The final version stores one number per level and keeps the current minimum separately. A value at least as large as the minimum is stored normally. When a smaller x arrives, store 2×x − oldMinimum instead, then make x the new minimum. This stored marker is smaller than x, so it can later be recognized by being below the current minimum.\n\nWhen a marker reaches the top, the actual top value is the current minimum. Popping it restores oldMinimum = 2×currentMinimum − marker. Equal minima are stored normally, so duplicate minima work without special counting. Use long for this arithmetic: a marker can lie outside the int range even though every real pushed value fits.",
+    "steps": [
+      "For the first value, store it and set the minimum.",
+      "For a new smaller value, store its encoded marker and update the minimum. Otherwise store it normally.",
+      "For top, return the current minimum when the stored top is below it.",
+      "For pop, restore the previous minimum if the removed value is a marker.",
+      "Return the maintained minimum for getMin."
+    ],
+    "java": "static class MinStack {\n    private final Deque<Long> stack = new ArrayDeque<>();\n    private long minimum;\n\n    void push(int value) {\n        long x = value;\n        if (stack.isEmpty()) {\n            stack.push(x);\n            minimum = x;\n        } else if (x < minimum) {\n            stack.push(2L * x - minimum);\n            minimum = x;\n        } else {\n            stack.push(x);\n        }\n    }\n    void pop() {\n        long stored = stack.pop();\n        if (stored < minimum) minimum = 2L * minimum - stored;\n    }\n    int top() {\n        long stored = stack.element();\n        return (int) (stored < minimum ? minimum : stored);\n    }\n    int getMin() {\n        if (stack.isEmpty()) throw new NoSuchElementException(\"Stack empty\");\n        return (int) minimum;\n    }\n}",
+    "time": "O(1) per operation, including getMin.",
+    "space": "O(n) for the stack and O(1) additional minimum state. Encoding does not make the total storage O(1).",
+    "pitfalls": [
+      "Use long for the marker arithmetic to cover the linked full-int range.",
+      "A normal value equal to the minimum is not a marker; use a strict < comparison.",
+      "On an empty-to-non-empty push, replace the old minimum state.",
+      "The pair method is often easier to explain; both methods have the same O(n) total space complexity."
+    ],
+    "tests": [
+      "MinStack s=new MinStack();s.push(5);s.push(2);s.push(2);s.pop();assert s.getMin()==2;s.pop();assert s.getMin()==5;s.pop();s.push(8);assert s.top()==8&&s.getMin()==8;",
+      "MinStack s=new MinStack();s.push(Integer.MAX_VALUE);s.push(Integer.MIN_VALUE);assert s.top()==Integer.MIN_VALUE&&s.getMin()==Integer.MIN_VALUE;s.pop();assert s.top()==Integer.MAX_VALUE&&s.getMin()==Integer.MAX_VALUE;s.push(-1);s.push(Integer.MIN_VALUE);s.pop();assert s.getMin()==-1;",
+      "Random r=new Random(207);MinStack encoded=new MinStack();PairMinStack paired=new PairMinStack();List<Integer>expected=new ArrayList<>();for(int t=0;t<10000;t++){if(expected.isEmpty()||(expected.size()<200&&r.nextBoolean())){int value=t%7==0?Integer.MIN_VALUE:t%11==0?Integer.MAX_VALUE:r.nextInt();encoded.push(value);paired.push(value);expected.add(value);}else{encoded.pop();paired.pop();expected.remove(expected.size()-1);}if(!expected.isEmpty()){int min=Collections.min(expected),top=expected.get(expected.size()-1);assert encoded.getMin()==min&&paired.getMin()==min;assert encoded.top()==top&&paired.top()==top;}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/implement-min-stack",
+      "title": "Implement Min Stack",
+      "checkedOn": "2026-10-29",
+      "approach": "Store the minimum at each stack level; alternatively encode changes to a single maintained minimum.",
+      "adaptation": "The public practice statement and linked LeetCode contract were checked. No public Java editorial is linked. Both implementations are original, with tests for duplicate minima and the full signed-int range."
+    },
+    "baselineJava": "static class PairMinStack {\n    private final Deque<int[]> stack = new ArrayDeque<>();\n    void push(int value) {\n        int minimum = stack.isEmpty() ? value : Math.min(value, stack.peek()[1]);\n        stack.push(new int[]{value, minimum});\n    }\n    void pop() { stack.pop(); }\n    int top() { return stack.element()[0]; }\n    int getMin() { return stack.element()[1]; }\n}",
+    "baselineTime": "O(1) per operation and O(n) storage, with a value/minimum pair at each level."
   }
 }
