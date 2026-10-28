@@ -6285,7 +6285,7 @@
       "Replace that character’s previous ending count and update total.",
       "Take a non-negative remainder after subtraction."
     ],
-    "java": "static int distinctSubseqII(String s) {\n    long mod = 1_000_000_007L;\n    long[] ending = new long[26];\n    long total = 0;\n    for (char ch : s.toCharArray()) {\n        int letter = ch - 'a';\n        long next = (total + 1) % mod;\n        total = (total - ending[letter] + next + mod) % mod;\n        ending[letter] = next;\n    }\n    return (int) total;\n}",
+    "java": "static int distinctSubseqII(String s) {\n    long mod = 1_000_000_007L;\n    long[] ending = new long[26];\n    long total = 0;\n    for (int i = 0; i < s.length(); i++) {\n        int letter = s.charAt(i) - 'a';\n        long next = (total + 1) % mod;\n        total = (total - ending[letter] + next + mod) % mod;\n        ending[letter] = next;\n    }\n    return (int) total;\n}",
     "time": "O(n) for distinct counting. The separate theory generator takes O(n × 2^n).",
     "space": "O(1): 26 counts for distinct counting. The theory generator stores exponential output.",
     "pitfalls": [
