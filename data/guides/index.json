@@ -7176,5 +7176,184 @@
       "approach": "Repeated subtraction as a baseline; descending shifts from 31 to 0 for the final method.",
       "adaptation": "Both public Java approaches were checked. This follows the same long-magnitude and shifted-chunk algorithm, with a zero-divisor guard and a static helper."
     }
+  },
+  "190": {
+    "problem": "Find the minimum number of individual bit flips needed to change start into goal.",
+    "assumptions": "The source uses non-negative integers. The helper also works on the full 32-bit representation of signed ints. A flip changes exactly one chosen bit.",
+    "example": {
+      "input": "start = 9 (1001), goal = 3 (0011)",
+      "output": "2",
+      "explanation": "Bits 3 and 1 differ. Flip each once; the other positions already match."
+    },
+    "baseline": "Compare the two numbers one bit at a time across all 32 positions and count mismatches. XOR collects those mismatches in a single integer.",
+    "approach": "XOR gives 1 exactly where the input bits differ. Every such position must be changed at least once, and changing each once is sufficient. The answer is therefore the number of 1s in start XOR goal.\n\nClear the lowest set bit repeatedly with value & (value − 1), counting each removal. Equal inputs produce zero immediately.",
+    "steps": [
+      "Compute the difference mask with start XOR goal.",
+      "Count its set bits by clearing one on each iteration.",
+      "Return that count."
+    ],
+    "java": "static int minBitFlips(int start, int goal) {\n    int different = start ^ goal;\n    int flips = 0;\n    while (different != 0) {\n        different &= different - 1;\n        flips++;\n    }\n    return flips;\n}",
+    "time": "O(k) for k differing bits, at most 32 iterations.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Compare aligned bit positions, including leading zeroes.",
+      "OR does not identify differences; equal 1 bits must not be counted."
+    ],
+    "tests": [
+      "assert minBitFlips(9,3)==2;assert minBitFlips(0,0)==0;assert minBitFlips(-1,0)==32;assert minBitFlips(Integer.MIN_VALUE,0)==1;",
+      "Random r=new Random(190);for(int t=0;t<10000;t++){int a=r.nextInt(),b=r.nextInt(),expected=0;for(int i=0;i<32;i++)if(((a>>>i)&1)!=((b>>>i)&1))expected++;assert minBitFlips(a,b)==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-bit-flips-to-convert-number",
+      "title": "Minimum Bit Flips to Convert Number",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement was checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This Java uses the standard bit-mask method for the checked task."
+    }
+  },
+  "191": {
+    "problem": "Find the value that appears once when every other value appears twice.",
+    "assumptions": "This is the linked Single Number problem. The tracker’s broader odd-occurrence title is also covered: XOR works when exactly one value has odd frequency and every other value has even frequency. It does not identify multiple odd-frequency values separately.",
+    "example": {
+      "input": "nums = [8, -3, 8, 6, 6]",
+      "output": "-3",
+      "explanation": "Both 8s cancel and both 6s cancel. Only -3 remains."
+    },
+    "baseline": "Count occurrences in a hash map and return the value with frequency 1. This takes expected O(n) time and O(n) extra space under the linked problem’s guarantee.",
+    "approach": "XOR has two cancellation rules: a XOR a = 0, and a XOR 0 = a. It also allows values to be regrouped, so matching values do not need to be adjacent. XOR every value into a result starting at zero. Every pair cancels; the unpaired value remains.\n\nFor the broader title, an even number of equal values cancels completely, while an odd number leaves one copy. The same reasoning works as long as exactly one value has odd frequency.",
+    "steps": [
+      "Start result at 0.",
+      "XOR each array value into it.",
+      "Return the remaining value."
+    ],
+    "java": "static int singleNumber(int[] nums) {\n    int answer = 0;\n    for (int value : nums) answer ^= value;\n    return answer;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The frequency guarantee is necessary; otherwise the XOR result need not be an array element.",
+      "Negative values work too because XOR acts on the stored bit patterns."
+    ],
+    "tests": [
+      "assert singleNumber(new int[]{8,-3,8,6,6})==-3;assert singleNumber(new int[]{0})==0;assert singleNumber(new int[]{Integer.MIN_VALUE,7,7})==Integer.MIN_VALUE;assert singleNumber(new int[]{2,2,2,4,4})==2;",
+      "Random r=new Random(191);for(int t=0;t<500;t++){Set<Integer>used=new HashSet<>();int unique=r.nextInt();used.add(unique);List<Integer>a=new ArrayList<>();a.add(unique);for(int j=0;j<30;j++){int x;do{x=r.nextInt();}while(!used.add(x));a.add(x);a.add(x);}Collections.shuffle(a,r);assert singleNumber(a.stream().mapToInt(Integer::intValue).toArray())==unique;assert singleByCount(a.stream().mapToInt(Integer::intValue).toArray())==unique;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/single-number-i",
+      "title": "Single Number I",
+      "checkedOn": "2026-10-29",
+      "approach": "Frequency map baseline, followed by XOR cancellation.",
+      "adaptation": "Both public Java methods were checked. The final method follows the same XOR loop. The broader odd-frequency interpretation is explained separately from the linked once-versus-twice task."
+    },
+    "baselineJava": "static int singleByCount(int[] nums) {\n    Map<Integer, Integer> count = new HashMap<>();\n    for (int value : nums) count.merge(value, 1, Integer::sum);\n    for (Map.Entry<Integer, Integer> entry : count.entrySet()) {\n        if (entry.getValue() == 1) return entry.getKey();\n    }\n    throw new IllegalArgumentException(\"Expected one value appearing once\");\n}",
+    "baselineTime": "Expected O(n) time and O(n) extra space. This baseline uses the linked once-versus-twice contract."
+  },
+  "192": {
+    "problem": "Generate the power set using a bit mask for each subset.",
+    "assumptions": "Input values are distinct and n ≤ 10 in the linked task. Include the empty subset. Result order is unrestricted. This is the bit-manipulation version of the earlier recursion lesson.",
+    "example": {
+      "input": "nums = [6, 9, 2], mask = 5 (101)",
+      "output": "The mask selects [6, 2]",
+      "explanation": "Bit 0 chooses the first array element and bit 2 chooses the third. Mask 0 chooses nothing."
+    },
+    "baseline": "The earlier take/skip recursion creates the same 2^n choices. Here each sequence of choices is stored as the bits of an integer.",
+    "approach": "A subset makes one yes-or-no decision for each array position. An n-bit mask records all those decisions. Enumerate masks from 0 through 2^n − 1. For each mask, inspect every position and add nums[i] when bit i is set.\n\nThe first mask creates the empty subset and the last mask creates the full subset. Each mask has a different set of selected positions, so distinct input values give distinct subsets.",
+    "steps": [
+      "Compute the number of masks as 1 << n.",
+      "For every mask, create a fresh subset list.",
+      "Inspect each bit and include its corresponding value when set.",
+      "Add that subset to the answer."
+    ],
+    "java": "static List<List<Integer>> subsetsByMask(int[] nums) {\n    List<List<Integer>> answer = new ArrayList<>();\n    int count = 1 << nums.length;\n    for (int mask = 0; mask < count; mask++) {\n        List<Integer> subset = new ArrayList<>();\n        for (int i = 0; i < nums.length; i++) {\n            if ((mask & (1 << i)) != 0) subset.add(nums[i]);\n        }\n        answer.add(subset);\n    }\n    return answer;\n}",
+    "time": "O(n × 2^n).",
+    "space": "Up to O(n × 2^n) for the returned subsets; O(n) for the subset currently being built.",
+    "pitfalls": [
+      "Mask bits refer to indices, not to the numeric values stored there.",
+      "This int mask implementation relies on the small n constraint. It is not suitable for arrays of length 31 or more.",
+      "Repeated input values would produce duplicate value subsets and require a different rule."
+    ],
+    "tests": [
+      "assert subsetsByMask(new int[]{6,9}).equals(List.of(List.of(),List.of(6),List.of(9),List.of(6,9)));assert subsetsByMask(new int[]{}).equals(List.of(List.of()));",
+      "for(int n=0;n<=10;n++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=i;List<List<Integer>>actual=subsetsByMask(a);assert actual.size()==1<<n;assert new HashSet<>(actual).size()==actual.size();for(int i=0;i<n;i++){int occurrences=0;for(List<Integer>s:actual)if(s.contains(i))occurrences++;assert occurrences==(1<<(n-1));}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/power-set-bit-manipulation",
+      "title": "Power Set Bit Manipulation",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement was checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This Java uses the standard bit-mask method for the checked task."
+    }
+  },
+  "193": {
+    "problem": "Find the XOR of every integer in the inclusive interval [left, right].",
+    "assumptions": "Bounds are non-negative. Use long as in the current public Java article. An empty interval with left > right returns 0. This is the XOR of the whole range, not the maximum XOR of two chosen values.",
+    "example": {
+      "input": "left = 5, right = 9",
+      "output": "5",
+      "explanation": "5 XOR 6 XOR 7 XOR 8 XOR 9 = 5."
+    },
+    "baseline": "Loop from left through right and XOR each value. That takes O(right − left + 1). At Long.MAX_VALUE, a naive value++ loop can wrap, so any such baseline needs an explicit final-value stop.",
+    "approach": "Let prefix(n) be the XOR from 0 through n. XOR prefix(right) with prefix(left − 1): all values before left appear twice and cancel.\n\nThe prefix follows a four-case pattern. If n modulo 4 is 0, 1, 2 or 3, the result is n, 1, n + 1 or 0 respectively. One way to see the repetition is to group four consecutive numbers beginning at a multiple of four; their XOR is zero. Only the final incomplete group contributes. For left = 0, define prefix(−1) as zero.",
+    "steps": [
+      "Handle an empty interval.",
+      "Use the four-case rule to calculate each prefix XOR.",
+      "XOR the two prefixes to cancel values before left."
+    ],
+    "java": "static long prefixXor(long n) {\n    if (n < 0) return 0;\n    int remainder = (int) (n % 4);\n    if (remainder == 0) return n;\n    if (remainder == 1) return 1;\n    if (remainder == 2) return n + 1;\n    return 0;\n}\n\nstatic long rangeXor(long left, long right) {\n    if (left > right) return 0;\n    return prefixXor(right) ^ prefixXor(left - 1);\n}",
+    "time": "O(1).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Use XOR to cancel the prefix, not arithmetic subtraction.",
+      "The right endpoint is included.",
+      "Handle left = 0 without treating a negative prefix as a real range."
+    ],
+    "tests": [
+      "assert rangeXor(5,9)==5;assert rangeXor(0,0)==0;assert rangeXor(7,7)==7;assert rangeXor(5,4)==0;",
+      "for(int l=0;l<=300;l++){long expected=0;for(int r=l;r<=300;r++){expected^=r;assert rangeXor(l,r)==expected;}}",
+      "assert rangeXor(0,Long.MAX_VALUE)==0;for(long l=Long.MAX_VALUE-100;l<=Long.MAX_VALUE-1;l++){long expected=0;for(long x=l;;x++){expected^=x;if(x==Long.MAX_VALUE)break;}assert rangeXor(l,Long.MAX_VALUE)==expected;}assert rangeXor(Long.MAX_VALUE,Long.MAX_VALUE)==Long.MAX_VALUE;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/xor-of-numbers-in-a-range-l-to-r",
+      "title": "XOR of Numbers in a Range L to R",
+      "checkedOn": "2026-10-29",
+      "approach": "Cancel two prefix XORs; calculate each prefix with its four-case cycle.",
+      "adaptation": "The public Java loop and constant-time methods were checked. The final method follows the same long-based formula. Tests additionally cover Long.MAX_VALUE without using an overflowing baseline loop."
+    }
+  },
+  "194": {
+    "problem": "Find the two values that appear once when every other value appears twice, and return them in ascending order.",
+    "assumptions": "The tracker’s TUF practice link requires ascending order, although the current public article permits either order. The broader title also works for exactly two odd-frequency values with all others even. The input is unchanged.",
+    "example": {
+      "input": "nums = [4, 9, 4, -2, 7, 7]",
+      "output": "[-2, 9]",
+      "explanation": "The pairs cancel. A bit on which -2 and 9 differ separates them into different groups."
+    },
+    "baseline": "Count values in a hash map and collect the two frequencies equal to 1. This uses expected O(n) time and O(n) storage.",
+    "approach": "XOR the whole array. Every pair cancels, leaving a XOR b for the two missing partners. Since a and b differ, this XOR has at least one set bit. Isolate its lowest set bit with combined & -combined.\n\nSplit values according to that bit and XOR each group separately. Equal values always enter the same group and cancel. The two unique values have different values at the chosen bit, so one remains in each group. Finally put the smaller value first to satisfy the tracker’s practice link.",
+    "steps": [
+      "XOR all values to obtain the XOR of the two answers.",
+      "Isolate one set bit as a mask.",
+      "XOR values into two groups according to that mask.",
+      "Return the two group results in ascending order."
+    ],
+    "java": "static int[] twoSingleNumbers(int[] nums) {\n    int combined = 0;\n    for (int value : nums) combined ^= value;\n    int mask = combined & -combined;\n    int first = 0, second = 0;\n    for (int value : nums) {\n        if ((value & mask) != 0) first ^= value;\n        else second ^= value;\n    }\n    return first < second ? new int[]{first, second} : new int[]{second, first};\n}",
+    "time": "O(n) for two scans.",
+    "space": "O(1), including the two-element output.",
+    "pitfalls": [
+      "Use (value & mask) != 0, not > 0: the selected bit may be the sign bit.",
+      "Java’s fixed-width arithmetic makes combined & -combined work even when combined is Integer.MIN_VALUE.",
+      "Returning combined alone gives a XOR b, not either individual answer.",
+      "The final ascending order is required by the tracker’s practice problem."
+    ],
+    "tests": [
+      "assert Arrays.equals(twoSingleNumbers(new int[]{4,9,4,-2,7,7}),new int[]{-2,9});assert Arrays.equals(twoSingleNumbers(new int[]{Integer.MIN_VALUE,0}),new int[]{Integer.MIN_VALUE,0});",
+      "Random r=new Random(194);for(int t=0;t<1000;t++){int a=r.nextInt(),b;do{b=r.nextInt();}while(a==b);Set<Integer>used=new HashSet<>(List.of(a,b));List<Integer>values=new ArrayList<>(List.of(a,b));for(int j=0;j<15;j++){int x;do{x=r.nextInt();}while(!used.add(x));values.add(x);values.add(x);}Collections.shuffle(values,r);assert Arrays.equals(twoSingleNumbers(values.stream().mapToInt(Integer::intValue).toArray()),new int[]{Math.min(a,b),Math.max(a,b)});}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/single-number-iii",
+      "title": "Single Number III",
+      "checkedOn": "2026-10-29",
+      "approach": "XOR cancellation, lowest differing bit, then XOR each group.",
+      "adaptation": "The public Java code was checked. The tracker’s linked practice statement additionally requires ascending output, so this implementation orders the two results. Sign-bit cases are tested."
+    }
   }
 }
