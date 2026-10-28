@@ -3131,5 +3131,447 @@
       "assert matrixMedian(new int[][]{{2,2,2}})==2;",
       "assert matrixMedian(new int[][]{{Integer.MIN_VALUE,0,Integer.MAX_VALUE}})==0;"
     ]
+  },
+  "111": {
+    "problem": "Remove the first and last parenthesis from every primitive component of a valid parentheses string.",
+    "assumptions": "Input consists only of balanced parentheses. A primitive component cannot be split into two nonempty balanced strings.",
+    "example": {
+      "input": "(()())(())",
+      "output": "()()()",
+      "explanation": "The two primitive components are (()()) and (()). Removing each outer pair leaves ()() and ()."
+    },
+    "baseline": "Split the input into primitive substrings, trim each, and concatenate, requiring storage for intermediate pieces.",
+    "approach": "Track nesting depth. An opening parenthesis is outermost exactly when depth is zero before it. A closing parenthesis is outermost exactly when depth becomes zero after it.",
+    "steps": [
+      "For an opening parenthesis, append only if the previous depth was positive, then increment depth.",
+      "For a closing parenthesis, decrement depth first and append only if the new depth is positive.",
+      "Use a StringBuilder to avoid repeated immutable-string copying."
+    ],
+    "java": "static String removeOuter(String s){\n    StringBuilder out=new StringBuilder();int depth=0;\n    for(char ch:s.toCharArray()){\n        if(ch=='('){if(depth>0)out.append(ch);depth++;}\n        else{depth--;if(depth>0)out.append(ch);}\n    }\n    return out.toString();\n}",
+    "time": "O(n).",
+    "space": "O(n) for output; O(1) conceptual scan state, plus toCharArray’s O(n) copy.",
+    "pitfalls": [
+      "Incrementing/decrementing at the wrong moment keeps or removes the wrong pair.",
+      "This version assumes valid parentheses rather than validating malformed input."
+    ],
+    "tests": [
+      "assert removeOuter(\"(()())(())\").equals(\"()()()\");",
+      "assert removeOuter(\"()()\").isEmpty();",
+      "assert removeOuter(\"((()))\").equals(\"(())\");",
+      "assert removeOuter(\"\").isEmpty();"
+    ]
+  },
+  "112": {
+    "problem": "Reverse the order of words, removing leading/trailing spaces and collapsing runs of spaces to one.",
+    "assumptions": "The saved link is the word-order problem. The title also mentions palindrome checking, so a separate exact-character palindrome helper is included. Word separators here are ordinary spaces.",
+    "example": {
+      "input": "\"  the sky   is blue  \"",
+      "output": "\"blue is sky the\"",
+      "explanation": "Read complete words from right to left. Append each extracted word after a single separator, so its letters remain in their original order."
+    },
+    "baseline": "Split into a list of words, reverse the list, and join. This is straightforward but creates intermediate word objects.",
+    "approach": "Scan backward to find the last nonspace character, then the start of that word. Append that interval and repeat. This directly emits the required order without reversing characters within a word.",
+    "steps": [
+      "Skip spaces from the right.",
+      "Locate the preceding word boundary.",
+      "Append that word, inserting one space only between output words."
+    ],
+    "java": "static String reverseWords(String s){\n    StringBuilder out=new StringBuilder();int i=s.length()-1;\n    while(i>=0){while(i>=0&&s.charAt(i)==' ')i--;if(i<0)break;int end=i+1;\n        while(i>=0&&s.charAt(i)!=' ')i--;if(out.length()>0)out.append(' ');out.append(s,i+1,end);\n    }\n    return out.toString();\n}\nstatic boolean exactPalindrome(String s){\n    for(int l=0,r=s.length()-1;l<r;l++,r--)if(s.charAt(l)!=s.charAt(r))return false;\n    return true;\n}",
+    "time": "O(n) for either operation.",
+    "space": "O(n) output for word reversal; O(1) for palindrome checking.",
+    "pitfalls": [
+      "Reversing every character produces reversed spelling, which is a different operation.",
+      "The palindrome helper is case-sensitive and includes punctuation; ignoring them requires a different contract.",
+      "charAt compares UTF-16 units, not user-perceived grapheme clusters."
+    ],
+    "tests": [
+      "assert reverseWords(\"  the sky   is blue  \").equals(\"blue is sky the\");",
+      "assert reverseWords(\"   \").isEmpty();",
+      "assert reverseWords(\"Java\").equals(\"Java\");",
+      "assert exactPalindrome(\"racecar\");assert !exactPalindrome(\"Racecar\");"
+    ]
+  },
+  "113": {
+    "problem": "Return the largest-valued odd substring of a decimal digit string.",
+    "assumptions": "The input contains decimal digits. Return an empty string if no odd digit exists; do not convert the potentially huge value to an integer.",
+    "example": {
+      "input": "\"35420\"",
+      "output": "\"35\"",
+      "explanation": "The rightmost odd digit is 5. Every odd candidate must end at an odd digit, and keeping all earlier digits gives the largest available prefix value."
+    },
+    "baseline": "Enumerate substrings, identify odd ones, and compare their numeric values or lengths, doing unnecessary quadratic work.",
+    "approach": "An integer is odd exactly when its final digit is odd. End at the rightmost odd digit and retain the full prefix: removing earlier nonnegative decimal digits cannot make the value larger. This also handles values far beyond machine integer ranges.",
+    "steps": [
+      "Scan digits from right to left.",
+      "Stop at the first odd digit.",
+      "Return the prefix through that position, or empty when none exists."
+    ],
+    "java": "static String largestOdd(String digits){\n    for(int i=digits.length()-1;i>=0;i--)if((digits.charAt(i)-'0')%2==1)return digits.substring(0,i+1);\n    return \"\";\n}",
+    "time": "O(n).",
+    "space": "O(n) for the returned substring in modern Java; O(1) scan state.",
+    "pitfalls": [
+      "The answer is a prefix, not just the largest odd single digit.",
+      "Integer.parseInt or Long.parseLong can overflow on valid long inputs."
+    ],
+    "tests": [
+      "assert largestOdd(\"35420\").equals(\"35\");",
+      "assert largestOdd(\"4206\").isEmpty();",
+      "assert largestOdd(\"987654321987654321\").equals(\"987654321987654321\");"
+    ]
+  },
+  "114": {
+    "problem": "Return the longest prefix shared by every string in an array.",
+    "assumptions": "An empty array or any empty member yields an empty prefix. Strings are compared by UTF-16 code units.",
+    "example": {
+      "input": "[\"flower\",\"flow\",\"flight\"]",
+      "output": "\"fl\"",
+      "explanation": "All strings share f and l. At the third position, o differs from i, so the shared prefix stops before that position."
+    },
+    "baseline": "Sort the strings and compare only the first and last; sorting performs work unrelated to the needed prefix.",
+    "approach": "The prefix can only shrink as strings are considered. Compare the current common-prefix length against each next string, reducing it at the first mismatch.",
+    "steps": [
+      "Initialize the possible length to the first string’s length.",
+      "For each remaining string, compare only up to the current possible length.",
+      "Return the corresponding prefix of the first string."
+    ],
+    "java": "static String commonPrefix(String[] words){\n    if(words.length==0)return \"\";int length=words[0].length();\n    for(int i=1;i<words.length&&length>0;i++){\n        int j=0;while(j<length&&j<words[i].length()&&words[0].charAt(j)==words[i].charAt(j))j++;length=j;\n    }\n    return words[0].substring(0,length);\n}",
+    "time": "O(S), where S is the total number of input characters examined; at most total input size.",
+    "space": "O(p) for the returned prefix, O(1) auxiliary state.",
+    "pitfalls": [
+      "Check the next string’s length before reading its character.",
+      "A shared substring somewhere inside every word is not necessarily a prefix."
+    ],
+    "tests": [
+      "assert commonPrefix(new String[]{\"flower\",\"flow\",\"flight\"}).equals(\"fl\");",
+      "assert commonPrefix(new String[]{\"dog\",\"racecar\",\"car\"}).isEmpty();",
+      "assert commonPrefix(new String[]{}).isEmpty();",
+      "assert commonPrefix(new String[]{\"ab\",\"\"}).isEmpty();"
+    ]
+  },
+  "115": {
+    "problem": "Check whether two strings have the same character-repetition structure under a one-to-one renaming.",
+    "assumptions": "Characters are UTF-16 code units. Every occurrence of a source character must map consistently, and two source characters cannot map to one target character.",
+    "example": {
+      "input": "\"egg\", \"add\"",
+      "output": "true",
+      "explanation": "e maps to a and g maps to d. Both occurrences of g use the same mapping, and the two source characters remain distinct."
+    },
+    "baseline": "Compare equality relationships for every pair of positions, costing O(n²) time.",
+    "approach": "Maintain mappings in both directions. The forward map enforces consistency; the reverse map enforces injectivity. Together they establish a bijection between the characters actually used.",
+    "steps": [
+      "Reject unequal lengths.",
+      "For each aligned pair, verify any existing forward and reverse mappings.",
+      "Store both directions if the pair is consistent."
+    ],
+    "java": "static boolean isomorphic(String a,String b){\n    if(a.length()!=b.length())return false;Map<Character,Character> forward=new HashMap<>(),backward=new HashMap<>();\n    for(int i=0;i<a.length();i++){char x=a.charAt(i),y=b.charAt(i);\n        if(forward.containsKey(x)&&forward.get(x)!=y)return false;\n        if(backward.containsKey(y)&&backward.get(y)!=x)return false;\n        forward.put(x,y);backward.put(y,x);\n    }\n    return true;\n}",
+    "time": "Expected O(n).",
+    "space": "O(d) for distinct characters.",
+    "pitfalls": [
+      "A forward map alone incorrectly accepts \"ab\" mapping to \"aa\".",
+      "This models code units; Unicode code-point or grapheme-based matching needs a different iteration strategy."
+    ],
+    "tests": [
+      "assert isomorphic(\"egg\",\"add\");",
+      "assert !isomorphic(\"foo\",\"bar\");",
+      "assert !isomorphic(\"ab\",\"aa\");",
+      "assert isomorphic(\"paper\",\"title\");",
+      "assert isomorphic(\"\",\"\");"
+    ]
+  },
+  "116": {
+    "problem": "Determine whether one string can be obtained by cyclically rotating another.",
+    "assumptions": "Lengths must match. Empty strings are rotations of each other; comparison is case-sensitive.",
+    "example": {
+      "input": "\"abcde\", \"cdeab\"",
+      "output": "true",
+      "explanation": "Starting at position 2 of \"abcdeabcde\" gives \"cdeab\", representing a two-place left rotation."
+    },
+    "baseline": "Construct and compare all n rotations, requiring O(n²) character work.",
+    "approach": "Every rotation appears as a length-n substring of two copies of the original string. Conversely, such a substring follows the same cyclic order, so equal length plus containment is sufficient.",
+    "steps": [
+      "Reject different lengths.",
+      "Concatenate the original string with itself.",
+      "Check whether the candidate occurs in that doubled string."
+    ],
+    "java": "static boolean rotation(String source,String goal){\n    return source.length()==goal.length()&&(source+source).contains(goal);\n}",
+    "time": "Conservative O(n²) worst-case substring-search bound. A KMP search over the doubled string gives O(n) worst-case time.",
+    "space": "O(n) for the doubled string.",
+    "pitfalls": [
+      "Containment without an equal-length check accepts unrelated shorter substrings.",
+      "Do not claim a guaranteed linear bound solely from calling String.contains."
+    ],
+    "tests": [
+      "assert rotation(\"abcde\",\"cdeab\");",
+      "assert !rotation(\"abcde\",\"abced\");",
+      "assert !rotation(\"abc\",\"bc\");",
+      "assert rotation(\"\",\"\");"
+    ]
+  },
+  "117": {
+    "problem": "Check whether two strings contain exactly the same characters with the same multiplicities.",
+    "assumptions": "This implementation counts Unicode code points, is case-sensitive, and does not normalize canonically equivalent Unicode forms.",
+    "example": {
+      "input": "\"anagram\", \"nagaram\"",
+      "output": "true",
+      "explanation": "Both strings contain three a characters and one each of n,g,r,m. Their order differs but their frequency tables agree."
+    },
+    "baseline": "Sort both code-point arrays and compare them in O(n log n) time.",
+    "approach": "Increment counts for the first string and decrement them for the second. Matching multisets leave every count zero. Missing or exhausted counts can reject early.",
+    "steps": [
+      "Convert each string into Unicode code points.",
+      "Reject different code-point counts.",
+      "Build the first frequency map and consume it with the second string."
+    ],
+    "java": "static boolean anagram(String a,String b){\n    int[] x=a.codePoints().toArray(),y=b.codePoints().toArray();if(x.length!=y.length)return false;\n    Map<Integer,Integer> counts=new HashMap<>();for(int c:x)counts.merge(c,1,Integer::sum);\n    for(int c:y){int count=counts.getOrDefault(c,0);if(count==0)return false;if(count==1)counts.remove(c);else counts.put(c,count-1);}\n    return counts.isEmpty();\n}",
+    "time": "Expected O(n+m).",
+    "space": "O(n+m) for code-point arrays, plus O(d) counts.",
+    "pitfalls": [
+      "A set loses multiplicities: \"aab\" and \"abb\" use the same set but are not anagrams.",
+      "Unicode normalization is separate from frequency equality."
+    ],
+    "tests": [
+      "assert anagram(\"anagram\",\"nagaram\");",
+      "assert !anagram(\"aab\",\"abb\");",
+      "assert anagram(\"😀a\",\"a😀\");",
+      "assert anagram(\"\",\"\");"
+    ]
+  },
+  "118": {
+    "problem": "Group characters in descending order of frequency.",
+    "assumptions": "This implementation counts Unicode code points. Ties are broken by ascending code point for deterministic output; any tie order may be accepted by a practice platform.",
+    "example": {
+      "input": "\"tree\"",
+      "output": "\"eert\"",
+      "explanation": "e appears twice, so both copies come first. r and t appear once; the chosen tie rule puts r before t."
+    },
+    "baseline": "Sort every character using its precomputed frequency as a comparator, costing O(n log n).",
+    "approach": "Count frequencies, sort only the distinct characters, then emit each character as many times as it occurred. Sorting d distinct keys is cheaper than sorting n repeated entries when d is small.",
+    "steps": [
+      "Count code-point frequencies.",
+      "Sort keys by descending count, then ascending key.",
+      "Append each key its recorded number of times."
+    ],
+    "java": "static String frequencySort(String s){\n    Map<Integer,Integer> counts=new HashMap<>();s.codePoints().forEach(c->counts.merge(c,1,Integer::sum));\n    List<Integer> keys=new ArrayList<>(counts.keySet());\n    keys.sort((a,b)->{int cmp=Integer.compare(counts.get(b),counts.get(a));return cmp!=0?cmp:Integer.compare(a,b);});\n    StringBuilder out=new StringBuilder();for(int c:keys)for(int i=0;i<counts.get(c);i++)out.appendCodePoint(c);\n    return out.toString();\n}",
+    "time": "Expected O(n+d log d), where d is the number of distinct code points.",
+    "space": "O(n+d), including output.",
+    "pitfalls": [
+      "Frequency sorting is different from ordinary alphabetic sorting.",
+      "A comparator that returns zero for equal frequencies is valid, but output may then depend on iteration order."
+    ],
+    "tests": [
+      "assert frequencySort(\"tree\").equals(\"eert\");",
+      "assert frequencySort(\"cccaaa\").equals(\"aaaccc\");",
+      "assert frequencySort(\"😀a😀\").equals(\"😀😀a\");",
+      "assert frequencySort(\"\").isEmpty();"
+    ]
+  },
+  "119": {
+    "problem": "Find the greatest number of simultaneously open parentheses in an expression.",
+    "assumptions": "Non-parenthesis characters are ignored. This implementation rejects unbalanced parentheses.",
+    "example": {
+      "input": "\"(1+(2*3)+((8)/4))+1\"",
+      "output": "3",
+      "explanation": "Inside ((8)/4), three opening parentheses are active at once when including the outer expression parenthesis."
+    },
+    "baseline": "Use an explicit stack and record its maximum size, requiring O(n) space.",
+    "approach": "For a single bracket type, only the count of unmatched opens matters. Increment on an opening bracket, decrement on a closing bracket, and retain the largest count.",
+    "steps": [
+      "Start depth and maximum at zero.",
+      "Update depth on each parenthesis and detect negative depth.",
+      "After scanning, require depth zero."
+    ],
+    "java": "static int maxDepth(String s){\n    int depth=0,best=0;\n    for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c=='(')best=Math.max(best,++depth);else if(c==')'&&--depth<0)throw new IllegalArgumentException();}\n    if(depth!=0)throw new IllegalArgumentException();return best;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The maximum depth is not the total number of opening parentheses.",
+      "A counter alone does not validate matching types if square or curly brackets are also included."
+    ],
+    "tests": [
+      "assert maxDepth(\"(1+(2*3)+((8)/4))+1\")==3;",
+      "assert maxDepth(\"()()\") ==1;",
+      "assert maxDepth(\"123\")==0;",
+      "boolean rejected=false;try{maxDepth(\")(\");}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ]
+  },
+  "120": {
+    "problem": "Convert between canonical Roman numerals and integers.",
+    "assumptions": "Supported values are 1 through 3999, using uppercase I,V,X,L,C,D,M and canonical subtractive pairs. Both directions are included because the sheet title requests them.",
+    "example": {
+      "input": "\"MCMXCIV\" ↔ 1994",
+      "output": "1994 ↔ \"MCMXCIV\"",
+      "explanation": "M contributes 1000, CM contributes 900, XC contributes 90, and IV contributes 4."
+    },
+    "baseline": "For decoding, separately recognize each subtractive pair; for encoding, repeatedly choose a symbol value, including those pairs.",
+    "approach": "A Roman symbol smaller than the next symbol is subtracted; otherwise it is added. Encoding greedily uses the ordered table including 900,400,90,40,9,4. Re-encoding the decoded value verifies canonical notation.",
+    "steps": [
+      "Decode with the next-symbol comparison.",
+      "Encode by repeatedly consuming the largest available table value.",
+      "For strict parsing, require the encoded result to equal the original input."
+    ],
+    "java": "static int romanValue(char c){\n    return switch(c){case 'I'->1;case 'V'->5;case 'X'->10;case 'L'->50;case 'C'->100;case 'D'->500;case 'M'->1000;default->throw new IllegalArgumentException();};\n}\nstatic int fromRoman(String s){\n    int total=0;for(int i=0;i<s.length();i++){int value=romanValue(s.charAt(i));total+=i+1<s.length()&&value<romanValue(s.charAt(i+1))?-value:value;}\n    if(total<1||total>3999||!toRoman(total).equals(s))throw new IllegalArgumentException();return total;\n}\nstatic String toRoman(int number){\n    if(number<1||number>3999)throw new IllegalArgumentException();\n    int[] values={1000,900,500,400,100,90,50,40,10,9,5,4,1};\n    String[] symbols={\"M\",\"CM\",\"D\",\"CD\",\"C\",\"XC\",\"L\",\"XL\",\"X\",\"IX\",\"V\",\"IV\",\"I\"};\n    StringBuilder out=new StringBuilder();for(int i=0;i<values.length;i++)while(number>=values[i]){out.append(symbols[i]);number-=values[i];}return out.toString();\n}",
+    "time": "O(L) for input/output length; the canonical 1…3999 domain has bounded output length.",
+    "space": "O(L) output; O(1) fixed lookup tables and scan state.",
+    "pitfalls": [
+      "Subtract-any-smaller-symbol parsing alone accepts noncanonical forms such as IL; the round-trip check rejects them.",
+      "Zero, negative numbers, and overbar notation are outside this contract."
+    ],
+    "tests": [
+      "assert fromRoman(\"MCMXCIV\")==1994;assert toRoman(1994).equals(\"MCMXCIV\");",
+      "for(int n=1;n<=3999;n++)assert fromRoman(toRoman(n))==n;",
+      "boolean rejected=false;try{fromRoman(\"IL\");}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ]
+  },
+  "121": {
+    "problem": "Parse an initial signed decimal integer from a string, clamping overflow to the 32-bit signed range.",
+    "assumptions": "Skip leading ordinary spaces, accept at most one optional sign, read ASCII digits until the first nondigit, and return zero when no digits are read.",
+    "example": {
+      "input": "\"   -42 with words\"",
+      "output": "-42",
+      "explanation": "Skip three spaces, consume the minus sign, read 4 and 2, then stop at the next space."
+    },
+    "baseline": "Using parseInt on the entire trimmed string rejects valid trailing text and throws rather than clamping overflow.",
+    "approach": "Build the magnitude one digit at a time. Before multiplying by ten, compare it against (limit−digit)/10. Use magnitude limit 2147483648 for negative results because the negative int range has one extra value.",
+    "steps": [
+      "Skip spaces and read a possible sign.",
+      "Accumulate consecutive digits while checking the next step for overflow.",
+      "Clamp immediately on overflow; otherwise apply the sign."
+    ],
+    "java": "static int atoi(String s){\n    int i=0,sign=1;while(i<s.length()&&s.charAt(i)==' ')i++;\n    if(i<s.length()&&(s.charAt(i)=='+'||s.charAt(i)=='-')){if(s.charAt(i)=='-')sign=-1;i++;}\n    long value=0,limit=sign<0?2147483648L:2147483647L;\n    while(i<s.length()&&s.charAt(i)>='0'&&s.charAt(i)<='9'){\n        int digit=s.charAt(i++)-'0';if(value>(limit-digit)/10)return sign<0?Integer.MIN_VALUE:Integer.MAX_VALUE;\n        value=value*10+digit;\n    }\n    return (int)(sign*value);\n}",
+    "time": "O(n) worst case.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Check overflow before multiplication; checking an already-overflowed int is too late.",
+      "Do not resume after a nondigit: \"12abc34\" parses as 12.",
+      "The accepted whitespace here is a normal space, matching the usual exercise contract."
+    ],
+    "tests": [
+      "assert atoi(\"   -42 with words\")==-42;",
+      "assert atoi(\"4193 with words\")==4193;",
+      "assert atoi(\"words and 987\")==0;",
+      "assert atoi(\"-91283472332\")==Integer.MIN_VALUE;",
+      "assert atoi(\"2147483648\")==Integer.MAX_VALUE;",
+      "assert atoi(\"+-12\")==0;assert atoi(\"\")==0;assert atoi(\"-2147483648\")==Integer.MIN_VALUE;"
+    ]
+  },
+  "122": {
+    "problem": "Count contiguous ranges containing exactly k distinct values; apply the same method to substrings.",
+    "assumptions": "The saved title says substrings, but its link is Subarrays with K Different Integers. Both wrappers are provided. Substrings are counted by position, not deduplicated by text; the string wrapper uses Unicode code points.",
+    "example": {
+      "input": "[1,2,1,2,3], k = 2; or \"pqpqs\", k = 2",
+      "output": "7 in either example",
+      "explanation": "For the integer example, the valid ranges are [1,2], [1,2,1], [1,2,1,2], [2,1], [2,1,2], [1,2], and [2,3], with repeated value sequences counted at their separate positions."
+    },
+    "baseline": "Enumerate starts and ends while tracking distinct values, taking O(n²) time.",
+    "approach": "Exactly k equals atMost(k) minus atMost(k−1). For an at-most window ending at right, every start from left through right is valid after shrinking, so that endpoint contributes right−left+1 ranges.",
+    "steps": [
+      "Maintain frequencies inside a sliding window.",
+      "Shrink until the number of distinct keys is at most the limit.",
+      "Add the window length, then subtract the two at-most counts."
+    ],
+    "java": "static long atMost(int[] a,int k){\n    if(k<0)return 0;Map<Integer,Integer> counts=new HashMap<>();int left=0;long answer=0;\n    for(int right=0;right<a.length;right++){\n        counts.merge(a[right],1,Integer::sum);\n        while(counts.size()>k){int x=a[left++],count=counts.get(x);if(count==1)counts.remove(x);else counts.put(x,count-1);}\n        answer+=right-left+1;\n    }\n    return answer;\n}\nstatic long exactlyK(int[] a,int k){return k<=0?0:atMost(a,k)-atMost(a,k-1);}\nstatic long distinctSubstrings(String s,int k){return exactlyK(s.codePoints().toArray(),k);}",
+    "time": "Expected O(n), since each pointer advances at most n times in each pass.",
+    "space": "O(min(n,k+1)) window map; the string wrapper additionally allocates O(n) code points.",
+    "pitfalls": [
+      "A direct exactly-k window is harder to count because many different starts can be valid.",
+      "Use long for the total, which may approach n(n+1)/2.",
+      "The title/link mismatch is retained, not silently treated as a different question."
+    ],
+    "tests": [
+      "assert exactlyK(new int[]{1,2,1,2,3},2)==7;",
+      "assert distinctSubstrings(\"pqpqs\",2)==7;",
+      "assert exactlyK(new int[]{1,1,1},1)==6;",
+      "assert exactlyK(new int[]{1,2},0)==0;",
+      "Random r=new Random(122);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(4);for(int k=1;k<=4;k++){long expected=0;for(int i=0;i<a.length;i++){Set<Integer> set=new HashSet<>();for(int j=i;j<a.length;j++){set.add(a[j]);if(set.size()==k)expected++;}}assert exactlyK(a,k)==expected;}}"
+    ]
+  },
+  "123": {
+    "problem": "Return a longest contiguous palindromic substring without dynamic programming.",
+    "assumptions": "Comparison is case-sensitive over UTF-16 code units. Any longest answer is acceptable; this implementation keeps the earliest found.",
+    "example": {
+      "input": "\"babad\"",
+      "output": "\"bab\"; \"aba\" is also valid",
+      "explanation": "Expanding around the central a at index 1 matches b on both sides and yields \"bab\". The later center yields another length-three answer."
+    },
+    "baseline": "Enumerate all substrings and check each palindrome in O(n³) time.",
+    "approach": "Every palindrome has either one central character or a gap between two characters. Expanding outward from all 2n−1 possible centers visits every candidate palindrome without storing a table.",
+    "steps": [
+      "For each index, expand an odd center and an even center.",
+      "Use the longer expansion to compute its start and length.",
+      "Save the boundaries only when the best length improves."
+    ],
+    "java": "static String longestPalindrome(String s){\n    int start=0,best=0;\n    for(int i=0;i<s.length();i++){\n        int length=Math.max(expand(s,i,i),expand(s,i,i+1));\n        if(length>best){best=length;start=i-(length-1)/2;}\n    }\n    return s.substring(start,start+best);\n}\nstatic int expand(String s,int left,int right){\n    while(left>=0&&right<s.length()&&s.charAt(left)==s.charAt(right)){left--;right++;}\n    return right-left-1;\n}",
+    "time": "O(n²) worst case, such as a string of identical characters. Manacher’s algorithm can achieve O(n), with more bookkeeping.",
+    "space": "O(1) auxiliary state, plus O(answerLength) returned substring.",
+    "pitfalls": [
+      "Checking only character centers misses even-length palindromes such as \"bb\".",
+      "A palindromic subsequence may skip characters; this problem requires contiguity."
+    ],
+    "tests": [
+      "assert longestPalindrome(\"babad\").equals(\"bab\");",
+      "assert longestPalindrome(\"cbbd\").equals(\"bb\");",
+      "assert longestPalindrome(\"\").isEmpty();",
+      "assert longestPalindrome(\"aaaa\").equals(\"aaaa\");"
+    ]
+  },
+  "124": {
+    "problem": "Sum the beauty of every nonempty substring, where beauty is maximum character frequency minus minimum positive character frequency.",
+    "assumptions": "The alphabet is lowercase English letters. Characters absent from a substring are excluded from its minimum.",
+    "example": {
+      "input": "\"aabcb\"",
+      "output": "5",
+      "explanation": "The positive-beauty substrings are \"aab\", \"aabc\", \"aabcb\", \"abcb\", and \"bcb\"; each has beauty one. All others contribute zero."
+    },
+    "baseline": "For each substring, rebuild its frequency table from scratch, taking O(n³) time.",
+    "approach": "Fix a start index and extend the end one character at a time, updating one frequency. Scan the 26 counters to obtain the maximum and the smallest nonzero count for each extension.",
+    "steps": [
+      "Start a fresh 26-counter array for each left boundary.",
+      "Increment the newly included character at each right boundary.",
+      "Add maxCount−minPositiveCount to a long total."
+    ],
+    "java": "static long beautySum(String s){\n    long total=0;\n    for(int left=0;left<s.length();left++){\n        int[] counts=new int[26];\n        for(int right=left;right<s.length();right++){\n            counts[s.charAt(right)-'a']++;int high=0,low=Integer.MAX_VALUE;\n            for(int count:counts)if(count>0){high=Math.max(high,count);low=Math.min(low,count);}\n            total+=high-low;\n        }\n    }\n    return total;\n}",
+    "time": "O(26n²), or O(n²) for the fixed alphabet.",
+    "space": "O(26), independent of n.",
+    "pitfalls": [
+      "Including zero-frequency letters makes almost every substring’s beauty too large.",
+      "The minimum positive frequency can change in either direction, so a simple running minimum is insufficient."
+    ],
+    "tests": [
+      "assert beautySum(\"aabcb\")==5;",
+      "assert beautySum(\"aab\")==1;",
+      "assert beautySum(\"abc\")==0;",
+      "assert beautySum(\"aaaa\")==0;",
+      "assert beautySum(\"\")==0;"
+    ]
+  },
+  "125": {
+    "problem": "Distinguish reversing each word’s letters from reversing the order of the words.",
+    "assumptions": "The saved title says Reverse Every Word, but its link asks for reversed word order. Both implementations are provided. The first preserves all ordinary spaces; the second normalizes them. Text is handled as UTF-16 units.",
+    "example": {
+      "input": "\"Java is fun\"",
+      "output": "Each word: \"avaJ si nuf\"; linked word-order variant: \"fun is Java\"",
+      "explanation": "Reversing within intervals changes spelling while keeping positions. Reading intervals from right to left instead preserves spelling and changes their order."
+    },
+    "baseline": "Split into tokens and rebuild the output, but naive splitting can lose the original spacing.",
+    "approach": "For the title’s variant, scan space-delimited intervals in a mutable character array and reverse each interval. For the linked variant, extract whole words backward and join them with single spaces.",
+    "steps": [
+      "Locate every maximal nonspace interval.",
+      "Reverse its character positions using two pointers.",
+      "Use the separate backward-word scan when solving the saved problem link."
+    ],
+    "java": "static String reverseEachWord(String s){\n    char[] a=s.toCharArray();int start=0;\n    for(int end=0;end<=a.length;end++)if(end==a.length||a[end]==' '){\n        for(int l=start,r=end-1;l<r;l++,r--){char t=a[l];a[l]=a[r];a[r]=t;}start=end+1;\n    }\n    return new String(a);\n}\nstatic String reverseWordOrder(String s){\n    StringBuilder out=new StringBuilder();int i=s.length()-1;\n    while(i>=0){while(i>=0&&s.charAt(i)==' ')i--;if(i<0)break;int end=i+1;\n        while(i>=0&&s.charAt(i)!=' ')i--;if(out.length()>0)out.append(' ');out.append(s,i+1,end);\n    }\n    return out.toString();\n}",
+    "time": "O(n) for either variant.",
+    "space": "O(n) because Java strings are immutable and a new output is produced.",
+    "pitfalls": [
+      "The two interpretations produce different answers; choose the function matching the platform statement.",
+      "Reversing UTF-16 units can split surrogate pairs; use code points for full Unicode character reversal."
+    ],
+    "tests": [
+      "assert reverseEachWord(\"Java is fun\").equals(\"avaJ si nuf\");",
+      "assert reverseWordOrder(\"Java is fun\").equals(\"fun is Java\");",
+      "assert reverseEachWord(\"  ab   cd \").equals(\"  ba   dc \");",
+      "assert reverseWordOrder(\"  ab   cd \").equals(\"cd ab\");",
+      "assert reverseEachWord(\"\").isEmpty();"
+    ]
   }
 }
