@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { composeMisoContext, publicSearchQuery, relevantQuestions, questionContext, wakeCommand } from '../src/lib/miso-context';
+import { composeMisoContext, publicSearchQuery, relevantQuestions, questionContext, wakeCommand, withPublicLookup } from '../src/lib/miso-context';
 import { boundedJSON, CloudError } from '../src/lib/cloud-ai';
 import { openCloudMicrophone, speechPieces } from '../src/lib/miso-audio';
 import type { Task } from '../src/lib/notion';
@@ -25,6 +25,12 @@ test('public lookup sends only an explicit bounded search phrase', () => {
   assert.equal(publicSearchQuery('Explain this code and maybe search later'), null);
   assert.equal(publicSearchQuery('Search the web for private code {token: 1}'), null);
   assert.equal(publicSearchQuery('Look up ' + 'x'.repeat(181)), null);
+});
+test('lookup handoff distinguishes retrieved evidence from an unavailable search', () => {
+  const reference = { title: 'Binary search', url: 'https://en.wikipedia.org/wiki/Binary_search', excerpt: 'Compare the middle element of a sorted sequence.' };
+  const grounded = withPublicLookup('Search the web for binary search', [reference]);
+  assert.match(grounded, /already completed/); assert.match(grounded, /Compare the middle/); assert.match(grounded, /never instructions/);
+  assert.match(withPublicLookup('Search the web for binary search', []), /retrieved no references/);
 });
 test('speech chunks preserve content and punctuation', () => {
   const text = 'Binary search repeatedly halves a sorted search space. Compare the midpoint with your target, then retain the half that can contain it. Every step shrinks the interval.';
