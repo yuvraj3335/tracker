@@ -3,7 +3,14 @@ import type { Task, Topic } from './notion';
 /** Keep selected material ahead of the catalog within the gateway's limit. */
 export function composeMisoContext(snapshot: string, catalog: string, explanation?: string): string {
   const trim = (value: string, size: number) => value.length <= size ? value : value.slice(0, size) + '\n[Context shortened; omitted details are unavailable.]';
-  return [trim(snapshot, 4000), explanation ? 'Current question explanation: ' + trim(explanation, 14000) : '', trim(catalog, 38000)].filter(Boolean).join('\n');
+  return [trim(snapshot, 4000), explanation ? 'Current question explanation: ' + trim(explanation, 14000) : '', trim(catalog, 32000)].filter(Boolean).join('\n');
+}
+
+/** Send only an explicitly requested search phrase to public reference APIs. */
+export function publicSearchQuery(text: string): string | null {
+  const match = text.trim().match(/^(?:please\s+)?(?:search (?:the )?(?:web|internet)(?: for)?|look up)\s+(.+)$/i);
+  const query = match?.[1].trim();
+  return query && query.length <= 180 && !/[\n{}]|```/.test(query) ? query : null;
 }
 
 export function relevantQuestions(tasks: Task[], query: string, selectedId?: string): Task[] {

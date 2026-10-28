@@ -8,6 +8,7 @@ import { wakeCommand } from '@/lib/miso-context';
 import { useActiveCharacter } from './character-provider';
 import { CharacterThumb } from './character-figure';
 import type { ChatMessage } from '@/lib/companion-prompt';
+import type { Reference } from '@/lib/tutor';
 
 export type MisoControls = { talk: () => void; show: () => void };
 type Mode = 'off' | 'wake' | 'talk';
@@ -26,6 +27,8 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
   const [voice, setVoice] = useState<'natural' | 'longer'>('natural');
   const [muted, setMuted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sources, setSources] = useState<Reference[]>([]);
+  const [sourceWarning, setSourceWarning] = useState('');
   const history = useRef<ChatMessage[]>([]);
   const modeRef = useRef<Mode>('off');
   const wakeRef = useRef(false);
@@ -59,7 +62,7 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
     const thread = retryHistory ?? [...history.current, { role: 'user' as const, content: text.slice(0, 1200) }].slice(-12);
     lastAsked.current = thread;
     history.current = thread;
-    setMessages([...thread, { role: 'assistant', content: '' }]); setBusy(true); setError(''); setStatus('Miso is thinking…'); onTurn('thinking');
+    setMessages([...thread, { role: 'assistant', content: '' }]); setSources([]); setSourceWarning(''); setBusy(true); setError(''); setStatus('Miso is thinking…'); onTurn('thinking');
     let spoken = '', answer = '', finished = false;
     const queue = mutedRef.current ? null : speechQueue(voiceRef.current, controller.signal, () => { if (!controller.signal.aborted) { setStatus('Miso is speaking…'); onTurn('speaking'); } });
     const timeout = setTimeout(() => controller.abort('timeout'), 60000);
@@ -78,6 +81,7 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
             const event = JSON.parse(line);
             if (event.type === 'error') throw new Error(event.message || 'Miso’s answer was interrupted.');
             if (event.type === 'done') finished = true;
+            if (event.type === 'sources') { setSources(event.references ?? []); setSourceWarning(event.warning ?? ''); }
             if (event.type === 'delta' && typeof event.text === 'string') {
               answer += event.text; spoken += event.text;
               setMessages([...thread, { role: 'assistant', content: answer }]);
@@ -166,6 +170,8 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
     </header>
     <div ref={log} className="min-h-24 flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite" aria-relevant="additions">
       {!messages.length ? <p className="text-sm leading-6 text-ink-muted">Talk through a question, ask for a hint, or practise explaining your approach. I can see your tracker’s questions and notes.</p> : messages.map((message, i) => <div key={i} className={`rounded-xl p-3 text-sm leading-6 whitespace-pre-wrap [overflow-wrap:anywhere] ${message.role === 'user' ? 'ml-6 bg-surface-2' : 'mr-3 border border-hairline'}`}><span className="mb-1 block text-[10px] font-semibold tracking-wide text-ink-muted uppercase">{message.role === 'user' ? 'You' : 'Miso'}</span>{message.content || 'Thinking…'}</div>)}
+      {sources.length ? <div className="space-y-1 text-xs"><p className="text-ink-muted">References for this reply</p>{sources.map(source => <a key={source.url} className="block text-accent underline" href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>)}</div> : null}
+      {sourceWarning ? <p className="text-xs text-ink-muted">{sourceWarning}</p> : null}
     </div>
     <div className="space-y-3 border-t border-hairline p-4">
       <p role="status" className="text-xs text-accent">{status}</p>
@@ -181,6 +187,7 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
         <select aria-label="Miso cloud voice" value={voice} onChange={e => setVoice(e.target.value as 'natural' | 'longer')} className="max-w-44 rounded-lg border border-hairline bg-plane px-2 py-1.5"><option value="natural">Natural · shorter allowance</option><option value="longer">Simple · longer allowance</option></select>
       </div>
       <p className="text-[11px] leading-4 text-ink-muted">Wake mode sends speech to the cloud to detect “Hey Miso”. Keep this page visible. Mic pauses when hidden. Both voices use your free daily allowance.</p>
+      <p className="text-[11px] leading-4 text-ink-muted">Say “search the web for…” to look up Wikipedia and Stack Overflow references.</p>
       <form onSubmit={e => { e.preventDefault(); void send(); }} className="flex items-end gap-2">
         <textarea aria-label="Message Miso" rows={2} maxLength={1200} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Or type to Miso…" className="min-w-0 flex-1 resize-none rounded-xl border border-hairline bg-surface-2 p-2.5 text-sm" />
         <button aria-label="Send message to Miso" disabled={!draft.trim() || busy} className="rounded-xl bg-accent p-3 text-accent-ink disabled:opacity-40"><ArrowUp size={17} /></button>

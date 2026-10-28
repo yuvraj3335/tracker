@@ -2239,5 +2239,350 @@
       "assert maxProduct(new int[]{-2,0,-1}).equals(BigInteger.ZERO);",
       "assert maxProduct(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE}).equals(BigInteger.valueOf(Integer.MAX_VALUE).pow(3));"
     ]
+  },
+  "80": {
+    "problem": "Find the first index whose value is at least x.",
+    "assumptions": "The array is sorted in nondecreasing order. Return n when every value is smaller.",
+    "example": {
+      "input": "[1,2,2,4], x = 2",
+      "output": "1",
+      "explanation": "Both indices 1 and 2 contain 2; lower bound chooses index 1. It is the boundary between values below 2 and values at least 2."
+    },
+    "baseline": "Scan until the first value >=x in O(n) time.",
+    "approach": "Binary search a monotone predicate a[i]>=x. Keep a half-open candidate range [lo,hi); when mid qualifies, the first qualifying index is at or before mid, so retain mid as the upper boundary.",
+    "steps": [
+      "Initialize lo=0 and hi=n.",
+      "Move lo to mid+1 when a[mid]<x; otherwise set hi=mid.",
+      "Return the common boundary when lo==hi."
+    ],
+    "java": "static int lowerBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<x)lo=mid+1;else hi=mid;}\n    return lo;\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Returning -1 loses the useful insertion boundary n.",
+      "Unlike exact-match search, finding equality must continue toward the left."
+    ],
+    "tests": [
+      "assert lowerBound(new int[]{1,2,2,4},2)==1;",
+      "assert lowerBound(new int[]{1,2},3)==2;",
+      "assert lowerBound(new int[]{},3)==0;",
+      "assert lowerBound(new int[]{2,2},1)==0;"
+    ]
+  },
+  "81": {
+    "problem": "Find the first index whose value is strictly greater than x.",
+    "assumptions": "The array is sorted in nondecreasing order. Return n if no value qualifies.",
+    "example": {
+      "input": "[1,2,2,4], x = 2",
+      "output": "3",
+      "explanation": "The two occurrences of 2 belong to the left partition. The first value greater than 2 is 4 at index 3."
+    },
+    "baseline": "Scan from the beginning in O(n) time.",
+    "approach": "Upper bound locates the boundary between values <=x and values >x. Its binary search differs from lower bound exactly in the treatment of equality.",
+    "steps": [
+      "Search the half-open range [0,n).",
+      "Move lo past mid when a[mid]<=x.",
+      "Otherwise keep mid by moving hi to it."
+    ],
+    "java": "static int upperBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<=x)lo=mid+1;else hi=mid;}\n    return lo;\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not implement this as lowerBound(x+1): x+1 can overflow.",
+      "For an all-equal array matching x, the answer is n."
+    ],
+    "tests": [
+      "assert upperBound(new int[]{1,2,2,4},2)==3;",
+      "assert upperBound(new int[]{2,2},2)==2;",
+      "assert upperBound(new int[]{Integer.MAX_VALUE},Integer.MAX_VALUE)==1;",
+      "assert upperBound(new int[]{},0)==0;"
+    ]
+  },
+  "82": {
+    "problem": "Find where a target should be inserted to keep an array sorted.",
+    "assumptions": "Return the first occurrence when the target already exists. Insertion is conceptual; the array is not resized.",
+    "example": {
+      "input": "[1,3,5,6], target = 2",
+      "output": "1",
+      "explanation": "Inserting 2 between 1 and 3 preserves ascending order, so the boundary is index 1."
+    },
+    "baseline": "Scan for the first value not smaller than the target in O(n) time.",
+    "approach": "The insertion position is exactly the lower bound. All earlier values are smaller; all values at or after the answer are at least the target.",
+    "steps": [
+      "Keep a half-open binary-search interval.",
+      "Discard values strictly smaller than target.",
+      "Return n when insertion belongs after every element."
+    ],
+    "java": "static int lowerBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<x)lo=mid+1;else hi=mid;}\n    return lo;\n}\nstatic int insertPosition(int[] a,int target){return lowerBound(a,target);}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "An answer equal to n is valid, even though reading a[n] is not.",
+      "Returning any matching duplicate is insufficient if insertion must precede equal values."
+    ],
+    "tests": [
+      "assert insertPosition(new int[]{1,3,5,6},2)==1;",
+      "assert insertPosition(new int[]{1,3,5,6},7)==4;",
+      "assert insertPosition(new int[]{1,3,3},3)==1;",
+      "assert insertPosition(new int[]{},5)==0;"
+    ]
+  },
+  "83": {
+    "problem": "Find the greatest value <=x and the smallest value >=x in a sorted array.",
+    "assumptions": "Return [floor,ceil] using null for a missing side. These are values, not indices.",
+    "example": {
+      "input": "[1,2,4,6], x = 3",
+      "output": "[2,4]",
+      "explanation": "The first value >=3 is 4. Since it is not equal to 3, its predecessor 2 is the floor."
+    },
+    "baseline": "Scan all values and keep the best candidate on each side in O(n) time.",
+    "approach": "Lower bound divides the array at the ceiling. If the boundary equals x, both floor and ceiling equal x; otherwise the previous value is the floor when it exists.",
+    "steps": [
+      "Compute lower bound p.",
+      "Use a[p] for the ceiling if p<n.",
+      "Use that same value for an exact match; otherwise use a[p−1] for the floor if p>0."
+    ],
+    "java": "static int lowerBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<x)lo=mid+1;else hi=mid;}\n    return lo;\n}\nstatic Integer[] floorCeil(int[] a,int x){\n    int p=lowerBound(a,x);\n    Integer ceil=p<a.length?Integer.valueOf(a[p]):null;\n    Integer floor=p<a.length&&a[p]==x?Integer.valueOf(a[p]):(p>0?Integer.valueOf(a[p-1]):null);\n    return new Integer[]{floor,ceil};\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "A numeric sentinel such as -1 is ambiguous when -1 is a valid input.",
+      "Do not confuse the floor value with the lower-bound index."
+    ],
+    "tests": [
+      "assert Arrays.equals(floorCeil(new int[]{1,2,4,6},3),new Integer[]{2,4});",
+      "assert Arrays.equals(floorCeil(new int[]{1,2},0),new Integer[]{null,1});",
+      "assert Arrays.equals(floorCeil(new int[]{1,2},2),new Integer[]{2,2});",
+      "assert Arrays.equals(floorCeil(new int[]{},2),new Integer[]{null,null});"
+    ]
+  },
+  "84": {
+    "problem": "Find the first and last indices of a target in a sorted array.",
+    "assumptions": "Return [-1,-1] if absent. Returned endpoints are inclusive.",
+    "example": {
+      "input": "[5,7,7,8,8,10], target = 8",
+      "output": "[3,4]",
+      "explanation": "Lower bound finds index 3. Upper bound finds index 5, one position past the final 8, so the last index is 4."
+    },
+    "baseline": "Scan once and record the first and latest matches in O(n) time.",
+    "approach": "All equal target values form one contiguous block. Its half-open boundaries are lowerBound(target) and upperBound(target). Verify the lower boundary before subtracting one from the upper boundary.",
+    "steps": [
+      "Find the first value >=target.",
+      "Reject if the boundary is n or contains another value.",
+      "Find the first value >target and return one less as the final occurrence."
+    ],
+    "java": "static int lowerBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<x)lo=mid+1;else hi=mid;}\n    return lo;\n}\nstatic int upperBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<=x)lo=mid+1;else hi=mid;}\n    return lo;\n}\nstatic int[] range(int[] a,int x){\n    int first=lowerBound(a,x);\n    if(first==a.length||a[first]!=x)return new int[]{-1,-1};\n    return new int[]{first,upperBound(a,x)-1};\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not linearly expand from a found match; a long block of duplicates would cost O(n).",
+      "Handle absence before interpreting the boundaries as matching indices."
+    ],
+    "tests": [
+      "assert Arrays.equals(range(new int[]{5,7,7,8,8,10},8),new int[]{3,4});",
+      "assert Arrays.equals(range(new int[]{1,3},2),new int[]{-1,-1});",
+      "assert Arrays.equals(range(new int[]{},2),new int[]{-1,-1});",
+      "assert Arrays.equals(range(new int[]{2,2,2},2),new int[]{0,2});"
+    ]
+  },
+  "85": {
+    "problem": "Count how many times a target appears in a sorted array.",
+    "assumptions": "Return zero when absent. Duplicates are adjacent because the input is sorted.",
+    "example": {
+      "input": "[1,2,2,2,3], target = 2",
+      "output": "3",
+      "explanation": "The equal-value block starts at lower bound 1 and ends just before upper bound 4. Its length is 4−1=3."
+    },
+    "baseline": "Count matches in a full O(n) scan.",
+    "approach": "The difference between upper and lower bounds gives the length of the target block directly. For an absent value, both boundaries coincide, so no special absence branch is required.",
+    "steps": [
+      "Find the first value >=target.",
+      "Find the first value >target.",
+      "Subtract the two boundary indices."
+    ],
+    "java": "static int lowerBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<x)lo=mid+1;else hi=mid;}\n    return lo;\n}\nstatic int upperBound(int[] a,int x) {\n    int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<=x)lo=mid+1;else hi=mid;}\n    return lo;\n}\nstatic int occurrences(int[] a,int x){return upperBound(a,x)-lowerBound(a,x);}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Use the difference of half-open boundaries, without adding one.",
+      "The two comparisons must differ on equality."
+    ],
+    "tests": [
+      "assert occurrences(new int[]{1,2,2,2,3},2)==3;",
+      "assert occurrences(new int[]{1,3},2)==0;",
+      "assert occurrences(new int[]{},1)==0;"
+    ]
+  },
+  "86": {
+    "problem": "Find a target in a rotated ascending array of distinct values.",
+    "assumptions": "Return its index or -1. There is at most one rotation point.",
+    "example": {
+      "input": "[4,5,6,7,0,1,2], target = 0",
+      "output": "4",
+      "explanation": "At the first midpoint 7, the left half [4,5,6,7] is sorted but cannot contain 0. Search the right half instead."
+    },
+    "baseline": "Scan all values in O(n) time.",
+    "approach": "With distinct values, at least one half around the midpoint is sorted. Check whether the target falls within that sorted half’s value range; if not, retain the other half.",
+    "steps": [
+      "Check midpoint equality first.",
+      "Identify the sorted half using its endpoint values.",
+      "Keep the half whose range can contain the target, excluding the failed midpoint."
+    ],
+    "java": "static int rotatedSearch(int[] a,int target){\n    int lo=0,hi=a.length-1;\n    while(lo<=hi){int mid=lo+(hi-lo)/2;if(a[mid]==target)return mid;\n        if(a[lo]<=a[mid]){if(a[lo]<=target&&target<a[mid])hi=mid-1;else lo=mid+1;}\n        else{if(a[mid]<target&&target<=a[hi])lo=mid+1;else hi=mid-1;}\n    }\n    return -1;\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Duplicates can make sorted-half detection ambiguous; use the separate duplicate-aware variant.",
+      "Include the outer endpoint and exclude the already-tested midpoint in range checks."
+    ],
+    "tests": [
+      "assert rotatedSearch(new int[]{4,5,6,7,0,1,2},0)==4;",
+      "assert rotatedSearch(new int[]{4,5,6,7,0,1,2},3)==-1;",
+      "for(int n=1;n<20;n++)for(int shift=0;shift<n;shift++){int[] a=new int[n];for(int i=0;i<n;i++)a[i]=(i+shift)%n;for(int x=0;x<n;x++)assert a[rotatedSearch(a,x)]==x;}"
+    ]
+  },
+  "87": {
+    "problem": "Determine whether a target exists in a rotated sorted array that may contain duplicates.",
+    "assumptions": "Return a boolean. Worst-case logarithmic time cannot be guaranteed with arbitrary duplicates.",
+    "example": {
+      "input": "[2,5,6,0,0,1,2], target = 0",
+      "output": "true",
+      "explanation": "The midpoint contains 0. In a more ambiguous input such as [1,0,1,1,1], equal endpoints can hide the rotation, requiring a smaller interval before deciding which half is sorted."
+    },
+    "baseline": "A linear scan is O(n) and remains a useful worst-case baseline.",
+    "approach": "Use the distinct-value rotated search except when lo, mid, and hi all hold the same value. After checking the midpoint against the target, those equal endpoints cannot be the answer, so discard both and continue.",
+    "steps": [
+      "Check midpoint equality.",
+      "If all three boundary values are equal, move both outer boundaries inward.",
+      "Otherwise use the identifiable sorted half to choose the next interval."
+    ],
+    "java": "static boolean rotatedContains(int[] a,int target){\n    int lo=0,hi=a.length-1;\n    while(lo<=hi){int mid=lo+(hi-lo)/2;if(a[mid]==target)return true;\n        if(a[lo]==a[mid]&&a[mid]==a[hi]){lo++;hi--;continue;}\n        if(a[lo]<=a[mid]){if(a[lo]<=target&&target<a[mid])hi=mid-1;else lo=mid+1;}\n        else{if(a[mid]<target&&target<=a[hi])lo=mid+1;else hi=mid-1;}\n    }\n    return false;\n}",
+    "time": "O(n) worst case; often O(log n) when duplicate ambiguity is limited.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Claiming unconditional O(log n) ignores arrays dominated by the same value.",
+      "Test midpoint equality before discarding equal endpoints."
+    ],
+    "tests": [
+      "assert rotatedContains(new int[]{2,5,6,0,0,1,2},0);",
+      "assert rotatedContains(new int[]{1,0,1,1,1},0);",
+      "assert !rotatedContains(new int[]{1,1,1,1},2);",
+      "assert !rotatedContains(new int[]{},0);"
+    ]
+  },
+  "88": {
+    "problem": "Find the minimum value in a rotated ascending array of distinct values.",
+    "assumptions": "The array is nonempty. An unrotated array is valid.",
+    "example": {
+      "input": "[3,4,5,1,2]",
+      "output": "1",
+      "explanation": "Midpoint 5 is greater than the right endpoint 2, so the minimum must lie strictly to the right of the midpoint."
+    },
+    "baseline": "Scan for the smallest value in O(n) time.",
+    "approach": "Compare the midpoint to the right endpoint. If the midpoint is greater, it is in the high rotated segment and the minimum is after it. Otherwise the suffix from midpoint to right is sorted, so the minimum is at mid or to its left.",
+    "steps": [
+      "Maintain an inclusive interval containing the minimum.",
+      "Set lo=mid+1 when a[mid]>a[hi]; otherwise set hi=mid.",
+      "Return the sole remaining value."
+    ],
+    "java": "static int minimum(int[] a){\n    if(a.length==0)throw new IllegalArgumentException();\n    int lo=0,hi=a.length-1;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]>a[hi])lo=mid+1;else hi=mid;}\n    return a[lo];\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Using hi=mid−1 can discard the minimum itself.",
+      "With duplicates, equality needs a separate hi-- case and the worst case becomes linear."
+    ],
+    "tests": [
+      "assert minimum(new int[]{3,4,5,1,2})==1;",
+      "assert minimum(new int[]{1,2,3})==1;",
+      "assert minimum(new int[]{5})==5;"
+    ]
+  },
+  "89": {
+    "problem": "Determine the rotation offset of a sorted array with distinct values.",
+    "assumptions": "Return the index of the minimum, interpreted as the number of right rotations modulo n. Return zero for empty input.",
+    "example": {
+      "input": "[4,5,1,2,3]",
+      "output": "2",
+      "explanation": "The minimum 1 is at index 2. Right-rotating [1,2,3,4,5] twice produces the input."
+    },
+    "baseline": "Scan for the smallest element’s index in O(n) time.",
+    "approach": "The minimum marks the start of the original ascending sequence. Binary searching for it uses the same comparison with the right endpoint as minimum-value search, but returns the index.",
+    "steps": [
+      "Keep the minimum within [lo,hi].",
+      "Discard the high rotated half when mid exceeds the right endpoint.",
+      "Return lo after convergence."
+    ],
+    "java": "static int rotations(int[] a){\n    if(a.length==0)return 0;int lo=0,hi=a.length-1;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]>a[hi])lo=mid+1;else hi=mid;}\n    return lo;\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Left rotation count differs: for nonempty input it is (n−answer)%n.",
+      "The historical number of rotations is not recoverable; only its value modulo n is."
+    ],
+    "tests": [
+      "assert rotations(new int[]{4,5,1,2,3})==2;",
+      "assert rotations(new int[]{1,2,3})==0;",
+      "assert rotations(new int[]{})==0;"
+    ]
+  },
+  "90": {
+    "problem": "Find the single value in a sorted array where every other value appears exactly twice.",
+    "assumptions": "The array has odd positive length and satisfies the multiplicity promise.",
+    "example": {
+      "input": "[1,1,2,3,3,4,4,8,8]",
+      "output": "2",
+      "explanation": "Before the single value, pairs start at even indices. After it, that alignment shifts. The first broken even-index pair identifies the side containing the singleton."
+    },
+    "baseline": "XOR all values in O(n) time; sorted order permits a faster search.",
+    "approach": "Align mid to an even index and compare it with mid+1. A matching pair means the singleton lies after that pair. A mismatch means it lies at or before mid.",
+    "steps": [
+      "Search between indices zero and n−1.",
+      "Round mid down to even.",
+      "Skip a matching pair with lo=mid+2; otherwise set hi=mid."
+    ],
+    "java": "static int singleSorted(int[] a){\n    if(a.length==0||a.length%2==0)throw new IllegalArgumentException();\n    int lo=0,hi=a.length-1;\n    while(lo<hi){int mid=lo+(hi-lo)/2;mid-=mid%2;if(a[mid]==a[mid+1])lo=mid+2;else hi=mid;}\n    return a[lo];\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The proof depends on sorted adjacent pairs, not merely an odd array length.",
+      "Aligning mid first keeps mid+1 valid while lo<hi."
+    ],
+    "tests": [
+      "assert singleSorted(new int[]{1,1,2,3,3,4,4,8,8})==2;",
+      "assert singleSorted(new int[]{1,2,2})==1;",
+      "assert singleSorted(new int[]{1,1,2})==2;",
+      "assert singleSorted(new int[]{7})==7;"
+    ]
+  },
+  "91": {
+    "problem": "Return an index of an element strictly larger than its adjacent neighbors.",
+    "assumptions": "Adjacent values are unequal. Missing neighbors outside the array are treated as negative infinity; return -1 for empty input.",
+    "example": {
+      "input": "[1,2,3,1]",
+      "output": "2",
+      "explanation": "The slope from 2 to 3 rises, so a peak exists on that side. The value 3 then exceeds both neighbors."
+    },
+    "baseline": "Scan every index and check its neighbors in O(n) time.",
+    "approach": "On a rising slope from mid to mid+1, some peak must exist to the right: either the rise eventually falls or the right edge is a peak. A falling slope similarly guarantees a peak at or left of mid.",
+    "steps": [
+      "Compare a[mid] with a[mid+1].",
+      "On a rise, move lo to mid+1; otherwise move hi to mid.",
+      "Return the remaining index; it need not be the global maximum."
+    ],
+    "java": "static int peak(int[] a){\n    if(a.length==0)return -1;int lo=0,hi=a.length-1;\n    while(lo<hi){int mid=lo+(hi-lo)/2;if(a[mid]<a[mid+1])lo=mid+1;else hi=mid;}\n    return lo;\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "This finds any peak, not necessarily the greatest value.",
+      "Equal adjacent values require a different definition or additional handling for strict peaks."
+    ],
+    "tests": [
+      "assert peak(new int[]{1,2,3,1})==2;",
+      "assert peak(new int[]{3,2,1})==0;",
+      "assert peak(new int[]{1,2,3})==2;",
+      "assert peak(new int[]{7})==0;",
+      "assert peak(new int[]{})==-1;"
+    ]
   }
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { composeMisoContext, relevantQuestions, questionContext, wakeCommand } from '../src/lib/miso-context';
+import { composeMisoContext, publicSearchQuery, relevantQuestions, questionContext, wakeCommand } from '../src/lib/miso-context';
 import { boundedJSON, CloudError } from '../src/lib/cloud-ai';
 import { openCloudMicrophone, speechPieces } from '../src/lib/miso-audio';
 import type { Task } from '../src/lib/notion';
@@ -18,6 +18,13 @@ test('wake phrase must lead the utterance and preserves an accompanying question
   assert.equal(wakeCommand('Hey Miso!'), '');
   assert.equal(wakeCommand('I told him, hey Miso'), null);
   assert.equal(wakeCommand('Hey misophonia'), null);
+});
+test('public lookup sends only an explicit bounded search phrase', () => {
+  assert.equal(publicSearchQuery('Search the web for Java HashMap complexity'), 'Java HashMap complexity');
+  assert.equal(publicSearchQuery('Please look up binary search'), 'binary search');
+  assert.equal(publicSearchQuery('Explain this code and maybe search later'), null);
+  assert.equal(publicSearchQuery('Search the web for private code {token: 1}'), null);
+  assert.equal(publicSearchQuery('Look up ' + 'x'.repeat(181)), null);
 });
 test('speech chunks preserve content and punctuation', () => {
   const text = 'Binary search repeatedly halves a sorted search space. Compare the midpoint with your target, then retain the half that can contain it. Every step shrinks the interval.';
