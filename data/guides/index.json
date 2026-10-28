@@ -5425,5 +5425,127 @@
     },
     "baselineJava": "static Node deleteMiddleByCounting(Node head) {\n    if (head == null || head.next == null) return null;\n    int length = 0;\n    for (Node current = head; current != null; current = current.next) length++;\n    Node previous = head;\n    for (int step = 0; step < length / 2 - 1; step++) previous = previous.next;\n    previous.next = previous.next.next;\n    return head;\n}",
     "baselineTime": "O(n) time and O(1) space."
+  },
+  "145": {
+    "problem": "Sort a singly linked list in increasing or equal order and return the new head.",
+    "assumptions": "The list has no cycle. Values may be negative or repeated. The merge-sort solution reuses nodes and keeps equal-valued nodes in their original relative order.",
+    "example": {
+      "input": "6 → 2 → 5 → 1",
+      "output": "1 → 2 → 5 → 6",
+      "explanation": "Split into [6, 2] and [5, 1], sort those into [2, 6] and [1, 5], then merge them."
+    },
+    "baseline": "Collect the values in an array, sort them, and write them back into the original nodes. This sorts the values but uses O(n) extra space and changes the data attached to each node.",
+    "approach": "Merge sort works well on a linked list because merging only needs the next available node from each half. Find the split with slow and fast pointers, cut the link between the halves, and recursively sort each half.\n\nTo merge, compare the two front values and attach the smaller node to a result tail. Once one half ends, attach the rest of the other half. Choosing the left node on equal values keeps the sort stable.\n\nEach level processes all n nodes, and splitting in half creates about log₂ n levels. The recursive calls use O(log n) stack space, so this is not the constant-space follow-up solution.",
+    "steps": [
+      "Stop on an empty or single-node list.",
+      "Start fast one node ahead of slow, find the first-half endpoint, and cut slow.next.",
+      "Sort both independent halves recursively.",
+      "Merge by relinking the smaller front node, then attach the remaining chain."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node merge(Node left, Node right) {\n    Node dummy = new Node(0);\n    Node tail = dummy;\n    while (left != null && right != null) {\n        if (left.data <= right.data) {\n            tail.next = left;\n            left = left.next;\n        } else {\n            tail.next = right;\n            right = right.next;\n        }\n        tail = tail.next;\n    }\n    tail.next = left != null ? left : right;\n    return dummy.next;\n}\n\nstatic Node sortList(Node head) {\n    if (head == null || head.next == null) return head;\n    Node slow = head;\n    Node fast = head.next;\n    while (fast != null && fast.next != null) {\n        slow = slow.next;\n        fast = fast.next.next;\n    }\n    Node rightHead = slow.next;\n    slow.next = null;\n    Node left = sortList(head);\n    Node right = sortList(rightHead);\n    return merge(left, right);\n}",
+    "time": "O(n log n).",
+    "space": "O(log n) recursive stack; each merge uses O(1) working references.",
+    "pitfalls": [
+      "Cut the halves before recursion. Without the cut, the left recursive call sees the original list again.",
+      "Starting fast at head.next ensures a two-node list splits into one node each.",
+      "Use <= to select from the left on ties if stable order matters."
+    ],
+    "tests": [
+      "Node a=new Node(6),b=new Node(2),d=new Node(5),e=new Node(1);a.next=b;b.next=d;d.next=e;Node p=sortList(a);for(Node expected:new Node[]{e,b,d,a}){assert p==expected;p=p.next;}assert p==null;",
+      "assert sortList(null)==null&&sortValues(null)==null;Node a=new Node(4);assert sortList(a)==a;",
+      "Random r=new Random(145);for(int run=0;run<300;run++){int n=1+r.nextInt(70);Node[] nodes=new Node[n];Node[] other=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(r.nextInt(21)-10);other[i]=new Node(nodes[i].data);if(i>0){nodes[i-1].next=nodes[i];other[i-1].next=other[i];}}Node[] expected=nodes.clone();Arrays.sort(expected,Comparator.comparingInt(x->x.data));Node p=sortList(nodes[0]),q=sortValues(other[0]);for(Node x:expected){assert p==x;assert q.data==x.data;p=p.next;q=q.next;}assert p==null&&q==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/sort-a-linked-list-using-merge-sort",
+      "title": "Sort a Linked List Using Merge Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Collect/sort/rewrite values, then recursive merge sort using existing nodes.",
+      "adaptation": "Both public Java algorithms were checked. Their node declaration contains C++ Node* and nullptr; this version uses a valid Java Node class. The split is written inside sortList."
+    },
+    "baselineJava": "static Node sortValues(Node head) {\n    List<Integer> values = new ArrayList<>();\n    for (Node current = head; current != null; current = current.next) {\n        values.add(current.data);\n    }\n    Collections.sort(values);\n    int index = 0;\n    for (Node current = head; current != null; current = current.next) {\n        current.data = values.get(index++);\n    }\n    return head;\n}",
+    "baselineTime": "O(n log n) time and O(n) space."
+  },
+  "146": {
+    "problem": "Sort a list containing only 0, 1 and 2 by rearranging its nodes.",
+    "assumptions": "The list has no cycle and every data value is 0, 1 or 2. The tracker explicitly asks to change links, so the final solution keeps every node’s data unchanged.",
+    "example": {
+      "input": "2 → 0 → 1 → 0 → 2",
+      "output": "0 → 0 → 1 → 2 → 2",
+      "explanation": "Collect the two zero nodes, then the one node, then the two two nodes, preserving order within each group."
+    },
+    "baseline": "Count zeros, ones and twos, then overwrite values in that order. Striver teaches this first. It has O(1) extra space, but it does not meet the tracker’s requirement to sort by changing links.",
+    "approach": "Build three chains, one for each value. A dummy node gives each empty chain a place to start, and a tail reference lets us append without searching. Save the current node’s original next, detach it, and append it to its matching chain.\n\nAfter the scan, join zeros to ones and ones to twos. If the ones chain is empty, zeros must connect directly to twos. The dummy heads are temporary; the result contains only the original nodes.",
+    "steps": [
+      "Create zero, one and two dummy heads and tail references.",
+      "Save next, detach the current node, and append it to the correct chain.",
+      "Join zero → one → two, skipping an empty middle chain.",
+      "Return the first nonempty chain’s head."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node sort012(Node head) {\n    Node zeroDummy = new Node(0);\n    Node oneDummy = new Node(0);\n    Node twoDummy = new Node(0);\n    Node zeroTail = zeroDummy;\n    Node oneTail = oneDummy;\n    Node twoTail = twoDummy;\n    while (head != null) {\n        Node next = head.next;\n        head.next = null;\n        if (head.data == 0) {\n            zeroTail.next = head;\n            zeroTail = head;\n        } else if (head.data == 1) {\n            oneTail.next = head;\n            oneTail = head;\n        } else {\n            twoTail.next = head;\n            twoTail = head;\n        }\n        head = next;\n    }\n    zeroTail.next = oneDummy.next != null ? oneDummy.next : twoDummy.next;\n    oneTail.next = twoDummy.next;\n    twoTail.next = null;\n    return zeroDummy.next;\n}",
+    "time": "O(n).",
+    "space": "O(1); three dummy nodes and a fixed number of references.",
+    "pitfalls": [
+      "Count-and-rewrite changes data, so it is only a comparison approach for this tracker item.",
+      "Handle a missing ones chain when joining.",
+      "Old next links must not remain attached to the wrong group."
+    ],
+    "tests": [
+      "int[] values={2,0,1,0,2};Node[] a=new Node[5];for(int i=0;i<5;i++){a[i]=new Node(values[i]);if(i>0)a[i-1].next=a[i];}Node p=sort012(a[0]);for(int i:new int[]{1,3,2,0,4}){assert p==a[i]&&p.data==values[i];p=p.next;}assert p==null;",
+      "assert sort012(null)==null&&sort012ByCounting(null)==null;",
+      "Random r=new Random(146);for(int run=0;run<400;run++){int n=1+r.nextInt(40);Node[] a=new Node[n],b=new Node[n];List<Node> expected=new ArrayList<>();for(int i=0;i<n;i++){a[i]=new Node(r.nextInt(3));b[i]=new Node(a[i].data);if(i>0){a[i-1].next=a[i];b[i-1].next=b[i];}}for(int v=0;v<3;v++)for(Node x:a)if(x.data==v)expected.add(x);Node p=sort012(a[0]),q=sort012ByCounting(b[0]);for(Node x:expected){assert p==x&&q.data==x.data;p=p.next;q=q.next;}assert p==null&&q==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/sort-linked-list-0s-1s-2s-changing-links",
+      "title": "Sort a Linked List of 0s, 1s and 2s by Changing Links",
+      "checkedOn": "2026-10-29",
+      "approach": "Frequency rewriting, then stable relinking into three value chains.",
+      "adaptation": "Both public Java methods were checked. The primary method follows the relinking approach required by the tracker; the counting method is explicitly a comparison."
+    },
+    "baselineJava": "static Node sort012ByCounting(Node head) {\n    int[] counts = new int[3];\n    for (Node current = head; current != null; current = current.next) {\n        counts[current.data]++;\n    }\n    Node current = head;\n    for (int value = 0; value < 3; value++) {\n        for (int count = 0; count < counts[value]; count++) {\n            current.data = value;\n            current = current.next;\n        }\n    }\n    return head;\n}",
+    "baselineTime": "O(n) time and O(1) space; it rewrites data."
+  },
+  "147": {
+    "problem": "Find the first node shared by two singly linked lists, or return null if they share none.",
+    "assumptions": "Both lists are finite and have no cycles. Intersection means the same Node object. Equal data in separate objects is not an intersection. Do not modify either list.",
+    "example": {
+      "input": "A: 4 → 2 → [7 → 9], B: 6 → [7 → 9]; bracketed nodes are shared",
+      "output": "The shared node holding 7",
+      "explanation": "The two prefixes lead into the same tail objects. The first shared reference is the node holding 7."
+    },
+    "baseline": "For every node in A, scan B for the same reference. This directly checks the definition but can take n × m comparisons.",
+    "approach": "Let one pointer walk A and then B, while the other walks B and then A. When a pointer is null, redirect it to the other head. This makes them cover both prefix lengths, so the initial difference in list length disappears.\n\nIf there is a shared tail, they meet at its first node. If there is no shared tail, both eventually become null and the same loop stops. Only local pointer references change; the next fields stay untouched.",
+    "steps": [
+      "Start first at headA and second at headB.",
+      "While they differ, advance each pointer, switching to the other head when it is null.",
+      "Return the reference where they meet, which may be null."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node intersection(Node headA, Node headB) {\n    Node first = headA;\n    Node second = headB;\n    while (first != second) {\n        first = first == null ? headB : first.next;\n        second = second == null ? headA : second.next;\n    }\n    return first;\n}",
+    "time": "O(n + m).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Compare first == second, not first.data == second.data.",
+      "Return null for separate lists even if every data value matches.",
+      "Do not connect the lists physically to implement switching. Reassign only the local pointer."
+    ],
+    "tests": [
+      "Node shared=new Node(7);shared.next=new Node(9);Node a=new Node(4);a.next=new Node(2);a.next.next=shared;Node b=new Node(6);b.next=shared;assert intersection(a,b)==shared&&intersectionNested(a,b)==shared&&intersectionWithSet(a,b)==shared;assert b.next==shared&&a.next.next==shared;",
+      "Node a=new Node(5),b=new Node(5);assert intersection(a,b)==null;assert intersection(null,a)==null;assert intersection(null,null)==null;assert intersection(a,a)==a;",
+      "for(int left=0;left<12;left++)for(int right=0;right<12;right++)for(int tail=0;tail<6;tail++){Node shared=null;for(int i=0;i<tail;i++){Node x=new Node(4);x.next=shared;shared=x;}Node a=shared,b=shared;for(int i=0;i<left;i++){Node x=new Node(4);x.next=a;a=x;}for(int i=0;i<right;i++){Node x=new Node(4);x.next=b;b=x;}assert intersection(a,b)==shared;assert intersectionNested(a,b)==shared;assert intersectionWithSet(a,b)==shared;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/intersection-of-two-linked-lists",
+      "title": "Find the Intersection Point of Two Linked Lists",
+      "checkedOn": "2026-10-29",
+      "approach": "Nested reference comparisons, hashing, then pointer switching.",
+      "adaptation": "All three public Java methods were checked. Node equality remains reference identity."
+    },
+    "baselineJava": "static Node intersectionNested(Node a, Node b) {\n    for (Node first = a; first != null; first = first.next) {\n        for (Node second = b; second != null; second = second.next) {\n            if (first == second) return first;\n        }\n    }\n    return null;\n}",
+    "baselineTime": "O(n × m) time and O(1) space.",
+    "better": {
+      "explanation": "Store all node references from A in a set, then walk B. The first reference found in the set is the intersection. The Node class does not override equality, so equal data does not merge separate objects.",
+      "java": "static Node intersectionWithSet(Node a, Node b) {\n    Set<Node> seen = new HashSet<>();\n    for (Node current = a; current != null; current = current.next) seen.add(current);\n    for (Node current = b; current != null; current = current.next) {\n        if (seen.contains(current)) return current;\n    }\n    return null;\n}",
+      "time": "O(n + m) expected.",
+      "space": "O(n) for references from A."
+    }
   }
 }
