@@ -7610,5 +7610,151 @@
       "approach": "Shifting-array baseline and circular-array implementation with front, rear and size.",
       "adaptation": "Both public Java methods and the practice API were checked. This follows the circular method and its full/empty behaviour. The class and isEmpty method use the practice names, with a default capacity covering its 100-call limit."
     }
+  },
+  "202": {
+    "problem": "Implement a stack using only standard queue operations, with one queue.",
+    "assumptions": "The tracker links to LeetCode MyStack with push, pop, top and empty. Its follow-up asks for one queue; the TUF practice version asks for one queue directly. Only enqueue at the back, remove/read at the front, size and emptiness are used. Pop/top calls are valid in the linked task.",
+    "example": {
+      "input": "push(3), push(8), push(5), pop(), top()",
+      "output": "5, 8",
+      "explanation": "After each push, move older values behind the new value. The queue front then represents the stack top."
+    },
+    "baseline": "With two queues, put the new value into an empty helper queue, move the old queue behind it, then swap queue roles. One queue can do the same rearrangement by rotating its older values.",
+    "approach": "Before insertion, remember how many values are in the queue. Append the new value at the back, then move exactly that many old values from front to back. The new value arrives at the front while the previous stack order stays behind it.\n\nNow pop and top can use the queue front directly. Push pays for the rotation; removal does not need another rearrangement.",
+    "steps": [
+      "Record the old queue size.",
+      "Enqueue the new value.",
+      "Repeat oldSize times: dequeue the front and enqueue it at the back.",
+      "Use the front for pop and top; test queue emptiness for empty."
+    ],
+    "java": "static class MyStack {\n    private final Queue<Integer> queue = new ArrayDeque<>();\n    void push(int value) {\n        int oldSize = queue.size();\n        queue.add(value);\n        for (int i = 0; i < oldSize; i++) queue.add(queue.remove());\n    }\n    int pop() { return queue.remove(); }\n    int top() { return queue.element(); }\n    boolean empty() { return queue.isEmpty(); }\n}",
+    "time": "O(n) for push, O(1) for pop, top and empty.",
+    "space": "O(n) for stored values.",
+    "pitfalls": [
+      "Rotate only the old values, not the new total size, or the new value returns to the back.",
+      "Do not use removeLast or push on the underlying deque; those would bypass the queue-only rule.",
+      "This code uses the linked LeetCode names; TUF calls the class QueueStack and its emptiness method isEmpty."
+    ],
+    "tests": [
+      "MyStack s=new MyStack();s.push(3);s.push(8);s.push(5);assert s.pop()==5;assert s.top()==8;assert s.pop()==8;assert s.pop()==3;assert s.empty();",
+      "Random r=new Random(202);MyStack actual=new MyStack();Deque<Integer>expected=new ArrayDeque<>();for(int t=0;t<5000;t++){if(expected.isEmpty()||(expected.size()<100&&r.nextBoolean())){int x=r.nextInt();actual.push(x);expected.push(x);}else assert actual.pop()==expected.pop();assert actual.empty()==expected.isEmpty();if(!expected.isEmpty())assert actual.top()==expected.peek();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/implement-stack-using-queue",
+      "title": "Implement Stack using Queue",
+      "checkedOn": "2026-10-29",
+      "approach": "One queue, rotated after each push so the newest value reaches the front.",
+      "adaptation": "The public practice task and linked LeetCode contract were checked. No public Java editorial is linked. The class uses LeetCode’s MyStack/empty names and only FIFO queue operations."
+    }
+  },
+  "203": {
+    "problem": "Implement a queue with two stacks, making operations constant time on average across a sequence.",
+    "assumptions": "Use only stack push, pop, peek and emptiness checks. The tracker’s LeetCode class is MyQueue. Valid pop/peek calls are guaranteed there; this version also returns −1 when empty, following the public article.",
+    "example": {
+      "input": "push(4), push(7), peek(), push(9), pop(), pop(), pop()",
+      "output": "4, 4, 7, 9",
+      "explanation": "The new 9 must wait behind both older values, even after peek has moved them to the output stack."
+    },
+    "baseline": "Before every push, move old values aside, put the new value below them, and move them back. This makes push O(n) while pop and peek stay O(1).",
+    "approach": "Use incoming for new values and outgoing for values ready to leave. Popping everything from incoming into outgoing reverses the order, putting the oldest value on top.\n\nDo that transfer only when outgoing is empty. If it already contains values, they are older than anything waiting in incoming and must leave first. Each value is pushed into incoming once, transferred once, and removed once. A particular pop or peek may do a large transfer, but the total work across many operations is linear in the number of inserted values.",
+    "steps": [
+      "Push new values into incoming.",
+      "Before pop or peek, transfer incoming to outgoing only if outgoing is empty.",
+      "Read or remove the top of outgoing.",
+      "The queue is empty only when both stacks are empty."
+    ],
+    "java": "static class MyQueue {\n    private final Deque<Integer> incoming = new ArrayDeque<>();\n    private final Deque<Integer> outgoing = new ArrayDeque<>();\n\n    void push(int value) { incoming.push(value); }\n    private void prepareFront() {\n        if (!outgoing.isEmpty()) return;\n        while (!incoming.isEmpty()) outgoing.push(incoming.pop());\n    }\n    int pop() {\n        prepareFront();\n        return outgoing.isEmpty() ? -1 : outgoing.pop();\n    }\n    int peek() {\n        prepareFront();\n        return outgoing.isEmpty() ? -1 : outgoing.peek();\n    }\n    boolean empty() { return incoming.isEmpty() && outgoing.isEmpty(); }\n}",
+    "time": "Push and empty are O(1). Pop/peek are O(n) in the worst case but amortized O(1): each value transfers at most once.",
+    "space": "O(n) across both stacks.",
+    "pitfalls": [
+      "Never transfer onto a non-empty outgoing stack; that would place newer values before older ones.",
+      "peek may transfer values but must not remove the front.",
+      "Amortized O(1) does not mean every individual call is O(1)."
+    ],
+    "tests": [
+      "MyQueue q=new MyQueue();q.push(4);q.push(7);assert q.peek()==4;q.push(9);assert q.peek()==4;assert q.pop()==4;assert q.pop()==7;assert q.pop()==9;assert q.empty();assert q.pop()==-1&&q.peek()==-1;",
+      "Random r=new Random(203);MyQueue actual=new MyQueue();Deque<Integer>expected=new ArrayDeque<>();for(int t=0;t<10000;t++){int op=r.nextInt(3);if(op==0){int x=r.nextInt();actual.push(x);expected.add(x);}else if(op==1)assert actual.pop()==(expected.isEmpty()?-1:expected.remove());else assert actual.peek()==(expected.isEmpty()?-1:expected.peek());assert actual.empty()==expected.isEmpty();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/implement-a-queue-using-stacks",
+      "title": "Implement a Queue Using Stacks",
+      "checkedOn": "2026-10-29",
+      "approach": "Two stacks with transfer only when the output stack is empty.",
+      "adaptation": "Both public Java approaches were checked. This uses ArrayDeque through stack-only operations instead of legacy Stack, and uses the linked LeetCode MyQueue class name."
+    }
+  },
+  "204": {
+    "problem": "Implement a stack with a singly linked list, using the head as the stack top.",
+    "assumptions": "The practice class is LinkedListStack with push, pop, top and isEmpty. A size method is also included to show the article’s counter. Empty pop/top return −1 as in the public article. The practice stores positive values.",
+    "example": {
+      "input": "push(2), push(6), pop(), top()",
+      "output": "6, 2",
+      "explanation": "Pushing 6 adds a new head before 2. Popping removes that head and exposes 2 again."
+    },
+    "baseline": "Putting the top at a singly linked list’s tail would make removal expensive: finding its predecessor requires a traversal. The head supports both insertion and removal directly.",
+    "approach": "Keep a reference to the first node. To push, create a node whose next points to the old head, then make it the new head. To pop, save the head’s value and move head to head.next. No search is needed.\n\nMaintain a count alongside the head so size is also constant time. Removing the last node naturally sets head to null. A later push works exactly like the first one.",
+    "steps": [
+      "Start with a null head and count 0.",
+      "Push by linking a new node before the head.",
+      "Pop by moving the head forward, after saving its value.",
+      "Read the head for top; update count only on successful insertions/removals."
+    ],
+    "java": "static class LinkedListStack {\n    private static class Node {\n        int value;\n        Node next;\n        Node(int value, Node next) { this.value = value; this.next = next; }\n    }\n    private Node head;\n    private int count;\n\n    void push(int value) { head = new Node(value, head); count++; }\n    int pop() {\n        if (head == null) return -1;\n        int value = head.value;\n        head = head.next;\n        count--;\n        return value;\n    }\n    int top() { return head == null ? -1 : head.value; }\n    boolean isEmpty() { return head == null; }\n    int size() { return count; }\n}",
+    "time": "O(1) for every operation.",
+    "space": "O(n) for n nodes.",
+    "pitfalls": [
+      "Link the new node to the old head before replacing the head.",
+      "Do not decrement count on an unsuccessful pop.",
+      "Java collects unreachable nodes; no manual delete statement is needed.",
+      "There is no fixed array capacity, but available memory still limits the number of nodes."
+    ],
+    "tests": [
+      "LinkedListStack s=new LinkedListStack();assert s.pop()==-1&&s.top()==-1;s.push(2);s.push(6);assert s.pop()==6;assert s.top()==2;assert s.size()==1;assert s.pop()==2&&s.isEmpty();s.push(8);assert s.pop()==8;",
+      "Random r=new Random(204);LinkedListStack actual=new LinkedListStack();Deque<Integer>expected=new ArrayDeque<>();for(int t=0;t<10000;t++){if(r.nextBoolean()){int x=1+r.nextInt(100);actual.push(x);expected.push(x);}else assert actual.pop()==(expected.isEmpty()?-1:expected.pop());assert actual.size()==expected.size();assert actual.top()==(expected.isEmpty()?-1:expected.peek());assert actual.isEmpty()==expected.isEmpty();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/implement-a-stack-using-a-linked-list",
+      "title": "Implement a Stack Using a Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Head insertion/removal and a maintained size counter.",
+      "adaptation": "The public Java and practice API were checked. The node is nested inside the class; the practice’s top name replaces the article’s peek. Empty-operation behaviour is retained."
+    }
+  },
+  "205": {
+    "problem": "Implement a first-in, first-out queue with a singly linked list.",
+    "assumptions": "The practice class is LinkedListQueue with push, pop, peek and isEmpty. Use a head for removal and a tail for insertion. This helper returns −1 for empty pop/peek; practice values are positive. A size method is included.",
+    "example": {
+      "input": "push(2), push(6), pop(), push(9), pop(), pop()",
+      "output": "2, 6, 9",
+      "explanation": "Values leave in arrival order. The tail lets 9 be attached without walking through the list."
+    },
+    "baseline": "With only a head reference, adding at the end requires an O(n) traversal. Keep the tail as well so appending is constant time.",
+    "approach": "Head points to the oldest node and tail to the newest. A push appends a new node after tail, then moves tail to it. If the queue was empty, that node must become both head and tail.\n\nA pop moves head to its next node. When that removes the final node, set tail to null too. Otherwise a stale tail would refer to a node that is no longer in the queue and complicate the next insertion.",
+    "steps": [
+      "Start with both head and tail null.",
+      "On push, append after tail, or set head when inserting into an empty queue.",
+      "Set tail to the new node.",
+      "On pop, move head forward; clear tail if head becomes null.",
+      "Read head for peek and maintain count on successful changes."
+    ],
+    "java": "static class LinkedListQueue {\n    private static class Node {\n        int value;\n        Node next;\n        Node(int value) { this.value = value; }\n    }\n    private Node head, tail;\n    private int count;\n\n    void push(int value) {\n        Node node = new Node(value);\n        if (tail == null) head = node;\n        else tail.next = node;\n        tail = node;\n        count++;\n    }\n    int pop() {\n        if (head == null) return -1;\n        int value = head.value;\n        head = head.next;\n        if (head == null) tail = null;\n        count--;\n        return value;\n    }\n    int peek() { return head == null ? -1 : head.value; }\n    boolean isEmpty() { return head == null; }\n    int size() { return count; }\n}",
+    "time": "O(1) per operation.",
+    "space": "O(n) for n nodes.",
+    "pitfalls": [
+      "Appending at the head would make this a stack.",
+      "After removing the last node, clear both ends of the queue.",
+      "peek must preserve head and count."
+    ],
+    "tests": [
+      "LinkedListQueue q=new LinkedListQueue();q.push(2);q.push(6);assert q.pop()==2;q.push(9);assert q.pop()==6;assert q.pop()==9;assert q.isEmpty()&&q.size()==0;for(int i=1;i<=100;i++){q.push(i);assert q.peek()==i;assert q.pop()==i;assert q.isEmpty();}assert q.pop()==-1;",
+      "Random r=new Random(205);LinkedListQueue actual=new LinkedListQueue();Deque<Integer>expected=new ArrayDeque<>();for(int t=0;t<10000;t++){if(r.nextBoolean()){int x=1+r.nextInt(100);actual.push(x);expected.add(x);}else assert actual.pop()==(expected.isEmpty()?-1:expected.remove());assert actual.size()==expected.size();assert actual.peek()==(expected.isEmpty()?-1:expected.peek());assert actual.isEmpty()==expected.isEmpty();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/implement-queue-using-linkedlist",
+      "title": "Implement queue using Linkedlist",
+      "checkedOn": "2026-10-29",
+      "approach": "Head removal and tail insertion for FIFO order.",
+      "adaptation": "The public practice API was checked. No public Java editorial is linked for this entry. Empty behaviour is defined here as −1; the tests include removing the last node and inserting again."
+    }
   }
 }
