@@ -8774,5 +8774,137 @@
       "approach": "Group keys by frequency and maintain least-to-most-recent order within each group.",
       "adaptation": "The current public statement, update-frequency rule and tie-breaking examples were checked. No public Java editorial is exposed there. This authored implementation uses LinkedHashSet for each frequency’s ordered group rather than writing another linked-list class."
     }
+  },
+  "230": {
+    "problem": "Return the length of the longest contiguous substring in which no character repeats.",
+    "assumptions": "The linked problem allows letters, digits, symbols and spaces. Use the map-based version from Striver’s lesson, not its separate lowercase-only 26-slot version. As in the source Java, characters here are Java char units; full Unicode grapheme handling is a different task.",
+    "example": {
+      "input": "s = \"pabbcp\"",
+      "output": "3",
+      "explanation": "The final substring \"bcp\" has three different characters. \"pabc\" cannot be chosen because it would skip a position."
+    },
+    "baseline": "Try every start/end pair and check its characters with a fresh set. This can take O(n³). A better O(n²) version grows from each start while keeping one set, stopping as soon as a character repeats.",
+    "approach": "Keep a window with no duplicates and remember the latest index of each character. When the character at right has already appeared inside the window, move left to one position after that previous occurrence. Everything before that point must be dropped to remove the duplicate.\n\nA previous occurrence before left belongs to an old window and must be ignored. For \"abba\", the second b moves left to index 2. When the last a arrives, its old index 0 must not move left backward to 1. Save the new occurrence and measure the valid window.",
+    "steps": [
+      "Keep lastSeen, left and best length.",
+      "Read the previous index of the incoming character.",
+      "If that index is inside the current window, move left just past it.",
+      "Record the incoming index and update best with right − left + 1."
+    ],
+    "java": "static int lengthOfLongestSubstring(String s) {\n    Map<Character, Integer> lastSeen = new HashMap<>();\n    int left = 0, best = 0;\n    for (int right = 0; right < s.length(); right++) {\n        char current = s.charAt(right);\n        Integer previous = lastSeen.get(current);\n        if (previous != null && previous >= left) left = previous + 1;\n        lastSeen.put(current, right);\n        best = Math.max(best, right - left + 1);\n    }\n    return best;\n}",
+    "time": "Average O(n), with one hash-map update per character.",
+    "space": "O(min(n, alphabet size)) for last-seen positions.",
+    "pitfalls": [
+      "Never move left backward when the previous occurrence is outside the window.",
+      "A substring is contiguous; characters cannot be skipped.",
+      "A 26-element array is unsafe for the linked problem’s spaces, symbols and uppercase letters.",
+      "Return 0 for an empty string."
+    ],
+    "tests": [
+      "assert lengthOfLongestSubstring(\"pabbcp\")==3;assert lengthOfLongestSubstring(\"abba\")==2;assert lengthOfLongestSubstring(\" \")==1;assert lengthOfLongestSubstring(\"\")==0;assert lengthOfLongestSubstring(\"aA! a\")==4;",
+      "Random r=new Random(230);String alphabet=\"abAB !2\";for(int trial=0;trial<2500;trial++){StringBuilder s=new StringBuilder();for(int i=r.nextInt(30);i>0;i--)s.append(alphabet.charAt(r.nextInt(alphabet.length())));String value=s.toString();assert lengthOfLongestSubstring(value)==uniqueByGrowing(value);assert uniqueByGrowing(value)==uniqueByRechecking(value);}",
+      "assert lengthOfLongestSubstring(\"ĀāĀ\")==2;assert lengthOfLongestSubstring(\"tmmzuxt\")==5;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/longest-substring-without-repeating-characters",
+      "title": "Longest Substring Without Repeating Characters",
+      "checkedOn": "2026-10-29",
+      "approach": "Recheck ranges, grow each range with a set, then jump the left boundary using last-seen positions.",
+      "adaptation": "All four public Java variants were checked. The final solution follows the map-based optimal variant because the tracker’s linked problem is not restricted to lowercase letters. Static method names separate the runnable approaches."
+    },
+    "baselineJava": "static int uniqueByRechecking(String s) {\n    int best = 0;\n    for (int start = 0; start < s.length(); start++) {\n        for (int end = start; end < s.length(); end++) {\n            Set<Character> seen = new HashSet<>();\n            boolean unique = true;\n            for (int i = start; i <= end; i++) {\n                if (!seen.add(s.charAt(i))) { unique = false; break; }\n            }\n            if (!unique) break;\n            best = Math.max(best, end - start + 1);\n        }\n    }\n    return best;\n}",
+    "baselineTime": "O(n³) time and O(min(n, alphabet size)) space.",
+    "better": {
+      "explanation": "Grow a set from each starting position instead of rescanning every chosen range. Stop at the first duplicate, because extending further cannot remove it.",
+      "java": "static int uniqueByGrowing(String s) {\n    int best = 0;\n    for (int start = 0; start < s.length(); start++) {\n        Set<Character> seen = new HashSet<>();\n        for (int end = start; end < s.length(); end++) {\n            if (!seen.add(s.charAt(end))) break;\n            best = Math.max(best, end - start + 1);\n        }\n    }\n    return best;\n}",
+      "time": "O(n²).",
+      "space": "O(min(n, alphabet size))."
+    }
+  },
+  "231": {
+    "problem": "Find the longest contiguous part of a binary array that can become all 1s by flipping at most k zeroes.",
+    "assumptions": "Every element is 0 or 1, and k is non-negative. You do not need to change the array or return which zeroes were flipped.",
+    "example": {
+      "input": "nums = [1,0,1,1,0,0,1], k = 1",
+      "output": "4",
+      "explanation": "Flip the zero at index 1 to make the first four elements all 1s. Any five-element range contains at least two zeroes."
+    },
+    "baseline": "For every start, extend the end and count zeroes. Stop when the count exceeds k, since later elements cannot remove a zero already inside the range.",
+    "approach": "Flipping at most k zeroes means finding a window with at most k zeroes. Add the rightmost element to the zero count. If the budget is exceeded, remove elements from the left until the count is back within the budget. Only then measure the window.\n\nWhy can left stay where it is rather than restarting? Every earlier start already contains too many zeroes for this right endpoint. As right moves farther, those earlier windows cannot lose zeroes, so they cannot become better valid candidates. Both pointers only move forward.",
+    "steps": [
+      "Expand right and add one to zeroCount when a zero enters.",
+      "While zeroCount > k, remove nums[left] from the count and advance left.",
+      "Measure right − left + 1 after validity is restored.",
+      "Return the largest length seen."
+    ],
+    "java": "static int longestOnes(int[] nums, int k) {\n    int left = 0, zeroCount = 0, best = 0;\n    for (int right = 0; right < nums.length; right++) {\n        if (nums[right] == 0) zeroCount++;\n        while (zeroCount > k) {\n            if (nums[left] == 0) zeroCount--;\n            left++;\n        }\n        best = Math.max(best, right - left + 1);\n    }\n    return best;\n}",
+    "time": "O(n): each element enters once and leaves at most once.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Count zeroes because only zeroes consume flips.",
+      "Use a while loop here to restore a valid window before measuring it.",
+      "k = 0 naturally becomes the longest existing run of 1s.",
+      "At most k allows fewer flips when the whole array already fits."
+    ],
+    "tests": [
+      "assert longestOnes(new int[]{1,0,1,1,0,0,1},1)==4;assert longestOnes(new int[]{1,1,1,0,0,0,1,1,1,1,0},2)==6;assert longestOnes(new int[]{0,0,0},0)==0;",
+      "for(int n=0;n<=10;n++)for(int mask=0;mask<(1<<n);mask++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=(mask>>i)&1;for(int k=0;k<=n;k++){int expected=onesByExpansion(a,k);assert longestOnes(a,k)==expected;assert onesByBinarySearch(a,k)==expected;}}",
+      "assert longestOnes(new int[]{1,1,1},0)==3;assert longestOnes(new int[]{0,1,0},5)==3;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/max-consecutive-ones-iii",
+      "title": "Max Consecutive Ones III: Flip at Most K Zeros",
+      "checkedOn": "2026-10-29",
+      "approach": "Expand each start, then use prefix-zero binary search, then a valid-window two-pointer scan.",
+      "adaptation": "All three public Java methods were checked. The final method preserves the source’s while-based shrink and zero-count invariant; the prefix-search version is included separately."
+    },
+    "baselineJava": "static int onesByExpansion(int[] nums, int k) {\n    int best = 0;\n    for (int start = 0; start < nums.length; start++) {\n        int zeros = 0;\n        for (int end = start; end < nums.length; end++) {\n            if (nums[end] == 0) zeros++;\n            if (zeros > k) break;\n            best = Math.max(best, end - start + 1);\n        }\n    }\n    return best;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space.",
+    "better": {
+      "explanation": "A prefix array counts zeroes before each position. For a fixed start, longer ranges never have fewer zeroes, so binary-search the farthest valid end.",
+      "java": "static int onesByBinarySearch(int[] nums, int k) {\n    int[] prefix = new int[nums.length + 1];\n    for (int i = 0; i < nums.length; i++) prefix[i + 1] = prefix[i] + (nums[i] == 0 ? 1 : 0);\n    int best = 0;\n    for (int start = 0; start < nums.length; start++) {\n        int low = start, high = nums.length - 1, farthest = start - 1;\n        while (low <= high) {\n            int mid = low + (high - low) / 2;\n            if (prefix[mid + 1] - prefix[start] <= k) {\n                farthest = mid;\n                low = mid + 1;\n            } else high = mid - 1;\n        }\n        best = Math.max(best, farthest - start + 1);\n    }\n    return best;\n}",
+      "time": "O(n log n).",
+      "space": "O(n)."
+    }
+  },
+  "232": {
+    "problem": "Find the longest contiguous section of trees containing at most two fruit types. Each tree contributes one fruit, and each of your two baskets can hold any number of one type.",
+    "assumptions": "Fruit values are type labels, not quantities or prices. A section containing only one type is valid. You must stop rather than skip a tree that would introduce a third type.",
+    "example": {
+      "input": "fruits = [4,4,7,4,9,9,7]",
+      "output": "4",
+      "explanation": "The first four trees contain only types 4 and 7. The section [4,9,9] has length 3, and [9,9,7] also has length 3."
+    },
+    "baseline": "Try each start/end pair and count distinct types from scratch: O(n³). Reusing a set as each end moves gives O(n²); stop when a third type appears.",
+    "approach": "A frequency map tells us which types are still in the current window. Adding a tree increments its type’s count. Removing a tree decrements its count; delete the map entry when the count reaches zero.\n\nStriver’s current Java removes just one leftmost tree when the window has more than two types. This may leave the window invalid, so the code updates best only when at most two types remain. On an invalid iteration, one tree enters and one leaves: the window cannot grow. Therefore an invalid window never creates a larger answer. A future valid window can start growing again.\n\nA simpler alternative is to use while instead of if and shrink fully until valid. Both run in O(n), but that fully shrinking version keeps at most three map entries during processing. The source’s single-shrink version can retain more types, so its worst-case space is O(n).",
+    "steps": [
+      "Add the incoming type to its frequency count.",
+      "If more than two types are present, remove one leftmost fruit and advance left once.",
+      "Delete a type from the map when its count reaches zero.",
+      "Update the best length only if the current window has at most two types."
+    ],
+    "java": "static int totalFruit(int[] fruits) {\n    Map<Integer, Integer> frequency = new HashMap<>();\n    int left = 0, best = 0;\n    for (int right = 0; right < fruits.length; right++) {\n        frequency.merge(fruits[right], 1, Integer::sum);\n        if (frequency.size() > 2) {\n            int type = fruits[left++];\n            int remaining = frequency.get(type) - 1;\n            if (remaining == 0) frequency.remove(type);\n            else frequency.put(type, remaining);\n        }\n        if (frequency.size() <= 2) best = Math.max(best, right - left + 1);\n    }\n    return best;\n}",
+    "time": "Average O(n), with one addition and at most one removal per iteration.",
+    "space": "O(n) worst case for this single-shrink variant; temporarily invalid windows may contain many types.",
+    "pitfalls": [
+      "At most two includes one fruit type.",
+      "Remove map entries whose counts become zero, or map.size() will overcount active types.",
+      "The single-if variant does not guarantee that the current window is valid.",
+      "Do not describe this variant’s map as always holding only two types."
+    ],
+    "tests": [
+      "assert totalFruit(new int[]{4,4,7,4,9,9,7})==4;assert totalFruit(new int[]{1,2,3,2,2})==4;assert totalFruit(new int[]{})==0;assert totalFruit(new int[]{5,5,5})==3;",
+      "for(int n=0;n<=8;n++){int limit=1;for(int i=0;i<n;i++)limit*=3;for(int encoded=0;encoded<limit;encoded++){int x=encoded;int[]a=new int[n];for(int i=0;i<n;i++){a[i]=x%3;x/=3;}assert totalFruit(a)==fruitByExpansion(a);}}",
+      "int[]a=new int[400];for(int i=0;i<200;i++)a[i]=i%2;for(int i=200;i<400;i++)a[i]=i;assert totalFruit(a)==200;Random r=new Random(232);for(int t=0;t<500;t++){int[]b=new int[50];for(int i=0;i<b.length;i++)b[i]=r.nextInt(12);assert totalFruit(b)==fruitByExpansion(b);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/fruit-into-baskets",
+      "title": "Fruit Into Baskets: Longest Subarray with Two Fruit Types",
+      "checkedOn": "2026-10-29",
+      "approach": "Range enumeration, incremental expansion, then the source’s single-shrink frequency-map window.",
+      "adaptation": "All three public Java methods were checked. This retains the current optimal Java’s single if and valid-only best update, and explicitly explains its O(n) worst-case map space. The fully shrinking alternative is distinguished in the explanation."
+    },
+    "baselineJava": "static int fruitByExpansion(int[] fruits) {\n    int best = 0;\n    for (int start = 0; start < fruits.length; start++) {\n        Set<Integer> types = new HashSet<>();\n        for (int end = start; end < fruits.length; end++) {\n            types.add(fruits[end]);\n            if (types.size() > 2) break;\n            best = Math.max(best, end - start + 1);\n        }\n    }\n    return best;\n}",
+    "baselineTime": "The runnable incremental baseline takes O(n²) time and O(1) space: its set stops at three types."
   }
 }
