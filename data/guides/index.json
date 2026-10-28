@@ -8377,5 +8377,85 @@
         ]
       ]
     }
+  },
+  "220": {
+    "problem": "Return the asteroids left after every possible collision. The sign tells the direction: positive moves right and negative moves left. The absolute value is the size.",
+    "assumptions": "All asteroids move at the same speed and no value is zero. A smaller asteroid disappears in a collision; equal sizes both disappear. Return the survivors in their original left-to-right order.",
+    "example": {
+      "input": "[7, 3, -5, -8, 4]",
+      "output": "[-8, 4]",
+      "explanation": "−5 destroys 3, then loses to 7. Next, −8 destroys 7. The final 4 moves away from −8, so both survive."
+    },
+    "baseline": "Keep the current row in a list. Find an adjacent positive/negative pair, resolve that collision, then scan again. Continue until no such pair remains. This is easy to simulate but repeated scans and removals can take O(n²) time.",
+    "approach": "Keep the survivors seen so far in a stack. A new positive asteroid cannot hit any earlier survivor, so append it. A negative asteroid can collide only with positive asteroids at the end of the stack.\n\nCompare it with the last survivor. If the survivor is smaller, remove that survivor and compare again: one incoming asteroid may destroy several. If sizes match, remove the survivor and discard the incoming asteroid. If the survivor is larger, discard the incoming asteroid. Append the incoming asteroid only if it gets through these collisions. Two negative asteroids, or a negative followed by a positive, never collide.",
+    "steps": [
+      "Process asteroids from left to right.",
+      "While the incoming asteroid moves left and the last survivor moves right, compare their sizes.",
+      "Remove smaller survivors and keep checking. Stop if the incoming asteroid is destroyed.",
+      "Append an asteroid that survives, then copy the survivors into the result array."
+    ],
+    "java": "static int[] asteroidCollision(int[] asteroids) {\n    List<Integer> survivors = new ArrayList<>();\n    for (int incoming : asteroids) {\n        boolean alive = true;\n        while (alive && incoming < 0 && !survivors.isEmpty()\n                && survivors.get(survivors.size() - 1) > 0) {\n            int last = survivors.get(survivors.size() - 1);\n            long incomingSize = -(long) incoming;\n            if (last < incomingSize) {\n                survivors.remove(survivors.size() - 1);\n            } else {\n                if (last == incomingSize) survivors.remove(survivors.size() - 1);\n                alive = false;\n            }\n        }\n        if (alive) survivors.add(incoming);\n    }\n    int[] result = new int[survivors.size()];\n    for (int i = 0; i < result.length; i++) result[i] = survivors.get(i);\n    return result;\n}",
+    "time": "O(n): each asteroid enters and leaves the survivor stack at most once.",
+    "space": "O(n) for survivors and the result.",
+    "pitfalls": [
+      "Only a positive asteroid followed by a negative asteroid moves toward a collision.",
+      "After removing a smaller survivor, compare with the new last survivor.",
+      "Equal sizes remove both asteroids.",
+      "Convert to long before negating Integer.MIN_VALUE. This also supports a size beyond the linked task’s usual bounds."
+    ],
+    "tests": [
+      "assert Arrays.equals(asteroidCollision(new int[]{7,3,-5,-8,4}),new int[]{-8,4});assert Arrays.equals(asteroidCollision(new int[]{8,-8}),new int[]{});assert Arrays.equals(asteroidCollision(new int[]{-2,-1,1,2}),new int[]{-2,-1,1,2});assert Arrays.equals(asteroidCollision(new int[]{10,2,-5}),new int[]{10});",
+      "Random r=new Random(220);for(int trial=0;trial<3000;trial++){int[]a=new int[r.nextInt(30)];for(int i=0;i<a.length;i++)a[i]=(1+r.nextInt(10))*(r.nextBoolean()?1:-1);assert Arrays.equals(asteroidCollision(a),collideByRescanning(a));}",
+      "assert Arrays.equals(asteroidCollision(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE}),new int[]{Integer.MIN_VALUE});assert asteroidCollision(new int[]{}).length==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/asteroid-collision",
+      "title": "Asteroid Collision",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep survivors in an ArrayList and resolve an incoming left-moving asteroid against right-moving survivors.",
+      "adaptation": "The public Java solution was checked. This uses the same survivor-stack algorithm with a combined collision loop. Long magnitude arithmetic additionally handles Integer.MIN_VALUE safely."
+    },
+    "baselineJava": "static int[] collideByRescanning(int[] asteroids) {\n    List<Integer> row = new ArrayList<>();\n    for (int value : asteroids) row.add(value);\n    boolean changed = true;\n    while (changed) {\n        changed = false;\n        for (int i = 0; i + 1 < row.size(); i++) {\n            if (row.get(i) <= 0 || row.get(i + 1) >= 0) continue;\n            long left = row.get(i), right = -(long) row.get(i + 1);\n            if (left == right) { row.remove(i + 1); row.remove(i); }\n            else if (left < right) row.remove(i);\n            else row.remove(i + 1);\n            changed = true;\n            break;\n        }\n    }\n    return row.stream().mapToInt(Integer::intValue).toArray();\n}",
+    "baselineTime": "O(n²) time and O(n) space."
+  },
+  "221": {
+    "problem": "For every non-empty contiguous subarray, subtract its minimum from its maximum. Add all these ranges and return the total.",
+    "assumptions": "Values may be negative or repeated. Use long for the total. This problem does not ask for a remainder modulo any number. A one-element subarray has range zero.",
+    "example": {
+      "input": "[2, 2, 4]",
+      "output": "4",
+      "explanation": "The single elements and [2,2] contribute zero. [2,4] and [2,2,4] each contribute 4 − 2 = 2."
+    },
+    "baseline": "Choose each start and extend the end. Keep the minimum and maximum of the growing subarray, adding maximum − minimum after each extension. This takes O(n²) time and O(1) working space.",
+    "approach": "We can add all subarray maxima, add all subarray minima, then subtract the second total from the first. To find either total, ask how many subarrays give each index the job of being their maximum or minimum.\n\nFor a minimum at i, stop on the left at a value ≤ arr[i] and on the right at a value < arr[i]. Every start after the left boundary and every end before the right boundary makes a valid pair. The number of pairs is (i − left) × (right − i). For maxima, reverse the comparisons: stop at ≥ on the left and > on the right.\n\nWhy use different comparisons on the two sides? If a minimum appears several times, exactly one copy must own that subarray. These rules give it to the leftmost copy. In [2,2], the first 2 owns the pair; the second 2 owns only its singleton. Four stack scans find the boundaries. Then multiply each value by its number of subarrays.",
+    "steps": [
+      "Find previous smaller-or-equal and next strictly smaller indices.",
+      "Find previous greater-or-equal and next strictly greater indices.",
+      "For each index, count its possible starts and ends for minima and for maxima.",
+      "Add value × maximum count and subtract value × minimum count using long."
+    ],
+    "java": "static long subArrayRanges(int[] arr) {\n    int n = arr.length;\n    int[] previousLessOrEqual = new int[n], nextLess = new int[n];\n    int[] previousGreaterOrEqual = new int[n], nextGreater = new int[n];\n    Deque<Integer> stack = new ArrayDeque<>();\n    for (int i = 0; i < n; i++) {\n        while (!stack.isEmpty() && arr[stack.peek()] > arr[i]) stack.pop();\n        previousLessOrEqual[i] = stack.isEmpty() ? -1 : stack.peek();\n        stack.push(i);\n    }\n    stack.clear();\n    for (int i = n - 1; i >= 0; i--) {\n        while (!stack.isEmpty() && arr[stack.peek()] >= arr[i]) stack.pop();\n        nextLess[i] = stack.isEmpty() ? n : stack.peek();\n        stack.push(i);\n    }\n    stack.clear();\n    for (int i = 0; i < n; i++) {\n        while (!stack.isEmpty() && arr[stack.peek()] < arr[i]) stack.pop();\n        previousGreaterOrEqual[i] = stack.isEmpty() ? -1 : stack.peek();\n        stack.push(i);\n    }\n    stack.clear();\n    for (int i = n - 1; i >= 0; i--) {\n        while (!stack.isEmpty() && arr[stack.peek()] <= arr[i]) stack.pop();\n        nextGreater[i] = stack.isEmpty() ? n : stack.peek();\n        stack.push(i);\n    }\n    long answer = 0;\n    for (int i = 0; i < n; i++) {\n        long minima = (long) (i - previousLessOrEqual[i]) * (nextLess[i] - i);\n        long maxima = (long) (i - previousGreaterOrEqual[i]) * (nextGreater[i] - i);\n        answer += (long) arr[i] * (maxima - minima);\n    }\n    return answer;\n}",
+    "time": "O(n): each of the four stack scans pushes and pops each index at most once.",
+    "space": "O(n) for boundary arrays and the stack.",
+    "pitfalls": [
+      "Keep one strict and one non-strict boundary for each kind of contribution.",
+      "The public Java keeps equal values at the previous boundary and removes them at the next boundary; these are the rules used here.",
+      "Multiply using long from the first operation.",
+      "Do not use the modulo from the separate Sum of Subarray Minimums problem."
+    ],
+    "tests": [
+      "assert subArrayRanges(new int[]{2,2,4})==4;assert subArrayRanges(new int[]{1,2,3})==4;assert subArrayRanges(new int[]{4,-2,-3,4,1})==59;assert subArrayRanges(new int[]{5,5,5})==0;",
+      "for(int n=0;n<=8;n++){int limit=1;for(int i=0;i<n;i++)limit*=3;for(int encoded=0;encoded<limit;encoded++){int x=encoded;int[]a=new int[n];for(int i=0;i<n;i++){a[i]=x%3-1;x/=3;}assert subArrayRanges(a)==rangesByScanning(a);}}",
+      "assert subArrayRanges(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE})==4294967295L;int[]a=new int[1000];for(int i=0;i<a.length;i++)a[i]=i%2==0?-1000000000:1000000000;assert subArrayRanges(a)==999000000000000L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/sum-of-subarray-ranges",
+      "title": "Sum of Subarray Ranges",
+      "checkedOn": "2026-10-29",
+      "approach": "Running minimum/maximum enumeration, then subtract minimum contributions from maximum contributions.",
+      "adaptation": "Both public Java approaches were checked, including the full boundary helpers. The article prose and Java describe opposite but valid tie ownership rules; this follows the actual Java: previous inclusive, next strict. The scans are placed in one method with ArrayDeque and long arithmetic."
+    },
+    "baselineJava": "static long rangesByScanning(int[] arr) {\n    long answer = 0;\n    for (int start = 0; start < arr.length; start++) {\n        int minimum = arr[start], maximum = arr[start];\n        for (int end = start; end < arr.length; end++) {\n            minimum = Math.min(minimum, arr[end]);\n            maximum = Math.max(maximum, arr[end]);\n            answer += (long) maximum - minimum;\n        }\n    }\n    return answer;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space."
   }
 }
