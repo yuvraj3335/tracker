@@ -4552,5 +4552,351 @@
       "assert reverseWordOrder(\"  ab   cd \").equals(\"cd ab\");",
       "assert reverseEachWord(\"\").isEmpty();"
     ]
+  },
+  "126": {
+    "problem": "Represent a singly linked list in Java, build it from an array, and read its values from head to tail.",
+    "assumptions": "The list ends at null and has no cycle. An empty array creates an empty list. Java uses a class for a node; there is no C++ struct or manual pointer arithmetic.",
+    "example": {
+      "input": "[6, 2, 9]",
+      "output": "6 → 2 → 9 → null",
+      "explanation": "Each number is stored in its own Node object. The next field of 6 refers to the node holding 2, and the last next field is null."
+    },
+    "baseline": "An array stores values in indexed slots. A linked list stores a chain of node objects. To reach position 3, follow next from the head twice; there is no list[2] operation on this custom node chain.",
+    "approach": "A node needs two things: its value and a reference to the next node. head remembers the first node. tail remembers the last node while we are building the list.\n\nCreate the first node, then append each remaining value after tail and move tail forward. Keeping tail avoids walking from the head for every insertion. To read the result, use a separate current reference so head still points to the start.",
+    "steps": [
+      "Create a Node class with data and next fields.",
+      "For an empty input, return null. Otherwise create the head from the first value.",
+      "Append each remaining node after tail, then move tail to the new node.",
+      "Traverse using current = current.next until current is null."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node fromArray(int[] values) {\n    if (values.length == 0) return null;\n    Node head = new Node(values[0]);\n    Node tail = head;\n    for (int i = 1; i < values.length; i++) {\n        tail.next = new Node(values[i]);\n        tail = tail.next;\n    }\n    return head;\n}\n\nstatic List<Integer> readValues(Node head) {\n    List<Integer> values = new ArrayList<>();\n    for (Node current = head; current != null; current = current.next) {\n        values.add(current.data);\n    }\n    return values;\n}",
+    "time": "O(n) to build and O(n) to traverse.",
+    "space": "O(n) for the new nodes. readValues also creates an O(n) result list; the traversal pointer itself uses O(1).",
+    "pitfalls": [
+      "A reference names an object; assigning current = head does not copy the whole list.",
+      "Use current != null so the final node is visited. current.next != null would skip it.",
+      "Java garbage collection handles unreachable objects. Do not use C++ delete syntax."
+    ],
+    "tests": [
+      "Node head=fromArray(new int[]{6,2,9});assert readValues(head).equals(List.of(6,2,9));assert head.data==6&&head.next.next.next==null;",
+      "assert fromArray(new int[]{})==null;assert readValues(null).isEmpty();",
+      "Node head=fromArray(new int[]{4,4});assert head!=head.next;assert readValues(head).equals(List.of(4,4));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/singly-linked-list",
+      "title": "Singly Linked List: Structure and Basic Operations",
+      "checkedOn": "2026-10-29",
+      "approach": "Node representation and forward traversal.",
+      "adaptation": "The public foundation lesson gives algorithms rather than a Java tab. This Java example builds and traverses the described node chain; the node representation was also checked in the linked head-insertion lesson."
+    }
+  },
+  "127": {
+    "problem": "Insert a new node before the first node of a singly linked list and return the new head.",
+    "assumptions": "The tracker’s insertion link asks specifically for insertion at the head. The list may be empty.",
+    "example": {
+      "input": "head = 7 → 3 → null, value = 5",
+      "output": "5 → 7 → 3 → null",
+      "explanation": "The new node points to the old head. The rest of the chain is unchanged."
+    },
+    "baseline": "You could copy the values into a new structure, but head insertion needs no scan and no copying. The old head is already the attachment point.",
+    "approach": "Create one node and make its next field refer to the old head. Return that new node. This also handles an empty list because assigning next = null is valid.\n\nThe caller must save the returned head: head = insertHead(head, value). Changing a method’s local head variable alone does not change the caller’s variable.",
+    "steps": [
+      "Allocate the new node.",
+      "Set newHead.next to the old head.",
+      "Return newHead and save it in the caller."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node insertHead(Node head, int value) {\n    Node newHead = new Node(value);\n    newHead.next = head;\n    return newHead;\n}",
+    "time": "O(1).",
+    "space": "One new node and O(1) extra working space.",
+    "pitfalls": [
+      "Link the new node to the old head before replacing your head reference.",
+      "Do not assign head.next = newHead: that inserts after the head instead of before it."
+    ],
+    "tests": [
+      "Node old=new Node(7);old.next=new Node(3);Node head=insertHead(old,5);assert head.data==5&&head.next==old&&old.next.data==3;",
+      "Node head=insertHead(null,8);assert head.data==8&&head.next==null;",
+      "Node head=null;for(int i=0;i<100;i++)head=insertHead(head,i);for(int expected=99;expected>=0;expected--){assert head.data==expected;head=head.next;}assert head==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/insert-a-node-at-the-beginning-of-a-singly-linked-list",
+      "title": "Insert a Node at the Beginning of a Singly Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Create a new node, link it to the old head, and return it.",
+      "adaptation": "The public Java node class and insertion method were checked. This version uses a static helper so the snippet can run on its own."
+    }
+  },
+  "128": {
+    "problem": "Delete the supplied non-tail node from a singly linked list when you do not have the head reference.",
+    "assumptions": "This tracker item links to LeetCode 237. The node is in the list and is not the last node. Values are unique. The task judges the resulting value sequence; it does not require that the supplied object itself becomes unreachable.",
+    "example": {
+      "input": "8 → 3 → 6 → 1, supplied node holds 3",
+      "output": "8 → 6 → 1",
+      "explanation": "Copy 6 into the supplied node, then skip the following node. The supplied object remains, but the value 3 disappears."
+    },
+    "baseline": "If the head were available, you could find the previous node and reconnect it around the target. Here the previous node is unavailable, so that usual deletion method cannot be used.",
+    "approach": "The supplied node can reach the node after it. Copy that next node’s value into the supplied node, then point next to the node after the copied one. We have shortened the list by one and removed the requested value from its visible order.\n\nThis depends on there being a next node. A tail has nothing to copy, which is why the problem excludes it.",
+    "steps": [
+      "Read node.next, which is guaranteed to exist.",
+      "Replace node.data with that next node’s data.",
+      "Set node.next to node.next.next."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic void deleteGivenNode(Node node) {\n    if (node == null || node.next == null) {\n        throw new IllegalArgumentException(\"Need a non-tail node\");\n    }\n    node.data = node.next.data;\n    node.next = node.next.next;\n}",
+    "time": "O(1).",
+    "space": "O(1).",
+    "pitfalls": [
+      "This differs from deleting a value when the head is available. Check which inputs the problem gives you.",
+      "The physical object removed from the chain is the following node. Object identity matters in applications that keep other references.",
+      "The method cannot delete the tail under this contract."
+    ],
+    "tests": [
+      "Node head=new Node(8),target=new Node(3),next=new Node(6),tail=new Node(1);head.next=target;target.next=next;next.next=tail;deleteGivenNode(target);assert head.next==target&&target.data==6&&target.next==tail;",
+      "Node head=new Node(2);head.next=new Node(4);deleteGivenNode(head);assert head.data==4&&head.next==null;",
+      "boolean rejected=false;try{deleteGivenNode(new Node(5));}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ]
+  },
+  "129": {
+    "problem": "Count how many nodes are in a singly linked list.",
+    "assumptions": "The list is finite and ends at null. An empty list has length 0.",
+    "example": {
+      "input": "4 → 1 → 8 → null",
+      "output": "3",
+      "explanation": "Visit the nodes holding 4, 1 and 8. The null after 8 is not a node."
+    },
+    "baseline": "A recursive solution can count 1 plus the length of the rest of the list. That uses one call per node and can overflow the Java call stack on long input.",
+    "approach": "Keep a counter and walk through the chain. Each time current refers to a node, add one and move to current.next. When current becomes null, every node has been counted once. The values themselves do not matter.",
+    "steps": [
+      "Set count = 0 and current = head.",
+      "While current is not null, increment count and advance current.",
+      "Return count."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic int length(Node head) {\n    int count = 0;\n    Node current = head;\n    while (current != null) {\n        count++;\n        current = current.next;\n    }\n    return count;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Use current != null, not current.next != null; the latter misses the last node and fails on an empty list.",
+      "A cycle never reaches null. Cycle detection is a separate question."
+    ],
+    "tests": [
+      "Node a=new Node(4);a.next=new Node(1);a.next.next=new Node(8);assert length(a)==3;assert a.data==4;",
+      "assert length(null)==0;assert length(new Node(0))==1;",
+      "Node head=null;for(int i=0;i<100000;i++){Node x=new Node(i);x.next=head;head=x;}assert length(head)==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/find-the-length-of-the-linked-list",
+      "title": "Find the length of the Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Count nodes using the forward traversal described in the singly linked-list foundation lesson.",
+      "adaptation": "The public problem and its empty-list constraint were checked. No public Java editorial was used; this is an original iterative implementation."
+    }
+  },
+  "130": {
+    "problem": "Return true if a linked list contains the requested key, otherwise return false.",
+    "assumptions": "The list ends at null. Values do not need to be sorted. This implementation also returns false for an empty list.",
+    "example": {
+      "input": "5 → 2 → 7 → null, key = 2",
+      "output": "true",
+      "explanation": "The first value is 5, so continue. The second value is 2, so stop and return true."
+    },
+    "baseline": "Copying the values into an array would still require visiting the nodes first. For a single search, compare values during that visit instead.",
+    "approach": "Start at the head and compare each node’s data with the key. A match answers the question immediately. If you reach null without a match, there are no nodes left to check.\n\nDo not use binary search on this chain. Reaching a middle node already takes a walk, and the input is not promised to be sorted.",
+    "steps": [
+      "Start current at head.",
+      "Return true as soon as current.data equals key.",
+      "Otherwise advance to next; return false when the chain ends."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic boolean contains(Node head, int key) {\n    for (Node current = head; current != null; current = current.next) {\n        if (current.data == key) return true;\n    }\n    return false;\n}",
+    "time": "O(n) in the worst case; O(1) for a match at the head.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Compare the stored integer, not the Node object itself, with the key.",
+      "Missing values require checking the whole list."
+    ],
+    "tests": [
+      "Node a=new Node(5);a.next=new Node(2);a.next.next=new Node(7);assert contains(a,2);assert contains(a,5);assert contains(a,7);assert !contains(a,9);",
+      "assert !contains(null,1);assert contains(new Node(4),4);",
+      "Node a=new Node(2);a.next=new Node(2);assert contains(a,2)&&!contains(a,3);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/search-in-linked-list",
+      "title": "Search in Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Visit nodes in order and stop when the key matches.",
+      "adaptation": "The public problem requires a boolean result. This Java follows the foundation lesson’s traversal; no public Java editorial was used."
+    }
+  },
+  "131": {
+    "problem": "Represent a doubly linked list in Java and build it from an array.",
+    "assumptions": "Every node has data, prev and next. The head’s prev and the tail’s next are null. Empty input returns null.",
+    "example": {
+      "input": "[3, 8, 2]",
+      "output": "null ← 3 ⇄ 8 ⇄ 2 → null",
+      "explanation": "From 8, next reaches 2 and prev reaches 3. Each connection works in both directions."
+    },
+    "baseline": "A singly linked list has only next links. Adding prev uses one more reference per node and lets us move backwards without searching from the head.",
+    "approach": "Create the first node and remember it as both head and tail. For every remaining value, create a new node. Connect tail.next to it and its prev back to tail, then move tail to the new node.\n\nBoth assignments matter. A list can look correct when walking forward but still be broken when walking backward if one prev link is missing.",
+    "steps": [
+      "Create a node class with data, prev and next.",
+      "Build the first node, or return null for an empty array.",
+      "For each new node, connect the old tail and new node in both directions.",
+      "Return head; it remains the first node throughout the build."
+    ],
+    "java": "static class Node {\n    int data;\n    Node prev;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node fromArray(int[] values) {\n    if (values.length == 0) return null;\n    Node head = new Node(values[0]);\n    Node tail = head;\n    for (int i = 1; i < values.length; i++) {\n        Node node = new Node(values[i]);\n        tail.next = node;\n        node.prev = tail;\n        tail = node;\n    }\n    return head;\n}",
+    "time": "O(n).",
+    "space": "O(n) for the resulting nodes and O(1) working space.",
+    "pitfalls": [
+      "For adjacent nodes a and b, a.next == b should agree with b.prev == a.",
+      "A Java Node reference is not an integer memory address.",
+      "Do not confuse null at an endpoint with a node whose value is zero."
+    ],
+    "tests": [
+      "Node a=fromArray(new int[]{3,8,2});assert a.prev==null&&a.data==3;assert a.next.data==8&&a.next.prev==a;assert a.next.next.data==2&&a.next.next.prev==a.next&&a.next.next.next==null;",
+      "assert fromArray(new int[]{})==null;Node a=fromArray(new int[]{4});assert a.prev==null&&a.next==null;",
+      "int[] values=new int[100];for(int i=0;i<100;i++)values[i]=i;Node head=fromArray(values),tail=head;for(int i=0;i<100;i++){assert tail.data==i;if(i<99){assert tail.next.prev==tail;tail=tail.next;}}for(int i=99;i>=0;i--){assert tail.data==i;tail=tail.prev;}assert tail==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/doubly-linked-list",
+      "title": "Doubly Linked List: Structure and Basic Operations",
+      "checkedOn": "2026-10-29",
+      "approach": "Build a doubly linked list by connecting each new node in both directions.",
+      "adaptation": "The public foundation lesson gives steps rather than Java code. This standalone Java implements those steps."
+    }
+  },
+  "132": {
+    "problem": "Insert a new node before the head of a doubly linked list and return the new head.",
+    "assumptions": "The tracker’s generic DLL insertion title links to insertion before the head. The existing list has consistent prev and next links. Empty input is also supported.",
+    "example": {
+      "input": "6 ⇄ 9, value = 2",
+      "output": "2 ⇄ 6 ⇄ 9",
+      "explanation": "The new 2 points forward to 6, and 6 points backward to 2. The new head’s prev stays null."
+    },
+    "baseline": "No traversal is needed: the head reference already tells us where the new node belongs.",
+    "approach": "This is singly linked head insertion plus one backward link. Create the node, point its next at the old head, and, when the old head exists, point its prev back at the new node. Return the new node. The old values and links after the head stay in the same order.",
+    "steps": [
+      "Create the new node with prev initially null.",
+      "Set its next to the current head.",
+      "If the old head exists, set oldHead.prev to the new node.",
+      "Return the new node."
+    ],
+    "java": "static class Node {\n    int data;\n    Node prev;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node insertBeforeHead(Node head, int value) {\n    Node node = new Node(value);\n    node.next = head;\n    if (head != null) head.prev = node;\n    return node;\n}",
+    "time": "O(1).",
+    "space": "One new node and O(1) extra working space.",
+    "pitfalls": [
+      "Forgetting oldHead.prev breaks backward traversal.",
+      "Save the returned head in the caller.",
+      "Check head != null before writing head.prev."
+    ],
+    "tests": [
+      "Node a=new Node(6),b=new Node(9);a.next=b;b.prev=a;Node head=insertBeforeHead(a,2);assert head.data==2&&head.prev==null&&head.next==a&&a.prev==head&&a.next==b&&b.prev==a;",
+      "Node head=insertBeforeHead(null,7);assert head.data==7&&head.prev==null&&head.next==null;",
+      "Node head=null;for(int i=0;i<100;i++)head=insertBeforeHead(head,i);Node p=head;for(int i=99;i>=0;i--){assert p.data==i;if(p.next!=null)assert p.next.prev==p;p=p.next;}assert p==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/doubly-linked-list",
+      "title": "Doubly Linked List: Structure and Basic Operations",
+      "checkedOn": "2026-10-29",
+      "approach": "Insert before the head by updating both forward and backward links.",
+      "adaptation": "The foundation steps and the tracker-linked insert-before-head problem were checked. The foundation page has no Java tab; this is an original implementation of its steps."
+    }
+  },
+  "133": {
+    "problem": "Remove the first node of a doubly linked list and return the new head.",
+    "assumptions": "The tracker’s DLL deletion link asks for head deletion. The existing links are consistent. Empty input returns null.",
+    "example": {
+      "input": "2 ⇄ 5 ⇄ 8",
+      "output": "5 ⇄ 8",
+      "explanation": "Move head from 2 to 5, then clear 5.prev because 5 is now the first node."
+    },
+    "baseline": "The node to remove is already known, so there is no need to search. Rebuilding the list would add work without helping.",
+    "approach": "Save the next node as the new head. If it exists, set its prev to null. Disconnect the old head’s next and return the new head. Removing the only node returns null.\n\nJava does not need a delete statement. Once an object is unreachable, it is eligible for garbage collection. Clearing a link updates the list structure; it does not force memory to be freed immediately.",
+    "steps": [
+      "Return null immediately if head is null.",
+      "Save head.next as newHead.",
+      "Clear newHead.prev if newHead exists, and detach the old head.",
+      "Return newHead."
+    ],
+    "java": "static class Node {\n    int data;\n    Node prev;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node deleteHead(Node head) {\n    if (head == null) return null;\n    Node newHead = head.next;\n    if (newHead != null) newHead.prev = null;\n    head.next = null;\n    return newHead;\n}",
+    "time": "O(1).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The new head must have prev == null.",
+      "After deleting a single-node list, newHead is null, so do not dereference it."
+    ],
+    "tests": [
+      "Node a=new Node(2),b=new Node(5),c=new Node(8);a.next=b;b.prev=a;b.next=c;c.prev=b;Node head=deleteHead(a);assert head==b&&head.prev==null&&head.next==c&&c.prev==b&&a.next==null;",
+      "assert deleteHead(null)==null;Node a=new Node(4);assert deleteHead(a)==null;",
+      "Node a=new Node(1),b=new Node(2);a.next=b;b.prev=a;Node head=deleteHead(a);head=deleteHead(head);assert head==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/doubly-linked-list",
+      "title": "Doubly Linked List: Structure and Basic Operations",
+      "checkedOn": "2026-10-29",
+      "approach": "Delete the head and clear the new head’s backward link.",
+      "adaptation": "The public foundation steps and the tracker-linked delete-head problem were checked. This Java implements those steps using garbage collection instead of manual deletion."
+    }
+  },
+  "134": {
+    "problem": "Reverse a doubly linked list by changing its links and return the new head.",
+    "assumptions": "The list ends at null, has no cycle, and its next/prev links agree. Empty input returns null. Node values are preserved.",
+    "example": {
+      "input": "4 ⇄ 7 ⇄ 2",
+      "output": "2 ⇄ 7 ⇄ 4",
+      "explanation": "The old tail becomes the new head. Every next arrow and prev arrow trades direction."
+    },
+    "baseline": "You could store node references in an array and reconnect them in reverse order, using O(n) extra space. Swapping the two references inside each node needs only a few temporary variables.",
+    "approach": "At each node, save its original next reference. Then swap next and prev. After the swap, moving through next would send us backwards, so continue using the original next that we saved.\n\nKeep newHead pointing to the most recently processed node. The final processed node was the old tail, so it is the correct new head. Its new prev is null, just as the old tail’s next was null.",
+    "steps": [
+      "Set current to head and newHead to null.",
+      "Save originalNext before changing any link.",
+      "Swap current.next and current.prev, then remember current as newHead.",
+      "Move to originalNext. Return newHead when current becomes null."
+    ],
+    "java": "static class Node {\n    int data;\n    Node prev;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node reverseDLL(Node head) {\n    Node current = head;\n    Node newHead = null;\n    while (current != null) {\n        Node originalNext = current.next;\n        current.next = current.prev;\n        current.prev = originalNext;\n        newHead = current;\n        current = originalNext;\n    }\n    return newHead;\n}",
+    "time": "O(n).",
+    "space": "O(1); the existing nodes are reused.",
+    "pitfalls": [
+      "Changing only next leaves the backward chain wrong.",
+      "Continue through the saved original next, not the swapped next.",
+      "Reversing values alone does not reverse node order. This solution preserves each node’s data."
+    ],
+    "tests": [
+      "Node a=new Node(4),b=new Node(7),c=new Node(2);a.next=b;b.prev=a;b.next=c;c.prev=b;Node head=reverseDLL(a);assert head==c&&c.prev==null&&c.next==b&&b.prev==c&&b.next==a&&a.prev==b&&a.next==null;assert a.data==4&&b.data==7&&c.data==2;",
+      "assert reverseDLL(null)==null;Node a=new Node(6);assert reverseDLL(a)==a&&a.prev==null&&a.next==null;",
+      "for(int n=1;n<=100;n++){Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(i);if(i>0){nodes[i-1].next=nodes[i];nodes[i].prev=nodes[i-1];}}Node head=reverseDLL(nodes[0]),p=head;for(int i=n-1;i>=0;i--){assert p==nodes[i];assert p.prev==(i==n-1?null:nodes[i+1]);p=p.next;}assert p==null;assert reverseDLL(head)==nodes[0];for(int i=0;i<n;i++)assert nodes[i].next==(i+1==n?null:nodes[i+1]);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/reverse-a-doubly-linked-list",
+      "title": "Reverse a Doubly Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Reverse the existing nodes in place by exchanging their prev and next links.",
+      "adaptation": "The public problem was checked. It does not expose a Java editorial in the sheet; this is an original, tested pointer-swap implementation."
+    },
+    "trace": {
+      "columns": [
+        "Current node",
+        "New next",
+        "New prev",
+        "Continue to"
+      ],
+      "rows": [
+        [
+          "4",
+          "null",
+          "7",
+          "Original next: 7"
+        ],
+        [
+          "7",
+          "4",
+          "2",
+          "Original next: 2"
+        ],
+        [
+          "2",
+          "7",
+          "null",
+          "null; return node 2"
+        ]
+      ]
+    }
   }
 }
