@@ -7833,5 +7833,231 @@
     },
     "baselineJava": "static class PairMinStack {\n    private final Deque<int[]> stack = new ArrayDeque<>();\n    void push(int value) {\n        int minimum = stack.isEmpty() ? value : Math.min(value, stack.peek()[1]);\n        stack.push(new int[]{value, minimum});\n    }\n    void pop() { stack.pop(); }\n    int top() { return stack.element()[0]; }\n    int getMin() { return stack.element()[1]; }\n}",
     "baselineTime": "O(1) per operation and O(n) storage, with a value/minimum pair at each level."
+  },
+  "208": {
+    "problem": "Convert an infix expression, where operators sit between operands, into postfix, where each operator follows its operands.",
+    "assumptions": "Input is valid, has no spaces, and uses single lowercase letters or single digits. Operators are +, −, *, / and ^. Here ^ means exponentiation in the expression language, not Java XOR. Exponentiation groups right-to-left; the other operators group left-to-right.",
+    "example": {
+      "input": "a+b*c",
+      "output": "abc*+",
+      "explanation": "Write b and c before their multiplication operator, then put the addition after its two inputs a and bc*."
+    },
+    "baseline": "An expression tree can represent precedence explicitly, then a postorder traversal produces postfix. An operator stack can produce the same output without storing the full tree.",
+    "approach": "Operands can go straight into the output. Operators wait on a stack until their right operand has been read. Before pushing a new operator, output any waiting operator with higher precedence. Also output equal-precedence operators when the new operator is left-associative.\n\nDo not pop an equal ^ when another ^ arrives: a^b^c means a^(b^c), so the later exponentiation must appear first in postfix. An opening parenthesis marks a boundary. A closing parenthesis flushes operators back to that boundary, and both parentheses disappear from the output.",
+    "steps": [
+      "Append operands immediately.",
+      "Push opening parentheses. On a closing parenthesis, pop until its opening parenthesis.",
+      "For an operator, pop higher-precedence operators and equal-precedence left-associative ones.",
+      "Push the new operator.",
+      "After the scan, append all remaining operators."
+    ],
+    "java": "static boolean isOperand(char ch) {\n    return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9');\n}\n\nstatic int precedence(char op) {\n    if (op == '^') return 3;\n    if (op == '*' || op == '/') return 2;\n    if (op == '+' || op == '-') return 1;\n    return 0;\n}\n\nstatic String infixToPostfix(String expression) {\n    Deque<Character> operators = new ArrayDeque<>();\n    StringBuilder output = new StringBuilder();\n    for (int i = 0; i < expression.length(); i++) {\n        char ch = expression.charAt(i);\n        if (isOperand(ch)) output.append(ch);\n        else if (ch == '(') operators.push(ch);\n        else if (ch == ')') {\n            while (operators.peek() != '(') output.append(operators.pop());\n            operators.pop();\n        } else {\n            while (!operators.isEmpty() && operators.peek() != '('\n                    && (precedence(operators.peek()) > precedence(ch)\n                    || (precedence(operators.peek()) == precedence(ch) && ch != '^'))) {\n                output.append(operators.pop());\n            }\n            operators.push(ch);\n        }\n    }\n    while (!operators.isEmpty()) output.append(operators.pop());\n    return output.toString();\n}",
+    "time": "O(n): every operator is pushed and popped at most once.",
+    "space": "O(n) for the stack and output.",
+    "pitfalls": [
+      "Equal-precedence handling differs for ^.",
+      "Discard parentheses rather than copying them into postfix.",
+      "This parser follows the stated single-character, binary-operator grammar; it does not parse unary minus or multi-digit numbers."
+    ],
+    "tests": [
+      "assert infixToPostfix(\"a+b*c\").equals(\"abc*+\");assert infixToPostfix(\"(a+b)*c\").equals(\"ab+c*\");assert infixToPostfix(\"a-b-c\").equals(\"ab-c-\");assert infixToPostfix(\"a^b^c\").equals(\"abc^^\");assert infixToPostfix(\"(a^b)^c\").equals(\"ab^c^\");assert infixToPostfix(\"a/b*c\").equals(\"ab/c*\");",
+      "assert infixToPostfix(\"a+b*c^d-e^f*g+h\").equals(\"abcd^*+ef^g*-h+\");assert infixToPostfix(\"((a))\").equals(\"a\");assert infixToPostfix(\"2+3*4\").equals(\"234*+\");",
+      "String expression=\"a\";String expected=\"a\";for(int i=0;i<2000;i++){expression=\"(\"+expression+\"+b)\";expected+=\"b+\";}assert infixToPostfix(expression).equals(expected);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/infix-to-postfix-conversion",
+      "title": "Infix to Postfix Conversion",
+      "checkedOn": "2026-10-29",
+      "approach": "The current public conversion problem and token rules were checked.",
+      "adaptation": "No public Java editorial is linked. The Java implements the checked stack conversion. "
+    }
+  },
+  "209": {
+    "problem": "Convert prefix into fully parenthesized infix without changing operand order.",
+    "assumptions": "The expression is valid and has single-character lowercase-letter or digit operands and binary operators +, −, *, /, ^. Every operator is placed before its two operands in prefix.",
+    "example": {
+      "input": "prefix = \"-a*bc\"",
+      "output": "(a-(b*c))",
+      "explanation": "The outer operator is subtraction: its left operand is a and its right operand is the multiplication of b and c."
+    },
+    "baseline": "Parse a tree recursively from left to right, then print an opening parenthesis, left child, operator, right child and closing parenthesis for each internal node. A right-to-left stack scan performs the same assembly.",
+    "approach": "Scan from right to left so both operands are ready when their operator is encountered. Push an operand as a one-character string. For an operator, the first popped expression is the left operand and the second is the right operand. Combine them as (left operator right) and push the result.\n\nParenthesize every combination, even when normal precedence would make some parentheses optional. This preserves the exact expression structure and matches the task’s required format.",
+    "steps": [
+      "Scan the prefix string from its final character toward the first.",
+      "Push operands.",
+      "For an operator, pop left first, then right.",
+      "Push the parenthesized combination.",
+      "Return the one expression left on the stack."
+    ],
+    "java": "static boolean isOperand(char ch) {\n    return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9');\n}\n\nstatic String prefixToInfix(String expression) {\n    Deque<String> stack = new ArrayDeque<>();\n    for (int i = expression.length() - 1; i >= 0; i--) {\n        char ch = expression.charAt(i);\n        if (isOperand(ch)) stack.push(String.valueOf(ch));\n        else {\n            String left = stack.pop();\n            String right = stack.pop();\n            stack.push(\"(\" + left + ch + right + \")\");\n        }\n    }\n    return stack.pop();\n}",
+    "time": "O(n²) in the worst case because Java string concatenation copies growing subexpressions. Stack operations alone are O(n).",
+    "space": "O(n) live expression and stack storage; total temporary allocation can be O(n²).",
+    "pitfalls": [
+      "In a right-to-left prefix scan, the first pop is the left operand.",
+      "Subtraction and division reveal accidental operand reversal.",
+      "Do not claim linear time for this string-building version. A tree plus one final traversal can achieve O(n)."
+    ],
+    "tests": [
+      "assert prefixToInfix(\"-a*bc\").equals(\"(a-(b*c))\");assert prefixToInfix(\"*+ab-cd\").equals(\"((a+b)*(c-d))\");assert prefixToInfix(\"^a*bc\").equals(\"(a^(b*c))\");assert prefixToInfix(\"a\").equals(\"a\");",
+      "String pre=\"a\",in=\"a\";for(int i=0;i<300;i++){pre=\"-\"+pre+\"b\";in=\"(\"+in+\"-b)\";}assert prefixToInfix(pre).equals(in);",
+      "Random r=new Random(209);for(int trial=0;trial<200;trial++){List<String>in=new ArrayList<>(),pre=new ArrayList<>(),post=new ArrayList<>();for(char ch='a';ch<='h';ch++){in.add(\"\"+ch);pre.add(\"\"+ch);post.add(\"\"+ch);}while(in.size()>1){int i=r.nextInt(in.size()-1);char op=\"+-*/\".charAt(r.nextInt(4));String joined=\"(\"+in.get(i)+op+in.get(i+1)+\")\";String prefix=op+pre.get(i)+pre.get(i+1),postfix=post.get(i)+post.get(i+1)+op;in.set(i,joined);pre.set(i,prefix);post.set(i,postfix);in.remove(i+1);pre.remove(i+1);post.remove(i+1);}assert prefixToInfix(pre.get(0)).equals(in.get(0));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/prefix-to-infix-conversion",
+      "title": "Prefix to Infix Conversion",
+      "checkedOn": "2026-10-29",
+      "approach": "The current public conversion problem and token rules were checked.",
+      "adaptation": "No public Java editorial is linked. The Java implements the checked stack conversion. "
+    }
+  },
+  "210": {
+    "problem": "Convert a prefix expression into postfix notation.",
+    "assumptions": "The input is valid and uses single-character operands and binary +, −, *, /, ^ operators. No spaces or separators are needed.",
+    "example": {
+      "input": "prefix = \"/+abc\"",
+      "output": "ab+c/",
+      "explanation": "The expression is (a+b)/c. The addition follows a and b, then division follows that result and c."
+    },
+    "baseline": "Build an expression tree from prefix and print it in postorder. The stack version stores already-converted subexpressions instead of tree nodes.",
+    "approach": "Read prefix from right to left. An operand is already a valid postfix expression, so push it. At an operator, pop the left expression first and the right expression second. Postfix places both operands before the operator, so combine left + right + operator.\n\nEach combined string represents one whole subexpression. When the scan finishes, the stack has one string for the full input.",
+    "steps": [
+      "Scan right to left.",
+      "Push single operands.",
+      "For each operator, pop left then right.",
+      "Push left followed by right followed by the operator."
+    ],
+    "java": "static boolean isOperand(char ch) {\n    return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9');\n}\n\nstatic String prefixToPostfix(String expression) {\n    Deque<String> stack = new ArrayDeque<>();\n    for (int i = expression.length() - 1; i >= 0; i--) {\n        char ch = expression.charAt(i);\n        if (isOperand(ch)) stack.push(String.valueOf(ch));\n        else {\n            String left = stack.pop();\n            String right = stack.pop();\n            stack.push(left + right + ch);\n        }\n    }\n    return stack.pop();\n}",
+    "time": "O(n²) worst-case time from copying concatenated strings.",
+    "space": "O(n) live storage; up to O(n²) total temporary allocation.",
+    "pitfalls": [
+      "The first popped expression is left, not right, for this scan direction.",
+      "Do not add parentheses to postfix output.",
+      "Adjacent digits are separate one-character operands under this grammar."
+    ],
+    "tests": [
+      "assert prefixToPostfix(\"/+abc\").equals(\"ab+c/\");assert prefixToPostfix(\"*+ab-cd\").equals(\"ab+cd-*\");assert prefixToPostfix(\"^a*bc\").equals(\"abc*^\");assert prefixToPostfix(\"7\").equals(\"7\");",
+      "String pre=\"a\",post=\"a\";for(int i=0;i<300;i++){pre=\"/\"+pre+\"b\";post+=\"b/\";}assert prefixToPostfix(pre).equals(post);",
+      "Random r=new Random(210);for(int trial=0;trial<200;trial++){List<String>in=new ArrayList<>(),pre=new ArrayList<>(),post=new ArrayList<>();for(char ch='a';ch<='h';ch++){in.add(\"\"+ch);pre.add(\"\"+ch);post.add(\"\"+ch);}while(in.size()>1){int i=r.nextInt(in.size()-1);char op=\"+-*/\".charAt(r.nextInt(4));String joined=\"(\"+in.get(i)+op+in.get(i+1)+\")\";String prefix=op+pre.get(i)+pre.get(i+1),postfix=post.get(i)+post.get(i+1)+op;in.set(i,joined);pre.set(i,prefix);post.set(i,postfix);in.remove(i+1);pre.remove(i+1);post.remove(i+1);}assert prefixToPostfix(pre.get(0)).equals(post.get(0));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/prefix-to-postfix-conversion",
+      "title": "Prefix to Postfix Conversion",
+      "checkedOn": "2026-10-29",
+      "approach": "The current public conversion problem and token rules were checked.",
+      "adaptation": "No public Java editorial is linked. The Java implements the checked stack conversion. "
+    }
+  },
+  "211": {
+    "problem": "Convert a postfix expression into prefix notation.",
+    "assumptions": "The linked problem guarantees valid single-letter lowercase operands and binary +, −, *, / operators. The helper also supports single-digit operands and ^ without changing the method.",
+    "example": {
+      "input": "postfix = \"ab-c/\"",
+      "output": "/-abc",
+      "explanation": "The expression is (a−b)/c. In prefix the outer division comes first, followed by its two operands."
+    },
+    "baseline": "Construct the expression tree while scanning postfix, then traverse it in preorder. The stack version builds the prefix string directly at each operator.",
+    "approach": "Read postfix from left to right. Both operands appear before their operator, so they are already on the stack. The most recently pushed expression is the right operand; pop it first, then pop the left operand.\n\nPrefix puts the operator first, followed by the left and right expressions. Push that combination so it can become an operand of a later operator.",
+    "steps": [
+      "Scan from left to right and push operands.",
+      "At an operator, pop right first and left second.",
+      "Push operator + left + right.",
+      "Return the final stack entry."
+    ],
+    "java": "static boolean isOperand(char ch) {\n    return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9');\n}\n\nstatic String postfixToPrefix(String expression) {\n    Deque<String> stack = new ArrayDeque<>();\n    for (int i = 0; i < expression.length(); i++) {\n        char ch = expression.charAt(i);\n        if (isOperand(ch)) stack.push(String.valueOf(ch));\n        else {\n            String right = stack.pop();\n            String left = stack.pop();\n            stack.push(ch + left + right);\n        }\n    }\n    return stack.pop();\n}",
+    "time": "O(n²) worst-case time because repeated string concatenation copies existing text.",
+    "space": "O(n) live storage; O(n²) temporary allocation in the worst case.",
+    "pitfalls": [
+      "Postfix scanning pops right before left, the reverse of the right-to-left prefix scan.",
+      "Changing operand order breaks subtraction and division.",
+      "The task assumes valid input; the method does not validate malformed operator/operand counts."
+    ],
+    "tests": [
+      "assert postfixToPrefix(\"ab-c/\").equals(\"/-abc\");assert postfixToPrefix(\"abc*+d-\").equals(\"-+a*bcd\");assert postfixToPrefix(\"xyz*+ab/-\").equals(\"-+x*yz/ab\");assert postfixToPrefix(\"a\").equals(\"a\");",
+      "String pre=\"a\",post=\"a\";for(int i=0;i<300;i++){pre=\"-b\"+pre;post=\"b\"+post+\"-\";}assert postfixToPrefix(post).equals(pre);",
+      "Random r=new Random(211);for(int trial=0;trial<200;trial++){List<String>in=new ArrayList<>(),pre=new ArrayList<>(),post=new ArrayList<>();for(char ch='a';ch<='h';ch++){in.add(\"\"+ch);pre.add(\"\"+ch);post.add(\"\"+ch);}while(in.size()>1){int i=r.nextInt(in.size()-1);char op=\"+-*/\".charAt(r.nextInt(4));String joined=\"(\"+in.get(i)+op+in.get(i+1)+\")\";String prefix=op+pre.get(i)+pre.get(i+1),postfix=post.get(i)+post.get(i+1)+op;in.set(i,joined);pre.set(i,prefix);post.set(i,postfix);in.remove(i+1);pre.remove(i+1);post.remove(i+1);}assert postfixToPrefix(post.get(0)).equals(pre.get(0));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/postfix-to-prefix-conversion",
+      "title": "Postfix to Prefix Conversion",
+      "checkedOn": "2026-10-29",
+      "approach": "The current public conversion problem and token rules were checked.",
+      "adaptation": "No public Java editorial is linked. The Java implements the checked stack conversion. "
+    }
+  },
+  "212": {
+    "problem": "Convert postfix notation into fully parenthesized infix.",
+    "assumptions": "The tracker’s HackerRank page has contradictory input/output prose, but its title and sample convert ab*c+ into ((a*b)+c). This guide follows that sample and the matching current TUF task: valid, unspaced, single-character operands and binary operators. It is not a space-separated multi-digit parser.",
+    "example": {
+      "input": "postfix = \"ab/c-\"",
+      "output": "((a/b)-c)",
+      "explanation": "The division is completed first. Its result becomes the left side of the subtraction."
+    },
+    "baseline": "Build a tree from postfix and print it in infix order with parentheses around each operator node. A string stack performs those combinations directly.",
+    "approach": "An operand becomes a one-character expression on the stack. On an operator, pop the right expression first, then the left. Combine them inside parentheses with the operator between them.\n\nThe parentheses preserve exactly which results feed the next operator, so no precedence rule needs to be guessed. The final stack entry is the whole expression.",
+    "steps": [
+      "Read left to right.",
+      "Push operands as strings.",
+      "On an operator, pop right and then left.",
+      "Push (left operator right).",
+      "Return the completed expression."
+    ],
+    "java": "static boolean isOperand(char ch) {\n    return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9');\n}\n\nstatic String postfixToInfix(String expression) {\n    Deque<String> stack = new ArrayDeque<>();\n    for (int i = 0; i < expression.length(); i++) {\n        char ch = expression.charAt(i);\n        if (isOperand(ch)) stack.push(String.valueOf(ch));\n        else {\n            String right = stack.pop();\n            String left = stack.pop();\n            stack.push(\"(\" + left + ch + right + \")\");\n        }\n    }\n    return stack.pop();\n}",
+    "time": "O(n²) worst-case time due to copying growing strings.",
+    "space": "O(n) live stack/output storage, with potentially O(n²) temporary allocation.",
+    "pitfalls": [
+      "The first popped expression is the right operand.",
+      "Keep the parentheses around every combined subexpression.",
+      "The old contest page’s format prose conflicts with its sample; use the sample-compatible single-character contract stated here."
+    ],
+    "tests": [
+      "assert postfixToInfix(\"ab/c-\").equals(\"((a/b)-c)\");assert postfixToInfix(\"ab*c+\").equals(\"((a*b)+c)\");assert postfixToInfix(\"abc/-ak/l-*\").equals(\"((a-(b/c))*((a/k)-l))\");assert postfixToInfix(\"x\").equals(\"x\");",
+      "String post=\"a\",in=\"a\";for(int i=0;i<2000;i++){post+=\"b-\";in=\"(\"+in+\"-b)\";}assert postfixToInfix(post).equals(in);",
+      "Random r=new Random(212);for(int trial=0;trial<200;trial++){List<String>in=new ArrayList<>(),pre=new ArrayList<>(),post=new ArrayList<>();for(char ch='a';ch<='h';ch++){in.add(\"\"+ch);pre.add(\"\"+ch);post.add(\"\"+ch);}while(in.size()>1){int i=r.nextInt(in.size()-1);char op=\"+-*/\".charAt(r.nextInt(4));String joined=\"(\"+in.get(i)+op+in.get(i+1)+\")\";String prefix=op+pre.get(i)+pre.get(i+1),postfix=post.get(i)+post.get(i+1)+op;in.set(i,joined);pre.set(i,prefix);post.set(i,postfix);in.remove(i+1);pre.remove(i+1);post.remove(i+1);}assert postfixToInfix(post.get(0)).equals(in.get(0));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/postfix-to-infix-conversion",
+      "title": "Postfix to Infix Conversion",
+      "checkedOn": "2026-10-29",
+      "approach": "The current public conversion problem and token rules were checked.",
+      "adaptation": "No public Java editorial is linked. The Java implements the checked stack conversion. The tracker’s old HackerRank contest link was inspected: its title/sample agree with this task, but its format prose describes a different conversion. That inconsistency is disclosed rather than treated as a valid multi-digit specification."
+    }
+  },
+  "213": {
+    "problem": "Convert an infix expression to prefix while preserving precedence and associativity.",
+    "assumptions": "The tracker title asks for prefix but its saved link opens infix-to-postfix. The current TUF infix-to-prefix task uses lowercase operands and +, −, *, /. The implementation also supports the single digits and right-associative ^ used by the saved postfix link, and exposes both conversion methods separately.",
+    "example": {
+      "input": "infix = \"a-b-c\"",
+      "output": "--abc",
+      "explanation": "Subtraction groups left-to-right: (a−b)−c. The result must not be -a-bc, which means a−(b−c)."
+    },
+    "baseline": "Build an expression tree according to infix precedence, then print its preorder traversal. The reverse-and-convert method reuses an operator stack without creating tree nodes.",
+    "approach": "Reverse the infix string and swap opening and closing parentheses. Convert this reversed expression to postfix, then reverse that output to get prefix.\n\nReversing also reverses the tie rule for equal-precedence operators. In this reversed pass, do not pop an equal +, −, * or /, but do pop an equal ^. Without this change, a−b−c would group in the wrong direction. The helper’s reversePass flag makes that rule explicit; the ordinary postfix wrapper uses the usual rule.",
+    "steps": [
+      "Reverse the input and swap ( with ).",
+      "Run the operator-stack conversion with reversed associativity handling.",
+      "Reverse the result to obtain prefix.",
+      "Use the separate infixToPostfix wrapper if practising the tracker’s saved postfix link."
+    ],
+    "java": "static boolean isOperand(char ch) {\n    return (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9');\n}\n\nstatic int precedence(char op) {\n    if (op == '^') return 3;\n    if (op == '*' || op == '/') return 2;\n    if (op == '+' || op == '-') return 1;\n    return 0;\n}\n\nstatic String infixToPrefix(String expression) {\n    StringBuilder reversed = new StringBuilder();\n    for (int i = expression.length() - 1; i >= 0; i--) {\n        char ch = expression.charAt(i);\n        reversed.append(ch == '(' ? ')' : ch == ')' ? '(' : ch);\n    }\n    return new StringBuilder(convertPostfix(reversed.toString(), true)).reverse().toString();\n}\n\nstatic String infixToPostfix(String expression) {\n    return convertPostfix(expression, false);\n}\n\nstatic String convertPostfix(String expression, boolean reversePass) {\n    Deque<Character> operators = new ArrayDeque<>();\n    StringBuilder output = new StringBuilder();\n    for (int i = 0; i < expression.length(); i++) {\n        char ch = expression.charAt(i);\n        if (isOperand(ch)) output.append(ch);\n        else if (ch == '(') operators.push(ch);\n        else if (ch == ')') {\n            while (operators.peek() != '(') output.append(operators.pop());\n            operators.pop();\n        } else {\n            boolean popEqual = reversePass ? ch == '^' : ch != '^';\n            while (!operators.isEmpty() && operators.peek() != '('\n                    && (precedence(operators.peek()) > precedence(ch)\n                    || (precedence(operators.peek()) == precedence(ch) && popEqual))) {\n                output.append(operators.pop());\n            }\n            operators.push(ch);\n        }\n    }\n    while (!operators.isEmpty()) output.append(operators.pop());\n    return output.toString();\n}",
+    "time": "O(n): a fixed number of linear passes and at most one push/pop per operator.",
+    "space": "O(n).",
+    "pitfalls": [
+      "Reversing characters without swapping parentheses breaks grouping.",
+      "The equal-precedence pop rule must reverse along with the input.",
+      "^ is an expression-language exponent operator here, not Java’s XOR calculation.",
+      "The tracker’s saved link asks for postfix; use the correctly named helper for that judge."
+    ],
+    "tests": [
+      "assert infixToPrefix(\"a-b-c\").equals(\"--abc\");assert infixToPrefix(\"a+b*c\").equals(\"+a*bc\");assert infixToPrefix(\"(a+b)*c\").equals(\"*+abc\");assert infixToPrefix(\"a/b*c\").equals(\"*/abc\");assert infixToPrefix(\"a^b^c\").equals(\"^a^bc\");assert infixToPrefix(\"(a^b)^c\").equals(\"^^abc\");",
+      "assert infixToPrefix(\"((a-(b/c))*((a/k)-l))\").equals(\"*-a/bc-/akl\");assert infixToPostfix(\"a-b-c\").equals(\"ab-c-\");assert infixToPostfix(\"a^b^c\").equals(\"abc^^\");",
+      "Random r=new Random(213);for(int trial=0;trial<100;trial++){List<String>in=new ArrayList<>(),pre=new ArrayList<>(),post=new ArrayList<>();for(char ch='a';ch<='h';ch++){in.add(\"\"+ch);pre.add(\"\"+ch);post.add(\"\"+ch);}while(in.size()>1){int i=r.nextInt(in.size()-1);char op=\"+-*/^\".charAt(r.nextInt(5));String joined=\"(\"+in.get(i)+op+in.get(i+1)+\")\";String prefix=op+pre.get(i)+pre.get(i+1),postfix=post.get(i)+post.get(i+1)+op;in.set(i,joined);pre.set(i,prefix);post.set(i,postfix);in.remove(i+1);pre.remove(i+1);post.remove(i+1);}assert infixToPrefix(in.get(0)).equals(pre.get(0));assert infixToPostfix(in.get(0)).equals(post.get(0));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/infix-to-prefix-conversion",
+      "title": "Infix to Prefix Conversion",
+      "checkedOn": "2026-10-29",
+      "approach": "The current public conversion problem and token rules were checked.",
+      "adaptation": "No public Java editorial is linked. The Java implements the checked stack conversion. The tracker’s saved link is a postfix task. Both wrappers are included and labelled; ^ support is an explicit extension to the current prefix task’s four operators."
+    }
   }
 }
