@@ -5269,5 +5269,161 @@
     },
     "baselineJava": "static int cycleLengthWithSet(Node head) {\n    Set<Node> seen = new HashSet<>();\n    for (Node current = head; current != null; current = current.next) {\n        if (!seen.add(current)) return countLap(current);\n    }\n    return 0;\n}",
     "baselineTime": "O(n) expected time and O(n) space."
+  },
+  "141": {
+    "problem": "Check whether the linked-list values read the same forwards and backwards.",
+    "assumptions": "The list is finite and has no cycle. An empty or single-node list is a palindrome. Restore all original links before returning, even when there is a mismatch.",
+    "example": {
+      "input": "3 → 8 → 5 → 8 → 3",
+      "output": "true",
+      "explanation": "Compare the outer 3s and then the 8s. The middle 5 needs no partner."
+    },
+    "baseline": "Push all values onto a stack, then walk from head again while popping. The stack gives values in reverse order, so any mismatch returns false.",
+    "approach": "Find the end of the first half using slow and fast pointers. Reverse the part after slow. Now the end of the list can be read in forward steps, alongside the beginning.\n\nCompare one node from each side until the reversed half ends. For odd length, the unpaired middle stays in the first half and is not compared. Remember the result, reverse the second half back, and reconnect it. A check should not leave the caller’s list cut or reversed.",
+    "steps": [
+      "Find the first-half endpoint with slow/fast pointers.",
+      "Reverse slow.next and keep its returned head.",
+      "Compare from head and from the reversed half, stopping on a mismatch.",
+      "Restore slow.next by reversing that half again, then return the comparison result."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node reverse(Node head) {\n    Node previous = null;\n    while (head != null) {\n        Node next = head.next;\n        head.next = previous;\n        previous = head;\n        head = next;\n    }\n    return previous;\n}\n\nstatic boolean isPalindrome(Node head) {\n    if (head == null || head.next == null) return true;\n    Node slow = head;\n    Node fast = head;\n    while (fast.next != null && fast.next.next != null) {\n        slow = slow.next;\n        fast = fast.next.next;\n    }\n    Node secondHead = reverse(slow.next);\n    Node first = head;\n    Node second = secondHead;\n    boolean matches = true;\n    while (second != null) {\n        if (first.data != second.data) {\n            matches = false;\n            break;\n        }\n        first = first.next;\n        second = second.next;\n    }\n    slow.next = reverse(secondHead);\n    return matches;\n}",
+    "time": "O(n), including restoration.",
+    "space": "O(1).",
+    "pitfalls": [
+      "The first-half endpoint loop differs from the second-middle loop: it checks fast.next and fast.next.next.",
+      "Restore before returning false too.",
+      "Compare data values for a palindrome; compare references for cycle detection."
+    ],
+    "tests": [
+      "int[] values={3,8,5,8,3};Node[] nodes=new Node[5];for(int i=0;i<5;i++){nodes[i]=new Node(values[i]);if(i>0)nodes[i-1].next=nodes[i];}assert isPalindrome(nodes[0])&&palindromeWithStack(nodes[0]);for(int i=0;i<5;i++)assert nodes[i].next==(i==4?null:nodes[i+1]);",
+      "assert isPalindrome(null)&&palindromeWithStack(null);assert isPalindrome(new Node(4));",
+      "Random r=new Random(141);for(int run=0;run<400;run++){int n=1+r.nextInt(30);Node[] nodes=new Node[n];for(int i=0;i<n;i++){nodes[i]=new Node(r.nextInt(5));if(i>0)nodes[i-1].next=nodes[i];}if(run%2==0)for(int i=0;i<n/2;i++)nodes[n-1-i].data=nodes[i].data;boolean expected=palindromeWithStack(nodes[0]);int[] data=new int[n];for(int i=0;i<n;i++)data[i]=nodes[i].data;assert isPalindrome(nodes[0])==expected;for(int i=0;i<n;i++){assert nodes[i].next==(i+1==n?null:nodes[i+1]);assert nodes[i].data==data[i];}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/check-if-a-linked-list-is-a-palindrome",
+      "title": "Check If a Linked List Is a Palindrome",
+      "checkedOn": "2026-10-29",
+      "approach": "Stack comparison, then reverse, compare and restore the second half.",
+      "adaptation": "Both Java approaches were checked. The source declares data but compares val in its optimal snippet; this version consistently uses data. Restoration runs through one shared exit path."
+    },
+    "baselineJava": "static boolean palindromeWithStack(Node head) {\n    Deque<Integer> stack = new ArrayDeque<>();\n    for (Node current = head; current != null; current = current.next) {\n        stack.push(current.data);\n    }\n    for (Node current = head; current != null; current = current.next) {\n        if (current.data != stack.pop()) return false;\n    }\n    return true;\n}",
+    "baselineTime": "O(n) time and O(n) space."
+  },
+  "142": {
+    "problem": "Group nodes at odd positions first, then nodes at even positions, keeping order within each group.",
+    "assumptions": "The tracker links to LeetCode 328: positions start at 1. The current Striver article instead groups even VALUES before odd values. These are different tasks. oddEvenPositions solves the tracker; evenValuesFirst below solves the article variant.",
+    "example": {
+      "input": "4 → 8 → 3 → 6 → 1",
+      "output": "Tracker: 4 → 3 → 1 → 8 → 6",
+      "explanation": "Positions 1, 3 and 5 hold 4, 3 and 1. The article’s value-based rule would instead give 4 → 8 → 6 → 3 → 1."
+    },
+    "baseline": "For the position-based task, collect references at odd positions and then even positions in an array, then reconnect them. That uses O(n) space. The linked article’s array baseline groups values, so it solves the other variant.",
+    "approach": "For the tracker, keep odd at the last odd-position node and even at the last even-position node. Save the first even node before changing links. Skip over the opposite group each time: connect odd to even.next, then connect even to the next even-position node. Finally attach the even chain after the odd chain.\n\nFor the article’s different rule, inspect data % 2 instead. Build an even-value chain and an odd-value chain, detach each node before appending it, and join even before odd. Both methods preserve each group’s original order and reuse the nodes.",
+    "steps": [
+      "For the tracker, set odd = head, even = head.next, and save evenHead.",
+      "While another odd-position node exists, extend the odd chain and then the even chain.",
+      "Join odd.next to evenHead.",
+      "Use the separately labelled evenValuesFirst method only when grouping depends on values."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\n// Tracker / LeetCode 328: group by one-based POSITION.\nstatic Node oddEvenPositions(Node head) {\n    if (head == null || head.next == null) return head;\n    Node odd = head;\n    Node even = head.next;\n    Node evenHead = even;\n    while (even != null && even.next != null) {\n        odd.next = even.next;\n        odd = odd.next;\n        even.next = odd.next;\n        even = even.next;\n    }\n    odd.next = evenHead;\n    return head;\n}\n\n// Current Striver article: even VALUES, then odd values.\nstatic Node evenValuesFirst(Node head) {\n    Node evenDummy = new Node(0);\n    Node oddDummy = new Node(0);\n    Node evenTail = evenDummy;\n    Node oddTail = oddDummy;\n    while (head != null) {\n        Node next = head.next;\n        head.next = null;\n        if (head.data % 2 == 0) {\n            evenTail.next = head;\n            evenTail = head;\n        } else {\n            oddTail.next = head;\n            oddTail = head;\n        }\n        head = next;\n    }\n    evenTail.next = oddDummy.next;\n    return evenDummy.next;\n}",
+    "time": "O(n) for either variant.",
+    "space": "O(1) for either variant.",
+    "pitfalls": [
+      "Odd/even position is not odd/even data. Use an example where they differ.",
+      "Save evenHead before moving even.",
+      "A leftover old next link can create a cycle when building separate chains; detach nodes before appending."
+    ],
+    "tests": [
+      "assert oddEvenPositions(null)==null&&evenValuesFirst(null)==null;",
+      "int[] values={4,8,3,6,1};Node[] a=new Node[5];for(int i=0;i<5;i++){a[i]=new Node(values[i]);if(i>0)a[i-1].next=a[i];}Node p=oddEvenPositions(a[0]);for(int i:new int[]{0,2,4,1,3}){assert p==a[i];p=p.next;}assert p==null;",
+      "int[] values={4,8,3,6,1};Node[] a=new Node[5];for(int i=0;i<5;i++){a[i]=new Node(values[i]);if(i>0)a[i-1].next=a[i];}Node p=evenValuesFirst(a[0]);for(int i:new int[]{0,1,3,2,4}){assert p==a[i];p=p.next;}assert p==null;",
+      "for(int n=1;n<=50;n++){Node[] a=new Node[n];for(int i=0;i<n;i++){a[i]=new Node(9);if(i>0)a[i-1].next=a[i];}Node p=oddEvenPositions(a[0]);for(int parity=0;parity<2;parity++)for(int i=parity;i<n;i+=2){assert p==a[i];p=p.next;}assert p==null;}",
+      "Random r=new Random(142);for(int run=0;run<200;run++){int n=1+r.nextInt(30);Node[] a=new Node[n];List<Node> expected=new ArrayList<>();for(int i=0;i<n;i++){a[i]=new Node(r.nextInt(21)-10);if(i>0)a[i-1].next=a[i];}for(Node x:a)if(x.data%2==0)expected.add(x);for(Node x:a)if(x.data%2!=0)expected.add(x);Node p=evenValuesFirst(a[0]);for(Node x:expected){assert p==x;p=p.next;}assert p==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/segregate-odd-and-even-nodes-in-linked-list",
+      "title": "Segregate odd and even nodes in Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "The current article groups by value using stable even/odd chains.",
+      "adaptation": "The article and its Java were checked, as was the tracker’s LeetCode statement. They disagree: the tracker groups positions, the article groups values. Both implementations are labelled explicitly; the tracker’s problem is preserved."
+    }
+  },
+  "143": {
+    "problem": "Remove the nth node counted from the end of a linked list and return its updated head.",
+    "assumptions": "The list is finite. n = 1 means the last node. Valid input has 1 ≤ n ≤ length; this implementation rejects invalid n without changing the chain.",
+    "example": {
+      "input": "3 → 7 → 2 → 8, n = 2",
+      "output": "3 → 7 → 8",
+      "explanation": "Counting from the end gives 8 first and 2 second. Remove the node holding 2."
+    },
+    "baseline": "Count the length, then start from a dummy node and walk length − n steps. That leaves you immediately before the node to remove.",
+    "approach": "Put a dummy node before head. Start fast and slow at the dummy, then move fast n steps. Keep that gap as both move forward. When fast reaches the last node, slow is immediately before the target. Bypass slow.next.\n\nThe dummy also handles removing the head: slow can stay on the dummy, and changing dummy.next gives the new head. The dummy is not part of the returned list.",
+    "steps": [
+      "Create a dummy whose next is head.",
+      "Advance fast n times, rejecting n if it runs past the list.",
+      "Move fast and slow together until fast.next is null.",
+      "Skip slow.next and return dummy.next."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node removeNth(Node head, int n) {\n    if (n < 1) throw new IllegalArgumentException(\"n must be positive\");\n    Node dummy = new Node(0);\n    dummy.next = head;\n    Node slow = dummy;\n    Node fast = dummy;\n    for (int step = 0; step < n; step++) {\n        fast = fast.next;\n        if (fast == null) throw new IllegalArgumentException(\"n exceeds length\");\n    }\n    while (fast.next != null) {\n        fast = fast.next;\n        slow = slow.next;\n    }\n    slow.next = slow.next.next;\n    return dummy.next;\n}",
+    "time": "O(n), where n here means the list length.",
+    "space": "O(1).",
+    "pitfalls": [
+      "The gap and stopping condition belong together: with both starting at dummy and a gap of n, stop when fast.next is null.",
+      "Save the returned head because the first node may be removed."
+    ],
+    "tests": [
+      "Node a=new Node(3),b=new Node(7),d=new Node(2),e=new Node(8);a.next=b;b.next=d;d.next=e;assert removeNth(a,2)==a&&b.next==e;",
+      "assert removeNth(new Node(5),1)==null;assert removeNthByCounting(new Node(5),1)==null;",
+      "for(int size=1;size<=35;size++)for(int n=1;n<=size;n++)for(int method=0;method<2;method++){Node[] a=new Node[size];for(int i=0;i<size;i++){a[i]=new Node(i);if(i>0)a[i-1].next=a[i];}Node p=method==0?removeNth(a[0],n):removeNthByCounting(a[0],n);for(int i=0;i<size;i++)if(i!=size-n){assert p==a[i];p=p.next;}assert p==null;}",
+      "Node a=new Node(1);boolean rejected=false;try{removeNth(a,2);}catch(IllegalArgumentException e){rejected=true;}assert rejected&&a.next==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/remove-the-nth-node-from-the-end-of-a-linked-list",
+      "title": "Remove the Nth Node from the End of a Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Length counting with a dummy, then an n-node gap with a dummy.",
+      "adaptation": "Both public Java approaches were checked. The methods additionally reject an invalid n."
+    },
+    "baselineJava": "static Node removeNthByCounting(Node head, int n) {\n    int length = 0;\n    for (Node current = head; current != null; current = current.next) length++;\n    if (n < 1 || n > length) throw new IllegalArgumentException(\"Invalid n\");\n    Node dummy = new Node(0);\n    dummy.next = head;\n    Node previous = dummy;\n    for (int step = 0; step < length - n; step++) previous = previous.next;\n    previous.next = previous.next.next;\n    return dummy.next;\n}",
+    "baselineTime": "O(length) time and O(1) space."
+  },
+  "144": {
+    "problem": "Delete the middle node of a linked list. For even length, delete the second middle.",
+    "assumptions": "The middle has zero-based index length / 2. A single-node list becomes empty. Empty input also returns null.",
+    "example": {
+      "input": "5 → 2 → 8 → 4",
+      "output": "5 → 2 → 4",
+      "explanation": "The four-node list has middle index 2, so the node holding 8 is removed."
+    },
+    "baseline": "Count the nodes, calculate length / 2, and walk to the node before that index. Reconnect it around the middle.",
+    "approach": "Use slow and fast as in the middle-node question, but remember previous as well. Before moving slow, save its old position in previous. When fast finishes, slow is the middle and previous is the node that must skip it.\n\nHandle zero or one node first. Then previous is guaranteed to exist when deletion happens, because a list of at least two nodes advances slow at least once.",
+    "steps": [
+      "Return null for an empty or single-node list.",
+      "Start slow and fast at head, with previous = null.",
+      "Before each slow step, set previous = slow; move slow once and fast twice.",
+      "Set previous.next = slow.next and return head."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node deleteMiddle(Node head) {\n    if (head == null || head.next == null) return null;\n    Node slow = head;\n    Node fast = head;\n    Node previous = null;\n    while (fast != null && fast.next != null) {\n        previous = slow;\n        slow = slow.next;\n        fast = fast.next.next;\n    }\n    previous.next = slow.next;\n    return head;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The even-length convention is the second middle, not the first.",
+      "Save previous before moving slow.",
+      "The single-node case has no previous node and needs its early return."
+    ],
+    "tests": [
+      "Node a=new Node(5),b=new Node(2),d=new Node(8),e=new Node(4);a.next=b;b.next=d;d.next=e;assert deleteMiddle(a)==a&&b.next==e;",
+      "assert deleteMiddle(null)==null;assert deleteMiddle(new Node(4))==null;assert deleteMiddleByCounting(null)==null;",
+      "for(int size=1;size<=100;size++)for(int method=0;method<2;method++){Node[] a=new Node[size];for(int i=0;i<size;i++){a[i]=new Node(i);if(i>0)a[i-1].next=a[i];}Node p=method==0?deleteMiddle(a[0]):deleteMiddleByCounting(a[0]);for(int i=0;i<size;i++)if(i!=size/2){assert p==a[i];p=p.next;}assert p==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/delete-the-middle-node-of-a-linked-list",
+      "title": "Delete the Middle Node of a Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Count to locate the predecessor, then track it during a slow/fast traversal.",
+      "adaptation": "Both public Java approaches were checked. They use the same second-middle convention as the tracker."
+    },
+    "baselineJava": "static Node deleteMiddleByCounting(Node head) {\n    if (head == null || head.next == null) return null;\n    int length = 0;\n    for (Node current = head; current != null; current = current.next) length++;\n    Node previous = head;\n    for (int step = 0; step < length / 2 - 1; step++) previous = previous.next;\n    previous.next = previous.next.next;\n    return head;\n}",
+    "baselineTime": "O(n) time and O(1) space."
   }
 }
