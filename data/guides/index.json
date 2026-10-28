@@ -3203,18 +3203,18 @@
     "problem": "Find the smallest integer eating speed that finishes all banana piles within h hours.",
     "assumptions": "Each positive pile consumes its own whole-number hours; an hour cannot be shared between piles. Return -1 if h is too small.",
     "example": {
-      "input": "piles = [3,6,7,11], h = 8",
+      "input": "piles = [4, 8, 9], h = 6",
       "output": "4",
-      "explanation": "At speed 4 the piles take 1+2+2+3=8 hours. Speed 3 requires 1+2+3+4=10 hours."
+      "explanation": "At speed 4, the piles need 1 + 2 + 3 = 6 hours. At speed 3, they need 2 + 3 + 3 = 8 hours, which is too long."
     },
     "baseline": "Try every speed from 1 to the largest pile, costing O(n×maxPile).",
-    "approach": "The required hours are sum(ceil(pile/speed)). Increasing speed never increases that sum, so feasible speeds form a suffix and the answer is its first member.",
+    "approach": "Try a speed and count the hours it needs. A pile of 9 at speed 4 needs three hours, even though its last hour eats only one banana. Round each pile separately.\n\nIf a speed finishes on time, faster speeds work too. If it is too slow, every smaller speed fails too. Use those two facts to discard half the speeds at each step.",
     "steps": [
       "Reject h smaller than the number of nonempty piles.",
       "Binary search speeds between one and the maximum pile.",
       "Use long ceiling division and stop counting once the hour budget is exceeded."
     ],
-    "java": "static int minSpeed(int[] piles,long h){\n    if(piles.length==0)return 0;if(h<piles.length)return -1;\n    int lo=1,hi=Arrays.stream(piles).max().orElseThrow();\n    while(lo<hi){int mid=lo+(hi-lo)/2;long hours=0;\n        for(int p:piles){hours+=(p+(long)mid-1)/mid;if(hours>h)break;}\n        if(hours<=h)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "java": "static boolean canFinish(int[] piles, int speed, long allowedHours) {\n    long hours = 0;\n    for (int pile : piles) {\n        hours += (pile + (long) speed - 1) / speed;\n        if (hours > allowedHours) return false;\n    }\n    return true;\n}\n\nstatic int minSpeed(int[] piles, long h) {\n    if (piles.length == 0) return 0;\n    if (h < piles.length) return -1;\n    int low = 1;\n    int high = 0;\n    for (int pile : piles) high = Math.max(high, pile);\n\n    while (low < high) {\n        int mid = low + (high - low) / 2;\n        if (canFinish(piles, mid, h)) {\n            high = mid;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return low;\n}",
     "time": "O(n log(maxPile)).",
     "space": "O(1) auxiliary state.",
     "pitfalls": [
@@ -3225,25 +3225,59 @@
       "assert minSpeed(new int[]{3,6,7,11},8)==4;",
       "assert minSpeed(new int[]{30,11,23,4,20},5)==30;",
       "assert minSpeed(new int[]{1,2},1)==-1;",
-      "assert minSpeed(new int[]{Integer.MAX_VALUE},1)==Integer.MAX_VALUE;"
-    ]
+      "assert minSpeed(new int[]{Integer.MAX_VALUE},1)==Integer.MAX_VALUE;",
+      "assert minSpeed(new int[]{4,8,9},6)==4;",
+      "Random r=new Random(94);for(int t=0;t<200;t++){int[] a=new int[1+r.nextInt(8)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(20);int h=1+r.nextInt(40);assert minSpeed(a,h)==minSpeedLinear(a,h);}"
+    ],
+    "baselineJava": "static int minSpeedLinear(int[] piles, long h) {\n    if (piles.length == 0) return 0;\n    if (h < piles.length) return -1;\n    int largest = 0;\n    for (int pile : piles) largest = Math.max(largest, pile);\n    for (int speed = 1; ; speed++) {\n        if (canFinish(piles, speed, h)) return speed;\n        if (speed == largest) return -1;\n    }\n}",
+    "trace": {
+      "columns": [
+        "Speed tested",
+        "Hours",
+        "Next search range"
+      ],
+      "rows": [
+        [
+          "5",
+          "1 + 2 + 2 = 5",
+          "Works: keep speeds 1 through 5."
+        ],
+        [
+          "3",
+          "2 + 3 + 3 = 8",
+          "Too slow: keep 4 through 5."
+        ],
+        [
+          "4",
+          "1 + 2 + 3 = 6",
+          "Works: answer is 4."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/koko-eating-bananas",
+      "title": "Koko eating bananas",
+      "checkedOn": "2026-10-29",
+      "approach": "trying speeds, then binary searching with an hours-check helper",
+      "adaptation": "The ceiling-division addition uses long before division to avoid int overflow. Empty input and impossible hour budgets are handled explicitly."
+    }
   },
   "95": {
     "problem": "Find the earliest day on which m bouquets of k adjacent bloomed flowers can be made.",
     "assumptions": "Each flower is used at most once. Bloom days are positive. Return -1 if there are too few flowers; m=0 needs day zero.",
     "example": {
-      "input": "days = [1,10,3,10,2], m = 3, k = 1",
-      "output": "3",
-      "explanation": "By day 3, positions 0,2,4 have bloomed, giving three one-flower bouquets. Before day 3 only two flowers are available."
+      "input": "bloom days = [2, 5, 2, 5, 2], m = 2, k = 2",
+      "output": "5",
+      "explanation": "On day 2, three flowers have bloomed, but none are neighbours. On day 5, all five have bloomed, so use positions 0–1 and 2–3 for two bouquets."
     },
     "baseline": "Check each day until a feasible arrangement appears, repeating the scan over a potentially large date range.",
-    "approach": "Feasibility is monotone in the day. Within a run of bloomed flowers, taking each earliest block of k is optimal because it leaves the most unused positions for later bouquets. An unbloomed flower breaks adjacency.",
+    "approach": "For one trial day, walk along the garden. Count consecutive flowers that have bloomed. Each time the count reaches k, make a bouquet and reset it; those flowers are now used. An unbloomed flower also resets the count because it breaks the row.\n\nOnce a day works, every later day works. Search earlier after success and later after failure.",
     "steps": [
       "Check m×k against the array length using long.",
       "Binary search between the earliest and latest bloom dates.",
       "For each day, greedily count nonoverlapping blocks of k consecutive bloomed flowers."
     ],
-    "java": "static int bouquetDay(int[] days,int m,int k){\n    if(m<0||k<=0)throw new IllegalArgumentException();if(m==0)return 0;\n    if((long)m*k>days.length)return -1;\n    int lo=Arrays.stream(days).min().orElseThrow(),hi=Arrays.stream(days).max().orElseThrow();\n    while(lo<hi){int mid=lo+(hi-lo)/2,run=0,made=0;\n        for(int d:days){if(d<=mid){if(++run==k){made++;run=0;}}else run=0;}\n        if(made>=m)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "java": "static boolean canMakeBouquets(int[] blooms, int day, int m, int k) {\n    int consecutive = 0;\n    int bouquets = 0;\n    for (int bloom : blooms) {\n        if (bloom <= day) {\n            consecutive++;\n            if (consecutive == k) {\n                bouquets++;\n                consecutive = 0;\n            }\n        } else {\n            consecutive = 0;\n        }\n    }\n    return bouquets >= m;\n}\n\nstatic int bouquetDay(int[] blooms, int m, int k) {\n    if (m < 0 || k <= 0) throw new IllegalArgumentException();\n    if (m == 0) return 0;\n    if ((long) m * k > blooms.length) return -1;\n    int low = blooms[0];\n    int high = blooms[0];\n    for (int bloom : blooms) {\n        low = Math.min(low, bloom);\n        high = Math.max(high, bloom);\n    }\n    int answer = -1;\n    while (low <= high) {\n        int mid = low + (high - low) / 2;\n        if (canMakeBouquets(blooms, mid, m, k)) {\n            answer = mid;\n            high = mid - 1;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return answer;\n}",
     "time": "O(n log(dayRange+1)).",
     "space": "O(1).",
     "pitfalls": [
@@ -3254,25 +3288,35 @@
       "assert bouquetDay(new int[]{1,10,3,10,2},3,1)==3;",
       "assert bouquetDay(new int[]{1,10,3,10,2},3,2)==-1;",
       "assert bouquetDay(new int[]{7,7,7,7,12,7,7},2,3)==12;",
-      "assert bouquetDay(new int[]{},0,2)==0;"
-    ]
+      "assert bouquetDay(new int[]{},0,2)==0;",
+      "assert bouquetDay(new int[]{2,5,2,5,2},2,2)==5;",
+      "Random r=new Random(95);for(int t=0;t<200;t++){int[] a=new int[1+r.nextInt(9)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(10);int m=r.nextInt(5),k=1+r.nextInt(4);assert bouquetDay(a,m,k)==bouquetLinear(a,m,k);}",
+      "assert bouquetDay(new int[]{Integer.MAX_VALUE},1,1)==Integer.MAX_VALUE;"
+    ],
+    "baselineJava": "static int bouquetLinear(int[] blooms, int m, int k) {\n    if (m == 0) return 0;\n    if ((long) m * k > blooms.length) return -1;\n    int lastDay = 0;\n    for (int bloom : blooms) lastDay = Math.max(lastDay, bloom);\n    for (int day = 1; ; day++) {\n        if (canMakeBouquets(blooms, day, m, k)) return day;\n        if (day == lastDay) return -1;\n    }\n}",
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/minimum-days-to-make-m-bouquets",
+      "title": "minimum bouquet day",
+      "checkedOn": "2026-10-29",
+      "approach": "counting adjacent groups and binary searching days with a saved answer"
+    }
   },
   "96": {
     "problem": "Find the smallest positive divisor for which the sum of rounded-up quotients is at most a threshold.",
     "assumptions": "All array values are positive. Return -1 when threshold<n, and zero for empty input.",
     "example": {
-      "input": "[1,2,5,9], threshold = 6",
-      "output": "5",
-      "explanation": "Dividing by 5 gives rounded quotients 1,1,1,2, totaling 5. Divisor 4 gives 1,1,2,3, totaling 7, so it is too small."
+      "input": "nums = [2, 7, 10], threshold = 6",
+      "output": "4",
+      "explanation": "Divisor 3 gives 1 + 3 + 4 = 8, which is too much. Divisor 4 gives 1 + 2 + 3 = 6, which fits."
     },
     "baseline": "Try every divisor up to the largest value in O(n×maxValue) time.",
-    "approach": "Every rounded-up quotient is nonincreasing as the divisor grows. Therefore the sum defines a monotone feasible suffix that can be binary searched.",
+    "approach": "A larger divisor makes each rounded-up result smaller or leaves it unchanged. So once a divisor works, every larger one works too.\n\nTry the middle divisor. If its sum fits the threshold, keep it as an option and look for a smaller divisor. If the sum is too large, all smaller divisors can be skipped.",
     "steps": [
-      "Bound divisors by 1 and the maximum value.",
-      "Compute sum((value+divisor−1)/divisor) with long arithmetic.",
-      "Keep the lower half when the threshold is met."
+      "The possible divisors start at 1 and need not exceed the largest array value.",
+      "For a trial divisor, round up each division separately and add the results.",
+      "If the total fits, search smaller divisors; otherwise search larger ones."
     ],
-    "java": "static int smallestDivisor(int[] a,long threshold){\n    if(a.length==0)return 0;if(threshold<a.length)return -1;\n    int lo=1,hi=Arrays.stream(a).max().orElseThrow();\n    while(lo<hi){int mid=lo+(hi-lo)/2;long sum=0;\n        for(int x:a){sum+=(x+(long)mid-1)/mid;if(sum>threshold)break;}\n        if(sum<=threshold)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "java": "static boolean withinThreshold(int[] nums, int divisor, long threshold) {\n    long total = 0;\n    for (int value : nums) {\n        total += (value + (long) divisor - 1) / divisor;\n        if (total > threshold) return false;\n    }\n    return true;\n}\n\nstatic int smallestDivisor(int[] nums, long threshold) {\n    if (nums.length == 0) return 0;\n    if (threshold < nums.length) return -1;\n    long totalSum = 0;\n    int high = 0;\n    for (int value : nums) {\n        totalSum += value;\n        high = Math.max(high, value);\n    }\n    if (threshold >= totalSum) return 1;\n    if (threshold == nums.length) return high;\n\n    int low = 1;\n    while (low < high) {\n        int mid = low + (high - low) / 2;\n        if (withinThreshold(nums, mid, threshold)) {\n            high = mid;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return low;\n}",
     "time": "O(n log(maxValue)).",
     "space": "O(1).",
     "pitfalls": [
@@ -3282,25 +3326,60 @@
     "tests": [
       "assert smallestDivisor(new int[]{1,2,5,9},6)==5;",
       "assert smallestDivisor(new int[]{2,3,5,7,11},11)==3;",
-      "assert smallestDivisor(new int[]{1,1},1)==-1;"
-    ]
+      "assert smallestDivisor(new int[]{1,1},1)==-1;",
+      "assert smallestDivisor(new int[]{2,7,10},6)==4;",
+      "assert smallestDivisor(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE},3)==Integer.MAX_VALUE;assert smallestDivisor(new int[]{2,7,10},19)==1;",
+      "Random r=new Random(96);for(int t=0;t<200;t++){int[] a=new int[1+r.nextInt(8)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(20);int threshold=1+r.nextInt(40);assert smallestDivisor(a,threshold)==divisorLinear(a,threshold);}"
+    ],
+    "baselineJava": "static int divisorLinear(int[] nums, long threshold) {\n    if (nums.length == 0) return 0;\n    if (threshold < nums.length) return -1;\n    int largest = 0;\n    for (int value : nums) largest = Math.max(largest, value);\n    for (int divisor = 1; ; divisor++) {\n        if (withinThreshold(nums, divisor, threshold)) return divisor;\n        if (divisor == largest) return -1;\n    }\n}",
+    "trace": {
+      "columns": [
+        "Divisor",
+        "Rounded sum",
+        "Next range"
+      ],
+      "rows": [
+        [
+          "5",
+          "1 + 2 + 2 = 5",
+          "Fits: 1 through 5."
+        ],
+        [
+          "3",
+          "1 + 3 + 4 = 8",
+          "Too large: 4 through 5."
+        ],
+        [
+          "4",
+          "1 + 2 + 3 = 6",
+          "Fits: answer 4."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-the-smallest-divisor-given-a-threshold",
+      "title": "smallest-divisor",
+      "checkedOn": "2026-10-29",
+      "approach": "a trial-divisor check and binary search, with the two direct-answer cases",
+      "adaptation": "The addition before division and the running sum use long to avoid int overflow. Impossible thresholds and empty input are handled explicitly."
+    }
   },
   "97": {
     "problem": "Find the smallest ship capacity that delivers packages in their given order within D days.",
     "assumptions": "Package weights are positive, cannot be split, and must stay in order. D>0; unused days are allowed.",
     "example": {
-      "input": "weights = [1,2,3,4,5,6,7,8,9,10], D = 5",
-      "output": "15",
-      "explanation": "Capacity 15 can ship [1,2,3,4,5], [6,7], [8], [9], [10]. A smaller capacity eventually needs more than five days."
+      "input": "weights = [2, 3, 4, 2, 5], days = 3",
+      "output": "6",
+      "explanation": "With capacity 6, ship [2, 3], then [4, 2], then [5]. Capacity 5 needs four days: [2, 3], [4], [2], [5]."
     },
     "baseline": "Try capacities from the heaviest package to the total weight, scanning each candidate.",
-    "approach": "For a fixed capacity, greedily fill each day until the next package would exceed it. This uses the fewest days for that capacity: ending a day earlier cannot help any later prefix finish sooner. Feasibility improves as capacity grows.",
+    "approach": "For a trial capacity, load as many packages as fit, keeping their order. Start a new day only when the next package would overflow. Leaving space earlier cannot help: it only leaves more packages for later.\n\nA larger capacity cannot need more days. If the trial fits the deadline, try a smaller capacity; otherwise try a larger one.",
     "steps": [
       "Set the lower bound to the largest weight and upper bound to the total.",
       "Count greedy days for each candidate capacity.",
       "Search for the first capacity needing at most D days."
     ],
-    "java": "static long shipCapacity(int[] weights,int days){\n    if(days<=0)throw new IllegalArgumentException();long lo=0,hi=0;\n    for(int w:weights){lo=Math.max(lo,w);hi+=w;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,load=0;int used=1;\n        for(int w:weights){if(load+w>mid){used++;load=0;}load+=w;}\n        if(used<=days)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "java": "static boolean canShip(int[] weights, int days, long capacity) {\n    int usedDays = 1;\n    long load = 0;\n    for (int weight : weights) {\n        if (load + weight > capacity) {\n            usedDays++;\n            load = weight;\n        } else {\n            load += weight;\n        }\n    }\n    return usedDays <= days;\n}\n\nstatic long shipCapacity(int[] weights, int days) {\n    if (days <= 0) throw new IllegalArgumentException();\n    if (weights.length == 0) return 0;\n    long low = 0;\n    long high = 0;\n    for (int weight : weights) {\n        low = Math.max(low, weight);\n        high += weight;\n    }\n    long answer = high;\n    while (low <= high) {\n        long mid = low + (high - low) / 2;\n        if (canShip(weights, days, mid)) {\n            answer = mid;\n            high = mid - 1;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return answer;\n}",
     "time": "O(n log(totalWeight−maxWeight+1)).",
     "space": "O(1).",
     "pitfalls": [
@@ -3311,8 +3390,19 @@
       "assert shipCapacity(new int[]{1,2,3,4,5,6,7,8,9,10},5)==15;",
       "assert shipCapacity(new int[]{3,2,2,4,1,4},3)==6;",
       "assert shipCapacity(new int[]{1,2,3},1)==6;",
-      "assert shipCapacity(new int[]{},3)==0;"
-    ]
+      "assert shipCapacity(new int[]{},3)==0;",
+      "assert shipCapacity(new int[]{2,3,4,2,5},3)==6;",
+      "assert shipCapacity(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE},1)==4294967294L;",
+      "Random r=new Random(97);for(int t=0;t<200;t++){int[] a=new int[1+r.nextInt(8)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(10);int days=1+r.nextInt(10);assert shipCapacity(a,days)==shipLinear(a,days);}"
+    ],
+    "baselineJava": "static long shipLinear(int[] weights, int days) {\n    if (weights.length == 0) return 0;\n    long smallest = 0;\n    long total = 0;\n    for (int weight : weights) {\n        smallest = Math.max(smallest, weight);\n        total += weight;\n    }\n    for (long capacity = smallest; capacity <= total; capacity++) {\n        if (canShip(weights, days, capacity)) return capacity;\n    }\n    return -1;\n}",
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/capacity-to-ship-packages-within-d-days",
+      "title": "shipping-capacity",
+      "checkedOn": "2026-10-29",
+      "approach": "loading in order, then binary searching capacity with a saved answer",
+      "adaptation": "Capacity, load and total weight use long so their sums do not overflow int."
+    }
   },
   "98": {
     "problem": "Find the kth missing positive integer relative to a strictly increasing positive array.",
