@@ -11,6 +11,7 @@
     "scrape": "node scripts/scrape-codolio.mjs && node scripts/build-codolio-crosswalk.mjs",
     "keygen": "node -e \"const c=require('crypto');console.log('SESSION_SECRET='+c.randomBytes(32).toString('hex'));console.log('ENCRYPTION_KEY='+c.randomBytes(32).toString('hex'))\"",
     "test": "tsx scripts/selftest.ts",
+    "test:tutor": "node --test cloudflare/tutor-worker.test.mjs && tsx --test scripts/selftest-tutor.ts",
     "check:schema": "tsx scripts/check-schema.ts",
     "check:color": "tsx scripts/check-color.ts",
     "fixtures:characters": "node scripts/make-character-fixtures.mjs",

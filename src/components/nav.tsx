@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Briefcase, LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut, Timer } from 'lucide-react';
+import { Briefcase, LayoutDashboard, CalendarDays, ChartNoAxesColumn, ListChecks, LogOut, Timer, MessageSquare } from 'lucide-react';
 import { ThemeToggle } from './theme-toggle';
 import { SkinPicker } from './skin-picker';
 import { CharacterPicker } from './character-picker';
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 const LINKS = [
   { href: '/', label: 'Today', icon: LayoutDashboard },
   { href: '/areas/dsa', label: 'DSA', icon: ListChecks },
+  { href: '/tutor', label: 'Tutor', icon: MessageSquare },
   { href: '/daily', label: 'Daily', icon: CalendarDays },
   { href: '/analytics', label: 'Stats', icon: ChartNoAxesColumn },
   { href: '/jobs', label: 'Jobs', icon: Briefcase },
@@ -66,7 +67,7 @@ export function Nav({ username }: { username: string | null }) {
                 key={l.href}
                 href={l.href}
                 className={cn(
-                  'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                  'rounded-lg px-2 py-1.5 text-sm font-medium transition-colors',
                   isActive(pathname, l.href)
                     ? 'bg-surface-2 text-ink'
                     : 'text-ink-muted hover:bg-surface-2 hover:text-ink',

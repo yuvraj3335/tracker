@@ -268,6 +268,25 @@ wants this is that they came back.
 
 ## Setup
 
+### Free DSA study tutor
+
+Open **Tutor** in the navigation, or **Ask tutor** beside a practice question.
+Discuss concepts, request incremental hints, review pasted code, or practise a
+quiz with follow-up questions. Answers stream with readable code blocks and a
+copy button. All tutor inference runs on Cloudflare; no model runs on the device.
+The existing spoken character companion remains a separate feature.
+
+The tutor uses Workers AI's free daily allowance, with no paid fallback. It needs
+the server-only `TUTOR_API_URL` and `TUTOR_API_KEY` variables. See
+[the Worker deployment guide](cloudflare/README.md). The account must stay on
+Workers Free for the provider's hard $0 limit.
+
+Optional reference search covers Wikipedia and Stack Overflow, with source
+links and explicit errors when retrieval fails. It sends only the separate
+search phrase. The Google link opens a browser search; it does not give the
+model unrestricted Google access. Chat lasts for the current tab session and
+does not execute code or change progress.
+
 ### 1. Database
 
 **On Vercel:** Storage → Neon → create. The integration injects the connection

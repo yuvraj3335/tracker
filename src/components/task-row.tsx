@@ -1,6 +1,7 @@
 'use client';
 
 import { memo, useOptimistic, useTransition } from 'react';
+import Link from 'next/link';
 import { Bookmark, RotateCcw, ExternalLink } from 'lucide-react';
 import { toggleTaskAction, toggleFlagAction, setDifficultyAction } from '@/app/actions';
 import type { Task } from '@/lib/notion';
@@ -174,6 +175,7 @@ function TaskRowImpl({
         {/* Links and the completion stamp share one line, which keeps rows
             short enough that a 456-question list stays scrollable. */}
         <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 pl-7">
+          <Link prefetch={false} href={`/tutor?question=${encodeURIComponent(task.name)}`} className="text-meta font-medium text-accent underline-offset-2 hover:underline">Ask tutor</Link>
           {links.length ? (
             links.map((l) => (
               <a

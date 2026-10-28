@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Companion } from './companion';
 import { CompanionPanel } from './companion-panel';
 import { poseForTurn, type Turn } from '@/lib/conversation';
@@ -14,6 +15,7 @@ import { poseForTurn, type Turn } from '@/lib/conversation';
  * spinner cannot.
  */
 export function CompanionLayer() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [turn, setTurn] = useState<Turn>('closed');
 
@@ -24,6 +26,9 @@ export function CompanionLayer() {
   // while it is listening, and casts while it is thinking. A spinner would say
   // the same thing and say nothing about who you are talking to.
   const pose = turn === 'closed' || turn === 'resting' ? null : poseForTurn(turn);
+
+  // The text tutor has its own conversation and never starts local voice AI.
+  if (pathname.startsWith('/tutor')) return null;
 
   return (
     <>
