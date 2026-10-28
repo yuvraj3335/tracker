@@ -6736,5 +6736,159 @@
       "approach": "The public practice statement, examples and constraints were checked.",
       "adaptation": "The current sheet has no public Java editorial for this entry. This is an original, tested Java implementation. "
     }
+  },
+  "178": {
+    "problem": "Decide whether a string can be split completely into words from a dictionary.",
+    "assumptions": "A dictionary word can be reused. Words must cover the string in order, with no gaps. Source limits: string length 300 and word length 20. Dictionary entries are non-empty. The helper also treats an empty string as successfully consumed.",
+    "example": {
+      "input": "s = \"redbluered\", dictionary = [red, blue]",
+      "output": "true",
+      "explanation": "Use red, then blue, then red again. Reusing a word is allowed."
+    },
+    "baseline": "Try every dictionary-matching prefix, then recursively split the remaining suffix. Without remembering results, different earlier choices may repeatedly solve the same suffix.",
+    "approach": "A call at start asks one question: can the suffix beginning here be split? Try each next piece up to the longest dictionary-word length. If the piece is in the dictionary and the remaining suffix works, return true.\n\nRemember true or false for each start index. Earlier choices do not affect which words can cover this suffix, so the saved result is safe to reuse. Reaching the end means every character was covered. Returning false must wait until all possible next pieces have failed.",
+    "steps": [
+      "Put the dictionary in a set and find its longest word length.",
+      "At each start index, reuse a saved answer if available.",
+      "Try every possible next dictionary word within the length limit.",
+      "Return true if its remaining suffix works; otherwise save false after all choices fail."
+    ],
+    "java": "static boolean wordBreak(String s, List<String> wordDict) {\n    Set<String> words = new HashSet<>(wordDict);\n    int longest = 0;\n    for (String word : words) longest = Math.max(longest, word.length());\n    return splitWords(s, 0, words, longest, new Boolean[s.length()]);\n}\n\nstatic boolean splitWords(String s, int start, Set<String> words,\n                          int longest, Boolean[] memo) {\n    if (start == s.length()) return true;\n    if (memo[start] != null) return memo[start];\n    int limit = Math.min(s.length(), start + longest);\n    for (int end = start + 1; end <= limit; end++) {\n        if (words.contains(s.substring(start, end))\n                && splitWords(s, end, words, longest, memo)) {\n            return memo[start] = true;\n        }\n    }\n    return memo[start] = false;\n}",
+    "time": "O(W + n × L²) expected time with hashing, where W is total dictionary characters and L is the longest word. Java substring creation and hashing cost O(L).",
+    "space": "O(W + n) for dictionary storage, memo entries and recursive calls, plus temporary substring storage.",
+    "pitfalls": [
+      "Finding a dictionary word at the beginning is not enough; the whole suffix must also split.",
+      "Do not remove a dictionary word after using it.",
+      "Memoize by start index, not by the previously chosen word.",
+      "A primitive boolean array alone cannot distinguish not-yet-computed from computed-false."
+    ],
+    "tests": [
+      "assert wordBreak(\"redbluered\",List.of(\"red\",\"blue\"));assert !wordBreak(\"redgreen\",List.of(\"red\",\"blue\"));assert wordBreak(\"\",List.of(\"x\"));",
+      "assert wordBreak(\"aaaaaaa\",List.of(\"aaaa\",\"aaa\"));assert !wordBreak(\"a\".repeat(299)+\"b\",List.of(\"a\",\"aa\",\"aaa\",\"aaaa\",\"aaaaa\"));",
+      "Random r=new Random(178);for(int trial=0;trial<500;trial++){int n=r.nextInt(15);StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((char)('a'+r.nextInt(2)));String s=b.toString();List<String>d=new ArrayList<>();for(int length=1;length<=3;length++)for(int mask=0;mask<(1<<length);mask++)if(r.nextBoolean()){StringBuilder w=new StringBuilder();for(int j=0;j<length;j++)w.append((mask&(1<<j))==0?'a':'b');d.add(w.toString());}boolean[]reachable=new boolean[n+1];reachable[0]=true;for(int i=0;i<n;i++)if(reachable[i])for(String w:d)if(s.startsWith(w,i))reachable[i+w.length()]=true;assert wordBreak(s,d)==reachable[n];}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/word-break",
+      "title": "Word Break",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement and constraints were checked.",
+      "adaptation": "The current sheet does not link a public Java editorial for this entry. This is an original Java solution for the checked task, with executable examples and edge-case tests."
+    }
+  },
+  "179": {
+    "problem": "Decide whether an undirected graph can be coloured using at most m colours so adjacent vertices have different colours.",
+    "assumptions": "Vertices are numbered 0 through n − 1. A colour may be shared by non-adjacent vertices. The graph may be disconnected. Source n ≤ 20. The helper accepts an edge list and rejects a self-loop because a vertex cannot differ from itself.",
+    "example": {
+      "input": "edges = [(0,1), (1,2), (2,0)], m = 2",
+      "output": "false",
+      "explanation": "A triangle needs three colours: the third vertex touches both of the first two."
+    },
+    "baseline": "Assign a colour to every vertex in all m^n ways, then check every edge. Backtracking can reject an assignment as soon as it conflicts with an already coloured neighbour.",
+    "approach": "Colour vertices one at a time. For the current vertex, try each colour. Scan its neighbours to see whether that colour is already used next to it. If it is safe, assign it and try to colour the next vertex.\n\nIf the remaining graph cannot be completed, erase this assignment and try another colour. Once all vertices have colours, return true. Working through all vertex numbers also handles disconnected components; no special traversal is needed.",
+    "steps": [
+      "Build a symmetric adjacency matrix from the undirected edges.",
+      "Try each colour for the current vertex.",
+      "Reject colours used by an already coloured neighbour.",
+      "Recurse after a safe assignment; reset it if that branch fails.",
+      "Return true after every vertex has been assigned."
+    ],
+    "java": "static boolean graphColoring(int n, int[][] edges, int m) {\n    boolean[][] adjacent = new boolean[n][n];\n    for (int[] edge : edges) {\n        if (edge[0] == edge[1]) return false;\n        adjacent[edge[0]][edge[1]] = true;\n        adjacent[edge[1]][edge[0]] = true;\n    }\n    return colourVertex(0, adjacent, new int[n], m);\n}\n\nstatic boolean colourVertex(int vertex, boolean[][] adjacent, int[] colours, int m) {\n    if (vertex == colours.length) return true;\n    for (int colour = 1; colour <= m; colour++) {\n        boolean safe = true;\n        for (int neighbour = 0; neighbour < colours.length; neighbour++) {\n            if (adjacent[vertex][neighbour] && colours[neighbour] == colour) {\n                safe = false;\n                break;\n            }\n        }\n        if (!safe) continue;\n        colours[vertex] = colour;\n        if (colourVertex(vertex + 1, adjacent, colours, m)) return true;\n        colours[vertex] = 0;\n    }\n    return false;\n}",
+    "time": "Exponential. O(n × m^(n+1)) is a conservative upper bound accounting for colour trials and neighbour scans.",
+    "space": "O(n²) for the adjacency matrix; O(n) for colours and recursive calls.",
+    "pitfalls": [
+      "The requirement applies to adjacent vertices, not every pair of vertices.",
+      "Add each edge in both directions.",
+      "Zero means uncoloured; actual colours run from 1 through m.",
+      "Disconnected vertices still need to be processed."
+    ],
+    "tests": [
+      "int[][]triangle={{0,1},{1,2},{2,0}};assert !graphColoring(3,triangle,2);assert graphColoring(3,triangle,3);assert graphColoring(4,new int[][]{{0,1},{2,3}},2);assert !graphColoring(1,new int[][]{{0,0}},1);",
+      "for(int n=1;n<=4;n++){List<int[]>pairs=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)pairs.add(new int[]{i,j});for(int mask=0;mask<(1<<pairs.size());mask++){List<int[]>edges=new ArrayList<>();for(int i=0;i<pairs.size();i++)if((mask&(1<<i))!=0)edges.add(pairs.get(i));int[][]e=edges.toArray(int[][]::new);for(int m=1;m<=n;m++){int possibilities=1;for(int i=0;i<n;i++)possibilities*=m;boolean expected=false;for(int assignment=0;assignment<possibilities;assignment++){int x=assignment;int[]colors=new int[n];for(int i=0;i<n;i++){colors[i]=x%m;x/=m;}boolean valid=true;for(int[]edge:e)if(colors[edge[0]]==colors[edge[1]])valid=false;if(valid){expected=true;break;}}assert graphColoring(n,e,m)==expected;}}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/m-coloring-problem",
+      "title": "M Coloring Problem",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement and constraints were checked.",
+      "adaptation": "The current sheet does not link a public Java editorial for this entry. This is an original Java solution for the checked task, with executable examples and edge-case tests."
+    }
+  },
+  "180": {
+    "problem": "Fill the empty cells of a 9 × 9 Sudoku board so every row, column and 3 × 3 box contains digits 1 through 9 exactly once.",
+    "assumptions": "An empty cell contains . . The source guarantees valid initial clues and exactly one solution. The method edits the supplied board in place. It is a solver under those assumptions, not a general validator for arbitrary completed boards.",
+    "example": {
+      "input": "A solved board’s first row is 534678912, but its first cell is replaced by .",
+      "output": "The missing cell becomes 5",
+      "explanation": "The row already contains every other digit. The column and box must also allow 5 before it is placed."
+    },
+    "baseline": "Try all digits in all empty cells and validate the completed board. That makes up to 9^E assignments for E blanks. Checking row, column and box before each placement rejects invalid branches much earlier.",
+    "approach": "Find the first empty cell. Try digits 1 through 9, keeping only those absent from its row, column and box. Place one candidate and ask recursion to fill the rest. If that attempt fails, restore the dot and try the next candidate.\n\nThe box begins at row/3 × 3 and column/3 × 3. Adding i/3 and i%3 for i from 0 through 8 visits its nine cells. When no empty cell remains, the search has succeeded and the placed digits are kept.",
+    "steps": [
+      "Scan for the next dot.",
+      "Try each digit that is safe in the row, column and box.",
+      "Place it and recurse. Keep it if the recursive call succeeds.",
+      "Otherwise restore the dot and try another digit.",
+      "If no dot remains, return success."
+    ],
+    "java": "static void solveSudoku(char[][] board) {\n    if (!fillSudoku(board)) throw new IllegalArgumentException(\"No solution\");\n}\n\nstatic boolean fillSudoku(char[][] board) {\n    for (int row = 0; row < 9; row++) {\n        for (int col = 0; col < 9; col++) {\n            if (board[row][col] != '.') continue;\n            for (char digit = '1'; digit <= '9'; digit++) {\n                if (!safeDigit(board, row, col, digit)) continue;\n                board[row][col] = digit;\n                if (fillSudoku(board)) return true;\n                board[row][col] = '.';\n            }\n            return false;\n        }\n    }\n    return true;\n}\n\nstatic boolean safeDigit(char[][] board, int row, int col, char digit) {\n    for (int i = 0; i < 9; i++) {\n        if (board[row][i] == digit || board[i][col] == digit) return false;\n        int boxRow = 3 * (row / 3) + i / 3;\n        int boxCol = 3 * (col / 3) + i % 3;\n        if (board[boxRow][boxCol] == digit) return false;\n    }\n    return true;\n}",
+    "time": "O(9^E) as a loose worst-case bound for E empty cells; board scans are bounded by the fixed 81-cell board.",
+    "space": "O(E) recursive call space. The board is edited in place.",
+    "pitfalls": [
+      "After all digits fail for one blank, return false immediately; moving to another blank would skip a required cell.",
+      "Undo only guesses, never the original clues.",
+      "Do not restore a successful placement when returning true.",
+      "The unique valid solution is an input guarantee; this method does not count solutions."
+    ],
+    "tests": [
+      "String[]puzzle={\"53..7....\",\"6..195...\",\".98....6.\",\"8...6...3\",\"4..8.3..1\",\"7...2...6\",\".6....28.\",\"...419..5\",\"....8..79\"};String[]expected={\"534678912\",\"672195348\",\"198342567\",\"859761423\",\"426853791\",\"713924856\",\"961537284\",\"287419635\",\"345286179\"};char[][]b=Arrays.stream(puzzle).map(String::toCharArray).toArray(char[][]::new);solveSudoku(b);for(int i=0;i<9;i++)assert new String(b[i]).equals(expected[i]);",
+      "String[]solved={\"534678912\",\"672195348\",\"198342567\",\"859761423\",\"426853791\",\"713924856\",\"961537284\",\"287419635\",\"345286179\"};Random r=new Random(180);for(int trial=0;trial<30;trial++){char[][]b=Arrays.stream(solved).map(String::toCharArray).toArray(char[][]::new);for(int removed=0;removed<35;removed++)b[r.nextInt(9)][r.nextInt(9)]='.';char[][]clues=Arrays.stream(b).map(char[]::clone).toArray(char[][]::new);solveSudoku(b);for(int i=0;i<9;i++){Set<Character>row=new HashSet<>(),col=new HashSet<>(),box=new HashSet<>();for(int j=0;j<9;j++){assert b[i][j]>='1'&&b[i][j]<='9';if(clues[i][j]!='.')assert b[i][j]==clues[i][j];row.add(b[i][j]);col.add(b[j][i]);box.add(b[(i/3)*3+j/3][(i%3)*3+j%3]);}assert row.size()==9&&col.size()==9&&box.size()==9;}}",
+      "char[][]b={\".34678912\".toCharArray(),\"672195348\".toCharArray(),\"198342567\".toCharArray(),\"859761423\".toCharArray(),\"426853791\".toCharArray(),\"713924856\".toCharArray(),\"961537284\".toCharArray(),\"287419635\".toCharArray(),\"345286179\".toCharArray()};assert safeDigit(b,0,0,'5');assert !safeDigit(b,0,0,'3');solveSudoku(b);assert b[0][0]=='5';"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/sudoko-solver",
+      "title": "Sudoku Solver",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement and constraints were checked.",
+      "adaptation": "The current sheet does not link a public Java editorial for this entry. This is an original Java solution for the checked task, with executable examples and edge-case tests."
+    }
+  },
+  "181": {
+    "problem": "Insert +, − or × between digits to create every expression that evaluates to target. Adjacent digits may also stay together as one number.",
+    "assumptions": "Keep all digits in their original order. Operands cannot have leading zeroes, except the single digit 0. Multiplication has higher precedence than addition and subtraction. Source length is at most 10; use long for calculations even though target is an int.",
+    "example": {
+      "input": "num = \"105\", target = 5",
+      "output": "[1*0+5, 10-5]",
+      "explanation": "10 is a valid operand, but 05 is not. Keeping digits together is one of the choices."
+    },
+    "baseline": "At each gap, choose an operator or no operator, then parse each finished expression. That works, but repeated parsing is unnecessary if recursion carries the running value.",
+    "approach": "Try every possible next operand by extending its end position. For the first operand, start the expression without an operator. Later operands can be added, subtracted or multiplied.\n\nTo handle multiplication, remember the last signed term as well as the total. Suppose the expression is 2 + 3 and we append *4. The total should become 2 + 12, so replace the old term: total − 3 + 3 × 4. After subtraction the saved term is negative; this same rule then handles 2 − 3 × 4 correctly. Every recursive call restores the StringBuilder length before the next branch.",
+    "steps": [
+      "Extend the next operand one digit at a time. Stop extending after a leading zero.",
+      "For the first operand, set both total and last term to that value.",
+      "For + or −, adjust total and set the signed last term.",
+      "For ×, replace the previous last term with its product.",
+      "At the end of the digits, save the expression only if total equals target."
+    ],
+    "java": "static List<String> addOperators(String num, int target) {\n    List<String> answer = new ArrayList<>();\n    if (!num.isEmpty()) expressions(num, 0, target, 0, 0, new StringBuilder(), answer);\n    return answer;\n}\n\nstatic void expressions(String num, int start, long target, long total, long last,\n                         StringBuilder current, List<String> answer) {\n    if (start == num.length()) {\n        if (total == target) answer.add(current.toString());\n        return;\n    }\n    long value = 0;\n    int savedLength = current.length();\n    for (int end = start; end < num.length(); end++) {\n        if (end > start && num.charAt(start) == '0') break;\n        value = value * 10 + num.charAt(end) - '0';\n        if (start == 0) {\n            current.append(num, start, end + 1);\n            expressions(num, end + 1, target, value, value, current, answer);\n            current.setLength(savedLength);\n            continue;\n        }\n        current.append('+').append(num, start, end + 1);\n        expressions(num, end + 1, target, total + value, value, current, answer);\n        current.setLength(savedLength);\n        current.append('-').append(num, start, end + 1);\n        expressions(num, end + 1, target, total - value, -value, current, answer);\n        current.setLength(savedLength);\n        current.append('*').append(num, start, end + 1);\n        expressions(num, end + 1, target, total - last + last * value,\n                    last * value, current, answer);\n        current.setLength(savedLength);\n    }\n}",
+    "time": "O(n × 4^(n−1)) as a conservative bound for n ≥ 1: each gap can join digits or hold one of three operators, with expression construction costs.",
+    "space": "O(n) working space, plus the returned expression strings.",
+    "pitfalls": [
+      "Saving last as positive after subtraction breaks multiplication precedence.",
+      "Single zero operands are allowed; 00 and 05 are not.",
+      "Do not use int for intermediate operands such as 9999999999.",
+      "There is no division operator and no unary operator before the first operand."
+    ],
+    "tests": [
+      "assert new HashSet<>(addOperators(\"105\",5)).equals(Set.of(\"1*0+5\",\"10-5\"));assert new HashSet<>(addOperators(\"232\",8)).equals(Set.of(\"2+3*2\",\"2*3+2\"));assert new HashSet<>(addOperators(\"00\",0)).equals(Set.of(\"0+0\",\"0-0\",\"0*0\"));assert addOperators(\"123\",-5).contains(\"1-2*3\");",
+      "assert addOperators(\"3456237490\",9191).isEmpty();assert addOperators(\"9\",9).equals(List.of(\"9\"));assert addOperators(\"9\",0).isEmpty();",
+      "Random r=new Random(181);for(int trial=0;trial<150;trial++){int n=1+r.nextInt(7);StringBuilder digits=new StringBuilder();for(int i=0;i<n;i++)digits.append(r.nextInt(5));String num=digits.toString();int target=r.nextInt(41)-20;Set<String>expected=new HashSet<>();int choices=1<<(2*(n-1));for(int mask=0;mask<choices;mask++){StringBuilder expression=new StringBuilder();expression.append(num.charAt(0));for(int gap=0;gap<n-1;gap++){int op=(mask>>(2*gap))&3;if(op>0)expression.append(\" +-*\".charAt(op));expression.append(num.charAt(gap+1));}String e=expression.toString();long sum=0,term=0;char operation='+';int index=0;boolean valid=true;while(index<e.length()){int begin=index;long operand=0;while(index<e.length()&&Character.isDigit(e.charAt(index))){operand=operand*10+e.charAt(index)-'0';index++;}if(index-begin>1&&e.charAt(begin)=='0'){valid=false;break;}if(operation=='*')term*=operand;else{sum+=term;term=operation=='+'?operand:-operand;}if(index<e.length())operation=e.charAt(index++);}if(valid&&sum+term==target)expected.add(e);}List<String>actual=addOperators(num,target);assert actual.size()==expected.size();assert new HashSet<>(actual).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/expression-add-operators",
+      "title": "Expression Add Operators",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement and constraints were checked.",
+      "adaptation": "The current sheet does not link a public Java editorial for this entry. This is an original Java solution for the checked task, with executable examples and edge-case tests."
+    }
   }
 }
