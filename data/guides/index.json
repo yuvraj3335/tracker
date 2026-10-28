@@ -908,5 +908,595 @@
       "assert Arrays.equals(extremes(new int[]{4,2}),new int[]{2,2});",
       "assert Arrays.equals(extremes(new int[]{-3,-3}),new int[]{-3,-3});"
     ]
+  },
+  "32": {
+    "problem": "Selection sort repeatedly places the smallest remaining value at the next output position.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
+    },
+    "baseline": "An all-pairs swapping scheme is harder to reason about; separate finding the minimum from performing one final swap.",
+    "approach": "The prefix before i is already sorted and contains the globally smallest i values. Choose the minimum from the remaining suffix to extend that invariant.",
+    "steps": [
+      "For each destination i, scan i through n−1 for the smallest value.",
+      "Swap that value into i.",
+      "Advance i; the completed prefix never needs to move again."
+    ],
+    "java": "static void sort(int[] a) {\n    for (int i = 0; i < a.length - 1; i++) {\n        int min = i;\n        for (int j = i + 1; j < a.length; j++) if (a[j] < a[min]) min = j;\n        int t = a[i]; a[i] = a[min]; a[min] = t;\n    }\n}",
+    "time": "Θ(n²) comparisons for every input order.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Ordinary swapping selection sort is not stable.",
+      "Find the minimum index, not merely its value, so duplicates can be swapped correctly."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
+      "int[] b={}; sort(b); assert b.length==0;",
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
+    ]
+  },
+  "33": {
+    "problem": "Bubble sort moves the largest unfinished value to the right through adjacent swaps.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
+    },
+    "baseline": "Repeatedly scan all n elements n times. This works but wastes comparisons after the suffix is already sorted.",
+    "approach": "After a left-to-right pass over the unfinished prefix, its maximum is at the right boundary. Shrink that boundary, and stop early when a pass makes no swaps.",
+    "steps": [
+      "Compare adjacent pairs in the unfinished prefix.",
+      "Swap only if the left value is larger.",
+      "Shrink the right boundary; stop if the whole pass was unchanged."
+    ],
+    "java": "static void sort(int[] a) {\n    for (int end = a.length - 1; end > 0; end--) {\n        boolean changed = false;\n        for (int j = 0; j < end; j++) if (a[j] > a[j+1]) {\n            int t = a[j]; a[j] = a[j+1]; a[j+1] = t; changed = true;\n        }\n        if (!changed) break;\n    }\n}",
+    "time": "O(n²) worst case; O(n) when already sorted with this early exit.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Using >= instead of > swaps equal items and loses stability.",
+      "The adjacent pair accesses j+1, so j must stay below end."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
+      "int[] b={}; sort(b); assert b.length==0;",
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
+    ]
+  },
+  "34": {
+    "problem": "Insertion sort extends a sorted prefix by inserting the next element into its correct position.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
+    },
+    "baseline": "A separate sorted list can accept each element at the correct position, but requires extra storage.",
+    "approach": "Save the next value, shift all larger prefix elements one place right, then put the saved value in the gap. The shift preserves the relative order of equal values.",
+    "steps": [
+      "Start with the one-element prefix.",
+      "Save a[i] before shifting.",
+      "Move larger predecessors right and write the saved value into the final gap."
+    ],
+    "java": "static void sort(int[] a) {\n    for (int i = 1; i < a.length; i++) {\n        int value = a[i], j = i - 1;\n        while (j >= 0 && a[j] > value) { a[j+1] = a[j]; j--; }\n        a[j+1] = value;\n    }\n}",
+    "time": "O(n²) worst case; O(n) for already sorted input.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not overwrite the insertion value while shifting.",
+      "Test j>=0 before indexing a[j]."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
+      "int[] b={}; sort(b); assert b.length==0;",
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
+    ]
+  },
+  "35": {
+    "problem": "Merge sort divides an array into smaller halves and merges sorted halves back together.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
+    },
+    "baseline": "Quadratic sorts are simple, but their comparison count grows too quickly on large inputs.",
+    "approach": "Once both halves are sorted, repeatedly choosing the smaller front element produces the entire merged range in linear time. There are logarithmically many division levels.",
+    "steps": [
+      "Recursively sort the half-open ranges [lo,mid) and [mid,hi).",
+      "Merge into a reusable temporary array.",
+      "Copy the merged range back; choose the left element on ties for stability."
+    ],
+    "java": "static void sort(int[] a) { mergeSort(a, new int[a.length], 0, a.length); }\nstatic void mergeSort(int[] a, int[] temp, int lo, int hi) {\n    if (hi - lo <= 1) return;\n    int mid = lo + (hi - lo) / 2;\n    mergeSort(a, temp, lo, mid); mergeSort(a, temp, mid, hi);\n    int i = lo, j = mid, k = lo;\n    while (i < mid || j < hi) {\n        if (j == hi || (i < mid && a[i] <= a[j])) temp[k++] = a[i++];\n        else temp[k++] = a[j++];\n    }\n    System.arraycopy(temp, lo, a, lo, hi - lo);\n}",
+    "time": "Θ(n log n).",
+    "space": "O(n) temporary storage plus O(log n) stack.",
+    "pitfalls": [
+      "Do not mix inclusive and half-open boundaries.",
+      "Allocate one reusable buffer instead of allocating a new buffer per merge."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
+      "int[] b={}; sort(b); assert b.length==0;",
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
+    ]
+  },
+  "36": {
+    "problem": "Express bubble sort recursively by sorting one fewer position after each pass.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
+    },
+    "baseline": "The iterative bubble-sort loop performs the same passes without recursive frames.",
+    "approach": "One pass settles the largest unfinished value at the end. The recursive subproblem therefore excludes that final position. The array itself is shared; it does not need to be copied.",
+    "steps": [
+      "Stop when the unfinished length is at most one.",
+      "Perform one adjacent-swap pass.",
+      "If something changed, recursively sort the prefix of length n−1."
+    ],
+    "java": "static void sort(int[] a) { bubble(a, a.length); }\nstatic void bubble(int[] a, int n) {\n    if (n <= 1) return;\n    boolean changed = false;\n    for (int i = 1; i < n; i++) if (a[i-1] > a[i]) {\n        int t = a[i-1]; a[i-1] = a[i]; a[i] = t; changed = true;\n    }\n    if (changed) bubble(a, n - 1);\n}",
+    "time": "O(n²) worst case, O(n) for an already sorted input.",
+    "space": "O(n) recursion stack in the worst case.",
+    "pitfalls": [
+      "Recursion does not make bubble sort asymptotically faster.",
+      "Use an iterative sort for large n to avoid exhausting the call stack."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
+      "int[] b={}; sort(b); assert b.length==0;",
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
+    ]
+  },
+  "37": {
+    "problem": "Express insertion sort recursively by sorting a prefix before inserting its last element.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
+    },
+    "baseline": "Iterative insertion sort avoids stack overhead while making the same comparisons and shifts.",
+    "approach": "First solve the smaller problem: sort the first n−1 elements. Only the final element can then be out of place, so insert it into that sorted prefix.",
+    "steps": [
+      "Stop at an unfinished length of zero or one.",
+      "Recursively sort the first n−1 elements.",
+      "Shift larger predecessors right and place the saved last value in the gap."
+    ],
+    "java": "static void sort(int[] a) { insertion(a, a.length); }\nstatic void insertion(int[] a, int n) {\n    if (n <= 1) return;\n    insertion(a, n - 1);\n    int value = a[n - 1], j = n - 2;\n    while (j >= 0 && a[j] > value) { a[j+1] = a[j]; j--; }\n    a[j+1] = value;\n}",
+    "time": "O(n²) worst case; O(n) comparisons on sorted input.",
+    "space": "O(n) recursion stack.",
+    "pitfalls": [
+      "Do the recursive call before insertion; otherwise the prefix is not guaranteed sorted.",
+      "Equal elements should not be shifted past each other if stability matters."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
+      "int[] b={}; sort(b); assert b.length==0;",
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
+    ]
+  },
+  "38": {
+    "problem": "Quicksort partitions values around a pivot and recursively sorts the remaining ranges.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "example": {
+      "input": "[4, 1, 3, 1]",
+      "output": "[1, 1, 3, 4]",
+      "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
+    },
+    "baseline": "Repeatedly finding the next minimum takes O(n²) comparisons. Quicksort aims to partition many values at once.",
+    "approach": "This three-way partition maintains values less than the pivot, equal to it, and greater than it. All equal values are finished together, which avoids repeated work on duplicate-heavy inputs. Choosing the middle value is simple but does not guarantee balanced partitions.",
+    "steps": [
+      "Save the pivot value before swaps can move it.",
+      "Partition with lt, i, and gt; after a swap from the right, inspect the new a[i] again.",
+      "Recursively sort the less-than and greater-than ranges."
+    ],
+    "java": "static void sort(int[] a) { quick(a, 0, a.length - 1); }\nstatic void quick(int[] a, int lo, int hi) {\n    if (lo >= hi) return;\n    int pivot = a[lo + (hi - lo) / 2], lt = lo, i = lo, gt = hi;\n    while (i <= gt) {\n        if (a[i] < pivot) { swap(a, lt++, i++); }\n        else if (a[i] > pivot) { swap(a, i, gt--); }\n        else i++;\n    }\n    quick(a, lo, lt - 1); quick(a, gt + 1, hi);\n}\nstatic void swap(int[] a, int i, int j) { int t = a[i]; a[i] = a[j]; a[j] = t; }",
+    "time": "O(n log n) with balanced partitions; O(n²) worst case. Random pivot selection can provide expected O(n log n).",
+    "space": "O(log n) stack when balanced, O(n) in the worst case.",
+    "pitfalls": [
+      "This implementation is not stable.",
+      "Do not advance i after swapping a greater value with gt; the incoming value remains unclassified.",
+      "A middle-position pivot is not necessarily the median value."
+    ],
+    "tests": [
+      "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
+      "int[] b={}; sort(b); assert b.length==0;",
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
+    ]
+  },
+  "39": {
+    "problem": "Return the largest value in an array.",
+    "assumptions": "The input must be nonempty. Negative values are supported.",
+    "example": {
+      "input": "[-4, -1, -7]",
+      "output": "-1",
+      "explanation": "Start with -4. Seeing -1 raises the maximum; -7 leaves it unchanged."
+    },
+    "baseline": "Sorting places the largest value at the end but takes more work and may alter the input.",
+    "approach": "After processing each prefix, keep its maximum. Comparing one new value is sufficient to extend that invariant.",
+    "steps": [
+      "Initialize from the first element.",
+      "Scan the remaining elements.",
+      "Replace the maximum only when the new value is larger."
+    ],
+    "java": "static int largest(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    int best = a[0];\n    for (int value : a) best = Math.max(best, value);\n    return best;\n}",
+    "time": "Θ(n), since every element may contain the maximum.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Initializing to zero fails on an all-negative input.",
+      "An empty array has no largest element; define a clear contract."
+    ],
+    "tests": [
+      "assert largest(new int[]{-4,-1,-7})==-1;",
+      "assert largest(new int[]{5})==5;"
+    ]
+  },
+  "40": {
+    "problem": "Return the second-largest distinct value without sorting.",
+    "assumptions": "Return OptionalInt.empty when fewer than two distinct values exist.",
+    "example": {
+      "input": "[7, 7, 3, 5]",
+      "output": "5",
+      "explanation": "The maximum stays 7. The second distinct maximum improves from 3 to 5; a repeated 7 does not occupy second place."
+    },
+    "baseline": "Sort and scan backward for a value different from the maximum, costing O(n log n).",
+    "approach": "Maintain the greatest and second-greatest distinct values seen. A new greatest value demotes the old greatest; a smaller value may improve only the second slot.",
+    "steps": [
+      "Track whether the second slot exists separately from its numeric value.",
+      "On a new maximum, move the old maximum into second.",
+      "Otherwise update second only for a distinct smaller value."
+    ],
+    "java": "static OptionalInt secondLargest(int[] a) {\n    if (a.length < 2) return OptionalInt.empty();\n    int first = a[0], second = 0; boolean hasSecond = false;\n    for (int x : a) {\n        if (x > first) { second = first; hasSecond = true; first = x; }\n        else if (x < first && (!hasSecond || x > second)) { second = x; hasSecond = true; }\n    }\n    return hasSecond ? OptionalInt.of(second) : OptionalInt.empty();\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Distinctness matters: [7,7] has no second distinct maximum.",
+      "A sentinel such as Integer.MIN_VALUE may itself be a valid answer."
+    ],
+    "tests": [
+      "assert secondLargest(new int[]{7,7,3,5}).orElseThrow()==5;",
+      "assert secondLargest(new int[]{7,7}).isEmpty();",
+      "assert secondLargest(new int[]{0,Integer.MIN_VALUE}).orElseThrow()==Integer.MIN_VALUE;"
+    ]
+  },
+  "41": {
+    "problem": "Determine whether an array is sorted in nondecreasing order.",
+    "assumptions": "Equal adjacent values are allowed. Empty and single-element arrays are sorted.",
+    "example": {
+      "input": "[1, 2, 2, 4]",
+      "output": "true",
+      "explanation": "Every adjacent pair satisfies previous <= current, so no inversion exists."
+    },
+    "baseline": "Sort a copy and compare it with the original, using O(n log n) time and extra storage.",
+    "approach": "If every adjacent pair is in order, transitivity gives the correct order for every earlier/later pair. One adjacent inversion is enough to reject the array.",
+    "steps": [
+      "Start at index one.",
+      "Reject when a[i−1] > a[i].",
+      "Accept after reaching the end."
+    ],
+    "java": "static boolean sorted(int[] a) {\n    for (int i = 1; i < a.length; i++) if (a[i - 1] > a[i]) return false;\n    return true;\n}",
+    "time": "O(n) worst case; early exit on the first inversion.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Using >= would incorrectly reject duplicates.",
+      "This checks sortedness, not whether the array is a rotation of a sorted array."
+    ],
+    "tests": [
+      "assert sorted(new int[]{1,2,2,4});",
+      "assert sorted(new int[]{});",
+      "assert !sorted(new int[]{1,3,2});"
+    ]
+  },
+  "42": {
+    "problem": "Remove duplicates from a sorted array in place and return the number of distinct values.",
+    "assumptions": "Only the first returned-length positions are meaningful; the array object keeps its original size.",
+    "example": {
+      "input": "[1, 1, 2, 2, 3]",
+      "output": "length = 3, prefix = [1, 2, 3]",
+      "explanation": "Keep the first 1, skip the next 1, write 2 into position 1, skip its duplicate, then write 3 into position 2."
+    },
+    "baseline": "Put values into an ordered set or a second list, using O(n) extra storage.",
+    "approach": "In a sorted array, duplicates are adjacent. A write pointer marks the next output slot, while a read pointer scans all values. Never overwrite unread input because write stays at or behind read.",
+    "steps": [
+      "Return zero for empty input.",
+      "Keep the first value.",
+      "Write a new value only when it differs from the most recently retained value."
+    ],
+    "java": "static int unique(int[] a) {\n    if (a.length == 0) return 0;\n    int write = 1;\n    for (int read = 1; read < a.length; read++)\n        if (a[read] != a[write - 1]) a[write++] = a[read];\n    return write;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The input must already be sorted.",
+      "Do not inspect the unused suffix as if it were part of the result."
+    ],
+    "tests": [
+      "int[] a={1,1,2,2,3}; int n=unique(a); assert n==3; assert Arrays.equals(Arrays.copyOf(a,n),new int[]{1,2,3});",
+      "assert unique(new int[]{})==0;",
+      "assert unique(new int[]{4,4,4})==1;"
+    ]
+  },
+  "43": {
+    "problem": "Rotate an array one position to the left in place.",
+    "assumptions": "The first element moves to the end. An empty array stays empty.",
+    "example": {
+      "input": "[1, 2, 3, 4]",
+      "output": "[2, 3, 4, 1]",
+      "explanation": "Save 1, shift 2, 3 and 4 one position left, then place the saved 1 in the last slot."
+    },
+    "baseline": "Create a second array and write each value at its shifted index, using O(n) space.",
+    "approach": "Saving the only value that would otherwise be overwritten makes a single forward shift safe.",
+    "steps": [
+      "Handle empty input.",
+      "Save the original first element.",
+      "Shift the remaining elements left and fill the final slot."
+    ],
+    "java": "static void rotateOne(int[] a) {\n    if (a.length == 0) return;\n    int first = a[0];\n    for (int i = 1; i < a.length; i++) a[i - 1] = a[i];\n    a[a.length - 1] = first;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not overwrite the first element before saving it.",
+      "A single-element array remains unchanged."
+    ],
+    "tests": [
+      "int[] a={1,2,3,4}; rotateOne(a); assert Arrays.equals(a,new int[]{2,3,4,1});",
+      "int[] b={}; rotateOne(b);",
+      "int[] c={7}; rotateOne(c); assert c[0]==7;"
+    ]
+  },
+  "44": {
+    "problem": "Rotate an array d positions to the left in place.",
+    "assumptions": "d is nonnegative. Rotations wrap around; d is reduced modulo the array length.",
+    "example": {
+      "input": "[1, 2, 3, 4, 5], d = 2",
+      "output": "[3, 4, 5, 1, 2]",
+      "explanation": "Split into A=[1,2] and B=[3,4,5]. Reverse A, reverse B, then reverse the whole sequence; the final order is BA."
+    },
+    "baseline": "Repeat a one-place rotation d times, costing O(n·d) before reducing d modulo n.",
+    "approach": "The reversal identity reverse(reverse(A) reverse(B)) = BA exchanges the two blocks while preserving their internal order.",
+    "steps": [
+      "Handle empty input before taking a remainder.",
+      "Reduce d modulo n.",
+      "Reverse [0,d), reverse [d,n), then reverse [0,n)."
+    ],
+    "java": "static void rotate(int[] a, int d) {\n    if (d < 0) throw new IllegalArgumentException();\n    if (a.length == 0) return;\n    d %= a.length;\n    reverse(a, 0, d - 1); reverse(a, d, a.length - 1); reverse(a, 0, a.length - 1);\n}\nstatic void reverse(int[] a, int lo, int hi) {\n    while (lo < hi) { int t = a[lo]; a[lo++] = a[hi]; a[hi--] = t; }\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not compute d % n for n=0.",
+      "A right rotation uses a different split; make the direction explicit."
+    ],
+    "tests": [
+      "int[] a={1,2,3,4,5}; rotate(a,2); assert Arrays.equals(a,new int[]{3,4,5,1,2});",
+      "int[] b={1,2,3}; rotate(b,6); assert Arrays.equals(b,new int[]{1,2,3});",
+      "rotate(new int[]{},7);"
+    ]
+  },
+  "45": {
+    "problem": "Move all zeroes to the end while preserving the relative order of nonzero values.",
+    "assumptions": "The array is modified in place.",
+    "example": {
+      "input": "[0, 1, 0, 3, 12]",
+      "output": "[1, 3, 12, 0, 0]",
+      "explanation": "Write the nonzero values 1, 3 and 12 into the first three positions; fill the remaining two positions with zero."
+    },
+    "baseline": "Build a new array containing nonzero values followed by zeroes, using O(n) extra storage.",
+    "approach": "A write pointer records how many nonzero elements have been seen. Compact those values in scan order, then zero the unused suffix.",
+    "steps": [
+      "Scan every value.",
+      "Copy each nonzero value to the next write slot.",
+      "Fill from write to n−1 with zero."
+    ],
+    "java": "static void moveZeroes(int[] a) {\n    int write = 0;\n    for (int value : a) if (value != 0) a[write++] = value;\n    while (write < a.length) a[write++] = 0;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Sorting would change the order of nonzero values.",
+      "The write pointer never passes the read position, so compaction does not destroy unread values."
+    ],
+    "tests": [
+      "int[] a={0,1,0,3,12}; moveZeroes(a); assert Arrays.equals(a,new int[]{1,3,12,0,0});",
+      "int[] b={0,0}; moveZeroes(b); assert Arrays.equals(b,new int[]{0,0});",
+      "moveZeroes(new int[]{});"
+    ]
+  },
+  "46": {
+    "problem": "Find the first index at which a target value appears in an array.",
+    "assumptions": "The input need not be sorted. Return -1 when the target is absent.",
+    "example": {
+      "input": "[4, 7, 4], target = 4",
+      "output": "0",
+      "explanation": "The first value matches, so the search stops before visiting the remaining elements."
+    },
+    "baseline": "Checking every position is already the appropriate baseline for one search in arbitrary unsorted data.",
+    "approach": "Scan from left to right. Returning at the first match guarantees the smallest matching index. Without additional structure, every value may need inspection when the target is absent.",
+    "steps": [
+      "Compare each element with the target.",
+      "Return its index on the first equality.",
+      "Return -1 only after the scan finishes."
+    ],
+    "java": "static int search(int[] a, int target) {\n    for (int i = 0; i < a.length; i++) if (a[i] == target) return i;\n    return -1;\n}",
+    "time": "O(n) worst case, O(1) best case.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Returning zero for absence confuses not-found with a match at index zero.",
+      "Binary search cannot replace this scan unless the ordering assumptions hold."
+    ],
+    "tests": [
+      "assert search(new int[]{4,7,4},4)==0;",
+      "assert search(new int[]{4,7,4},9)==-1;",
+      "assert search(new int[]{},1)==-1;"
+    ]
+  },
+  "47": {
+    "problem": "Return the sorted union of two sorted arrays, including each distinct value once.",
+    "assumptions": "Both arrays are ascending and may contain duplicates.",
+    "example": {
+      "input": "a = [1, 1, 3], b = [1, 2, 4]",
+      "output": "[1, 2, 3, 4]",
+      "explanation": "Merge their next values in order, but append only when the chosen value differs from the last output value."
+    },
+    "baseline": "Insert everything into a TreeSet, costing O((n+m) log(n+m)) time.",
+    "approach": "Two pointers exploit existing order. Each step consumes one smallest remaining value; a last-output check removes duplicates from either source.",
+    "steps": [
+      "Choose the smaller current head, or the only remaining head.",
+      "Advance that array’s pointer.",
+      "Append only when the output is empty or its last value differs."
+    ],
+    "java": "static List<Integer> union(int[] a, int[] b) {\n    List<Integer> result = new ArrayList<>();\n    int i = 0, j = 0;\n    while (i < a.length || j < b.length) {\n        int value;\n        if (j == b.length || (i < a.length && a[i] <= b[j])) value = a[i++];\n        else value = b[j++];\n        if (result.isEmpty() || result.get(result.size()-1) != value) result.add(value);\n    }\n    return result;\n}",
+    "time": "O(n+m).",
+    "space": "O(u) for u output values; O(1) auxiliary state beyond the result.",
+    "pitfalls": [
+      "A union is not concatenation and does not retain duplicate multiplicities.",
+      "Do not read a head after that input has been exhausted."
+    ],
+    "tests": [
+      "assert union(new int[]{1,1,3},new int[]{1,2,4}).equals(List.of(1,2,3,4));",
+      "assert union(new int[]{},new int[]{2,2}).equals(List.of(2));",
+      "assert union(new int[]{},new int[]{}).isEmpty();"
+    ]
+  },
+  "48": {
+    "problem": "Find the one missing value from the range 1 through n.",
+    "assumptions": "The array contains n−1 distinct values from that range. This is the 1-based variant; some platforms instead use 0 through n.",
+    "example": {
+      "input": "[1, 2, 4, 5]",
+      "output": "3",
+      "explanation": "XOR all numbers 1 through 5, then XOR the supplied values. Every present number cancels with itself, leaving 3."
+    },
+    "baseline": "Use a presence array to mark values, requiring O(n) extra storage.",
+    "approach": "XOR is associative and commutative, x XOR x is zero, and x XOR zero is x. Cancellation removes every paired value without arithmetic-sum overflow.",
+    "steps": [
+      "Infer n as array length plus one.",
+      "XOR all expected values.",
+      "XOR all supplied values and return the remainder."
+    ],
+    "java": "static int missing(int[] a) {\n    int answer = a.length + 1;\n    for (int i = 0; i < a.length; i++) answer ^= (i + 1) ^ a[i];\n    return answer;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Duplicates or out-of-range values violate the premise and invalidate cancellation.",
+      "For the 0-based variant, XOR indices 0 through length−1 and the final length instead."
+    ],
+    "tests": [
+      "assert missing(new int[]{1,2,4,5})==3;",
+      "assert missing(new int[]{})==1;",
+      "assert missing(new int[]{2,3})==1;"
+    ]
+  },
+  "49": {
+    "problem": "Find the longest contiguous run of ones in a binary array.",
+    "assumptions": "Values are zero or one. Empty input returns zero.",
+    "example": {
+      "input": "[1, 1, 0, 1, 1, 1]",
+      "output": "3",
+      "explanation": "The first run has length two. Zero resets the current count; the final run reaches three."
+    },
+    "baseline": "Start a new scan at every one and count its run, repeating work and taking O(n²) in the worst case.",
+    "approach": "The only state needed is the length of the run ending at the current position and the best completed-or-current run.",
+    "steps": [
+      "Increment current when the value is one.",
+      "Reset current on zero.",
+      "Update best after each element."
+    ],
+    "java": "static int longestOnes(int[] a) {\n    int current = 0, best = 0;\n    for (int x : a) { current = x == 1 ? current + 1 : 0; best = Math.max(best, current); }\n    return best;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not reset the overall best when a zero appears.",
+      "Remember to count a run that reaches the final element."
+    ],
+    "tests": [
+      "assert longestOnes(new int[]{1,1,0,1,1,1})==3;",
+      "assert longestOnes(new int[]{0,0})==0;",
+      "assert longestOnes(new int[]{})==0;"
+    ]
+  },
+  "50": {
+    "problem": "Find the value that appears once when every other value appears exactly twice.",
+    "assumptions": "The input is nonempty and satisfies the stated multiplicities. Negative values are allowed.",
+    "example": {
+      "input": "[4, 1, 2, 1, 2]",
+      "output": "4",
+      "explanation": "Both ones cancel under XOR, as do both twos. Only 4 remains."
+    },
+    "baseline": "Count frequencies in a map and find the key with count one, using O(n) additional space.",
+    "approach": "XOR cancellation does not depend on order. Scanning once with a zero accumulator removes every duplicated pair.",
+    "steps": [
+      "Initialize the accumulator to zero.",
+      "XOR in every value.",
+      "Return the final accumulator."
+    ],
+    "java": "static int single(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    int answer = 0;\n    for (int x : a) answer ^= x;\n    return answer;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "This does not solve the variant where other values appear three times.",
+      "The technique assumes the multiplicity promise; it does not validate it."
+    ],
+    "tests": [
+      "assert single(new int[]{4,1,2,1,2})==4;",
+      "assert single(new int[]{-3,2,2})==-3;",
+      "assert single(new int[]{0})==0;"
+    ]
+  },
+  "51": {
+    "problem": "Find the length of the longest contiguous subarray whose sum equals k.",
+    "assumptions": "This sliding-window version requires nonnegative elements and k>=0. Empty subarrays do not contribute positive length.",
+    "example": {
+      "input": "[1, 2, 1, 1, 1], k = 3",
+      "output": "3",
+      "explanation": "The first window [1,2] has length two. Later the window [1,1,1] also sums to three and has length three."
+    },
+    "baseline": "Enumerate all subarray boundaries and accumulate sums, taking O(n²) time.",
+    "approach": "With nonnegative values, extending right never lowers the sum and removing left never raises it. When the sum is too large, shrinking from the left cannot discard a valid longer window ending at the same right position.",
+    "steps": [
+      "Add the next rightmost value.",
+      "While the sum exceeds k, remove leftmost values.",
+      "When equal, compare the current window length with the best."
+    ],
+    "java": "static int longestSum(int[] a, long k) {\n    if (k < 0) return 0;\n    int left = 0, best = 0; long sum = 0;\n    for (int right = 0; right < a.length; right++) {\n        sum += a[right];\n        while (left <= right && sum > k) sum -= a[left++];\n        if (sum == k) best = Math.max(best, right - left + 1);\n    }\n    return best;\n}",
+    "time": "O(n): each index enters and leaves the window at most once.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Negative numbers destroy the monotonic-sum property; use prefix sums for that variant.",
+      "Zeroes are supported and can extend a valid window without changing its sum.",
+      "Use long for the running sum."
+    ],
+    "tests": [
+      "assert longestSum(new int[]{1,2,1,1,1},3)==3;",
+      "assert longestSum(new int[]{0,0,0},0)==3;",
+      "assert longestSum(new int[]{5},3)==0;"
+    ]
+  },
+  "52": {
+    "problem": "Find the longest contiguous subarray with sum k when values may be positive, zero, or negative.",
+    "assumptions": "Return zero if no nonempty matching subarray exists.",
+    "example": {
+      "input": "[1, -1, 5, -2, 3], k = 3",
+      "output": "4",
+      "explanation": "The first four values sum to three. A prefix sum of three at index 3 pairs with the initial zero prefix at index -1, producing length 4."
+    },
+    "baseline": "Compute every subarray sum in O(n²) time using a running sum for each start.",
+    "approach": "A subarray ending at i sums to k exactly when an earlier prefix equals prefix[i]−k. Keep the earliest index for each prefix, because it yields the longest matching interval.",
+    "steps": [
+      "Seed prefix zero at index −1.",
+      "Update the running sum and look up sum−k.",
+      "Record a prefix only on its first occurrence."
+    ],
+    "java": "static int longestSum(int[] a, long k) {\n    Map<Long, Integer> first = new HashMap<>(); first.put(0L, -1);\n    long sum = 0; int best = 0;\n    for (int i = 0; i < a.length; i++) {\n        sum += a[i];\n        Integer before = first.get(sum - k);\n        if (before != null) best = Math.max(best, i - before);\n        first.putIfAbsent(sum, i);\n    }\n    return best;\n}",
+    "time": "Expected O(n).",
+    "space": "O(n) for distinct prefix sums.",
+    "pitfalls": [
+      "Overwriting an earlier prefix index can shorten the reported answer.",
+      "A sliding window is not generally valid with negative values."
+    ],
+    "tests": [
+      "assert longestSum(new int[]{1,-1,5,-2,3},3)==4;",
+      "assert longestSum(new int[]{0,0,0},0)==3;",
+      "assert longestSum(new int[]{},0)==0;",
+      "assert longestSum(new int[]{-2,-1,2,1},1)==3;"
+    ]
   }
 }
