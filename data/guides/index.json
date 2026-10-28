@@ -6890,5 +6890,291 @@
       "approach": "The public practice statement and constraints were checked.",
       "adaptation": "The current sheet does not link a public Java editorial for this entry. This is an original Java solution for the checked task, with executable examples and edge-case tests."
     }
+  },
+  "182": {
+    "problem": "Understand how to read and change individual bits of a Java int.",
+    "assumptions": "A Java int has 32 bits. Count positions from the right, starting at 0. The highest bit also determines the sign. Helper bit positions must be between 0 and 31.",
+    "example": {
+      "input": "n = 6 (binary 0110), i = 0",
+      "output": "Set → 7; clear → 6; toggle → 7",
+      "explanation": "Bit 0 starts as 0. Setting it makes it 1; clearing an already-zero bit changes nothing."
+    },
+    "baseline": "You can convert a value to a binary string to inspect it, but changing flags by editing that string needs conversions and extra storage. A mask selects the relevant position directly.",
+    "approach": "Think of an integer as 32 switches. The mask 1 << i has just switch i turned on. AND keeps a bit only when both sides contain 1. OR turns it on when either side contains 1. XOR turns it on when the two sides differ, so XOR with the mask toggles exactly that switch.\n\nTo clear a bit, invert the mask with ~, leaving a zero only at that position, then AND it with the number. NOT flips all 32 bits, including the leading ones we usually omit when writing binary. In Java, >> preserves the sign while >>> fills from the left with zeroes. Neither operation changes the original variable unless its result is assigned.",
+    "steps": [
+      "Build a mask with 1 << i.",
+      "Check with (n & mask) != 0.",
+      "Set with n | mask, clear with n & ~mask, and toggle with n ^ mask.",
+      "Keep numeric meaning separate from the raw bit pattern, especially for bit 31."
+    ],
+    "java": "static int bitMask(int i) {\n    if (i < 0 || i >= 32) throw new IllegalArgumentException(\"Bit index must be 0..31\");\n    return 1 << i;\n}\nstatic boolean checkBit(int n, int i) { return (n & bitMask(i)) != 0; }\nstatic int setBit(int n, int i) { return n | bitMask(i); }\nstatic int clearBit(int n, int i) { return n & ~bitMask(i); }\nstatic int toggleBit(int n, int i) { return n ^ bitMask(i); }",
+    "time": "O(1) for each operation on a 32-bit int.",
+    "space": "O(1).",
+    "pitfalls": [
+      "^ means XOR in Java, not exponentiation.",
+      "Java does not allow integers as boolean conditions; write a comparison such as != 0.",
+      "An int shift uses only the lowest five bits of its distance, so 1 << 32 behaves like 1 << 0. The helper rejects such indices.",
+      "For negative values, >> is not generally the same as division toward zero: -3 >> 1 is -2, but -3 / 2 is -1."
+    ],
+    "tests": [
+      "assert setBit(6,0)==7;assert clearBit(6,0)==6;assert toggleBit(6,0)==7;assert ~5==-6;assert (-3>>1)==-2;assert (-1>>>1)==Integer.MAX_VALUE;",
+      "Random r=new Random(182);for(int t=0;t<1000;t++){int n=r.nextInt();for(int i=0;i<32;i++){assert checkBit(setBit(n,i),i);assert !checkBit(clearBit(n,i),i);assert toggleBit(toggleBit(n,i),i)==n;assert (setBit(n,i)^n)==(checkBit(n,i)?0:1<<i);}}",
+      "for(int i:new int[]{-1,32,64}){boolean threw=false;try{bitMask(i);}catch(IllegalArgumentException e){threw=true;}assert threw;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/bit-basics-and-operators",
+      "title": "BIT Basics and Operators",
+      "checkedOn": "2026-10-29",
+      "approach": "Bit positions, masks, AND, OR, XOR, NOT and shifts.",
+      "adaptation": "The public lesson is language-neutral theory rather than a Java solution. These small Java helpers demonstrate its operations, with explicit 32-bit signed behaviour."
+    }
+  },
+  "183": {
+    "problem": "Check whether bit i of n is 1.",
+    "assumptions": "Bit positions are zero-based from the right. Source i is from 0 through 31 and n is positive. The helper also works on all signed int bit patterns.",
+    "example": {
+      "input": "n = 18 (10010), i = 4",
+      "output": "true",
+      "explanation": "Bit 4 contributes 16, so it is set. Bit 3 is not set."
+    },
+    "baseline": "Repeatedly shift the number right i times and inspect the final low bit. A single mask selects the same position directly.",
+    "approach": "Create 1 << i. This mask is zero everywhere except the position we want to inspect. AND with n clears every other position. If anything remains, the selected bit was set.\n\nCompare the result with zero, not with one. For bit 4, a successful mask gives 16. For bit 31, the masked int is negative, but it is still non-zero.",
+    "steps": [
+      "Build the mask for bit i.",
+      "AND it with n.",
+      "Return whether the result is non-zero."
+    ],
+    "java": "static boolean isSet(int n, int i) {\n    if (i < 0 || i > 31) throw new IllegalArgumentException(\"Bit index must be 0..31\");\n    return (n & (1 << i)) != 0;\n}",
+    "time": "O(1).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Use != 0, not == 1 or > 0.",
+      "The rightmost position is 0, not 1."
+    ],
+    "tests": [
+      "assert isSet(18,4);assert isSet(18,1);assert !isSet(18,3);assert isSet(Integer.MIN_VALUE,31);assert !isSet(0,31);",
+      "Random r=new Random(183);for(int t=0;t<2000;t++){int n=r.nextInt();for(int i=0;i<32;i++)assert isSet(n,i)==(((n>>>i)&1)==1);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/check-if-the-i-th-bit-is-set-or-not",
+      "title": "Check if the i-th bit is Set or Not",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this entry. The implementation follows the checked bit operation. "
+    }
+  },
+  "184": {
+    "problem": "Return whether an integer is odd.",
+    "assumptions": "The source uses non-negative integers. The bit check also works for negative Java ints.",
+    "example": {
+      "input": "n = 11 (1011)",
+      "output": "true",
+      "explanation": "All places except the rightmost contribute multiples of 2. The rightmost 1 makes the number odd."
+    },
+    "baseline": "n % 2 != 0 is a clear, correct arithmetic solution. This bit lesson uses the least significant bit to express the same property.",
+    "approach": "Every binary place above bit 0 has an even place value: 2, 4, 8 and so on. Only bit 0 can add an odd contribution. AND with 1 removes all the other bits, leaving 1 for an odd number and 0 for an even number.",
+    "steps": [
+      "Read the lowest bit using n & 1.",
+      "Return true if that bit is 1."
+    ],
+    "java": "static boolean isOdd(int n) {\n    return (n & 1) != 0;\n}",
+    "time": "O(1).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Zero is even.",
+      "For negative inputs, n % 2 == 1 is not a reliable odd check; use != 0 or the bit test."
+    ],
+    "tests": [
+      "assert isOdd(11);assert !isOdd(0);assert isOdd(-3);assert !isOdd(Integer.MIN_VALUE);",
+      "for(int n=-10000;n<=10000;n++)assert isOdd(n)==(n%2!=0);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/check-if-a-number-is-odd-or-not",
+      "title": "Check if a Number is Odd or Not",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this entry. The implementation follows the checked bit operation. "
+    }
+  },
+  "185": {
+    "problem": "Decide whether n is a positive power of two.",
+    "assumptions": "Input can be any Java int. One counts because 2^0 = 1. Zero and negative values do not count.",
+    "example": {
+      "input": "n = 32 (100000)",
+      "output": "true",
+      "explanation": "Exactly one bit is set. By contrast, 40 is 101000 and has two set bits."
+    },
+    "baseline": "For positive n, repeatedly divide by 2 while it is even, then check whether 1 remains. The bit method does the same classification without a loop.",
+    "approach": "A positive power of two has one set bit. Subtracting one turns that bit off and every lower bit on. The original and the result therefore have no set bit in common.\n\nMore generally, n & (n − 1) clears the lowest set bit. It becomes zero exactly when there was only one. Require n > 0 as well: zero would otherwise pass, and the negative int with only its sign bit set is not a positive power of two.",
+    "steps": [
+      "Reject n ≤ 0.",
+      "Clear the lowest set bit with n & (n − 1).",
+      "Return whether nothing remains."
+    ],
+    "java": "static boolean isPowerOfTwo(int n) {\n    return n > 0 && (n & (n - 1)) == 0;\n}",
+    "time": "O(1) for a 32-bit int.",
+    "space": "O(1).",
+    "pitfalls": [
+      "The n > 0 check is required.",
+      "The largest positive int power of two is 1 << 30, not 1 << 31."
+    ],
+    "tests": [
+      "assert isPowerOfTwo(1);assert isPowerOfTwo(32);assert !isPowerOfTwo(40);assert !isPowerOfTwo(0);assert !isPowerOfTwo(Integer.MIN_VALUE);",
+      "Set<Integer>powers=new HashSet<>();for(int i=0;i<31;i++)powers.add(1<<i);for(int n=-10;n<=10000;n++)assert isPowerOfTwo(n)==powers.contains(n);for(int value:powers)assert isPowerOfTwo(value);Random r=new Random(185);for(int i=0;i<10000;i++){int n=r.nextInt();assert isPowerOfTwo(n)==powers.contains(n);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/bit-basics-and-operators",
+      "title": "BIT Basics and Operators",
+      "checkedOn": "2026-10-29",
+      "approach": "Bit positions, masks, AND, OR, XOR, NOT and shifts.",
+      "adaptation": "The public lesson is language-neutral theory rather than a Java solution. These small Java helpers demonstrate its operations, with explicit 32-bit signed behaviour."
+    }
+  },
+  "186": {
+    "problem": "Count the 1 bits in one integer’s binary representation.",
+    "assumptions": "This source asks about one number, not the total set bits from 1 through n. It uses 0 ≤ n ≤ 10^9. The helper also counts all 32 bits of a negative Java int.",
+    "example": {
+      "input": "n = 26 (11010)",
+      "output": "3",
+      "explanation": "Clear the rightmost 1 repeatedly: 11010 → 11000 → 10000 → 00000."
+    },
+    "baseline": "Inspect the lowest bit, add it to a count, and unsigned-shift right until nothing remains. That examines every bit position up to the highest set bit.",
+    "approach": "Subtracting one flips the rightmost 1 to 0 and turns all lower zeroes into ones. AND with the original number clears those lower changes, so n & (n − 1) removes just that rightmost 1.\n\nRepeat until n is zero and count the removals. Each iteration accounts for exactly one set bit. This also terminates for negative ints because their representation still has only 32 bits.",
+    "steps": [
+      "Start count at 0.",
+      "While n is non-zero, replace it with n & (n − 1).",
+      "Increment the count after each removal."
+    ],
+    "java": "static int countSetBits(int n) {\n    int count = 0;\n    while (n != 0) {\n        n &= n - 1;\n        count++;\n    }\n    return count;\n}",
+    "time": "O(k), where k is the number of set bits; at most 32 iterations for a Java int.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Use n != 0 rather than n > 0 if supporting negative bit patterns.",
+      "Zero has no set bits.",
+      "This is not the separate problem that sums set-bit counts for all numbers up to n."
+    ],
+    "tests": [
+      "assert countSetBits(26)==3;assert countSetBits(0)==0;assert countSetBits(-1)==32;assert countSetBits(Integer.MIN_VALUE)==1;",
+      "Random r=new Random(186);for(int i=0;i<10000;i++){int n=r.nextInt();assert countSetBits(n)==Integer.bitCount(n);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/count-the-number-of-set-bits",
+      "title": "Count the Number of Set Bits",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this entry. The implementation follows the checked bit operation. "
+    }
+  },
+  "187": {
+    "problem": "Set the lowest zero bit of n. Also distinguish this lesson from the different Maximizing XOR problem attached to the tracker row.",
+    "assumptions": "The tracker title says Set/Unset the rightmost unset bit, but its HackerRank link asks for the maximum XOR of two values in [l, r]. The current Striver practice task asks only to set the lowest zero bit. Both are shown separately. For the bit task, 1 ≤ n ≤ 10^9; higher leading zeroes count.",
+    "example": {
+      "input": "n = 11 (1011)",
+      "output": "15 (1111)",
+      "explanation": "Adding 1 gives 1100. OR with the original 1011 restores its lower 1s and sets the first zero."
+    },
+    "baseline": "Scan from bit 0 until a zero is found, then set that position. The expression n | (n + 1) does this directly. Clearing a lowest set bit is a different operation: n & (n − 1).",
+    "approach": "Adding one carries through all trailing 1s and stops at the first 0. OR with the original value restores the trailing 1s that the carry cleared, leaving exactly the first zero newly set. For 7 (111), the next leading zero is set, producing 15 (1111).\n\nThe linked HackerRank task is separate. Find the highest bit where l and r differ using l XOR r. Above that position every number in the interval shares the same prefix. The interval crosses the boundary at that position, so it contains the two values immediately on either side: their lower bits are complements. The maximum XOR therefore has 1s from that position down to bit 0.",
+    "steps": [
+      "For the Striver task, return n | (n + 1).",
+      "To clear the lowest set bit instead, use n & (n − 1).",
+      "For the linked range-XOR task, examine l XOR r.",
+      "Build an all-ones result with the same bit length as that difference."
+    ],
+    "java": "static int setRightmostZero(int n) {\n    return n | (n + 1);\n}\n\nstatic int clearRightmostOne(int n) {\n    return n & (n - 1);\n}\n\n// Separate task from the tracker’s HackerRank link; 0 <= left <= right.\nstatic int maximizingXor(int left, int right) {\n    int difference = left ^ right;\n    int answer = 0;\n    while (difference != 0) {\n        answer = (answer << 1) | 1;\n        difference >>>= 1;\n    }\n    return answer;\n}",
+    "time": "O(1) for setting or clearing a bit. Range XOR takes O(log(left XOR right + 1)), at most 31 iterations for non-negative ints.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Setting an unset bit and clearing a set bit are different operations.",
+      "When the visible digits are all 1s, the next leading zero still exists under this interpretation.",
+      "Do not submit the one-number bit helper to the two-bound HackerRank task."
+    ],
+    "tests": [
+      "assert setRightmostZero(11)==15;assert setRightmostZero(7)==15;assert setRightmostZero(0)==1;assert clearRightmostOne(12)==8;assert maximizingXor(10,15)==7;assert maximizingXor(11,100)==127;",
+      "for(int n=0;n<10000;n++){int bit=0;while((n&(1<<bit))!=0)bit++;assert setRightmostZero(n)==(n|(1<<bit));}",
+      "for(int l=0;l<=80;l++)for(int r=l;r<=80;r++){int expected=0;for(int a=l;a<=r;a++)for(int b=a;b<=r;b++)expected=Math.max(expected,a^b);assert maximizingXor(l,r)==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/set-the-rightmost-unset-bit",
+      "title": "Set the Rightmost Unset Bit",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this entry. The implementation follows the checked bit operation. The tracker’s existing HackerRank link was also checked and is a different task; its separately labelled helper is included without changing the stored link."
+    }
+  },
+  "188": {
+    "problem": "Swap two integer values without a third temporary numeric variable.",
+    "assumptions": "The source asks for arithmetic or XOR swapping. Java passes primitive arguments by value, so a helper returns the swapped pair. It cannot change the caller’s two int variables by merely reassigning its parameters.",
+    "example": {
+      "input": "a = 6, b = 11",
+      "output": "[11, 6]",
+      "explanation": "After the XOR sequence, a holds the old b and b holds the old a."
+    },
+    "baseline": "A temporary variable is usually clearest: temp = a; a = b; b = temp. This exercise specifically asks to avoid that variable, so the code demonstrates XOR.",
+    "approach": "XOR cancels equal values: x XOR x is zero, and x XOR zero is x. First store a XOR b in a. XOR that combined value with the old b to recover the old a into b. Finally XOR the combined value with the new b to recover the old b into a.\n\nReturn the pair so the caller can use the results. The returned array is output storage; the swapping sequence itself uses only the two numeric variables. Do not use this sequence on the same array cell twice: the first XOR would erase it.",
+    "steps": [
+      "Replace a with a XOR b.",
+      "Replace b with the new a XOR the old b.",
+      "Replace a with the new a XOR the new b.",
+      "Return the two results."
+    ],
+    "java": "static int[] swapNumbers(int a, int b) {\n    a ^= b;\n    b ^= a;\n    a ^= b;\n    return new int[] {a, b};\n}",
+    "time": "O(1).",
+    "space": "O(1), including the two-element result.",
+    "pitfalls": [
+      "Reassigning Java int parameters does not swap the caller’s variables.",
+      "XOR swapping aliased locations can destroy the value; this helper uses two independent local variables.",
+      "Use a temporary variable in ordinary application code when it makes the intent easier to read."
+    ],
+    "tests": [
+      "assert Arrays.equals(swapNumbers(6,11),new int[]{11,6});assert Arrays.equals(swapNumbers(5,5),new int[]{5,5});assert Arrays.equals(swapNumbers(Integer.MIN_VALUE,Integer.MAX_VALUE),new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE});",
+      "Random r=new Random(188);for(int i=0;i<10000;i++){int a=r.nextInt(),b=r.nextInt();assert Arrays.equals(swapNumbers(a,b),new int[]{b,a});}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/swap-two-numbers",
+      "title": "Swap Two Numbers",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this entry. The implementation follows the checked bit operation. The source’s printed numeric constraint is malformed. Tests cover the full Java int range; XOR does not require arithmetic headroom."
+    }
+  },
+  "189": {
+    "problem": "Divide two signed integers without multiplication, division or remainder operators, truncating the result toward zero.",
+    "assumptions": "Divisor is non-zero. Inputs are 32-bit signed integers. Clamp the one overflowing result, Integer.MIN_VALUE divided by −1, to Integer.MAX_VALUE. Long is used internally for safe magnitudes and shifts.",
+    "example": {
+      "input": "dividend = 43, divisor = -5",
+      "output": "-8",
+      "explanation": "Eight copies of 5 fit into 43. Apply the negative sign and discard the remainder, giving -8 rather than -9."
+    },
+    "baseline": "Repeatedly subtract one divisor magnitude and count the subtractions. This takes O(|quotient|), which is too slow for a very large dividend and a small divisor.",
+    "approach": "Subtract larger batches instead. A divisor shifted left by k is a batch of 2^k divisors. Check shifts from 31 down to 0; if a batch fits in the remaining dividend, subtract it and add 2^k to the quotient. This builds the quotient one binary bit at a time.\n\nConvert each input to long before taking its absolute value. The magnitude of Integer.MIN_VALUE is 2147483648, which does not fit in an int. Apply the sign only after calculating the positive quotient, then clamp the positive overflow case.",
+    "steps": [
+      "Remember whether the input signs differ.",
+      "Convert both magnitudes to long.",
+      "For shifts 31 down to 0, subtract any shifted divisor that fits and set that quotient contribution.",
+      "Apply the sign and clamp overflow before converting back to int."
+    ],
+    "java": "static int divide(int dividend, int divisor) {\n    if (divisor == 0) throw new ArithmeticException(\"Division by zero\");\n    boolean negative = (dividend < 0) != (divisor < 0);\n    long remaining = Math.abs((long) dividend);\n    long magnitude = Math.abs((long) divisor);\n    long quotient = 0;\n    for (int shift = 31; shift >= 0; shift--) {\n        long chunk = magnitude << shift;\n        if (chunk <= remaining) {\n            remaining -= chunk;\n            quotient += 1L << shift;\n        }\n    }\n    long result = negative ? -quotient : quotient;\n    if (result > Integer.MAX_VALUE) return Integer.MAX_VALUE;\n    return (int) result;\n}",
+    "time": "O(32), which is O(1) for fixed-width int inputs. In a variable-width model, one pass over the quotient’s bit positions.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Math.abs(dividend) before widening fails for Integer.MIN_VALUE.",
+      "Use 1L << shift, not 1 << shift, for the quotient contribution at bit 31.",
+      "Negative division truncates toward zero.",
+      "A zero divisor is outside the problem; the helper rejects it explicitly."
+    ],
+    "tests": [
+      "assert divide(43,-5)==-8;assert divide(7,3)==2;assert divide(-7,3)==-2;assert divide(Integer.MIN_VALUE,-1)==Integer.MAX_VALUE;assert divide(Integer.MIN_VALUE,1)==Integer.MIN_VALUE;assert divide(Integer.MIN_VALUE,Integer.MIN_VALUE)==1;assert divide(1,Integer.MIN_VALUE)==0;",
+      "for(int a=-100;a<=100;a++)for(int b=-100;b<=100;b++)if(b!=0)assert divide(a,b)==a/b;",
+      "Random r=new Random(189);for(int i=0;i<20000;i++){int a=r.nextInt(),b=r.nextInt();if(b==0)continue;long expected=(long)a/b;expected=Math.min(expected,Integer.MAX_VALUE);assert divide(a,b)==expected;}",
+      "boolean threw=false;try{divide(3,0);}catch(ArithmeticException e){threw=true;}assert threw;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/divide-two-integers-without-multiplication-division-modulo",
+      "title": "Divide Two Integers Without Multiplication, Division or Modulo",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated subtraction as a baseline; descending shifts from 31 to 0 for the final method.",
+      "adaptation": "Both public Java approaches were checked. This follows the same long-magnitude and shifted-chunk algorithm, with a zero-divisor guard and a static helper."
+    }
   }
 }
