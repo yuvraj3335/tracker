@@ -6587,5 +6587,154 @@
       "approach": "The linked public practice statement was checked.",
       "adaptation": "No public Java editorial is linked for this current-sheet entry. The Java below is an original implementation of the stated task, checked with examples and independent exhaustive cases."
     }
+  },
+  "174": {
+    "problem": "Split a string into contiguous pieces so every piece is a palindrome. Return every valid split.",
+    "assumptions": "Use every character exactly once and keep the original order. A palindrome reads the same forwards and backwards. The source has lowercase strings of length at most 16. The helper defines the empty string as one empty partition.",
+    "example": {
+      "input": "s = \"noon\"",
+      "output": "[[n, o, o, n], [n, oo, n], [noon]]",
+      "explanation": "Each row joins back to noon, and every piece in that row is a palindrome."
+    },
+    "baseline": "Choose whether to cut at each gap, then check every piece of every completed partition. There are 2^(n−1) cut patterns. Backtracking rejects a non-palindrome piece before exploring the rest of that partition.",
+    "approach": "At the current start position, try every possible end position for the next piece. Compare the piece’s ends while moving inward. If they all match, add that piece and recurse on the suffix after it. If they do not, try a longer piece instead.\n\nWhen start reaches the string length, every character has been used, so save the partition. Undo the last piece after each recursive call. A longer piece can be a palindrome even when a shorter one is not, so a failed check does not end the loop.",
+    "steps": [
+      "Try each substring starting at the current position.",
+      "Check whether it is a palindrome with two pointers.",
+      "For a palindrome, choose it, recurse after its end, then remove it.",
+      "Save a copy of the partition when the entire string is consumed."
+    ],
+    "java": "static List<List<String>> partition(String s) {\n    List<List<String>> answer = new ArrayList<>();\n    splitPalindromes(s, 0, new ArrayList<>(), answer);\n    return answer;\n}\n\nstatic void splitPalindromes(String s, int start, List<String> current,\n                             List<List<String>> answer) {\n    if (start == s.length()) {\n        answer.add(new ArrayList<>(current));\n        return;\n    }\n    for (int end = start; end < s.length(); end++) {\n        if (!isPalindrome(s, start, end)) continue;\n        current.add(s.substring(start, end + 1));\n        splitPalindromes(s, end + 1, current, answer);\n        current.remove(current.size() - 1);\n    }\n}\n\nstatic boolean isPalindrome(String s, int left, int right) {\n    while (left < right) {\n        if (s.charAt(left++) != s.charAt(right--)) return false;\n    }\n    return true;\n}",
+    "time": "O(n² × 2^n) is a conservative bound for trying cuts, checking substrings and copying answers. The number of returned partitions can itself be exponential.",
+    "space": "O(n) working depth and selected-character storage; up to O(n × 2^n) output space.",
+    "pitfalls": [
+      "Pieces must be contiguous substrings, not subsequences.",
+      "Use continue after a failed palindrome check, not break.",
+      "Every partition must cover the full string."
+    ],
+    "tests": [
+      "assert partition(\"noon\").equals(List.of(List.of(\"n\",\"o\",\"o\",\"n\"),List.of(\"n\",\"oo\",\"n\"),List.of(\"noon\")));assert partition(\"\").equals(List.of(List.of()));",
+      "Random r=new Random(174);for(int n=1;n<=10;n++)for(int trial=0;trial<15;trial++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((char)('a'+r.nextInt(3)));String s=b.toString();Set<List<String>>expected=new HashSet<>();for(int mask=0;mask<(1<<(n-1));mask++){List<String>pieces=new ArrayList<>();int start=0;boolean valid=true;for(int j=0;j<n;j++)if(j==n-1||(mask&(1<<j))!=0){String part=s.substring(start,j+1);if(!part.equals(new StringBuilder(part).reverse().toString()))valid=false;pieces.add(part);start=j+1;}if(valid)expected.add(pieces);}List<List<String>>actual=partition(s);assert actual.size()==expected.size();assert new HashSet<>(actual).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/palindrome-partitioning",
+      "title": "Palindrome partitioning",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement, examples and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This is an original, tested Java implementation. "
+    }
+  },
+  "175": {
+    "problem": "Decide whether a word can be traced through horizontally or vertically adjacent board cells without reusing a cell.",
+    "assumptions": "The board is rectangular and contains English letters. Matching is case-sensitive. The source allows dimensions up to 6 × 6 and word length up to 15. The helper also handles an empty board and defines an empty word as found.",
+    "example": {
+      "input": "board = [[C, A], [R, T]], word = \"CAT\"",
+      "output": "true",
+      "explanation": "Start at C, move right to A, then down to T. \"CAC\" is false because it would reuse the C cell."
+    },
+    "baseline": "Generate paths and compare their letters only at the end. Checking the next letter immediately avoids exploring paths that already disagree with the word.",
+    "approach": "Try every cell as a starting point. A recursive call asks whether the rest of the word can start at this cell. Reject an out-of-bounds cell or a wrong letter. When a letter matches, temporarily mark the cell as unavailable and try its four neighbours.\n\nRestore the original character before returning, even when a neighbour found the word. The mark belongs only to the current path. Keeping it permanently would wrongly block later searches and change the caller’s board.",
+    "steps": [
+      "Try starting at each board cell.",
+      "Reject bounds errors and character mismatches.",
+      "After matching the last character, return true.",
+      "Otherwise mark the cell, try four directions, restore it, and return whether any direction worked."
+    ],
+    "java": "static boolean exist(char[][] board, String word) {\n    if (word.isEmpty()) return true;\n    if (board.length == 0 || board[0].length == 0) return false;\n    if (word.length() > board.length * board[0].length) return false;\n    for (int row = 0; row < board.length; row++) {\n        for (int col = 0; col < board[0].length; col++) {\n            if (findWord(board, word, row, col, 0)) return true;\n        }\n    }\n    return false;\n}\n\nstatic boolean findWord(char[][] board, String word, int row, int col, int index) {\n    if (row < 0 || row >= board.length || col < 0 || col >= board[0].length\n            || board[row][col] != word.charAt(index)) return false;\n    if (index == word.length() - 1) return true;\n    char saved = board[row][col];\n    board[row][col] = '#';\n    boolean found = findWord(board, word, row + 1, col, index + 1)\n        || findWord(board, word, row - 1, col, index + 1)\n        || findWord(board, word, row, col + 1, index + 1)\n        || findWord(board, word, row, col - 1, index + 1);\n    board[row][col] = saved;\n    return found;\n}",
+    "time": "O(R × C × 4 × 3^(L−1)) is an upper bound for non-empty words: the first move has four choices, and later moves cannot immediately revisit the previous cell.",
+    "space": "O(L) recursive call space; the board is restored before returning.",
+    "pitfalls": [
+      "Diagonal moves are not allowed.",
+      "Repeated letters are fine; reusing the same cell is not.",
+      "Do not return straight from the neighbour calls before restoring the cell.",
+      "The # marker is safe because the stated board and word alphabet contains only letters."
+    ],
+    "tests": [
+      "char[][]b={{'C','A'},{'R','T'}};char[][]before=Arrays.stream(b).map(char[]::clone).toArray(char[][]::new);assert exist(b,\"CAT\");assert !exist(b,\"CAC\");assert Arrays.deepEquals(b,before);assert !exist(b,\"cat\");",
+      "char[][]b={{'A','B','C','E'},{'S','F','C','S'},{'A','D','E','E'}};char[][]before=Arrays.stream(b).map(char[]::clone).toArray(char[][]::new);assert exist(b,\"ABCCED\");assert exist(b,\"SEE\");assert !exist(b,\"ABCB\");assert Arrays.deepEquals(b,before);",
+      "assert exist(new char[0][0],\"\");assert !exist(new char[0][0],\"A\");char[][]b={{'A','A'},{'A','A'}};assert exist(b,\"AAAA\");assert !exist(b,\"AAAAA\");",
+      "Random r=new Random(175);for(int trial=0;trial<200;trial++){char[][]b=new char[2][3];for(char[]row:b)for(int j=0;j<3;j++)row[j]=(char)('A'+r.nextInt(3));StringBuilder w=new StringBuilder();int length=1+r.nextInt(6);for(int i=0;i<length;i++)w.append((char)('A'+r.nextInt(3)));Set<String>paths=new HashSet<>();Deque<int[]>queue=new ArrayDeque<>();for(int i=0;i<6;i++)if(b[i/3][i%3]==w.charAt(0))queue.add(new int[]{i,1<<i,1});boolean expected=false;while(!queue.isEmpty()){int[]state=queue.remove();int pos=state[0],mask=state[1],used=state[2];if(used==length){expected=true;break;}for(int next=0;next<6;next++)if(Math.abs(pos/3-next/3)+Math.abs(pos%3-next%3)==1&&(mask&(1<<next))==0&&b[next/3][next%3]==w.charAt(used))queue.add(new int[]{next,mask|(1<<next),used+1});}char[][]before=Arrays.stream(b).map(char[]::clone).toArray(char[][]::new);assert exist(b,w.toString())==expected;assert Arrays.deepEquals(b,before);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/word-search",
+      "title": "Word Search",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement, examples and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This is an original, tested Java implementation. "
+    }
+  },
+  "176": {
+    "problem": "Return every n × n board containing n queens with no two attacking each other.",
+    "assumptions": "Q marks a queen and . marks an empty cell. Queens attack along rows, columns and both diagonals. Source n is between 1 and 9. Follow the tracker’s LeetCode return convention: no solution means [], not a list containing an empty board.",
+    "example": {
+      "input": "n = 4",
+      "output": "Two boards; one is [..Q., Q..., ...Q, .Q..]",
+      "explanation": "Its queen columns by row are 2, 0, 3, 1. No pair shares a row, column or diagonal."
+    },
+    "baseline": "While placing queens, scan earlier columns to check the row and both diagonals. That backtracking solution works. Boolean arrays make each safety check constant time.",
+    "approach": "Place exactly one queen in each column. A new queen is safe if its row and both diagonals are unused. Squares on one diagonal share row + column; squares on the other share column − row. Add n − 1 to the second expression to make its index non-negative.\n\nMark all three lines, place the queen and solve the next column. On return, remove the queen and clear the marks so another row can be tried. Once all columns are filled, copy the board into strings.",
+    "steps": [
+      "Create an empty board and three boolean arrays for occupied lines.",
+      "For each row in the current column, check row and diagonal occupancy.",
+      "Place a safe queen and recurse into the next column.",
+      "Undo the board change and all three occupancy marks.",
+      "Save a board when column reaches n."
+    ],
+    "java": "static List<List<String>> solveNQueens(int n) {\n    char[][] board = new char[n][n];\n    for (char[] row : board) Arrays.fill(row, '.');\n    List<List<String>> answer = new ArrayList<>();\n    placeQueens(0, board, new boolean[n], new boolean[2 * n - 1],\n                new boolean[2 * n - 1], answer);\n    return answer;\n}\n\nstatic void placeQueens(int col, char[][] board, boolean[] rows,\n                        boolean[] rising, boolean[] falling,\n                        List<List<String>> answer) {\n    int n = board.length;\n    if (col == n) {\n        List<String> snapshot = new ArrayList<>();\n        for (char[] row : board) snapshot.add(new String(row));\n        answer.add(snapshot);\n        return;\n    }\n    for (int row = 0; row < n; row++) {\n        int a = row + col;\n        int b = n - 1 + col - row;\n        if (rows[row] || rising[a] || falling[b]) continue;\n        rows[row] = rising[a] = falling[b] = true;\n        board[row][col] = 'Q';\n        placeQueens(col + 1, board, rows, rising, falling, answer);\n        board[row][col] = '.';\n        rows[row] = rising[a] = falling[b] = false;\n    }\n}",
+    "time": "O(n × n! + A × n²) as a conservative bound, including row trials and copying A solution boards. Diagonal pruning reduces the search.",
+    "space": "O(n²) for the working board, O(n) for marks and calls, plus O(A × n²) output.",
+    "pitfalls": [
+      "There are 2n − 1 diagonals in each direction.",
+      "Clear every occupancy mark after a branch, not just the board cell.",
+      "For n = 2 or 3, return no boards. The public TUF n = 2 example displays [[]], but the linked LeetCode task expects []."
+    ],
+    "tests": [
+      "assert solveNQueens(1).equals(List.of(List.of(\"Q\")));assert solveNQueens(2).isEmpty();assert solveNQueens(3).isEmpty();",
+      "int[]counts={0,1,0,0,2,10,4,40,92};for(int n=1;n<=8;n++){List<List<String>>boards=solveNQueens(n);assert boards.size()==counts[n];assert new HashSet<>(boards).size()==boards.size();for(List<String>b:boards){assert b.size()==n;List<int[]>queens=new ArrayList<>();for(int row=0;row<n;row++){assert b.get(row).length()==n;for(int col=0;col<n;col++)if(b.get(row).charAt(col)=='Q')queens.add(new int[]{row,col});}assert queens.size()==n;for(int i=0;i<n;i++)for(int j=i+1;j<n;j++){int[]a=queens.get(i),d=queens.get(j);assert a[0]!=d[0]&&a[1]!=d[1]&&Math.abs(a[0]-d[0])!=Math.abs(a[1]-d[1]);}}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/n-queen",
+      "title": "N Queen",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement, examples and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This is an original, tested Java implementation. The no-solution return value follows the linked LeetCode problem rather than the inconsistent n = 2 example."
+    }
+  },
+  "177": {
+    "problem": "Return all paths from the top-left to the bottom-right of a square maze without revisiting a cell within one path.",
+    "assumptions": "1 means open and 0 means blocked. Moves are down, left, right or up. Source n is 2 through 5. This helper also handles a 1 × 1 maze: one open cell has one empty path. The input maze is restored.",
+    "example": {
+      "input": "maze = [[1, 1], [1, 1]]",
+      "output": "[DR, RD]",
+      "explanation": "Go down then right, or right then down. A path cannot loop back through its starting cell."
+    },
+    "baseline": "Trying moves without marking the current path can loop forever. A single permanent visited set is also wrong: a cell used in one path may be needed in a different path.",
+    "approach": "Mark a cell only while it belongs to the path currently being explored. Try each legal next move, then undo it. When that branch is finished, unmark the cell so another route can use it.\n\nThe maze itself can hold the temporary mark: change the current 1 to 0 and restore it before returning. Save the direction string as soon as the destination is reached. Trying D, L, R, U in that order produces paths in dictionary order.",
+    "steps": [
+      "Return no paths if the start or destination is blocked.",
+      "At each cell, mark it unavailable for the current route.",
+      "Try D, L, R, U into open neighbours, appending and then removing each direction.",
+      "At the destination, save the path string.",
+      "Restore the current cell before returning."
+    ],
+    "java": "static List<String> mazePaths(int[][] maze) {\n    List<String> answer = new ArrayList<>();\n    int n = maze.length;\n    if (n == 0 || maze[0][0] == 0 || maze[n - 1][n - 1] == 0) return answer;\n    walkMaze(maze, 0, 0, new StringBuilder(), answer);\n    return answer;\n}\n\nstatic void walkMaze(int[][] maze, int row, int col, StringBuilder path,\n                     List<String> answer) {\n    int n = maze.length;\n    if (row == n - 1 && col == n - 1) {\n        answer.add(path.toString());\n        return;\n    }\n    maze[row][col] = 0;\n    int[] dr = {1, 0, 0, -1};\n    int[] dc = {0, -1, 1, 0};\n    String moves = \"DLRU\";\n    for (int i = 0; i < 4; i++) {\n        int nr = row + dr[i], nc = col + dc[i];\n        if (nr < 0 || nr >= n || nc < 0 || nc >= n || maze[nr][nc] == 0) continue;\n        path.append(moves.charAt(i));\n        walkMaze(maze, nr, nc, path, answer);\n        path.deleteCharAt(path.length() - 1);\n    }\n    maze[row][col] = 1;\n}",
+    "time": "Exponential in the number of open cells. O(4^(n²) × n²) is a conservative upper bound including saved paths.",
+    "space": "O(n²) working depth and path length, plus the stored result strings.",
+    "pitfalls": [
+      "Visited belongs to one path, not the whole search.",
+      "Check the destination is open before treating it as reached.",
+      "Return an empty list when there is no route; the empty string is a route only for an open 1 × 1 maze."
+    ],
+    "tests": [
+      "int[][]a={{1,1},{1,1}};assert mazePaths(a).equals(List.of(\"DR\",\"RD\"));assert Arrays.deepEquals(a,new int[][]{{1,1},{1,1}});assert mazePaths(new int[][]{{0,1},{1,1}}).isEmpty();assert mazePaths(new int[][]{{1}}).equals(List.of(\"\"));",
+      "for(int cells=0;cells<512;cells++){int[][]a=new int[3][3];for(int i=0;i<9;i++)a[i/3][i%3]=(cells>>i)&1;int[][]before=Arrays.stream(a).map(int[]::clone).toArray(int[][]::new);Set<String>expected=new HashSet<>();Deque<int[]>states=new ArrayDeque<>();Deque<String>paths=new ArrayDeque<>();if((cells&1)!=0){states.add(new int[]{0,1});paths.add(\"\");}while(!states.isEmpty()){int[]st=states.remove();String path=paths.remove();int pos=st[0],mask=st[1];if(pos==8){expected.add(path);continue;}for(int next=0;next<9;next++)if(Math.abs(pos/3-next/3)+Math.abs(pos%3-next%3)==1&&(cells&(1<<next))!=0&&(mask&(1<<next))==0){char move=next/3>pos/3?'D':next/3<pos/3?'U':next>pos?'R':'L';states.add(new int[]{next,mask|(1<<next)});paths.add(path+move);}}List<String>actual=mazePaths(a);assert actual.size()==expected.size();assert new HashSet<>(actual).equals(expected);List<String>sorted=new ArrayList<>(actual);Collections.sort(sorted);assert actual.equals(sorted);assert Arrays.deepEquals(a,before);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/rat-in-a-maze",
+      "title": "Rat in a Maze",
+      "checkedOn": "2026-10-29",
+      "approach": "The public practice statement, examples and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This is an original, tested Java implementation. "
+    }
   }
 }
