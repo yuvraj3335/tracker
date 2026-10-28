@@ -432,7 +432,7 @@
     ],
     "tests": [
       "assert echo(\"42\").equals(\"42\");",
-      "assert echo(\"  -7\n\").equals(\"-7\");"
+      "assert echo(\"  -7\\n\").equals(\"-7\");"
     ]
   },
   "2": {

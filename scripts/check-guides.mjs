@@ -5,6 +5,7 @@ const seed = JSON.parse(await fs.readFile(new URL('../data/a2z-seed.json', impor
 const questions = seed.sections.flatMap(s => s.headings.flatMap(h => h.questions));
 await fs.mkdir('build/guide-tests', { recursive: true });
 let assertions = 0;
+const javaFiles = [], classes = [];
 for (const [number, guide] of Object.entries(guides)) {
   if (!questions.some(q => q.globalOrder + 1 === Number(number))) throw new Error(`Unknown question ${number}`);
   for (const field of ['problem', 'assumptions', 'baseline', 'approach', 'java', 'time', 'space']) if (typeof guide[field] !== 'string' || !guide[field].trim()) throw new Error(`Question ${number} missing ${field}`);
@@ -14,12 +15,18 @@ for (const [number, guide] of Object.entries(guides)) {
     const name = `Guide${number}Test`;
     const file = `build/guide-tests/${name}.java`;
     await fs.writeFile(file, `import java.util.*;\nimport java.io.*;\nimport java.math.*;\npublic class ${name} {\n${guide.java}\npublic static void main(String[] args) throws Exception {\n${guide.tests.join('\n')}\n}\n}\n`);
-    for (const [command, args] of [['javac', [file]], ['java', ['-ea', '-cp', 'build/guide-tests', name]]]) {
-      const result = spawnSync(command, args, { encoding: 'utf8', timeout: 20000 });
-      if (result.status !== 0) throw new Error(`${number} ${command}: ${result.error || result.stderr || result.stdout}`);
-    }
+    javaFiles.push(file); classes.push(name);
+
   }
   assertions += guide.tests.length;
+}
+if (process.argv.includes('--java') && javaFiles.length) {
+  const runner = 'build/guide-tests/AllGuidesTest.java';
+  await fs.writeFile(runner, `public class AllGuidesTest { public static void main(String[] args) throws Exception {\n${classes.map(name => `${name}.main(args);`).join('\n')}\n} }`);
+  for (const [command, args] of [['javac', [...javaFiles, runner]], ['java', ['-ea', '-cp', 'build/guide-tests', 'AllGuidesTest']]]) {
+    const result = spawnSync(command, args, { encoding: 'utf8', timeout: 120000 });
+    if (result.status !== 0) throw new Error(`${command}: ${result.error || result.stderr || result.stdout}`);
+  }
 }
 const missing = questions.filter(q => !guides[String(q.globalOrder + 1)]).map(q => `${q.globalOrder + 1}: ${q.name}`);
 console.log(`${Object.keys(guides).length}/${questions.length} authored guides; ${assertions} Java assertions${process.argv.includes('--java') ? ' passed' : ' prepared (not executed)'}.`);
