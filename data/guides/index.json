@@ -6161,5 +6161,214 @@
       "approach": "The public problem statement and constraints were checked.",
       "adaptation": "The current sheet exposes a practice problem without a public Java editorial. This is an original, tested Java implementation for that exact task."
     }
+  },
+  "162": {
+    "problem": "Generate every length-n binary string that has no adjacent 1s, in increasing dictionary order.",
+    "assumptions": "The tracker’s short title says all binary strings, but its linked problem excludes consecutive 1s. The source allows 1 ≤ n ≤ 20. For n = 0, this helper returns the one empty string.",
+    "example": {
+      "input": "n = 4",
+      "output": "[0000, 0001, 0010, 0100, 0101, 1000, 1001, 1010]",
+      "explanation": "For example, 1010 is allowed; 0110 is not because its middle two digits are both 1."
+    },
+    "baseline": "Generate all 2^n binary strings and reject any containing 11. This works, but builds many prefixes we already know cannot lead to a valid answer.",
+    "approach": "Fill one position at a time. Zero is always safe. One is safe only at the first position or after a zero. Those two rules prevent an invalid pair as soon as it would be created.\n\nTry zero before one. All answers beginning with the current prefix plus zero then appear before answers beginning with that prefix plus one, which gives the required ordering. Once the array is full, copy it into a String and save it.",
+    "steps": [
+      "Allocate a character array of length n.",
+      "Write 0 and recurse to the next position.",
+      "Also write 1 and recurse if the previous character is not 1.",
+      "At position n, add a copy of the completed string."
+    ],
+    "java": "static List<String> binaryStrings(int n) {\n    List<String> answer = new ArrayList<>();\n    fillBinary(new char[n], 0, answer);\n    return answer;\n}\n\nstatic void fillBinary(char[] current, int index, List<String> answer) {\n    if (index == current.length) {\n        answer.add(new String(current));\n        return;\n    }\n    current[index] = '0';\n    fillBinary(current, index + 1, answer);\n    if (index == 0 || current[index - 1] == '0') {\n        current[index] = '1';\n        fillBinary(current, index + 1, answer);\n    }\n}",
+    "time": "O(n × A), where A is the number of valid strings. A follows the Fibonacci recurrence, rather than being 2^n.",
+    "space": "O(n) working space and O(n × A) for the returned strings.",
+    "pitfalls": [
+      "The source excludes consecutive 1s, not consecutive 0s.",
+      "Saving the same mutable character buffer would not preserve separate answers; new String(current) copies its contents."
+    ],
+    "tests": [
+      "assert binaryStrings(0).equals(List.of(\"\"));assert binaryStrings(1).equals(List.of(\"0\",\"1\"));assert binaryStrings(3).equals(List.of(\"000\",\"001\",\"010\",\"100\",\"101\"));",
+      "for(int n=1;n<=12;n++){List<String>expected=new ArrayList<>();for(int mask=0;mask<(1<<n);mask++){String s=Integer.toBinaryString(mask);s=\"0\".repeat(n-s.length())+s;if(!s.contains(\"11\"))expected.add(s);}assert binaryStrings(n).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/generate-binary-strings-without-consecutive-1s",
+      "title": "Generate Binary Strings Without Consecutive 1s",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This saved Java solution is written for the checked problem, with executable tests."
+    }
+  },
+  "163": {
+    "problem": "Generate all correctly matched strings containing n pairs of parentheses.",
+    "assumptions": "A closing bracket must match an earlier opening bracket. The source allows 1 ≤ n ≤ 8; the helper also returns the empty string for n = 0.",
+    "example": {
+      "input": "n = 2",
+      "output": "[(()), ()()]",
+      "explanation": "Both strings have two opens and two closes. )( is invalid even though its counts match, because it closes before anything has opened."
+    },
+    "baseline": "Generate every length-2n string of opening and closing brackets, then check balance. That examines 2^(2n) strings, most of which are invalid.",
+    "approach": "Keep track of how many opening and closing brackets are already in the prefix. Add an opening bracket while fewer than n have been used. Add a closing bracket only while fewer closes than opens have been used. This makes every prefix valid, so we never need to repair a bad prefix later.\n\nWhen both counts reach n, the string is complete. Try each allowed next bracket and undo it afterward so the other choice starts from the same prefix.",
+    "steps": [
+      "Start with an empty prefix and counts of zero.",
+      "Append ( if open < n. Recurse, then remove it.",
+      "Append ) if close < open. Recurse, then remove it.",
+      "Save a string when its length is 2n."
+    ],
+    "java": "static List<String> generateParenthesis(int n) {\n    List<String> answer = new ArrayList<>();\n    brackets(n, 0, 0, new StringBuilder(), answer);\n    return answer;\n}\n\nstatic void brackets(int n, int open, int close, StringBuilder current,\n                     List<String> answer) {\n    if (current.length() == 2 * n) {\n        answer.add(current.toString());\n        return;\n    }\n    if (open < n) {\n        current.append('(');\n        brackets(n, open + 1, close, current, answer);\n        current.deleteCharAt(current.length() - 1);\n    }\n    if (close < open) {\n        current.append(')');\n        brackets(n, open, close + 1, current, answer);\n        current.deleteCharAt(current.length() - 1);\n    }\n}",
+    "time": "O(n × Cn), where Cn is the nth Catalan number, the number of answers. Copying each answer takes O(n).",
+    "space": "O(n) working space and O(n × Cn) output space.",
+    "pitfalls": [
+      "Equal final counts are not enough: every prefix must also have at least as many opens as closes.",
+      "Undo each appended bracket after returning from its branch."
+    ],
+    "tests": [
+      "assert generateParenthesis(0).equals(List.of(\"\"));assert generateParenthesis(2).equals(List.of(\"(())\",\"()()\"));",
+      "int[]counts={1,1,2,5,14,42,132,429,1430};for(int n=0;n<=8;n++){List<String>a=generateParenthesis(n);assert a.size()==counts[n];assert new HashSet<>(a).size()==a.size();for(String s:a){assert s.length()==2*n;int balance=0;for(char ch:s.toCharArray()){balance+=ch=='('?1:-1;assert balance>=0;}assert balance==0;}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/generate-parentheses",
+      "title": "Generate Parentheses",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This saved Java solution is written for the checked problem, with executable tests."
+    }
+  },
+  "164": {
+    "problem": "Return every subset of an array of distinct integers, including the empty subset.",
+    "assumptions": "Input values are distinct. Keep the relative input order inside each returned subset. The order of the subsets themselves does not matter. The source bounds n by 10.",
+    "example": {
+      "input": "nums = [4, 9]",
+      "output": "[[], [9], [4], [4, 9]]",
+      "explanation": "Each value is either included or left out. Two choices for each of two positions give four subsets."
+    },
+    "baseline": "A bit mask from 0 to 2^n − 1 can describe each subset: bit i says whether to include nums[i]. That is another valid O(n × 2^n) method. This chapter practices the same decisions with recursion.",
+    "approach": "At each index, make two calls: one without this value and one with it. Every subset has exactly one sequence of these choices, so all subsets appear once.\n\nThe current list is reused while exploring. After the take branch, remove its last value before returning. At the end of the array, save a new list containing the current values. Saving the current list itself would let later edits change answers we already recorded.",
+    "steps": [
+      "At each index, first recurse without choosing the value.",
+      "Add the value, recurse to the next index, then remove it.",
+      "At the end, save a copy of the current subset."
+    ],
+    "java": "static List<List<Integer>> subsets(int[] nums) {\n    List<List<Integer>> answer = new ArrayList<>();\n    choose(nums, 0, new ArrayList<>(), answer);\n    return answer;\n}\n\nstatic void choose(int[] nums, int index, List<Integer> current,\n                   List<List<Integer>> answer) {\n    if (index == nums.length) {\n        answer.add(new ArrayList<>(current));\n        return;\n    }\n    choose(nums, index + 1, current, answer);\n    current.add(nums[index]);\n    choose(nums, index + 1, current, answer);\n    current.remove(current.size() - 1);\n}",
+    "time": "O(n × 2^n), including copying the subsets.",
+    "space": "O(n) working space; O(n × 2^n) for the returned lists.",
+    "pitfalls": [
+      "Include the empty subset.",
+      "This version assumes distinct input values; duplicate values need the later Subsets II rule.",
+      "Use remove(current.size() − 1). Removing an Integer by value can remove the wrong occurrence."
+    ],
+    "tests": [
+      "assert new HashSet<>(subsets(new int[]{4,9})).equals(Set.of(List.of(),List.of(4),List.of(9),List.of(4,9)));assert subsets(new int[]{}).equals(List.of(List.of()));",
+      "for(int n=0;n<=10;n++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=i-5;Set<List<Integer>>expected=new HashSet<>();for(int mask=0;mask<(1<<n);mask++){List<Integer>s=new ArrayList<>();for(int j=0;j<n;j++)if((mask&(1<<j))!=0)s.add(a[j]);expected.add(s);}List<List<Integer>>actual=subsets(a);assert actual.size()==(1<<n);assert new HashSet<>(actual).equals(expected);}",
+      "List<List<Integer>>a=subsets(new int[]{2});a.get(0).add(99);assert a.get(1).equals(List.of(2));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/power-set",
+      "title": "Power Set",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This saved Java solution is written for the checked problem, with executable tests."
+    }
+  },
+  "165": {
+    "problem": "Learn take/skip subsequence recursion, then solve the different problem attached to this tracker row: count distinct non-empty subsequences of a string.",
+    "assumptions": "The row title is a theory lesson, but its existing link is LeetCode 940, Distinct Subsequences II. The recursive example generates subsequences by position; the final method counts unique resulting strings. The linked problem uses lowercase English letters and length at most 2000.",
+    "example": {
+      "input": "s = \"aab\"",
+      "output": "5 distinct non-empty strings: a, b, aa, ab, aab",
+      "explanation": "Choosing the first a or the second a gives the same string \"a\". Distinct counting must count it only once."
+    },
+    "baseline": "For the theory lesson, take or skip each character and save the resulting string at a leaf. To list all answers, explore both branches; to count index choices, add both branch counts; to ask whether any choice works, use OR and stop at the first success. Generating strings into a set solves the linked distinct problem for small inputs, but costs O(n × 2^n) time and storage.",
+    "approach": "For the linked problem, group the distinct strings by their last character. Let ending[c] be how many currently end in c, and total be the number of non-empty strings so far.\n\nWhen a new c arrives, every existing string can have c appended, and c alone is also valid. So the new count ending in c is total + 1. Replace the old ending[c], rather than adding to it: those old strings are already included among these new possibilities. Other last-character groups do not change. Subtract the old group, add the new group, and keep the result modulo 1,000,000,007.",
+    "steps": [
+      "For the theory example, make a skip call and a take call at every character.",
+      "For distinct counting, start total and all 26 ending counts at zero.",
+      "At each character, set newEnding = total + 1.",
+      "Replace that character’s previous ending count and update total.",
+      "Take a non-negative remainder after subtraction."
+    ],
+    "java": "static int distinctSubseqII(String s) {\n    long mod = 1_000_000_007L;\n    long[] ending = new long[26];\n    long total = 0;\n    for (char ch : s.toCharArray()) {\n        int letter = ch - 'a';\n        long next = (total + 1) % mod;\n        total = (total - ending[letter] + next + mod) % mod;\n        ending[letter] = next;\n    }\n    return (int) total;\n}",
+    "time": "O(n) for distinct counting. The separate theory generator takes O(n × 2^n).",
+    "space": "O(1): 26 counts for distinct counting. The theory generator stores exponential output.",
+    "pitfalls": [
+      "Do not confuse different index selections with different resulting strings.",
+      "The linked task excludes the empty string.",
+      "Do not update total before calculating the new group from the old total."
+    ],
+    "tests": [
+      "assert distinctSubseqII(\"aab\")==5;assert distinctSubseqII(\"abc\")==7;assert distinctSubseqII(\"aaa\")==3;assert distinctSubseqII(\"\")==0;",
+      "Random r=new Random(165);for(int n=0;n<=12;n++)for(int trial=0;trial<12;trial++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((char)('a'+r.nextInt(3)));String s=b.toString();Set<String>expected=new HashSet<>(subsequencesByPosition(s));expected.remove(\"\");assert distinctSubseqII(s)==expected.size();}",
+      "assert distinctSubseqII(\"a\".repeat(2000))==2000;assert subsequencesByPosition(\"aa\").size()==4;"
+    ],
+    "baselineJava": "static List<String> subsequencesByPosition(String s) {\n    List<String> answer = new ArrayList<>();\n    subsequenceChoices(s, 0, new StringBuilder(), answer);\n    return answer;\n}\n\nstatic void subsequenceChoices(String s, int index, StringBuilder current,\n                               List<String> answer) {\n    if (index == s.length()) {\n        answer.add(current.toString());\n        return;\n    }\n    subsequenceChoices(s, index + 1, current, answer);\n    current.append(s.charAt(index));\n    subsequenceChoices(s, index + 1, current, answer);\n    current.deleteCharAt(current.length() - 1);\n}",
+    "baselineTime": "O(n × 2^n) time and stored output; O(n) recursive working space. This demonstrates the theory title, not an efficient submission for the linked problem."
+  },
+  "166": {
+    "problem": "Count the non-empty subsequences whose values add to k.",
+    "assumptions": "The source uses at most 20 positive values and a positive target. Different index selections count separately, even when their values are equal. This implementation also handles zeroes, negatives and target 0, while still excluding the empty choice.",
+    "example": {
+      "input": "nums = [2, 3, 2], k = 5",
+      "output": "2",
+      "explanation": "Choose the first 2 with 3, or 3 with the last 2. These are two different index selections."
+    },
+    "baseline": "Enumerate all non-empty bit masks and sum the selected values. This takes O(n × 2^n). Recursion can carry the partial sum instead of recomputing it from scratch.",
+    "approach": "At each value there are two choices: include it in the sum or leave it out. The number of answers below this call is the number from the take branch plus the number from the skip branch.\n\nAt the end, return 1 only if the sum matches and at least one value was chosen. That final non-empty check matters for target zero. We do not stop early when the sum reaches k: later zeroes or negative values can create more valid selections in the supported extension.",
+    "steps": [
+      "Carry the index, current sum and whether anything has been chosen.",
+      "At the end, return 1 for a matching non-empty selection, otherwise 0.",
+      "Add the counts from taking and skipping the current value."
+    ],
+    "java": "static long countSubsequences(int[] nums, long k) {\n    return countChoices(nums, 0, 0, false, k);\n}\n\nstatic long countChoices(int[] nums, int index, long sum, boolean chosen, long k) {\n    if (index == nums.length) return chosen && sum == k ? 1 : 0;\n    long take = countChoices(nums, index + 1, sum + nums[index], true, k);\n    long skip = countChoices(nums, index + 1, sum, chosen, k);\n    return take + skip;\n}",
+    "time": "O(2^n).",
+    "space": "O(n) recursive call space.",
+    "pitfalls": [
+      "Equal values at different indices are separate choices in this task.",
+      "Do not prune when sum > k if allowing negative values.",
+      "This recursive method is intended for the source’s small n; the subset-sum DP chapter handles larger inputs."
+    ],
+    "tests": [
+      "assert countSubsequences(new int[]{2,3,2},5)==2;assert countSubsequences(new int[]{1,2},9)==0;assert countSubsequences(new int[]{},0)==0;",
+      "assert countSubsequences(new int[]{0,0},0)==3;assert countSubsequences(new int[]{-2,2,0},0)==3;",
+      "Random r=new Random(166);for(int n=0;n<=12;n++)for(int trial=0;trial<15;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(7)-3;int k=r.nextInt(15)-7;long expected=0;for(int mask=1;mask<(1<<n);mask++){long sum=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)sum+=a[i];if(sum==k)expected++;}assert countSubsequences(a,k)==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/count-all-subsequences-with-sum-k",
+      "title": "Count all subsequences with sum K",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This saved Java solution is written for the checked problem, with executable tests."
+    }
+  },
+  "167": {
+    "problem": "Decide whether any non-empty subsequence adds to k.",
+    "assumptions": "The source has positive numbers, a positive target, and n ≤ 20. This implementation also supports zeroes and negatives, and defines target 0 to require a non-empty selection.",
+    "example": {
+      "input": "nums = [3, 8, 2], k = 5",
+      "output": "true",
+      "explanation": "Taking 3 and 2 makes 5. We can stop as soon as we find that selection."
+    },
+    "baseline": "Count every valid selection and then ask whether the count is positive. That works, but it keeps searching even after an answer has been found.",
+    "approach": "The choices are the same as in the counting problem: take this value or skip it. The difference is how results are combined. Counting uses addition; existence uses OR. Java’s || skips the second call when the first has already returned true.\n\nOnly the end of the array decides whether a complete selection matches. The chosen flag excludes the empty selection when k is zero. No partial-sum pruning is used, so negative values are safe too.",
+    "steps": [
+      "Carry index, sum and a chosen flag.",
+      "At the end, check sum == k and chosen.",
+      "Return the take result OR the skip result."
+    ],
+    "java": "static boolean hasSubsequence(int[] nums, long k) {\n    return exists(nums, 0, 0, false, k);\n}\n\nstatic boolean exists(int[] nums, int index, long sum, boolean chosen, long k) {\n    if (index == nums.length) return chosen && sum == k;\n    return exists(nums, index + 1, sum + nums[index], true, k)\n        || exists(nums, index + 1, sum, chosen, k);\n}",
+    "time": "O(2^n) in the worst case; finding a solution can stop the search early.",
+    "space": "O(n) recursive call space.",
+    "pitfalls": [
+      "Use ||, not |, to stop after a successful branch.",
+      "Returning false after just the take branch fails would miss answers from the skip branch."
+    ],
+    "tests": [
+      "assert hasSubsequence(new int[]{3,8,2},5);assert !hasSubsequence(new int[]{3,8,2},6);assert !hasSubsequence(new int[]{},0);assert hasSubsequence(new int[]{0},0);assert hasSubsequence(new int[]{-2,2},0);",
+      "Random r=new Random(167);for(int n=0;n<=12;n++)for(int trial=0;trial<15;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(9)-4;int k=r.nextInt(19)-9;boolean expected=false;for(int mask=1;mask<(1<<n);mask++){long sum=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)sum+=a[i];if(sum==k)expected=true;}assert hasSubsequence(a,k)==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/check-if-there-exists-a-subsequence-with-sum-k",
+      "title": "Check if there exists a subsequence with sum K",
+      "checkedOn": "2026-10-29",
+      "approach": "The public problem statement and constraints were checked.",
+      "adaptation": "The current sheet has no public Java editorial for this entry. This saved Java solution is written for the checked problem, with executable tests."
+    }
   }
 }
