@@ -1499,5 +1499,432 @@
       "assert longestSum(new int[]{-2,-1,2,1},1)==2;",
       "Random r=new Random(52); for(int run=0;run<200;run++){int[] a=new int[r.nextInt(12)]; for(int i=0;i<a.length;i++)a[i]=r.nextInt(9)-4; int k=r.nextInt(11)-5,best=0; for(int i=0;i<a.length;i++){long sum=0;for(int j=i;j<a.length;j++){sum+=a[j];if(sum==k)best=Math.max(best,j-i+1);}} assert longestSum(a,k)==best;}"
     ]
+  },
+  "53": {
+    "problem": "Return two different indices whose values add to a target.",
+    "assumptions": "Return an empty array if no pair exists; any valid pair is acceptable.",
+    "example": {
+      "input": "[2, 7, 11, 15], target = 9",
+      "output": "[0, 1]",
+      "explanation": "After remembering 2 at index 0, the value 7 asks for complement 2 and finds it."
+    },
+    "baseline": "Try every pair of distinct indices in O(n²) time.",
+    "approach": "Store earlier values in a hash map. Looking up the complement before inserting the current value prevents an element from pairing with itself.",
+    "steps": [
+      "Scan indices from left to right.",
+      "Look for target minus the current value among earlier values.",
+      "Return the two indices on a match; otherwise remember the current value."
+    ],
+    "java": "static int[] twoSum(int[] a, long target) {\n    Map<Long,Integer> seen = new HashMap<>();\n    for (int i=0;i<a.length;i++) {\n        Integer j = seen.get(target-a[i]);\n        if (j != null) return new int[]{j,i};\n        seen.put((long)a[i],i);\n    }\n    return new int[0];\n}",
+    "time": "Expected O(n).",
+    "space": "O(n).",
+    "pitfalls": [
+      "Use long for the complement when int subtraction might overflow.",
+      "Two equal values can form a pair only if they occupy different indices."
+    ],
+    "tests": [
+      "assert Arrays.equals(twoSum(new int[]{2,7,11,15},9),new int[]{0,1});",
+      "assert Arrays.equals(twoSum(new int[]{3,3},6),new int[]{0,1});",
+      "assert twoSum(new int[]{3},6).length==0;",
+      "assert twoSum(new int[]{Integer.MAX_VALUE,1},2147483648L).length==2;"
+    ]
+  },
+  "54": {
+    "problem": "Sort an array containing only zeroes, ones, and twos in place.",
+    "assumptions": "The three-value domain is a precondition.",
+    "example": {
+      "input": "[2, 0, 2, 1, 1, 0]",
+      "output": "[0, 0, 1, 1, 2, 2]",
+      "explanation": "A zero belongs in the left region, a two in the right region, and a one stays in the middle."
+    },
+    "baseline": "Count each value and overwrite the array in two passes; this is also O(n) time and O(1) space.",
+    "approach": "The Dutch national flag partition maintains zeroes before low, ones from low to mid−1, unknown values from mid to high, and twos after high. Every iteration shrinks the unknown region.",
+    "steps": [
+      "For zero, swap with low and advance both low and mid.",
+      "For one, advance mid.",
+      "For two, swap with high and decrement high; inspect the incoming mid value again."
+    ],
+    "java": "static void sortColors(int[] a) {\n    int low=0, mid=0, high=a.length-1;\n    while(mid<=high) {\n        if(a[mid]==0) { swap(a,low++,mid++); }\n        else if(a[mid]==1) mid++;\n        else { swap(a,mid,high--); }\n    }\n}\nstatic void swap(int[] a,int i,int j) { int t=a[i];a[i]=a[j];a[j]=t; }",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Advancing mid after swapping a two can skip an unclassified value.",
+      "This implementation assumes valid input; it treats any other value like two."
+    ],
+    "tests": [
+      "int[] a={2,0,2,1,1,0};sortColors(a);assert Arrays.equals(a,new int[]{0,0,1,1,2,2});",
+      "int[] b={2,2,0};sortColors(b);assert Arrays.equals(b,new int[]{0,2,2});",
+      "Random r=new Random(54);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(30)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(3);int[] b=a.clone();Arrays.sort(b);sortColors(a);assert Arrays.equals(a,b);}"
+    ]
+  },
+  "55": {
+    "problem": "Find a value appearing more than half the time, if one exists.",
+    "assumptions": "The result is OptionalInt.empty when no strict majority exists.",
+    "example": {
+      "input": "[2, 2, 1, 1, 1, 2, 2]",
+      "output": "2",
+      "explanation": "Cancelling unlike pairs leaves 2 as the candidate. A second pass counts four copies, exceeding 7/2."
+    },
+    "baseline": "Count frequencies in a hash map using O(n) space.",
+    "approach": "Boyer–Moore voting cancels pairs of different values. Removing such a pair cannot eliminate a strict majority from the remaining multiset. The survivor is only a candidate unless existence is guaranteed.",
+    "steps": [
+      "Choose a new candidate whenever balance becomes zero.",
+      "Increase balance for a match and decrease it otherwise.",
+      "Verify that the final candidate occurs more than n/2 times."
+    ],
+    "java": "static OptionalInt majority(int[] a) {\n    int candidate=0,balance=0;\n    for(int x:a) { if(balance==0)candidate=x; balance += x==candidate?1:-1; }\n    int count=0;for(int x:a)if(x==candidate)count++;\n    return count>a.length/2 ? OptionalInt.of(candidate) : OptionalInt.empty();\n}",
+    "time": "O(n), including verification.",
+    "space": "O(1).",
+    "pitfalls": [
+      "A surviving candidate does not prove that a majority exists.",
+      "The threshold is strictly greater than half, not greater than or equal."
+    ],
+    "tests": [
+      "assert majority(new int[]{2,2,1,1,1,2,2}).orElseThrow()==2;",
+      "assert majority(new int[]{1,2}).isEmpty();",
+      "assert majority(new int[]{}).isEmpty();"
+    ]
+  },
+  "56": {
+    "problem": "Return the maximum sum among nonempty contiguous subarrays.",
+    "assumptions": "The array is nonempty. Negative numbers are allowed; the empty subarray is excluded.",
+    "example": {
+      "input": "[-2, 1, -3, 4, -1, 2, 1, -5, 4]",
+      "output": "6",
+      "explanation": "The best segment is [4,-1,2,1]. Its sum is 6; carrying the earlier negative prefix into it would only reduce that sum."
+    },
+    "baseline": "Enumerate starts and ends with running sums in O(n²) time.",
+    "approach": "Kadane’s recurrence says the best subarray ending here either starts here or extends the best subarray ending immediately before. If that previous sum is negative, starting afresh is better.",
+    "steps": [
+      "Initialize ending and best from the first element.",
+      "Set ending to max(current, ending + current).",
+      "Update the overall best after each position."
+    ],
+    "java": "static long maxSum(int[] a) {\n    if(a.length==0)throw new IllegalArgumentException();\n    long ending=a[0],best=ending;\n    for(int i=1;i<a.length;i++) { ending=Math.max(a[i],ending+a[i]);best=Math.max(best,ending); }\n    return best;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Initializing best to zero wrongly accepts the empty subarray on all-negative input.",
+      "Use long when many int values can accumulate."
+    ],
+    "tests": [
+      "assert maxSum(new int[]{-2,1,-3,4,-1,2,1,-5,4})==6;",
+      "assert maxSum(new int[]{-8,-3,-5})==-3;",
+      "assert maxSum(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE})==4294967294L;",
+      "Random r=new Random(56);for(int run=0;run<100;run++){int[] a=new int[1+r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(21)-10;long best=Long.MIN_VALUE;for(int i=0;i<a.length;i++){long s=0;for(int j=i;j<a.length;j++){s+=a[j];best=Math.max(best,s);}}assert maxSum(a)==best;}"
+    ]
+  },
+  "57": {
+    "problem": "Return the boundaries of a maximum-sum nonempty subarray.",
+    "assumptions": "The returned pair is [startInclusive, endExclusive]. Ties may return any maximizing segment.",
+    "example": {
+      "input": "[-2, 1, -3, 4, -1, 2, 1, -5, 4]",
+      "output": "[3, 7], representing [4, -1, 2, 1]",
+      "explanation": "At index 3, extending the previous negative sum loses to starting at 4. The running segment then reaches sum 6 at index 6."
+    },
+    "baseline": "Enumerate every interval and remember the best boundaries in O(n²) time.",
+    "approach": "Extend Kadane’s algorithm with a candidate start. Whenever the best sum ending here restarts, move that start to the current index. Copy both boundaries only when the overall best improves.",
+    "steps": [
+      "Track the start of the current candidate.",
+      "Restart when the previous ending sum is negative.",
+      "On a new best, save candidate start and current index plus one."
+    ],
+    "java": "static int[] bestRange(int[] a) {\n    if(a.length==0)throw new IllegalArgumentException();\n    long ending=a[0],best=ending;\n    int start=0,lo=0,hi=1;\n    for(int i=1;i<a.length;i++) {\n        if(ending<0){ending=a[i];start=i;}else ending+=a[i];\n        if(ending>best){best=ending;lo=start;hi=i+1;}\n    }\n    return new int[]{lo,hi};\n}",
+    "time": "O(n).",
+    "space": "O(1); copying the selected segment separately costs O(length).",
+    "pitfalls": [
+      "Do not update the saved answer boundaries when only the current candidate changes.",
+      "Be explicit about inclusive versus exclusive end indices."
+    ],
+    "tests": [
+      "assert Arrays.equals(bestRange(new int[]{-2,1,-3,4,-1,2,1,-5,4}),new int[]{3,7});",
+      "assert Arrays.equals(bestRange(new int[]{-5,-2,-9}),new int[]{1,2});",
+      "assert Arrays.equals(bestRange(new int[]{4}),new int[]{0,1});"
+    ]
+  },
+  "58": {
+    "problem": "Maximize profit from at most one purchase followed by one sale.",
+    "assumptions": "Prices are nonnegative. Buying must precede selling; choosing no trade gives profit zero.",
+    "example": {
+      "input": "[7, 1, 5, 3, 6, 4]",
+      "output": "5",
+      "explanation": "Buy at 1 and sell later at 6. The earlier price 7 is not a valid selling price for that purchase."
+    },
+    "baseline": "Try all buy/sell index pairs in O(n²) time.",
+    "approach": "For each potential sale, the cheapest earlier price is the best purchase. Maintain that minimum as the scan advances.",
+    "steps": [
+      "Keep the minimum price seen so far.",
+      "Compare the current sale profit with the best.",
+      "Update the minimum for later sales."
+    ],
+    "java": "static long maxProfit(int[] prices) {\n    if(prices.length==0)return 0;\n    int minimum=prices[0];long best=0;\n    for(int price:prices){best=Math.max(best,(long)price-minimum);minimum=Math.min(minimum,price);}\n    return best;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The global minimum and maximum are insufficient if the maximum occurs first.",
+      "This is one transaction, not the unlimited-transactions variant."
+    ],
+    "tests": [
+      "assert maxProfit(new int[]{7,1,5,3,6,4})==5;",
+      "assert maxProfit(new int[]{7,6,4,3,1})==0;",
+      "assert maxProfit(new int[]{})==0;"
+    ]
+  },
+  "59": {
+    "problem": "Alternate positive and negative values while retaining their relative order within each sign.",
+    "assumptions": "There are equally many positive and negative values, no zeroes, and the output starts positive.",
+    "example": {
+      "input": "[3, 1, -2, -5, 2, -4]",
+      "output": "[3, -2, 1, -5, 2, -4]",
+      "explanation": "The positives 3,1,2 fill even positions in order. The negatives -2,-5,-4 fill odd positions."
+    },
+    "baseline": "Separate the signs into two lists and interleave them, also taking O(n) extra space.",
+    "approach": "Two output cursors, one even and one odd, encode the required arrangement directly. Scanning in original order preserves stability.",
+    "steps": [
+      "Allocate an output array of the same length.",
+      "Write positives at 0,2,4,… and negatives at 1,3,5,… .",
+      "Reject zeroes or unbalanced signs for this particular variant."
+    ],
+    "java": "static int[] alternate(int[] a) {\n    int[] out=new int[a.length];int positive=0,negative=1;\n    for(int x:a){\n        if(x==0)throw new IllegalArgumentException();\n        int at=x>0?positive:negative;\n        if(at>=a.length)throw new IllegalArgumentException();\n        out[at]=x;if(x>0)positive+=2;else negative+=2;\n    }\n    if(positive!=a.length||negative!=a.length+1)throw new IllegalArgumentException();\n    return out;\n}",
+    "time": "O(n).",
+    "space": "O(n) for the returned array.",
+    "pitfalls": [
+      "Unequal sign counts require a different contract, such as appending leftovers.",
+      "Swapping signs in place generally loses stable ordering."
+    ],
+    "tests": [
+      "assert Arrays.equals(alternate(new int[]{3,1,-2,-5,2,-4}),new int[]{3,-2,1,-5,2,-4});",
+      "assert Arrays.equals(alternate(new int[]{-1,2}),new int[]{2,-1});",
+      "assert alternate(new int[]{}).length==0;"
+    ]
+  },
+  "60": {
+    "problem": "Replace a permutation with the next lexicographically larger permutation in place.",
+    "assumptions": "Repeated values are allowed. If the input is already greatest, return it to ascending order.",
+    "example": {
+      "input": "[1, 3, 2]",
+      "output": "[2, 1, 3]",
+      "explanation": "The suffix [3,2] is descending. Increase pivot 1 to the smallest larger suffix value, 2, then reverse the remaining suffix to obtain its smallest order."
+    },
+    "baseline": "Generate all distinct permutations and choose the next, which takes factorial time.",
+    "approach": "A descending suffix is already its largest arrangement. Therefore the rightmost position that can increase is just before that suffix. The rightmost larger suffix element gives the smallest possible increase; reversing the resulting descending suffix minimizes the tail.",
+    "steps": [
+      "Find the rightmost index i with a[i] < a[i+1].",
+      "If it exists, swap with the rightmost value greater than a[i].",
+      "Reverse the suffix after i; if no pivot exists, reverse the entire array."
+    ],
+    "java": "static void nextPermutation(int[] a) {\n    int i=a.length-2;\n    while(i>=0&&a[i]>=a[i+1])i--;\n    if(i>=0){int j=a.length-1;while(a[j]<=a[i])j--;swap(a,i,j);}\n    for(int lo=i+1,hi=a.length-1;lo<hi;lo++,hi--)swap(a,lo,hi);\n}\nstatic void swap(int[] a,int i,int j){int t=a[i];a[i]=a[j];a[j]=t;}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The pivot comparison must be strict so duplicates do not create a false increase.",
+      "Choose the rightmost larger value, not the largest value."
+    ],
+    "tests": [
+      "int[] a={1,3,2};nextPermutation(a);assert Arrays.equals(a,new int[]{2,1,3});",
+      "int[] b={3,2,1};nextPermutation(b);assert Arrays.equals(b,new int[]{1,2,3});",
+      "int[] c={1,1,5};nextPermutation(c);assert Arrays.equals(c,new int[]{1,5,1});",
+      "nextPermutation(new int[]{});"
+    ]
+  },
+  "61": {
+    "problem": "Return elements strictly greater than every element to their right.",
+    "assumptions": "This explanation uses strict leaders; some platforms allow equality. Return leaders in original order.",
+    "example": {
+      "input": "[10, 22, 12, 3, 0, 6]",
+      "output": "[22, 12, 6]",
+      "explanation": "The rightmost 6 leads. Scanning left, 12 exceeds 6 and 22 exceeds 12; all other values fail."
+    },
+    "baseline": "Compare each element with its entire suffix in O(n²) time.",
+    "approach": "A right-to-left scan keeps the maximum of the suffix already visited. The current element is a leader exactly when it exceeds that maximum.",
+    "steps": [
+      "Scan from the final index backward.",
+      "Append a value if it is greater than the suffix maximum.",
+      "Reverse the collected leaders to restore original order."
+    ],
+    "java": "static List<Integer> leaders(int[] a) {\n    List<Integer> result=new ArrayList<>();long maximum=Long.MIN_VALUE;\n    for(int i=a.length-1;i>=0;i--)if(a[i]>maximum){result.add(a[i]);maximum=a[i];}\n    Collections.reverse(result);return result;\n}",
+    "time": "O(n).",
+    "space": "O(k) for k returned leaders; O(1) additional state.",
+    "pitfalls": [
+      "Using >= changes the treatment of duplicate maximum values.",
+      "A sentinel outside the int domain allows Integer.MIN_VALUE to be a leader."
+    ],
+    "tests": [
+      "assert leaders(new int[]{10,22,12,3,0,6}).equals(List.of(22,12,6));",
+      "assert leaders(new int[]{4,4}).equals(List.of(4));",
+      "assert leaders(new int[]{Integer.MIN_VALUE}).equals(List.of(Integer.MIN_VALUE));",
+      "assert leaders(new int[]{}).isEmpty();"
+    ]
+  },
+  "62": {
+    "problem": "Find the length of the longest sequence of consecutive integer values present in an unsorted array.",
+    "assumptions": "The values need not be adjacent in the array. Duplicates do not extend a sequence.",
+    "example": {
+      "input": "[100, 4, 200, 1, 3, 2]",
+      "output": "4",
+      "explanation": "The values 1,2,3,4 form one sequence even though they appear out of order."
+    },
+    "baseline": "Sort a copy and scan distinct neighboring values in O(n log n) time.",
+    "approach": "Use a set and start a forward walk only at a value whose predecessor is absent. Each distinct value belongs to exactly one such walk, preventing repeated scans of the same sequence.",
+    "steps": [
+      "Build a set of distinct values.",
+      "Skip values with an existing predecessor.",
+      "Walk successors from each true start and keep the longest length."
+    ],
+    "java": "static int consecutive(int[] a) {\n    Set<Integer> values=new HashSet<>();for(int x:a)values.add(x);\n    int best=0;\n    for(int x:values){\n        if(x!=Integer.MIN_VALUE&&values.contains(x-1))continue;\n        long y=x;int length=0;\n        while(y<=Integer.MAX_VALUE&&values.contains((int)y)){length++;y++;}\n        best=Math.max(best,length);\n    }\n    return best;\n}",
+    "time": "Expected O(n): each distinct value is walked once.",
+    "space": "O(n).",
+    "pitfalls": [
+      "Starting a walk from every value can degrade to O(n²).",
+      "Guard predecessor/successor arithmetic at integer boundaries to prevent wraparound."
+    ],
+    "tests": [
+      "assert consecutive(new int[]{100,4,200,1,3,2})==4;",
+      "assert consecutive(new int[]{1,1,2})==2;",
+      "assert consecutive(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE})==1;",
+      "assert consecutive(new int[]{})==0;"
+    ]
+  },
+  "63": {
+    "problem": "If an original matrix cell is zero, set its entire row and column to zero.",
+    "assumptions": "The matrix is rectangular and may be empty. Modify it in place.",
+    "example": {
+      "input": "[[1,1,1],[1,0,1],[1,1,1]]",
+      "output": "[[1,0,1],[0,0,0],[1,0,1]]",
+      "explanation": "The original zero marks row 1 and column 1. Their intersection with other rows and columns is cleared; newly written zeroes must not create more markers."
+    },
+    "baseline": "Record affected rows and columns in separate boolean arrays, using O(rows+columns) space.",
+    "approach": "Reuse the first row and first column as markers. Preserve whether those two borders originally contained zeroes in separate flags, because the shared corner cannot encode both independently.",
+    "steps": [
+      "Remember whether the first row or first column originally has a zero.",
+      "Scan the interior and mark its affected borders.",
+      "Clear interior cells using those markers, then clear the flagged borders."
+    ],
+    "java": "static void setZeroes(int[][] a) {\n    if(a.length==0||a[0].length==0)return;\n    int rows=a.length,cols=a[0].length;boolean firstRow=false,firstCol=false;\n    for(int c=0;c<cols;c++)if(a[0][c]==0)firstRow=true;\n    for(int r=0;r<rows;r++)if(a[r][0]==0)firstCol=true;\n    for(int r=1;r<rows;r++)for(int c=1;c<cols;c++)if(a[r][c]==0){a[r][0]=0;a[0][c]=0;}\n    for(int r=1;r<rows;r++)for(int c=1;c<cols;c++)if(a[r][0]==0||a[0][c]==0)a[r][c]=0;\n    if(firstRow)Arrays.fill(a[0],0);\n    if(firstCol)for(int r=0;r<rows;r++)a[r][0]=0;\n}",
+    "time": "O(rows × columns).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Clearing rows immediately can treat newly created zeroes as original zeroes.",
+      "Process the border flags last so markers remain available."
+    ],
+    "tests": [
+      "int[][] a={{1,1,1},{1,0,1},{1,1,1}};setZeroes(a);assert Arrays.deepEquals(a,new int[][]{{1,0,1},{0,0,0},{1,0,1}});",
+      "int[][] b={{0,1,2},{3,4,5}};setZeroes(b);assert Arrays.deepEquals(b,new int[][]{{0,0,0},{0,4,5}});",
+      "int[][] c={{1,0,2}};setZeroes(c);assert Arrays.deepEquals(c,new int[][]{{0,0,0}});"
+    ]
+  },
+  "64": {
+    "problem": "Rotate a square matrix 90 degrees clockwise in place.",
+    "assumptions": "The matrix is n×n. A rectangular matrix needs a differently shaped output.",
+    "example": {
+      "input": "[[1,2,3],[4,5,6],[7,8,9]]",
+      "output": "[[7,4,1],[8,5,2],[9,6,3]]",
+      "explanation": "Transposing turns columns into rows. Reversing each transposed row makes the original bottom-left 7 become the new top-left."
+    },
+    "baseline": "Write each old cell (r,c) into a new matrix at (c,n−1−r), using O(n²) space.",
+    "approach": "Transposition maps (r,c) to (c,r); row reversal then maps it to (c,n−1−r), exactly the clockwise rotation mapping.",
+    "steps": [
+      "Transpose by swapping only entries above the diagonal.",
+      "Reverse every row.",
+      "Keep diagonal entries untouched during transposition."
+    ],
+    "java": "static void rotate(int[][] a) {\n    int n=a.length;\n    for(int[] row:a)if(row.length!=n)throw new IllegalArgumentException();\n    for(int r=0;r<n;r++)for(int c=r+1;c<n;c++){int t=a[r][c];a[r][c]=a[c][r];a[c][r]=t;}\n    for(int[] row:a)for(int lo=0,hi=n-1;lo<hi;lo++,hi--){int t=row[lo];row[lo]=row[hi];row[hi]=t;}\n}",
+    "time": "O(n²).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Swapping both halves of the diagonal undoes the transpose.",
+      "Reversing rows before transposing produces the opposite rotation."
+    ],
+    "tests": [
+      "int[][] a={{1,2,3},{4,5,6},{7,8,9}};rotate(a);assert Arrays.deepEquals(a,new int[][]{{7,4,1},{8,5,2},{9,6,3}});",
+      "int[][] a={{1,2},{3,4}};int[][] original={{1,2},{3,4}};for(int i=0;i<4;i++)rotate(a);assert Arrays.deepEquals(a,original);",
+      "rotate(new int[0][0]);"
+    ]
+  },
+  "65": {
+    "problem": "Read a rectangular matrix in clockwise spiral order, starting at the top-left.",
+    "assumptions": "Return an empty list for an empty matrix.",
+    "example": {
+      "input": "[[1,2,3],[4,5,6],[7,8,9]]",
+      "output": "[1,2,3,6,9,8,7,4,5]",
+      "explanation": "Visit the top edge, right edge, bottom edge backward, and left edge upward, then repeat on the remaining inner rectangle."
+    },
+    "baseline": "Track a visited grid and turn direction whenever the next cell is blocked, using O(rows×columns) extra state.",
+    "approach": "Four boundaries describe all unvisited cells. Consuming an edge moves its boundary inward. Rechecking the boundaries before the last two edges prevents duplicates in one-row or one-column remainders.",
+    "steps": [
+      "Traverse top, then increment top.",
+      "Traverse right, then decrement right.",
+      "If rows remain, traverse bottom backward; if columns remain, traverse left upward."
+    ],
+    "java": "static List<Integer> spiral(int[][] a) {\n    List<Integer> out=new ArrayList<>();if(a.length==0||a[0].length==0)return out;\n    int top=0,bottom=a.length-1,left=0,right=a[0].length-1;\n    while(top<=bottom&&left<=right){\n        for(int c=left;c<=right;c++)out.add(a[top][c]);top++;\n        for(int r=top;r<=bottom;r++)out.add(a[r][right]);right--;\n        if(top<=bottom){for(int c=right;c>=left;c--)out.add(a[bottom][c]);bottom--;}\n        if(left<=right){for(int r=bottom;r>=top;r--)out.add(a[r][left]);left++;}\n    }\n    return out;\n}",
+    "time": "O(rows × columns).",
+    "space": "O(1) beyond the returned list.",
+    "pitfalls": [
+      "Without the boundary rechecks, the middle row or column may be visited twice.",
+      "Java permits ragged arrays, but this contract requires a rectangle."
+    ],
+    "tests": [
+      "assert spiral(new int[][]{{1,2,3},{4,5,6},{7,8,9}}).equals(List.of(1,2,3,6,9,8,7,4,5));",
+      "assert spiral(new int[][]{{1,2,3}}).equals(List.of(1,2,3));",
+      "assert spiral(new int[][]{{1},{2},{3}}).equals(List.of(1,2,3));",
+      "assert spiral(new int[0][0]).isEmpty();"
+    ]
+  },
+  "66": {
+    "problem": "Count nonempty contiguous subarrays whose sum equals k.",
+    "assumptions": "Values can be positive, negative, or zero. Return a long because the count can be quadratic.",
+    "example": {
+      "input": "[1, 1, 1], k = 2",
+      "output": "2",
+      "explanation": "The intervals at indices [0,1] and [1,2] both sum to 2. They correspond to two different matching pairs of prefix sums."
+    },
+    "baseline": "Enumerate all starts and ends in O(n²) time.",
+    "approach": "For the current prefix sum s, every earlier prefix equal to s−k defines one matching subarray. A frequency map counts all such starts, including repeated identical prefix sums.",
+    "steps": [
+      "Seed prefix zero with frequency one.",
+      "Add the current value, then add the frequency of sum−k to the answer.",
+      "Increment the frequency of the current sum after querying."
+    ],
+    "java": "static long countSum(int[] a,long k) {\n    Map<Long,Long> counts=new HashMap<>();counts.put(0L,1L);\n    long sum=0,answer=0;\n    for(int x:a){sum+=x;answer+=counts.getOrDefault(sum-k,0L);counts.merge(sum,1L,Long::sum);}\n    return answer;\n}",
+    "time": "Expected O(n).",
+    "space": "O(n).",
+    "pitfalls": [
+      "Querying after insertion incorrectly counts an empty subarray when k=0.",
+      "Store frequencies, not merely membership: different starts can share a prefix sum."
+    ],
+    "tests": [
+      "assert countSum(new int[]{1,1,1},2)==2;",
+      "assert countSum(new int[]{0,0,0},0)==6;",
+      "assert countSum(new int[]{1,-1,1},1)==3;",
+      "assert countSum(new int[]{},0)==0;"
+    ]
+  },
+  "67": {
+    "problem": "Generate the first n rows of Pascal’s triangle.",
+    "assumptions": "Rows are zero-indexed; row r has r+1 values. BigInteger avoids overflow in larger rows.",
+    "example": {
+      "input": "n = 5",
+      "output": "[[1],[1,1],[1,2,1],[1,3,3,1],[1,4,6,4,1]]",
+      "explanation": "Each border is 1. The middle value 6 in row 4 is the sum of the two 3s directly above it."
+    },
+    "baseline": "Compute every cell independently with factorials or repeated binomial products; this repeats arithmetic.",
+    "approach": "The recurrence C(r,c)=C(r−1,c−1)+C(r−1,c) derives each interior value from the previous row. The boundaries are one, so no outside-row reads are needed.",
+    "steps": [
+      "Start each row with all entries set to one.",
+      "Replace interior entries with adjacent sums from the previous row.",
+      "Append each completed row to the result."
+    ],
+    "java": "static List<List<BigInteger>> pascal(int n) {\n    if(n<0)throw new IllegalArgumentException();\n    List<List<BigInteger>> rows=new ArrayList<>();\n    for(int r=0;r<n;r++){\n        List<BigInteger> row=new ArrayList<>(Collections.nCopies(r+1,BigInteger.ONE));\n        for(int c=1;c<r;c++)row.set(c,rows.get(r-1).get(c-1).add(rows.get(r-1).get(c)));\n        rows.add(row);\n    }\n    return rows;\n}",
+    "time": "O(n²) additions. With arbitrary-precision bit costs, the upper bound is O(n³) bit operations.",
+    "space": "O(n²) numbers in the output; up to O(n³) bits.",
+    "pitfalls": [
+      "int overflows for larger binomial coefficients; even long has a limit.",
+      "For only one cell, a binomial product is more appropriate than generating the full triangle."
+    ],
+    "tests": [
+      "assert pascal(5).get(4).equals(List.of(BigInteger.ONE,BigInteger.valueOf(4),BigInteger.valueOf(6),BigInteger.valueOf(4),BigInteger.ONE));",
+      "assert pascal(0).isEmpty();",
+      "List<List<BigInteger>> rows=pascal(40);for(int i=0;i<rows.size();i++){BigInteger sum=BigInteger.ZERO;for(BigInteger x:rows.get(i))sum=sum.add(x);assert sum.equals(BigInteger.ONE.shiftLeft(i));}"
+    ]
   }
 }

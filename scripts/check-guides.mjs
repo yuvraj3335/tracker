@@ -14,7 +14,7 @@ for (const [number, guide] of Object.entries(guides)) {
   if (process.argv.includes('--java')) {
     const name = `Guide${number}Test`;
     const file = `build/guide-tests/${name}.java`;
-    await fs.writeFile(file, `import java.util.*;\nimport java.io.*;\nimport java.math.*;\npublic class ${name} {\n${guide.java}\npublic static void main(String[] args) throws Exception {\n${guide.tests.join('\n')}\n}\n}\n`);
+    await fs.writeFile(file, `import java.util.*;\nimport java.io.*;\nimport java.math.*;\npublic class ${name} {\n${guide.java}\npublic static void main(String[] args) throws Exception {\n${guide.tests.map(check => `{ ${check} }`).join('\n')}\n}\n}\n`);
     javaFiles.push(file); classes.push(name);
 
   }

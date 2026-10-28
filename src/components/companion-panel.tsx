@@ -21,6 +21,7 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
   const [status, setStatus] = useState('Ready when you are.');
   const [error, setError] = useState('');
   const [mode, setMode] = useState<Mode>('off');
+  const [micReady, setMicReady] = useState(false);
   const [wake, setWake] = useState(false);
   const [voice, setVoice] = useState<'natural' | 'longer'>('natural');
   const [muted, setMuted] = useState(false);
@@ -43,7 +44,7 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
   const changeMode = useCallback((next: Mode) => { modeRef.current = next; setMode(next); }, []);
   const stop = useCallback((message = 'Paused. Tap Talk to continue.') => {
     mic.current?.abort(); request.current?.abort(); mic.current = null; request.current = null;
-    modeRef.current = 'off'; wakeRef.current = false; setMode('off'); setWake(false); setBusy(false); setStatus(message); onTurn('resting');
+    modeRef.current = 'off'; wakeRef.current = false; setMode('off'); setMicReady(false); setWake(false); setBusy(false); setStatus(message); onTurn('resting');
   }, [onTurn]);
 
   useEffect(() => {
@@ -106,12 +107,12 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
   const startListening = useCallback(async (next: Mode) => {
     mic.current?.abort(); request.current?.abort(); setBusy(false);
     const controller = new AbortController(); mic.current = controller;
-    changeMode(next); setError(''); setStatus('Opening microphone…');
+    changeMode(next); setMicReady(false); setError(''); setStatus('Allow microphone access in your browser to begin.');
     try {
       await unlockMisoAudio();
       await openCloudMicrophone({
         signal: controller.signal,
-        onReady: () => { if (!controller.signal.aborted) { setStatus(modeRef.current === 'wake' ? 'Listening for “Hey Miso”…' : 'Listening. Speak naturally.'); onTurn('listening'); } },
+        onReady: () => { if (!controller.signal.aborted) { setMicReady(true); setStatus(modeRef.current === 'wake' ? 'Listening for “Hey Miso”…' : 'Listening. Speak naturally.'); onTurn('listening'); } },
         onSpeech: () => setStatus('Hearing you…'),
         onTranscribing: () => setStatus('Understanding what you said…'),
         onText: async (text) => {
@@ -173,7 +174,7 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
         <button type="button" className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink" onClick={() => void startListening('talk')}><Mic size={16} />{busy ? 'Interrupt & talk' : 'Talk'}</button>
         <button type="button" onClick={() => stop()} className="rounded-full border border-hairline p-2" aria-label="Stop Miso and microphone"><Square size={16} /></button>
         <button type="button" onClick={() => { setMuted(v => !v); if (!muted) { request.current?.abort(); setBusy(false); setStatus('Voice muted. Tap Talk to continue.'); } }} aria-label={muted ? 'Unmute Miso' : 'Mute Miso'} className="rounded-full border border-hairline p-2">{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button>
-        <span className="text-xs text-ink-muted">{mode === 'off' ? 'Mic off' : '● Mic on'}</span>
+        <span className="text-xs text-ink-muted">{mode === 'off' ? 'Mic off' : micReady ? '● Mic on' : 'Awaiting microphone'}</span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <label className="flex items-center gap-2"><input type="checkbox" checked={wake} onChange={toggleWake} />Enable “Hey Miso”</label>

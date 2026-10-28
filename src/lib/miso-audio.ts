@@ -14,7 +14,7 @@ async function responseError(res: Response, fallback: string) {
 }
 
 export function forSpeech(text: string) {
-  return text.replace(/```[\s\S]*?```/g, 'The code is shown in the explanation.').replace(/[`*_#]/g, '').replace(/O\(log n\)/g, 'O of log n').replace(/O\(1\)/g, 'constant space or time').trim();
+  return text.replace(/```[\s\S]*?```/g, 'The code is shown in the explanation.').replace(/[`*_#]/g, '').replace(/O\(log n\)/g, 'O of log n').replace(/O\(1\)/g, 'O of one').trim();
 }
 
 export function speechQueue(voice: 'natural' | 'longer', signal: AbortSignal, onStart: () => void) {
@@ -84,14 +84,21 @@ export async function openCloudMicrophone(options: {
   onReady: () => void;
   onError: (error: Error) => void;
 }) {
+  if (options.signal.aborted) return;
   if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('This browser cannot record audio. Please use a current browser or type to Miso.');
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
   if (options.signal.aborted) { stream.getTracks().forEach(t => t.stop()); return; }
   let context: AudioContext;
   try { context = await unlockMisoAudio(); } catch (e) { stream.getTracks().forEach(t => t.stop()); throw e; }
   if (options.signal.aborted) { stream.getTracks().forEach(t => t.stop()); return; }
-  const source = context.createMediaStreamSource(stream);
-  const analyser = context.createAnalyser(); analyser.fftSize = 1024; source.connect(analyser);
+  let source: MediaStreamAudioSourceNode | undefined;
+  let analyser: AnalyserNode;
+  try {
+    source = context.createMediaStreamSource(stream);
+    analyser = context.createAnalyser(); analyser.fftSize = 1024; source.connect(analyser);
+  } catch (e) {
+    stream.getTracks().forEach(t => t.stop()); source?.disconnect(); throw e;
+  }
   const samples = new Float32Array(analyser.fftSize);
   const mimeType = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t));
   let recorder: MediaRecorder | null = null;
@@ -102,7 +109,7 @@ export async function openCloudMicrophone(options: {
     if (stopped) return;
     stopped = true; if (timer) clearInterval(timer);
     if (recorder?.state === 'recording') recorder.stop();
-    stream.getTracks().forEach(t => t.stop()); source.disconnect(); analyser.disconnect();
+    stream.getTracks().forEach(t => t.stop()); source?.disconnect(); analyser.disconnect();
     options.signal.removeEventListener('abort', cleanup);
   };
   options.signal.addEventListener('abort', cleanup, { once: true });

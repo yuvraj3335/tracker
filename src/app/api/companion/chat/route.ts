@@ -3,7 +3,7 @@ import { getEverything } from '@/lib/notion';
 import { buildSnapshot } from '@/lib/companion-context';
 import { sanitiseHistory } from '@/lib/companion-prompt';
 import { guideFor } from '@/lib/question-guides';
-import { questionContext } from '@/lib/miso-context';
+import { composeMisoContext, questionContext } from '@/lib/miso-context';
 import { boundedJSON, cloudRequest, cloudFailure, CloudError, sameOrigin } from '@/lib/cloud-ai';
 import { createRateLimiter } from '@/lib/rate-limit';
 
@@ -28,10 +28,9 @@ export async function POST(req: Request) {
         const { areas, topics, tasks } = await getEverything(status.tenant);
         const selectedId = typeof input.questionId === 'string' ? input.questionId : undefined;
         if (selectedId && !tasks.some(t => t.id === selectedId)) throw new CloudError('That question is not in your tracker.', 404);
-        context = buildSnapshot(areas, topics, tasks) + '\n' + questionContext(tasks, topics, messages.slice(-4).map(m => m.content).join(' '), selectedId);
         const task = tasks.find(t => t.id === selectedId);
         const guide = task ? guideFor(task) : null;
-        if (guide) context += '\nCurrent question explanation: ' + JSON.stringify({ ...guide, tests: undefined }).slice(0, 16000);
+        context = composeMisoContext(buildSnapshot(areas, topics, tasks), questionContext(tasks, topics, messages.slice(-4).map(m => m.content).join(' '), selectedId), guide ? JSON.stringify({ ...guide, tests: undefined }) : undefined);
       }
     } catch (e) { if (e instanceof CloudError) throw e; console.error('[miso] tracker read failed for user', user.id); }
     const response = await cloudRequest('/api/miso/chat', { messages, context }, AbortSignal.any([req.signal, AbortSignal.timeout(55000)]));

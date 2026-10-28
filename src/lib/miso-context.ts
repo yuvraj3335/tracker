@@ -1,5 +1,11 @@
 import type { Task, Topic } from './notion';
 
+/** Keep selected material ahead of the catalog within the gateway's limit. */
+export function composeMisoContext(snapshot: string, catalog: string, explanation?: string): string {
+  const trim = (value: string, size: number) => value.length <= size ? value : value.slice(0, size) + '\n[Context shortened; omitted details are unavailable.]';
+  return [trim(snapshot, 4000), explanation ? 'Current question explanation: ' + trim(explanation, 14000) : '', trim(catalog, 38000)].filter(Boolean).join('\n');
+}
+
 export function relevantQuestions(tasks: Task[], query: string, selectedId?: string): Task[] {
   const words = [...new Set(query.toLowerCase().match(/[a-z0-9]+/g) ?? [])].filter(w => w.length > 2 && !['the', 'and', 'how', 'what', 'explain', 'this', 'that', 'with', 'question'].includes(w));
   return tasks.map((task, index) => {
