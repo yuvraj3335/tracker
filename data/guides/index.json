@@ -8457,5 +8457,86 @@
     },
     "baselineJava": "static long rangesByScanning(int[] arr) {\n    long answer = 0;\n    for (int start = 0; start < arr.length; start++) {\n        int minimum = arr[start], maximum = arr[start];\n        for (int end = start; end < arr.length; end++) {\n            minimum = Math.min(minimum, arr[end]);\n            maximum = Math.max(maximum, arr[end]);\n            answer += (long) maximum - minimum;\n        }\n    }\n    return answer;\n}",
     "baselineTime": "O(n²) time and O(1) extra space."
+  },
+  "222": {
+    "problem": "Delete exactly k digits from a non-negative integer written as a string, keeping the order of the remaining digits. Return the smallest resulting number without leading zeroes.",
+    "assumptions": "num contains decimal digits and 0 ≤ k ≤ num.length(). Return \"0\" if no non-zero digit remains. Work on characters: the input can be much larger than a long.",
+    "example": {
+      "input": "num = \"765028\", k = 3",
+      "output": "\"28\"",
+      "explanation": "Remove 7, 6 and 5. The retained digits are 028, which is written as 28."
+    },
+    "baseline": "For each deletion, scan for the first digit larger than the digit immediately after it and remove that larger digit. If no such pair exists, remove the last digit. Repeat k times, then strip leading zeroes.",
+    "approach": "A smaller digit near the front matters more than any digit after it. When the next digit is smaller than the last digit we kept, spend a deletion to remove that larger last digit. Keep doing this while it improves the number and deletions remain.\n\nA stack lets us remove those last kept digits without rescanning the whole string. If deletions remain after the scan, the kept digits are in non-decreasing order; remove from the end. Only then strip leading zeroes. Those zeroes are formatting, not extra deletions from the original number.",
+    "steps": [
+      "Scan the string and keep digits on a stack.",
+      "While k > 0 and the top digit is larger than the incoming digit, pop and reduce k.",
+      "Push the incoming digit. After the scan, pop from the end for any remaining deletions.",
+      "Build the kept string in its original order and skip leading zeroes."
+    ],
+    "java": "static String removeKdigits(String num, int k) {\n    Deque<Character> digits = new ArrayDeque<>();\n    for (int i = 0; i < num.length(); i++) {\n        char digit = num.charAt(i);\n        while (k > 0 && !digits.isEmpty() && digits.peekLast() > digit) {\n            digits.removeLast();\n            k--;\n        }\n        digits.addLast(digit);\n    }\n    while (k > 0) { digits.removeLast(); k--; }\n    StringBuilder result = new StringBuilder();\n    for (char digit : digits) result.append(digit);\n    int start = 0;\n    while (start < result.length() && result.charAt(start) == '0') start++;\n    return start == result.length() ? \"0\" : result.substring(start);\n}",
+    "time": "O(n): each digit is inserted once and removed at most once.",
+    "space": "O(n) for the stack and result.",
+    "pitfalls": [
+      "Use >, not ≥: deleting an equal digit does not improve the prefix.",
+      "Do not sort the digits; retained digits must stay in order.",
+      "Remove exactly k original digits before stripping leading zeroes.",
+      "The stack may still need removals when the number is already increasing."
+    ],
+    "tests": [
+      "assert removeKdigits(\"765028\",3).equals(\"28\");assert removeKdigits(\"1432219\",3).equals(\"1219\");assert removeKdigits(\"10200\",1).equals(\"200\");assert removeKdigits(\"10\",2).equals(\"0\");assert removeKdigits(\"112\",1).equals(\"11\");",
+      "Random r=new Random(222);for(int trial=0;trial<1500;trial++){int n=1+r.nextInt(9),k=r.nextInt(n+1);StringBuilder s=new StringBuilder();for(int i=0;i<n;i++)s.append((char)('0'+r.nextInt(10)));String num=s.toString();long best=Long.MAX_VALUE;for(int mask=0;mask<(1<<n);mask++){if(Integer.bitCount(mask)!=n-k)continue;long value=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)value=value*10+num.charAt(i)-'0';best=Math.min(best,value);}assert removeKdigits(num,k).equals(Long.toString(best));assert removeByScanning(num,k).equals(Long.toString(best));}",
+      "assert removeKdigits(\"999999\",3).equals(\"999\");assert removeKdigits(\"12345\",2).equals(\"123\");assert removeKdigits(\"0000\",1).equals(\"0\");assert removeKdigits(\"0\",0).equals(\"0\");"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/remove-k-digits",
+      "title": "Remove K Digits to Form the Smallest Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated deletion of the first descending digit, then a monotonic digit stack.",
+      "adaptation": "Both public Java methods were checked. The same strict comparison and trailing-removal rule are kept. ArrayDeque stores digits from front to back, avoiding the source’s final stack reversal."
+    },
+    "baselineJava": "static String removeByScanning(String num, int k) {\n    StringBuilder current = new StringBuilder(num);\n    for (int removed = 0; removed < k; removed++) {\n        int index = 0;\n        while (index + 1 < current.length()\n                && current.charAt(index) <= current.charAt(index + 1)) index++;\n        current.deleteCharAt(index);\n    }\n    int start = 0;\n    while (start < current.length() && current.charAt(start) == '0') start++;\n    return start == current.length() ? \"0\" : current.substring(start);\n}",
+    "baselineTime": "O(n × k + n) time and O(n) space."
+  },
+  "223": {
+    "problem": "Find the largest rectangle that fits beneath a histogram. Each bar has width 1, and the rectangle must cover consecutive bars.",
+    "assumptions": "Heights are non-negative integers. Zero-height bars break positive-height rectangles. The source returns long; the linked LeetCode signature returns int under its smaller area bounds. The method below retains long so larger areas remain correct.",
+    "example": {
+      "input": "[3, 1, 4, 4, 2]",
+      "output": "8",
+      "explanation": "The two adjacent bars of height 4 form a rectangle of height 4 and width 2. No wider rectangle has a greater area."
+    },
+    "baseline": "Treat each bar as the rectangle’s height. Scan left and right while bars are at least that tall. Multiply the current height by the full width found. Repeated scans can cost O(n²).",
+    "approach": "Keep indices of bars whose widest rectangle has not been settled yet. Their heights increase from the bottom of the stack to the top. When a shorter bar arrives, a taller bar on the stack cannot extend past it. Pop that taller bar and calculate its area.\n\nAfter the pop, the new stack top is the left boundary. If it is absent, the rectangle starts at index 0. Otherwise it starts just after that boundary. Its right end is just before the current index, so width is currentIndex − leftBoundary − 1.\n\nWe also pop equal heights. The earlier equal bar may get a shorter width now, but the later equal bar will eventually cover their combined span. Finally process a virtual height 0 at index n to close the remaining bars. Do not read heights[n] or push that virtual index.",
+    "steps": [
+      "Scan real indices followed by one virtual zero-height bar.",
+      "Pop while the stack top’s height is ≥ the current height.",
+      "For each popped bar, compute its width using the new top, then update the best area.",
+      "Push only real indices. Return the best area."
+    ],
+    "java": "static long largestRectangleArea(int[] heights) {\n    Deque<Integer> stack = new ArrayDeque<>();\n    long best = 0;\n    for (int right = 0; right <= heights.length; right++) {\n        int current = right == heights.length ? 0 : heights[right];\n        while (!stack.isEmpty() && heights[stack.peek()] >= current) {\n            int height = heights[stack.pop()];\n            int left = stack.isEmpty() ? -1 : stack.peek();\n            int width = right - left - 1;\n            best = Math.max(best, (long) height * width);\n        }\n        if (right < heights.length) stack.push(right);\n    }\n    return best;\n}",
+    "time": "O(n), because every real index is pushed once and popped once.",
+    "space": "O(n) for the index stack.",
+    "pitfalls": [
+      "Store indices, not just heights, because width depends on positions.",
+      "Subtract 1 from right − left: both boundary bars are outside the rectangle.",
+      "The final virtual bar is essential for increasing inputs.",
+      "Pop equal heights consistently; a later equal bar can account for the widest span.",
+      "Cast before multiplying if the area may exceed int."
+    ],
+    "tests": [
+      "assert largestRectangleArea(new int[]{3,1,4,4,2})==8;assert largestRectangleArea(new int[]{2,1,5,6,2,3})==10;assert largestRectangleArea(new int[]{0})==0;assert largestRectangleArea(new int[]{})==0;",
+      "for(int n=0;n<=8;n++){int limit=1;for(int i=0;i<n;i++)limit*=3;for(int encoded=0;encoded<limit;encoded++){int x=encoded;int[]a=new int[n];for(int i=0;i<n;i++){a[i]=x%3;x/=3;}long expected=0;for(int l=0;l<n;l++){int min=Integer.MAX_VALUE;for(int r=l;r<n;r++){min=Math.min(min,a[r]);expected=Math.max(expected,(long)min*(r-l+1));}}assert largestRectangleArea(a)==expected;assert histogramByExpansion(a)==expected;}}",
+      "assert largestRectangleArea(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE})==4294967294L;assert largestRectangleArea(new int[]{1,2,3,4,5})==9;assert largestRectangleArea(new int[]{5,4,3,2,1})==9;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/largest-rectangle-in-histogram",
+      "title": "Largest Rectangle in a Histogram Using a Stack",
+      "checkedOn": "2026-10-29",
+      "approach": "Expand each bar’s boundaries, then close unresolved rectangles with an increasing stack and a final zero sentinel.",
+      "adaptation": "Both public Java solutions were checked. This keeps the source’s ≥ pop comparison, ArrayDeque, long area and virtual sentinel. The left boundary is written explicitly as −1 when the stack is empty."
+    },
+    "baselineJava": "static long histogramByExpansion(int[] heights) {\n    long best = 0;\n    for (int i = 0; i < heights.length; i++) {\n        int left = i, right = i;\n        while (left > 0 && heights[left - 1] >= heights[i]) left--;\n        while (right + 1 < heights.length && heights[right + 1] >= heights[i]) right++;\n        best = Math.max(best, (long) heights[i] * (right - left + 1));\n    }\n    return best;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space."
   }
 }
