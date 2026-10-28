@@ -7355,5 +7355,184 @@
       "approach": "XOR cancellation, lowest differing bit, then XOR each group.",
       "adaptation": "The public Java code was checked. The tracker’s linked practice statement additionally requires ascending output, so this implementation orders the two results. Sign-bit cases are tested."
     }
+  },
+  "195": {
+    "problem": "List a number’s prime factors in ascending order, keeping repetitions, and apply that helper to the tracker’s query array.",
+    "assumptions": "The title is about one number, but its TUF practice link accepts many numbers. A factor such as 2 appears three times for 8. Source queries are between 2 and 200,000. The single-number helper also returns an empty list for 1.",
+    "example": {
+      "input": "queries = [8, 30]",
+      "output": "[[2, 2, 2], [2, 3, 5]]",
+      "explanation": "Multiplying each row’s factors reconstructs its original number."
+    },
+    "baseline": "Try every integer from 2 through the number and keep dividing while it is a factor. Testing only through the square root of the remaining number avoids unnecessary larger trials.",
+    "approach": "Try divisors in increasing order. Whenever one divides the remaining number, save it and divide it out repeatedly. By the time a composite divisor is reached, its smaller prime factors have already been removed, so it cannot add a new composite factor.\n\nStop when divisor is larger than remaining/divisor. If anything greater than 1 remains, it must be prime: a composite remainder would have had a factor at or below its square root. This trial-division lesson is useful for one number or a small batch. For the linked task’s large batch of up to 100,000 queries, use the smallest-prime-factor sieve in the later guide.",
+    "steps": [
+      "Start divisor at 2.",
+      "While divisor divides the remaining number, record it and divide it out.",
+      "Advance divisor while it is at most the square root of the remainder.",
+      "Append the remaining prime if it is greater than 1.",
+      "Run the helper for each query."
+    ],
+    "java": "static List<Integer> primeFactors(int number) {\n    List<Integer> factors = new ArrayList<>();\n    for (int divisor = 2; divisor <= number / divisor; divisor++) {\n        while (number % divisor == 0) {\n            factors.add(divisor);\n            number /= divisor;\n        }\n    }\n    if (number > 1) factors.add(number);\n    return factors;\n}\n\nstatic List<List<Integer>> factorQueries(int[] queries) {\n    List<List<Integer>> answer = new ArrayList<>();\n    for (int number : queries) answer.add(primeFactors(number));\n    return answer;\n}",
+    "time": "O(√x) per number x in the worst case; O(q × √M) for q queries bounded by M. Use the later sieve method for the large-query limit.",
+    "space": "O(log x) output factors per number, with O(1) other working space.",
+    "pitfalls": [
+      "Keep dividing by the same prime to retain its repeated factors.",
+      "Do not return only distinct prime divisors for this linked task.",
+      "Use divisor <= number/divisor to avoid an overflowing divisor × divisor comparison.",
+      "Trial division is the teaching method here; preprocessing is preferable for many queries."
+    ],
+    "tests": [
+      "assert factorQueries(new int[]{8,30}).equals(List.of(List.of(2,2,2),List.of(2,3,5)));assert primeFactors(1).isEmpty();assert primeFactors(Integer.MAX_VALUE).equals(List.of(Integer.MAX_VALUE));",
+      "for(int n=2;n<=5000;n++){List<Integer>f=primeFactors(n);long product=1;int previous=0;for(int x:f){assert x>=previous;previous=x;product*=x;assert BigInteger.valueOf(x).isProbablePrime(50);}assert product==n;}",
+      "assert primeFactors(1<<30).equals(Collections.nCopies(30,2));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/prime-factorisation-of-a-number",
+      "title": "Prime factorisation of a Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Return sorted prime factors, including repeated factors, for each input query.",
+      "adaptation": "The public practice statement was checked. It takes an array of queries, despite this tracker lesson’s singular title. No public Java editorial is linked; the code below implements the stated task."
+    }
+  },
+  "196": {
+    "problem": "Return every positive divisor of n in ascending order.",
+    "assumptions": "The tracker’s practice link asks for a list. The current linked Striver article instead counts divisors; we use its divisor-pair reasoning and collect the actual values. The source requires n ≥ 1.",
+    "example": {
+      "input": "n = 18",
+      "output": "[1, 2, 3, 6, 9, 18]",
+      "explanation": "The pairs are (1,18), (2,9), and (3,6). Searching the smaller side finds every pair."
+    },
+    "baseline": "Test every value from 1 through n and collect those that divide evenly. This takes O(n) and already gives sorted output.",
+    "approach": "Whenever d divides n, n/d is also a divisor. At least one member of each pair is no greater than √n, so only search that far. Add both members, except when they are equal at a perfect square.\n\nThe values arrive in pairs rather than sorted order. Sort the collected list before returning it, as the tracker’s practice problem requires. Using d <= n/d avoids multiplying d by itself near the int limit.",
+    "steps": [
+      "Try d from 1 while d <= n/d.",
+      "If d divides n, add d and its partner n/d.",
+      "Add the partner only if it differs from d.",
+      "Sort the list and return it."
+    ],
+    "java": "static List<Integer> divisors(int n) {\n    List<Integer> answer = new ArrayList<>();\n    for (int d = 1; d <= n / d; d++) {\n        if (n % d != 0) continue;\n        answer.add(d);\n        int partner = n / d;\n        if (partner != d) answer.add(partner);\n    }\n    Collections.sort(answer);\n    return answer;\n}",
+    "time": "O(√n + k log k), where k is the number of divisors; the second term sorts the result.",
+    "space": "O(k) for the returned list and sorting storage.",
+    "pitfalls": [
+      "Count a square root only once.",
+      "One has the single divisor 1.",
+      "The count-only article cannot be submitted unchanged to a task requiring a sorted list."
+    ],
+    "tests": [
+      "assert divisors(18).equals(List.of(1,2,3,6,9,18));assert divisors(1).equals(List.of(1));assert divisors(25).equals(List.of(1,5,25));assert divisors(Integer.MAX_VALUE).equals(List.of(1,Integer.MAX_VALUE));",
+      "for(int n=1;n<=2000;n++){List<Integer>expected=new ArrayList<>();for(int d=1;d<=n;d++)if(n%d==0)expected.add(d);assert divisors(n).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-divisors",
+      "title": "Count Divisors",
+      "checkedOn": "2026-10-29",
+      "approach": "Search divisor pairs up to the square root and avoid repeating the square root.",
+      "adaptation": "The public Java article counts divisors, while the tracker’s practice link requires their sorted list. This explicitly adapts the same pair search to collect and sort values, with an overflow-safe loop bound."
+    }
+  },
+  "197": {
+    "problem": "Count the prime numbers strictly smaller than n using the Sieve of Eratosthenes.",
+    "assumptions": "The tracker links to LeetCode Count Primes: n itself is excluded. The similarly named current TUF practice page counts through n inclusively, so its endpoint rule is different. Source n is from 0 through 5,000,000. Zero and one are not prime.",
+    "example": {
+      "input": "n = 11",
+      "output": "4",
+      "explanation": "The primes below 11 are 2, 3, 5 and 7. Do not count 11 itself."
+    },
+    "baseline": "Check each number below n for divisors up to its square root. That takes O(n√n). A sieve shares the work by marking multiples of each prime.",
+    "approach": "Start with every number unmarked. When p is still unmarked, it is prime, and all its multiples from p² onward are composite. Smaller multiples already have a smaller prime factor and were handled earlier.\n\nOnly p with p² < n need marking work. Every composite below n has a prime factor no larger than its square root. Finally count unmarked values from 2 through n − 1. Allocate exactly n slots so the exclusive upper limit is clear.",
+    "steps": [
+      "Return 0 when n ≤ 2.",
+      "Create a boolean composite array of length n.",
+      "For each unmarked p with p² < n, mark p², p² + p, and so on.",
+      "Count unmarked indices beginning at 2 and ending before n."
+    ],
+    "java": "static int countPrimes(int n) {\n    if (n <= 2) return 0;\n    boolean[] composite = new boolean[n];\n    for (int p = 2; (long) p * p < n; p++) {\n        if (composite[p]) continue;\n        for (int multiple = p * p; multiple < n; multiple += p) {\n            composite[multiple] = true;\n        }\n    }\n    int count = 0;\n    for (int value = 2; value < n; value++) {\n        if (!composite[value]) count++;\n    }\n    return count;\n}",
+    "time": "O(n log log n).",
+    "space": "O(n).",
+    "pitfalls": [
+      "Strictly below n is different from at most n. Prime endpoints expose the difference.",
+      "Do not count array slots 0 or 1.",
+      "Start marking at p², not p, or the prime marks itself composite."
+    ],
+    "tests": [
+      "assert countPrimes(0)==0;assert countPrimes(1)==0;assert countPrimes(2)==0;assert countPrimes(3)==1;assert countPrimes(11)==4;assert countPrimes(12)==5;",
+      "int expected=0;for(int n=0;n<=3000;n++){assert countPrimes(n)==expected;if(n>=2){boolean prime=true;for(int d=2;d<=n/d;d++)if(n%d==0){prime=false;break;}if(prime)expected++;}}",
+      "assert countPrimes(100000)==9592;assert countPrimes(5000000)==348513;"
+    ]
+  },
+  "198": {
+    "problem": "Precompute the smallest prime factor of every number up to the largest query, then factor each query quickly.",
+    "assumptions": "The tracker links to the same batch-factorization task as the earlier trial-division lesson. Return sorted factors with multiplicity for each query. Up to 100,000 queries can each be at most 200,000. The helper also returns no factors for 1.",
+    "example": {
+      "input": "queries = [45, 16]",
+      "output": "[[3, 3, 5], [2, 2, 2, 2]]",
+      "explanation": "For 45, repeatedly use its smallest prime factor: 45 → 15 → 5 → 1."
+    },
+    "baseline": "Trial-divide each query separately, taking O(q√M) in the worst case. Many queries repeat the same factor checks. A shared table avoids repeating that work.",
+    "approach": "Let smallest[x] store the smallest prime that divides x. Initially set smallest[x] = x. A number still holding itself when its turn arrives is prime. Visit its multiples starting at its square and fill only entries that have not already received a smaller prime.\n\nTo factor a query, append smallest[value] and divide by it until value becomes 1. Each division removes at least a factor of two, so there are only logarithmically many steps. The smallest factor rule naturally emits factors in ascending order.",
+    "steps": [
+      "Find the largest query and initialize the smallest-factor table.",
+      "For each prime p, fill previously untouched multiples from p² onward.",
+      "For each query, repeatedly record smallest[value] and divide by it.",
+      "Keep a separate factor list for every query."
+    ],
+    "java": "static List<List<Integer>> factorWithSieve(int[] queries) {\n    int maximum = 1;\n    for (int value : queries) maximum = Math.max(maximum, value);\n    int[] smallest = new int[maximum + 1];\n    for (int value = 2; value <= maximum; value++) smallest[value] = value;\n    for (int prime = 2; prime <= maximum / prime; prime++) {\n        if (smallest[prime] != prime) continue;\n        for (int multiple = prime * prime; multiple <= maximum; multiple += prime) {\n            if (smallest[multiple] == multiple) smallest[multiple] = prime;\n        }\n    }\n    List<List<Integer>> answer = new ArrayList<>();\n    for (int original : queries) {\n        List<Integer> factors = new ArrayList<>();\n        int value = original;\n        while (value > 1) {\n            int prime = smallest[value];\n            factors.add(prime);\n            value /= prime;\n        }\n        answer.add(factors);\n    }\n    return answer;\n}",
+    "time": "O(M log log M + q log M), where M is the largest query and q is the number of queries.",
+    "space": "O(M) for preprocessing, plus the returned factors.",
+    "pitfalls": [
+      "Do not overwrite a smaller factor found by an earlier prime.",
+      "A prime number must point to itself in the table.",
+      "Repeated queries need separate output lists, even when their contents are equal.",
+      "This table is intended for the stated maximum of 200,000, not arbitrary enormous integers."
+    ],
+    "tests": [
+      "assert factorWithSieve(new int[]{45,16}).equals(List.of(List.of(3,3,5),List.of(2,2,2,2)));assert factorWithSieve(new int[]{1,2,2}).equals(List.of(List.of(),List.of(2),List.of(2)));",
+      "int[]queries=new int[5000];for(int i=0;i<queries.length;i++)queries[i]=i+1;List<List<Integer>>actual=factorWithSieve(queries);for(int i=0;i<queries.length;i++){int value=queries[i];List<Integer>expected=new ArrayList<>();for(int d=2;d<=value/d;d++)while(value%d==0){expected.add(d);value/=d;}if(value>1)expected.add(value);assert actual.get(i).equals(expected);}",
+      "int[]queries={200000,199999,131072};List<List<Integer>>result=factorWithSieve(queries);for(int i=0;i<queries.length;i++){long product=1;int last=0;for(int x:result.get(i)){assert x>=last;last=x;assert BigInteger.valueOf(x).isProbablePrime(50);product*=x;}assert product==queries[i];}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/prime-factorisation-of-a-number",
+      "title": "Prime factorisation of a Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Return sorted prime factors, including repeated factors, for each input query.",
+      "adaptation": "The public practice statement was checked. It takes an array of queries, despite this tracker lesson’s singular title. No public Java editorial is linked; the code below implements the stated task."
+    }
+  },
+  "199": {
+    "problem": "Calculate x^n by reading the exponent’s binary digits.",
+    "assumptions": "This tracker entry repeats Pow(x,n) in the maths/bit section. Use the same signed-int exponent contract as the earlier recursion guide. Negative powers mean reciprocals; zero is excluded when the exponent is non-positive.",
+    "example": {
+      "input": "x = 3, n = 5; binary exponent = 101",
+      "output": "243",
+      "explanation": "Use the power blocks 3^1 and 3^4 because bits 0 and 2 are set. Their product is 3^5."
+    },
+    "baseline": "Multiply x by itself once per exponent unit. This takes O(|n|) and cannot handle a two-billion-step exponent efficiently.",
+    "approach": "Each set bit in the exponent selects a power block. Start with base x. After each step, square it so the next block represents x², then x⁴, then x⁸, and so on. If the current low bit of the exponent is 1, multiply that block into the result.\n\nShift the non-negative exponent right after each step. For a negative exponent, first use the reciprocal base and negate the exponent after widening it to long. This avoids overflowing when n is Integer.MIN_VALUE.",
+    "steps": [
+      "Widen n to long and convert a negative exponent into a reciprocal base with a positive exponent.",
+      "Start the result at 1.",
+      "Multiply in the current base when the exponent’s low bit is set.",
+      "Square the base and shift the exponent right."
+    ],
+    "java": "static double myPow(double x, int n) {\n    long exponent = n;\n    if (exponent < 0) {\n        x = 1.0 / x;\n        exponent = -exponent;\n    }\n    double result = 1.0;\n    while (exponent != 0) {\n        if ((exponent & 1) != 0) result *= x;\n        x *= x;\n        exponent >>= 1;\n    }\n    return result;\n}",
+    "time": "O(log(|n| + 1)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The exponent must be made non-negative before using this right-shift loop.",
+      "Convert to long before negating the minimum int.",
+      "Floating-point multiplication introduces rounding; test approximate results with a tolerance."
+    ],
+    "tests": [
+      "assert myPow(3,5)==243;assert myPow(2,-3)==0.125;assert myPow(-1,Integer.MIN_VALUE)==1;assert myPow(2,Integer.MIN_VALUE)==0;assert myPow(4,0)==1;",
+      "for(int n=-40;n<=40;n++)for(double x:new double[]{-1.2,-0.9,0.3,1.01,1.7}){double expected=Math.pow(x,n);assert Math.abs(myPow(x,n)-expected)<=1e-12*Math.max(1,Math.abs(expected));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/pow(x%2Cn)",
+      "title": "Pow(x,n)",
+      "checkedOn": "2026-10-29",
+      "approach": "Binary exponentiation with a long exponent and reciprocal handling for negative powers.",
+      "adaptation": "The public practice contract and linked LeetCode task were checked. No public Java editorial is linked. This repeats the earlier power problem with the exponent’s bit representation made explicit."
+    }
   }
 }
