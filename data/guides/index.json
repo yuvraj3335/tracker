@@ -2584,5 +2584,552 @@
       "assert peak(new int[]{7})==0;",
       "assert peak(new int[]{})==-1;"
     ]
+  },
+  "92": {
+    "problem": "Return floor(sqrt(n)) without floating-point rounding.",
+    "assumptions": "n is a nonnegative long.",
+    "example": {
+      "input": "n = 28",
+      "output": "5",
+      "explanation": "5²=25 is at most 28, while 6²=36 exceeds it. The answer is the last integer whose square fits."
+    },
+    "baseline": "Try successive integers until the next square exceeds n, taking O(sqrt(n)) time.",
+    "approach": "Binary search the monotone predicate x²<=n. Test it as x<=n/x for positive x, avoiding overflow in the square.",
+    "steps": [
+      "Handle zero separately.",
+      "Search positive candidates up to min(n,3037000499).",
+      "Keep the greatest candidate satisfying the division comparison."
+    ],
+    "java": "static long floorSqrt(long n){\n    if(n<0)throw new IllegalArgumentException();if(n==0)return 0;\n    long lo=1,hi=Math.min(n,3037000499L);\n    while(lo<=hi){long mid=lo+(hi-lo)/2;if(mid<=n/mid)lo=mid+1;else hi=mid-1;}\n    return hi;\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "mid*mid can overflow long before the comparison.",
+      "A floating-point square root needs careful integer correction near large perfect squares."
+    ],
+    "tests": [
+      "assert floorSqrt(28)==5;",
+      "assert floorSqrt(0)==0;",
+      "assert floorSqrt(1)==1;",
+      "assert floorSqrt(Long.MAX_VALUE)==3037000499L;",
+      "for(long n=0;n<10000;n++){long r=floorSqrt(n);assert r*r<=n&&(r+1)*(r+1)>n;}"
+    ]
+  },
+  "93": {
+    "problem": "Find an integer x such that xⁿ equals m, or report that no exact nonnegative root exists.",
+    "assumptions": "n>0 and m>=0. Return -1 when the root is not an integer.",
+    "example": {
+      "input": "n = 3, m = 27",
+      "output": "3",
+      "explanation": "The cubes below 3 are too small, 3³ equals 27, and larger positive candidates have larger cubes."
+    },
+    "baseline": "Try roots in increasing order, repeatedly multiplying to compare with m.",
+    "approach": "For nonnegative roots, xⁿ is monotone. Binary search x and stop multiplication as soon as the next product would exceed m. Division detects that condition without overflowing long.",
+    "steps": [
+      "Handle m=0 and n=1 directly.",
+      "Compare each candidate power to m using bounded multiplication.",
+      "Move left or right based on the comparison; return only on exact equality."
+    ],
+    "java": "static long nthRoot(int n,long m){\n    if(n<=0||m<0)throw new IllegalArgumentException();if(m==0||n==1)return m;\n    long lo=1,hi=Math.min(m,3037000499L);\n    while(lo<=hi){long mid=lo+(hi-lo)/2;int comparison=powerCompare(mid,n,m);\n        if(comparison==0)return mid;if(comparison<0)lo=mid+1;else hi=mid-1;\n    }\n    return -1;\n}\nstatic int powerCompare(long base,int n,long target){\n    if(base==1)return Long.compare(1,target);\n    long product=1;\n    for(int i=0;i<n;i++){if(product>target/base)return 1;product*=base;}\n    return Long.compare(product,target);\n}",
+    "time": "O(n log m) upper bound; comparisons stop early once the target is exceeded.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Math.pow uses floating-point arithmetic and cannot safely test exact large integer equality.",
+      "Odd roots of negative values are a separate variant; this contract covers m>=0."
+    ],
+    "tests": [
+      "assert nthRoot(3,27)==3;",
+      "assert nthRoot(3,28)==-1;",
+      "assert nthRoot(2,0)==0;",
+      "assert nthRoot(1,Long.MAX_VALUE)==Long.MAX_VALUE;",
+      "assert nthRoot(Integer.MAX_VALUE,1)==1;",
+      "assert nthRoot(2,9223372030926249001L)==3037000499L;"
+    ]
+  },
+  "94": {
+    "problem": "Find the smallest integer eating speed that finishes all banana piles within h hours.",
+    "assumptions": "Each positive pile consumes its own whole-number hours; an hour cannot be shared between piles. Return -1 if h is too small.",
+    "example": {
+      "input": "piles = [3,6,7,11], h = 8",
+      "output": "4",
+      "explanation": "At speed 4 the piles take 1+2+2+3=8 hours. Speed 3 requires 1+2+3+4=10 hours."
+    },
+    "baseline": "Try every speed from 1 to the largest pile, costing O(n×maxPile).",
+    "approach": "The required hours are sum(ceil(pile/speed)). Increasing speed never increases that sum, so feasible speeds form a suffix and the answer is its first member.",
+    "steps": [
+      "Reject h smaller than the number of nonempty piles.",
+      "Binary search speeds between one and the maximum pile.",
+      "Use long ceiling division and stop counting once the hour budget is exceeded."
+    ],
+    "java": "static int minSpeed(int[] piles,long h){\n    if(piles.length==0)return 0;if(h<piles.length)return -1;\n    int lo=1,hi=Arrays.stream(piles).max().orElseThrow();\n    while(lo<hi){int mid=lo+(hi-lo)/2;long hours=0;\n        for(int p:piles){hours+=(p+(long)mid-1)/mid;if(hours>h)break;}\n        if(hours<=h)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "time": "O(n log(maxPile)).",
+    "space": "O(1) auxiliary state.",
+    "pitfalls": [
+      "Use ceiling division per pile, not once after summing all bananas.",
+      "Integer arithmetic in pile+speed−1 needs promotion to long."
+    ],
+    "tests": [
+      "assert minSpeed(new int[]{3,6,7,11},8)==4;",
+      "assert minSpeed(new int[]{30,11,23,4,20},5)==30;",
+      "assert minSpeed(new int[]{1,2},1)==-1;",
+      "assert minSpeed(new int[]{Integer.MAX_VALUE},1)==Integer.MAX_VALUE;"
+    ]
+  },
+  "95": {
+    "problem": "Find the earliest day on which m bouquets of k adjacent bloomed flowers can be made.",
+    "assumptions": "Each flower is used at most once. Bloom days are positive. Return -1 if there are too few flowers; m=0 needs day zero.",
+    "example": {
+      "input": "days = [1,10,3,10,2], m = 3, k = 1",
+      "output": "3",
+      "explanation": "By day 3, positions 0,2,4 have bloomed, giving three one-flower bouquets. Before day 3 only two flowers are available."
+    },
+    "baseline": "Check each day until a feasible arrangement appears, repeating the scan over a potentially large date range.",
+    "approach": "Feasibility is monotone in the day. Within a run of bloomed flowers, taking each earliest block of k is optimal because it leaves the most unused positions for later bouquets. An unbloomed flower breaks adjacency.",
+    "steps": [
+      "Check m×k against the array length using long.",
+      "Binary search between the earliest and latest bloom dates.",
+      "For each day, greedily count nonoverlapping blocks of k consecutive bloomed flowers."
+    ],
+    "java": "static int bouquetDay(int[] days,int m,int k){\n    if(m<0||k<=0)throw new IllegalArgumentException();if(m==0)return 0;\n    if((long)m*k>days.length)return -1;\n    int lo=Arrays.stream(days).min().orElseThrow(),hi=Arrays.stream(days).max().orElseThrow();\n    while(lo<hi){int mid=lo+(hi-lo)/2,run=0,made=0;\n        for(int d:days){if(d<=mid){if(++run==k){made++;run=0;}}else run=0;}\n        if(made>=m)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "time": "O(n log(dayRange+1)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Counting all bloomed flowers ignores adjacency.",
+      "Reset the run after forming a bouquet to prevent reusing flowers."
+    ],
+    "tests": [
+      "assert bouquetDay(new int[]{1,10,3,10,2},3,1)==3;",
+      "assert bouquetDay(new int[]{1,10,3,10,2},3,2)==-1;",
+      "assert bouquetDay(new int[]{7,7,7,7,12,7,7},2,3)==12;",
+      "assert bouquetDay(new int[]{},0,2)==0;"
+    ]
+  },
+  "96": {
+    "problem": "Find the smallest positive divisor for which the sum of rounded-up quotients is at most a threshold.",
+    "assumptions": "All array values are positive. Return -1 when threshold<n, and zero for empty input.",
+    "example": {
+      "input": "[1,2,5,9], threshold = 6",
+      "output": "5",
+      "explanation": "Dividing by 5 gives rounded quotients 1,1,1,2, totaling 5. Divisor 4 gives 1,1,2,3, totaling 7, so it is too small."
+    },
+    "baseline": "Try every divisor up to the largest value in O(n×maxValue) time.",
+    "approach": "Every rounded-up quotient is nonincreasing as the divisor grows. Therefore the sum defines a monotone feasible suffix that can be binary searched.",
+    "steps": [
+      "Bound divisors by 1 and the maximum value.",
+      "Compute sum((value+divisor−1)/divisor) with long arithmetic.",
+      "Keep the lower half when the threshold is met."
+    ],
+    "java": "static int smallestDivisor(int[] a,long threshold){\n    if(a.length==0)return 0;if(threshold<a.length)return -1;\n    int lo=1,hi=Arrays.stream(a).max().orElseThrow();\n    while(lo<hi){int mid=lo+(hi-lo)/2;long sum=0;\n        for(int x:a){sum+=(x+(long)mid-1)/mid;if(sum>threshold)break;}\n        if(sum<=threshold)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "time": "O(n log(maxValue)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Each positive value contributes at least one, establishing the impossibility condition.",
+      "Integer division without rounding up underestimates the required sum."
+    ],
+    "tests": [
+      "assert smallestDivisor(new int[]{1,2,5,9},6)==5;",
+      "assert smallestDivisor(new int[]{2,3,5,7,11},11)==3;",
+      "assert smallestDivisor(new int[]{1,1},1)==-1;"
+    ]
+  },
+  "97": {
+    "problem": "Find the smallest ship capacity that delivers packages in their given order within D days.",
+    "assumptions": "Package weights are positive, cannot be split, and must stay in order. D>0; unused days are allowed.",
+    "example": {
+      "input": "weights = [1,2,3,4,5,6,7,8,9,10], D = 5",
+      "output": "15",
+      "explanation": "Capacity 15 can ship [1,2,3,4,5], [6,7], [8], [9], [10]. A smaller capacity eventually needs more than five days."
+    },
+    "baseline": "Try capacities from the heaviest package to the total weight, scanning each candidate.",
+    "approach": "For a fixed capacity, greedily fill each day until the next package would exceed it. This uses the fewest days for that capacity: ending a day earlier cannot help any later prefix finish sooner. Feasibility improves as capacity grows.",
+    "steps": [
+      "Set the lower bound to the largest weight and upper bound to the total.",
+      "Count greedy days for each candidate capacity.",
+      "Search for the first capacity needing at most D days."
+    ],
+    "java": "static long shipCapacity(int[] weights,int days){\n    if(days<=0)throw new IllegalArgumentException();long lo=0,hi=0;\n    for(int w:weights){lo=Math.max(lo,w);hi+=w;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,load=0;int used=1;\n        for(int w:weights){if(load+w>mid){used++;load=0;}load+=w;}\n        if(used<=days)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "time": "O(n log(totalWeight−maxWeight+1)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Sorting the weights changes the problem because order is fixed.",
+      "Capacity must fit the largest single package, regardless of the day count."
+    ],
+    "tests": [
+      "assert shipCapacity(new int[]{1,2,3,4,5,6,7,8,9,10},5)==15;",
+      "assert shipCapacity(new int[]{3,2,2,4,1,4},3)==6;",
+      "assert shipCapacity(new int[]{1,2,3},1)==6;",
+      "assert shipCapacity(new int[]{},3)==0;"
+    ]
+  },
+  "98": {
+    "problem": "Find the kth missing positive integer relative to a strictly increasing positive array.",
+    "assumptions": "k>0. Return long to cover results beyond Integer.MAX_VALUE.",
+    "example": {
+      "input": "a = [2,3,4,7,11], k = 5",
+      "output": "9",
+      "explanation": "The missing positives are 1,5,6,8,9,… . Before value 7 at index 3, exactly 7−(3+1)=3 positives are missing."
+    },
+    "baseline": "Walk through positive integers, advancing through array entries and counting absent values.",
+    "approach": "At index i, a[i]−(i+1) counts missing positives before a[i]. This count is nondecreasing. Find the first index with at least k missing values; if that index is p, the answer is p+k because exactly p supplied values precede it.",
+    "steps": [
+      "Binary search the missing-count predicate.",
+      "Move left when a[mid]−mid−1 >=k.",
+      "Return the insertion boundary plus k."
+    ],
+    "java": "static long kthMissing(int[] a,long k){\n    if(k<=0)throw new IllegalArgumentException();int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;long missing=(long)a[mid]-mid-1;if(missing>=k)hi=mid;else lo=mid+1;}\n    return Math.addExact(k,lo);\n}",
+    "time": "O(log n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "This formula requires distinct, positive, sorted entries.",
+      "The result may lie beyond the final array value; boundary n handles that naturally."
+    ],
+    "tests": [
+      "assert kthMissing(new int[]{2,3,4,7,11},5)==9;",
+      "assert kthMissing(new int[]{1,2,3,4},2)==6;",
+      "assert kthMissing(new int[]{},7)==7;",
+      "assert kthMissing(new int[]{2},1)==1;"
+    ]
+  },
+  "99": {
+    "problem": "Place cows in stalls to maximize the minimum distance between any two placed cows.",
+    "assumptions": "Stall coordinates are integers; each stall holds one cow. The array is sorted in place. Return -1 if there are too few stalls and zero for one cow.",
+    "example": {
+      "input": "stalls = [1,2,4,8,9], cows = 3",
+      "output": "3",
+      "explanation": "Placing cows at 1,4,8 achieves minimum distance 3. Distance 4 would allow only 1 and 8, leaving no third placement."
+    },
+    "baseline": "Try each possible distance and test placement, which depends on the potentially large coordinate range.",
+    "approach": "For a fixed minimum distance, place the first cow at the earliest stall and each next cow at the earliest feasible stall. This leaves at least as much room for remaining cows as any later placement. Feasible distances form a prefix, so search for the last feasible one.",
+    "steps": [
+      "Sort the coordinates.",
+      "Greedily test whether the requested number of cows fits a candidate separation.",
+      "Increase the distance after success and decrease it after failure."
+    ],
+    "java": "static long aggressiveCows(int[] stalls,int cows){\n    if(cows<=0)throw new IllegalArgumentException();if(cows>stalls.length)return -1;if(cows==1)return 0;\n    Arrays.sort(stalls);long lo=0,hi=(long)stalls[stalls.length-1]-stalls[0];\n    while(lo<=hi){long mid=lo+(hi-lo)/2,last=stalls[0];int placed=1;\n        for(int i=1;i<stalls.length;i++)if((long)stalls[i]-last>=mid){placed++;last=stalls[i];}\n        if(placed>=cows)lo=mid+1;else hi=mid-1;\n    }\n    return hi;\n}",
+    "time": "O(n log n + n log(coordinateRange+1)).",
+    "space": "O(log n) sorting stack, O(1) search state.",
+    "pitfalls": [
+      "This maximizes a minimum, so success moves the lower boundary upward.",
+      "Coordinate subtraction can overflow int even when each coordinate fits int."
+    ],
+    "tests": [
+      "assert aggressiveCows(new int[]{1,2,4,8,9},3)==3;",
+      "assert aggressiveCows(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE},2)==4294967295L;",
+      "assert aggressiveCows(new int[]{1,2},3)==-1;"
+    ]
+  },
+  "100": {
+    "problem": "Assign books in order to exactly m students, minimizing the maximum pages assigned to one student.",
+    "assumptions": "Page counts are positive. Every student receives a nonempty contiguous block, and every book is assigned once. Return -1 when m is invalid.",
+    "example": {
+      "input": "pages = [12,34,67,90], m = 2",
+      "output": "113",
+      "explanation": "Splitting after 67 gives totals 113 and 90. Splitting earlier makes the second student read at least 157 pages."
+    },
+    "baseline": "Enumerate all choices of m−1 cut positions, which is combinatorial.",
+    "approach": "For a candidate page limit, greedily fill each student before starting the next. This minimizes the number of students required under the limit. If at most m are required and m<=n, split blocks further to obtain exactly m without increasing any load.",
+    "steps": [
+      "Search limits from the largest book to total pages.",
+      "Count the minimum required groups greedily.",
+      "Keep a limit when the group count is at most m."
+    ],
+    "java": "static long partitionLimit(int[] a,int groups){\n    if(groups<=0||groups>a.length)return -1;long lo=0,hi=0;\n    for(int x:a){lo=Math.max(lo,x);hi+=x;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,sum=0;int used=1;\n        for(int x:a){if(sum+x>mid){used++;sum=0;}sum+=x;}\n        if(used<=groups)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}\nstatic long allocateBooks(int[] pages,int students){return partitionLimit(pages,students);}",
+    "time": "O(n log(totalPages−maxPages+1)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Do not sort books: the original order is part of the constraint.",
+      "At-most-m feasibility implies exactly m only because blocks can be split and m<=n."
+    ],
+    "tests": [
+      "assert allocateBooks(new int[]{12,34,67,90},2)==113;",
+      "assert allocateBooks(new int[]{10,20,30},3)==30;",
+      "assert allocateBooks(new int[]{10,20},3)==-1;"
+    ]
+  },
+  "101": {
+    "problem": "Split an array into exactly k nonempty contiguous parts, minimizing the largest part sum.",
+    "assumptions": "Values are nonnegative; k must lie between 1 and n. Return -1 for invalid k.",
+    "example": {
+      "input": "[7,2,5,10,8], k = 2",
+      "output": "18",
+      "explanation": "The best split is [7,2,5] and [10,8], with sums 14 and 18. A limit below 18 cannot keep the final two values together and needs more groups."
+    },
+    "baseline": "Dynamic programming over prefixes and cut positions can solve the partition problem in O(k n²) time.",
+    "approach": "With nonnegative values, the minimum feasible maximum sum can be binary searched. Greedily starting a new group only when necessary yields the fewest groups for a limit. Splitting an existing group cannot increase its sum.",
+    "steps": [
+      "Bound the answer by max(array) and sum(array).",
+      "Greedily count groups under each candidate limit.",
+      "Find the first candidate requiring at most k groups."
+    ],
+    "java": "static long partitionLimit(int[] a,int groups){\n    if(groups<=0||groups>a.length)return -1;long lo=0,hi=0;\n    for(int x:a){lo=Math.max(lo,x);hi+=x;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,sum=0;int used=1;\n        for(int x:a){if(sum+x>mid){used++;sum=0;}sum+=x;}\n        if(used<=groups)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}\nstatic long splitArray(int[] a,int k){return partitionLimit(a,k);}",
+    "time": "O(n log(totalSum−maxValue+1)); the all-zero case finishes immediately.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Negative values break the greedy feasibility proof and the search bounds.",
+      "The target is the maximum group sum, not the sum of those maxima over candidate splits."
+    ],
+    "tests": [
+      "assert splitArray(new int[]{7,2,5,10,8},2)==18;",
+      "assert splitArray(new int[]{0,0,0},2)==0;",
+      "assert splitArray(new int[]{1,2,3},1)==6;",
+      "assert splitArray(new int[]{1,2,3},3)==3;"
+    ]
+  },
+  "102": {
+    "problem": "Assign consecutive boards to painters to minimize the completion time when all painters work at the same rate.",
+    "assumptions": "Board lengths are nonnegative and cannot be split. Each painter handles at most one contiguous block; painters may be idle. One length unit takes one time unit.",
+    "example": {
+      "input": "boards = [10,20,30,40], painters = 2",
+      "output": "60",
+      "explanation": "Assign [10,20,30] to one painter and [40] to the other. The slower block finishes at time 60."
+    },
+    "baseline": "Try every set of contiguous partition boundaries, or use O(p n²) prefix dynamic programming.",
+    "approach": "A proposed finishing time is a capacity limit for each painter. Greedily assign the longest possible prefix to each painter. More available time never increases the required painter count, enabling binary search.",
+    "steps": [
+      "Search from the largest board to the total length.",
+      "Count painters needed by a greedy scan.",
+      "Accept a time if it uses no more than the available painters."
+    ],
+    "java": "static long paintTime(int[] boards,int painters){\n    if(painters<=0)throw new IllegalArgumentException();long lo=0,hi=0;\n    for(int x:boards){lo=Math.max(lo,x);hi+=x;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,sum=0;int needed=1;\n        for(int x:boards){if(sum+x>mid){needed++;sum=0;}sum+=x;}\n        if(needed<=painters)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "time": "O(n log(totalLength−maxLength+1)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Extra painters may remain idle; painters>boards is not an impossibility.",
+      "If a platform supplies a per-unit rate or output modulus, apply those to the resulting workload according to that platform’s contract."
+    ],
+    "tests": [
+      "assert paintTime(new int[]{10,20,30,40},2)==60;",
+      "assert paintTime(new int[]{10,20},5)==20;",
+      "assert paintTime(new int[]{},3)==0;"
+    ]
+  },
+  "103": {
+    "problem": "Insert at most k gas stations to minimize the largest distance between adjacent stations.",
+    "assumptions": "Existing positions are sorted and distinct. New positions may be fractional. The result is approximate; return zero for fewer than two stations.",
+    "example": {
+      "input": "stations = [0,10], k = 3",
+      "output": "2.5",
+      "explanation": "Placing stations at 2.5,5,7.5 divides the original gap into four equal parts."
+    },
+    "baseline": "Repeatedly split the currently largest segment using a priority queue; track how many subdivisions each original gap has. This costs O((n+k) log n).",
+    "approach": "For a candidate maximum gap d, an original gap g needs ceil(g/d)−1 inserted stations. Sum those requirements and compare with k. Increasing d cannot increase the needed count, so binary search real-valued distances.",
+    "steps": [
+      "Use zero and the largest original gap as search bounds.",
+      "Check how many inserted stations a candidate distance needs.",
+      "Run a fixed 100 iterations and return the feasible upper bound."
+    ],
+    "java": "static double minGasGap(int[] stations,int k){\n    if(k<0)throw new IllegalArgumentException();if(stations.length<2)return 0;\n    double lo=0,hi=0;for(int i=1;i<stations.length;i++)hi=Math.max(hi,(double)stations[i]-stations[i-1]);\n    for(int iteration=0;iteration<100;iteration++){\n        double mid=(lo+hi)/2;long needed=0;boolean feasible=true;\n        for(int i=1;i<stations.length;i++){\n            double extra=Math.max(0,Math.ceil(((double)stations[i]-stations[i-1])/mid)-1);\n            if(extra>k-needed){feasible=false;break;}needed+=(long)extra;\n        }\n        if(feasible)hi=mid;else lo=mid;\n    }\n    return hi;\n}",
+    "time": "O(100n); equivalently O(n log(initialRange/desiredPrecision)) for tolerance-based search.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Using floor(g/d) overcounts when g is exactly divisible by d.",
+      "This is floating-point approximation, not an exact rational answer. Compare with a tolerance."
+    ],
+    "tests": [
+      "assert Math.abs(minGasGap(new int[]{0,10},3)-2.5)<1e-6;",
+      "assert Math.abs(minGasGap(new int[]{1,2,3,4,5},4)-0.5)<1e-6;",
+      "assert Math.abs(minGasGap(new int[]{0,4,10},0)-6)<1e-6;",
+      "assert minGasGap(new int[]{5},2)==0;"
+    ]
+  },
+  "104": {
+    "problem": "Find the median of two sorted arrays without merging them.",
+    "assumptions": "The combined input is nonempty. Either individual array may be empty, and duplicates are allowed.",
+    "example": {
+      "input": "a = [1,3], b = [2]",
+      "output": "2.0",
+      "explanation": "A valid partition puts [1] from a and [2] from b on the left, leaving [3] on the right. The largest left value is the median."
+    },
+    "baseline": "Merge or scan to the middle in O(n+m) time.",
+    "approach": "Choose cuts whose total left size is ceil((n+m)/2). A partition is valid when both left maxima are <= both right minima. Binary search the cut in the smaller array; its paired cut is determined by the required left size.",
+    "steps": [
+      "Always search the shorter array.",
+      "Use infinite sentinels for empty sides of a cut.",
+      "Move the cut left if its left value exceeds the other right value, or right for the opposite violation."
+    ],
+    "java": "static double median(int[] a,int[] b){\n    if(a.length>b.length)return median(b,a);\n    int n=a.length,m=b.length;long total=(long)n+m;if(total==0)throw new IllegalArgumentException();\n    int left=(int)((total+1)/2),lo=0,hi=n;\n    while(lo<=hi){int i=lo+(hi-lo)/2,j=left-i;\n        long al=i==0?Long.MIN_VALUE:a[i-1],ar=i==n?Long.MAX_VALUE:a[i];\n        long bl=j==0?Long.MIN_VALUE:b[j-1],br=j==m?Long.MAX_VALUE:b[j];\n        if(al<=br&&bl<=ar){long lower=Math.max(al,bl);return total%2==1?lower:(lower+Math.min(ar,br))/2.0;}\n        if(al>br)hi=i-1;else lo=i+1;\n    }\n    throw new IllegalArgumentException(\"Inputs must be sorted\");\n}",
+    "time": "O(log(min(n,m)+1)).",
+    "space": "O(1); the optional swap recursion has depth at most one.",
+    "pitfalls": [
+      "Average the two central values using a wide type before converting to double.",
+      "The cross-boundary comparisons are what validate the combined ordering."
+    ],
+    "tests": [
+      "assert median(new int[]{1,3},new int[]{2})==2.0;",
+      "assert median(new int[]{1,2},new int[]{3,4})==2.5;",
+      "assert median(new int[]{},new int[]{2})==2.0;",
+      "assert median(new int[]{Integer.MAX_VALUE},new int[]{Integer.MAX_VALUE})==Integer.MAX_VALUE;"
+    ]
+  },
+  "105": {
+    "problem": "Find the kth smallest element across two sorted arrays.",
+    "assumptions": "k is one-based and must lie between 1 and the combined length. Duplicates count separately.",
+    "example": {
+      "input": "a = [2,3,6,7,9], b = [1,4,8,10], k = 5",
+      "output": "6",
+      "explanation": "The first five merged values are 1,2,3,4,6. A valid partition with five elements on the left has maximum left value 6."
+    },
+    "baseline": "Merge or advance two pointers for k steps in O(k) time.",
+    "approach": "As in the median partition method, choose cuts containing exactly k total values on the left. Restrict the first cut to max(0,k−m)…min(k,n) so neither side asks for more elements than an array contains.",
+    "steps": [
+      "Search the cut in the shorter array.",
+      "Derive the other cut as k−firstCut.",
+      "When both cross-boundary inequalities hold, return the larger left endpoint."
+    ],
+    "java": "static int kth(int[] a,int[] b,int k){\n    if(a.length>b.length)return kth(b,a,k);\n    int n=a.length,m=b.length;if(k<1||k>(long)n+m)throw new IllegalArgumentException();\n    int lo=Math.max(0,k-m),hi=Math.min(k,n);\n    while(lo<=hi){int i=lo+(hi-lo)/2,j=k-i;\n        long al=i==0?Long.MIN_VALUE:a[i-1],ar=i==n?Long.MAX_VALUE:a[i];\n        long bl=j==0?Long.MIN_VALUE:b[j-1],br=j==m?Long.MAX_VALUE:b[j];\n        if(al<=br&&bl<=ar)return (int)Math.max(al,bl);\n        if(al>br)hi=i-1;else lo=i+1;\n    }\n    throw new IllegalArgumentException(\"Inputs must be sorted\");\n}",
+    "time": "O(log(min(n,m)+1)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Using cuts from 0 to n without the k-based bounds can access outside the second array.",
+      "For kth selection, the left side contains k elements, not k−1."
+    ],
+    "tests": [
+      "assert kth(new int[]{2,3,6,7,9},new int[]{1,4,8,10},5)==6;",
+      "assert kth(new int[]{},new int[]{4,5},2)==5;",
+      "Random r=new Random(105);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(12)],b=new int[1+r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(11);for(int i=0;i<b.length;i++)b[i]=r.nextInt(11);Arrays.sort(a);Arrays.sort(b);int[] all=new int[a.length+b.length];System.arraycopy(a,0,all,0,a.length);System.arraycopy(b,0,all,a.length,b.length);Arrays.sort(all);for(int k=1;k<=all.length;k++)assert kth(a,b,k)==all[k-1];}"
+    ]
+  },
+  "106": {
+    "problem": "Find the row containing the most ones in a row-sorted binary matrix.",
+    "assumptions": "Every row has zeroes followed by ones. Return the first row on ties and -1 if there are no ones.",
+    "example": {
+      "input": "[[0,0,1],[0,1,1],[0,0,0]]",
+      "output": "1",
+      "explanation": "Row 0 moves the leftmost known one boundary to column 2. Row 1 moves it farther left to column 1, proving that row has more ones."
+    },
+    "baseline": "Count every row in O(rows×columns), or binary search its first one in O(rows log columns).",
+    "approach": "Start at the top-right. Move left while the current cell is one; each left move proves a strictly larger row count than any previously seen. Then advance to the next row without resetting the column.",
+    "steps": [
+      "Initialize column to the final column and best row to -1.",
+      "For each row, keep moving left through ones.",
+      "Update best only when moving left, preserving the first row on equal counts."
+    ],
+    "java": "static int rowMostOnes(int[][] a){\n    if(a.length==0||a[0].length==0)return -1;int col=a[0].length-1,best=-1;\n    for(int row=0;row<a.length;row++)while(col>=0&&a[row][col]==1){best=row;col--;}\n    return best;\n}",
+    "time": "O(rows+columns), because the column pointer only moves left.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Resetting the column for every row loses the linear bound.",
+      "The answer convention for an all-zero matrix varies; this version returns -1."
+    ],
+    "tests": [
+      "assert rowMostOnes(new int[][]{{0,0,1},{0,1,1},{0,0,0}})==1;",
+      "assert rowMostOnes(new int[][]{{0,1},{0,1}})==0;",
+      "assert rowMostOnes(new int[][]{{0,0},{0,0}})==-1;"
+    ]
+  },
+  "107": {
+    "problem": "Search a matrix whose row-major traversal is sorted.",
+    "assumptions": "Rows are ascending and each row’s first value is greater than the previous row’s last value. The matrix is rectangular.",
+    "example": {
+      "input": "[[1,3,5,7],[10,11,16,20],[23,30,34,60]], target = 3",
+      "output": "true",
+      "explanation": "The entire matrix acts like one sorted list. Virtual index 1 maps to row 0, column 1, which contains 3."
+    },
+    "baseline": "Scan all cells in O(rows×columns), or identify a candidate row and binary search it.",
+    "approach": "Flatten only conceptually. A virtual index i maps to row i/columns and column i%columns. Binary search that virtual sorted list without allocating a copy.",
+    "steps": [
+      "Search virtual indices zero through rows×columns−1.",
+      "Map each midpoint back to a matrix cell.",
+      "Compare it with the target and halve the interval."
+    ],
+    "java": "static boolean searchMatrix(int[][] a,int target){\n    if(a.length==0||a[0].length==0)return false;int cols=a[0].length;\n    long lo=0,hi=(long)a.length*cols-1;\n    while(lo<=hi){long mid=lo+(hi-lo)/2;int value=a[(int)(mid/cols)][(int)(mid%cols)];\n        if(value==target)return true;if(value<target)lo=mid+1;else hi=mid-1;\n    }\n    return false;\n}",
+    "time": "O(log(rows×columns)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Row and column sortedness alone is insufficient; the inter-row ordering condition is stronger.",
+      "Use long for the virtual size and midpoint."
+    ],
+    "tests": [
+      "assert searchMatrix(new int[][]{{1,3,5,7},{10,11,16,20},{23,30,34,60}},3);",
+      "assert !searchMatrix(new int[][]{{1,3},{5,7}},4);",
+      "assert !searchMatrix(new int[0][0],1);"
+    ]
+  },
+  "108": {
+    "problem": "Search a matrix sorted independently along every row and every column.",
+    "assumptions": "The matrix is rectangular. Values may repeat; the last value of one row may exceed the first of the next.",
+    "example": {
+      "input": "[[1,4,7],[2,5,8],[3,6,9]], target = 6",
+      "output": "true",
+      "explanation": "Start at 7 in the top-right. Move left to 4 because 7 is too large, then down to 5 and 6 because those cells are too small."
+    },
+    "baseline": "Scan all cells, or binary search each row in O(rows log columns).",
+    "approach": "The top-right cell is the largest in its row and the smallest in its remaining column. If it is too large, discard the entire column; if too small, discard the entire row.",
+    "steps": [
+      "Start at row zero and the last column.",
+      "Move left when the current value exceeds target.",
+      "Move down when it is below target; stop on equality or when leaving the matrix."
+    ],
+    "java": "static boolean staircaseSearch(int[][] a,int target){\n    if(a.length==0||a[0].length==0)return false;int row=0,col=a[0].length-1;\n    while(row<a.length&&col>=0){int value=a[row][col];if(value==target)return true;if(value>target)col--;else row++;}\n    return false;\n}",
+    "time": "O(rows+columns).",
+    "space": "O(1).",
+    "pitfalls": [
+      "A flattened binary search is invalid unless the stronger global row-major ordering also holds.",
+      "Starting at the top-left gives no safe elimination direction when its value is too small."
+    ],
+    "tests": [
+      "assert staircaseSearch(new int[][]{{1,4,7},{2,5,8},{3,6,9}},6);",
+      "assert !staircaseSearch(new int[][]{{1,4},{2,5}},3);",
+      "assert staircaseSearch(new int[][]{{1,1},{1,2}},1);"
+    ]
+  },
+  "109": {
+    "problem": "Find a cell strictly larger than its four orthogonal neighbors.",
+    "assumptions": "Adjacent cells have unequal values. Outside the rectangle is treated as negative infinity. Return an empty pair for an empty matrix.",
+    "example": {
+      "input": "[[1,4],[3,2]]",
+      "output": "[0,1] or [1,0]",
+      "explanation": "The cell 4 exceeds its left and lower neighbors; its other two neighbors are outside the matrix. Either listed peak is a valid answer."
+    },
+    "baseline": "Scan all cells and check up to four neighbors in O(rows×columns) time.",
+    "approach": "Choose the maximum cell in the middle column. It already exceeds its vertical neighbors under the no-equal-adjacent assumption. If a horizontal neighbor is larger, the corresponding half contains a peak; otherwise this column maximum is a peak.",
+    "steps": [
+      "Binary search column indices.",
+      "Find the maximum row position within the middle column.",
+      "Compare its horizontal neighbors and move toward a larger one, or return the cell."
+    ],
+    "java": "static int[] peak2D(int[][] a){\n    if(a.length==0||a[0].length==0)return new int[0];int rows=a.length,cols=a[0].length,lo=0,hi=cols-1;\n    while(lo<=hi){int col=lo+(hi-lo)/2,row=0;for(int r=1;r<rows;r++)if(a[r][col]>a[row][col])row=r;\n        long left=col==0?Long.MIN_VALUE:a[row][col-1],right=col==cols-1?Long.MIN_VALUE:a[row][col+1];\n        if(a[row][col]>left&&a[row][col]>right)return new int[]{row,col};\n        if(left>a[row][col])hi=col-1;else lo=col+1;\n    }\n    throw new IllegalArgumentException(\"Adjacent values must be unequal\");\n}",
+    "time": "O(rows log(columns+1)).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The matrix need not be sorted for this problem.",
+      "A fixed sentinel such as -1 is unsafe when matrix values may be negative.",
+      "Equal plateaus require a different contract for strict peaks."
+    ],
+    "tests": [
+      "int[][] a={{1,4},{3,2}};int[] p=peak2D(a);assert (p[0]==0&&p[1]==1)||(p[0]==1&&p[1]==0);",
+      "assert Arrays.equals(peak2D(new int[][]{{-5,-2,-7}}),new int[]{0,1});",
+      "assert Arrays.equals(peak2D(new int[][]{{Integer.MIN_VALUE}}),new int[]{0,0});",
+      "Random r=new Random(109);for(int run=0;run<100;run++){int[][] a=new int[5][7];List<Integer> values=new ArrayList<>();for(int i=0;i<35;i++)values.add(i);Collections.shuffle(values,r);for(int i=0;i<35;i++)a[i/7][i%7]=values.get(i);int[] p=peak2D(a);int row=p[0],col=p[1],v=a[row][col];assert row==0||v>a[row-1][col];assert row==4||v>a[row+1][col];assert col==0||v>a[row][col-1];assert col==6||v>a[row][col+1];}"
+    ]
+  },
+  "110": {
+    "problem": "Find the median value in a row-wise sorted matrix.",
+    "assumptions": "The matrix is nonempty and rectangular, with an odd total cell count. Columns need not be sorted.",
+    "example": {
+      "input": "[[1,3,5],[2,6,9],[3,6,9]]",
+      "output": "5",
+      "explanation": "The combined sorted values are 1,2,3,3,5,6,6,9,9. The fifth value is 5."
+    },
+    "baseline": "Flatten and sort all values in O(N log N) time and O(N) extra space, where N is the cell count.",
+    "approach": "Binary search the value domain. For each candidate value, use upper bound in every row to count cells <=candidate. The median is the smallest value whose cumulative count exceeds N/2.",
+    "steps": [
+      "Bound candidate values by the smallest row-first and largest row-last entries.",
+      "Count values <=mid using a binary search per row.",
+      "Move the lower bound up when the count is at most N/2, otherwise lower the upper bound."
+    ],
+    "java": "static int matrixMedian(int[][] a){\n    if(a.length==0||a[0].length==0)throw new IllegalArgumentException();\n    int cols=a[0].length;long total=(long)a.length*cols;if(total%2==0)throw new IllegalArgumentException();\n    long lo=Long.MAX_VALUE,hi=Long.MIN_VALUE;\n    for(int[] row:a){lo=Math.min(lo,row[0]);hi=Math.max(hi,row[cols-1]);}\n    while(lo<hi){long mid=lo+(hi-lo)/2,count=0;\n        for(int[] row:a){int l=0,h=cols;while(l<h){int m=l+(h-l)/2;if(row[m]<=mid)l=m+1;else h=m;}count+=l;}\n        if(count<=total/2)lo=mid+1;else hi=mid;\n    }\n    return (int)lo;\n}",
+    "time": "O(rows × log(columns+1) × log(valueRange+1)); at most 32 value-search steps for int data.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Count <=mid, not just <mid, to handle duplicates correctly.",
+      "Use long boundaries so max−min cannot overflow for the full int range.",
+      "An even number of cells needs an explicitly defined lower, upper, or averaged median."
+    ],
+    "tests": [
+      "assert matrixMedian(new int[][]{{1,3,5},{2,6,9},{3,6,9}})==5;",
+      "assert matrixMedian(new int[][]{{2,2,2}})==2;",
+      "assert matrixMedian(new int[][]{{Integer.MIN_VALUE,0,Integer.MAX_VALUE}})==0;"
+    ]
   }
 }
