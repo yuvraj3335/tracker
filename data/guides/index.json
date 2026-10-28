@@ -3625,21 +3625,22 @@
     }
   },
   "104": {
-    "problem": "Find the median of two sorted arrays without merging them.",
-    "assumptions": "The combined input is nonempty. Either individual array may be empty, and duplicates are allowed.",
+    "problem": "Find the middle value of the sorted order formed by two sorted arrays. If there are two middle values, return their average.",
+    "assumptions": "Both arrays are sorted in increasing or equal order. One may be empty, but they cannot both be empty. Values may repeat.",
     "example": {
-      "input": "a = [1,3], b = [2]",
-      "output": "2.0",
-      "explanation": "A valid partition puts [1] from a and [2] from b on the left, leaving [3] on the right. The largest left value is the median."
+      "input": "a = [2, 5], b = [1, 3, 6, 8]",
+      "output": "4.0",
+      "explanation": "The combined order is [1, 2, 3, 5, 6, 8]. Its middle values are 3 and 5, so the median is (3 + 5) / 2 = 4."
     },
-    "baseline": "Merge or scan to the middle in O(n+m) time.",
-    "approach": "Choose cuts whose total left size is ceil((n+m)/2). A partition is valid when both left maxima are <= both right minima. Binary search the cut in the smaller array; its paired cut is determined by the required left size.",
+    "baseline": "Copy both arrays into one array and sort it. Then read the middle value or average the two middle values. This is easy to check, but it sorts values that were already in order.",
+    "approach": "Imagine a line through the combined sorted order, with half the values on each side. For an odd total, put the extra value on the left. We do not need to build that combined array. We only need to decide how many values each input contributes to the left side.\n\nSuppose we take cutA values from a. Then we must take leftSize − cutA values from b. Because each input is already sorted, we only compare the four values next to the cuts. The last selected value from a must not exceed the first unselected value from b, and the same must hold in the other direction.\n\nIf a has a selected value that is too large, take fewer values from a. Otherwise, take more. This lets us binary search the cut in the shorter array. Once the cuts fit, the median is the largest value on the left, or its average with the smallest value on the right.",
     "steps": [
-      "Always search the shorter array.",
-      "Use infinite sentinels for empty sides of a cut.",
-      "Move the cut left if its left value exceeds the other right value, or right for the opposite violation."
+      "Set leftSize to (n + m + 1) / 2. Search how many values to take from the shorter array, from 0 through its full length.",
+      "For each cut in a, calculate the cut in b. Read the four neighbouring values; treat a missing left value as minus infinity and a missing right value as plus infinity.",
+      "If leftA > rightB, move the cut in a left. If leftB > rightA, move it right.",
+      "When both comparisons pass, use the two values around the combined middle to return the median."
     ],
-    "java": "static double median(int[] a,int[] b){\n    if(a.length>b.length)return median(b,a);\n    int n=a.length,m=b.length;long total=(long)n+m;if(total==0)throw new IllegalArgumentException();\n    int left=(int)((total+1)/2),lo=0,hi=n;\n    while(lo<=hi){int i=lo+(hi-lo)/2,j=left-i;\n        long al=i==0?Long.MIN_VALUE:a[i-1],ar=i==n?Long.MAX_VALUE:a[i];\n        long bl=j==0?Long.MIN_VALUE:b[j-1],br=j==m?Long.MAX_VALUE:b[j];\n        if(al<=br&&bl<=ar){long lower=Math.max(al,bl);return total%2==1?lower:(lower+Math.min(ar,br))/2.0;}\n        if(al>br)hi=i-1;else lo=i+1;\n    }\n    throw new IllegalArgumentException(\"Inputs must be sorted\");\n}",
+    "java": "static double median(int[] a, int[] b) {\n    if (a.length > b.length) return median(b, a);\n    int n = a.length;\n    int m = b.length;\n    long total = (long) n + m;\n    if (total == 0) throw new IllegalArgumentException(\"No values\");\n    int leftSize = (int) ((total + 1) / 2);\n    int low = 0;\n    int high = n;\n    while (low <= high) {\n        int cutA = low + (high - low) / 2;\n        int cutB = leftSize - cutA;\n        long leftA = cutA == 0 ? Long.MIN_VALUE : a[cutA - 1];\n        long rightA = cutA == n ? Long.MAX_VALUE : a[cutA];\n        long leftB = cutB == 0 ? Long.MIN_VALUE : b[cutB - 1];\n        long rightB = cutB == m ? Long.MAX_VALUE : b[cutB];\n        if (leftA <= rightB && leftB <= rightA) {\n            long middleLeft = Math.max(leftA, leftB);\n            if (total % 2 == 1) return middleLeft;\n            long middleRight = Math.min(rightA, rightB);\n            return (middleLeft + middleRight) / 2.0;\n        }\n        if (leftA > rightB) {\n            high = cutA - 1;\n        } else {\n            low = cutA + 1;\n        }\n    }\n    throw new IllegalArgumentException(\"Inputs must be sorted\");\n}",
     "time": "O(log(min(n,m)+1)).",
     "space": "O(1); the optional swap recursion has depth at most one.",
     "pitfalls": [
@@ -3650,53 +3651,139 @@
       "assert median(new int[]{1,3},new int[]{2})==2.0;",
       "assert median(new int[]{1,2},new int[]{3,4})==2.5;",
       "assert median(new int[]{},new int[]{2})==2.0;",
-      "assert median(new int[]{Integer.MAX_VALUE},new int[]{Integer.MAX_VALUE})==Integer.MAX_VALUE;"
-    ]
+      "assert median(new int[]{Integer.MAX_VALUE},new int[]{Integer.MAX_VALUE})==Integer.MAX_VALUE;",
+      "assert median(new int[]{2,5},new int[]{1,3,6,8})==4.0;",
+      "assert median(new int[]{Integer.MIN_VALUE},new int[]{Integer.MAX_VALUE})==-0.5;",
+      "assert median(new int[]{Integer.MIN_VALUE},new int[]{Integer.MIN_VALUE})==Integer.MIN_VALUE;",
+      "Random r=new Random(104);for(int run=0;run<300;run++){int[] a=new int[r.nextInt(16)],b=new int[1+r.nextInt(16)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(31)-15;for(int i=0;i<b.length;i++)b[i]=r.nextInt(31)-15;Arrays.sort(a);Arrays.sort(b);double expected=medianBySorting(a,b);assert medianByWalking(a,b)==expected;assert median(a,b)==expected;}",
+      "boolean rejected=false;try{median(new int[]{},new int[]{});}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ],
+    "baselineTime": "O((n + m) log(n + m)) time and O(n + m) extra space.",
+    "baselineJava": "static double medianBySorting(int[] a, int[] b) {\n    int[] values = new int[a.length + b.length];\n    if (values.length == 0) throw new IllegalArgumentException(\"No values\");\n    System.arraycopy(a, 0, values, 0, a.length);\n    System.arraycopy(b, 0, values, a.length, b.length);\n    Arrays.sort(values);\n    int middle = values.length / 2;\n    if (values.length % 2 == 1) return values[middle];\n    return ((double) values[middle - 1] + values[middle]) / 2;\n}",
+    "better": {
+      "explanation": "Walk through the arrays as if you were merging them: take the smaller next value each time. Stop when you reach the middle. Keep only the last two values you took; an even-length answer needs both of them.",
+      "java": "static double medianByWalking(int[] a, int[] b) {\n    long total = (long) a.length + b.length;\n    if (total == 0) throw new IllegalArgumentException(\"No values\");\n    int i = 0;\n    int j = 0;\n    int previous = 0;\n    int current = 0;\n    for (long picked = 0; picked <= total / 2; picked++) {\n        previous = current;\n        if (i < a.length && (j == b.length || a[i] <= b[j])) {\n            current = a[i++];\n        } else {\n            current = b[j++];\n        }\n    }\n    if (total % 2 == 1) return current;\n    return ((double) previous + current) / 2;\n}",
+      "time": "O(n + m).",
+      "space": "O(1)."
+    },
+    "trace": {
+      "columns": [
+        "Cut in a",
+        "Cut in b",
+        "Values beside the cuts",
+        "Decision"
+      ],
+      "rows": [
+        [
+          "1",
+          "2",
+          "a: 2 | 5; b: 3 | 6",
+          "2 ≤ 6 and 3 ≤ 5: the cuts fit."
+        ],
+        [
+          "Left side has 3 values",
+          "Right side has 3 values",
+          "Largest left = 3; smallest right = 5",
+          "Return (3 + 5) / 2 = 4.0."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/median-of-2-sorted-arrays",
+      "title": "Median of 2 Sorted Arrays",
+      "checkedOn": "2026-10-29",
+      "approach": "Combine and sort, merge only to the middle, then binary search the partition in the shorter array.",
+      "adaptation": "The three approaches and Java control flow were checked against the public lesson. These standalone methods use long boundary values and reject two empty inputs."
+    }
   },
   "105": {
-    "problem": "Find the kth smallest element across two sorted arrays.",
-    "assumptions": "k is one-based and must lie between 1 and the combined length. Duplicates count separately.",
+    "problem": "Find the value at position k when two sorted arrays are combined in sorted order. Position 1 means the smallest value.",
+    "assumptions": "The inputs are sorted in increasing or equal order. Repeated values occupy separate positions. Return −1 for a k outside 1 through n + m.",
     "example": {
-      "input": "a = [2,3,6,7,9], b = [1,4,8,10], k = 5",
+      "input": "a = [2, 7, 9], b = [1, 4, 6, 10], k = 4",
       "output": "6",
-      "explanation": "The first five merged values are 1,2,3,4,6. A valid partition with five elements on the left has maximum left value 6."
+      "explanation": "The combined order starts 1, 2, 4, 6. The fourth value is 6."
     },
-    "baseline": "Merge or advance two pointers for k steps in O(k) time.",
-    "approach": "As in the median partition method, choose cuts containing exactly k total values on the left. Restrict the first cut to max(0,k−m)…min(k,n) so neither side asks for more elements than an array contains.",
+    "baseline": "Copy all the values into one list, sort it, and read index k − 1. Subtract one because Java indexes start at zero.",
+    "approach": "Put exactly k values on the left of an imaginary dividing line. If every value on the left is at most every value on the right, the largest value on the left must be the kth value.\n\nTake cutA values from a and k − cutA from b. Only the values next to the two cuts can break the sorted order: the rest of each input is already sorted. Check leftA ≤ rightB and leftB ≤ rightA. If the first comparison fails, take fewer from a. If the second fails, take more from a.\n\nThe starting bounds matter. We cannot take more than k values or more than a contains. We also must take at least k − b.length from a if b is too short to supply all k values. Binary search within those bounds in the shorter array.",
     "steps": [
-      "Search the cut in the shorter array.",
-      "Derive the other cut as k−firstCut.",
-      "When both cross-boundary inequalities hold, return the larger left endpoint."
+      "Search the shorter input. Set low = max(0, k − m) and high = min(k, n).",
+      "Choose cutA halfway between low and high. The other cut is k − cutA.",
+      "Compare the last selected and first unselected values across the two arrays. Move cutA left or right when a comparison fails.",
+      "When both comparisons pass, return max(leftA, leftB)."
     ],
-    "java": "static int kth(int[] a,int[] b,int k){\n    if(a.length>b.length)return kth(b,a,k);\n    int n=a.length,m=b.length;if(k<1||k>(long)n+m)throw new IllegalArgumentException();\n    int lo=Math.max(0,k-m),hi=Math.min(k,n);\n    while(lo<=hi){int i=lo+(hi-lo)/2,j=k-i;\n        long al=i==0?Long.MIN_VALUE:a[i-1],ar=i==n?Long.MAX_VALUE:a[i];\n        long bl=j==0?Long.MIN_VALUE:b[j-1],br=j==m?Long.MAX_VALUE:b[j];\n        if(al<=br&&bl<=ar)return (int)Math.max(al,bl);\n        if(al>br)hi=i-1;else lo=i+1;\n    }\n    throw new IllegalArgumentException(\"Inputs must be sorted\");\n}",
+    "java": "static int kth(int[] a, int[] b, int k) {\n    if (k < 1 || k > (long) a.length + b.length) return -1;\n    if (a.length > b.length) return kth(b, a, k);\n    int n = a.length;\n    int m = b.length;\n    int low = Math.max(0, k - m);\n    int high = Math.min(k, n);\n    while (low <= high) {\n        int cutA = low + (high - low) / 2;\n        int cutB = k - cutA;\n        long leftA = cutA == 0 ? Long.MIN_VALUE : a[cutA - 1];\n        long rightA = cutA == n ? Long.MAX_VALUE : a[cutA];\n        long leftB = cutB == 0 ? Long.MIN_VALUE : b[cutB - 1];\n        long rightB = cutB == m ? Long.MAX_VALUE : b[cutB];\n        if (leftA <= rightB && leftB <= rightA) {\n            return (int) Math.max(leftA, leftB);\n        }\n        if (leftA > rightB) {\n            high = cutA - 1;\n        } else {\n            low = cutA + 1;\n        }\n    }\n    throw new IllegalArgumentException(\"Inputs must be sorted\");\n}",
     "time": "O(log(min(n,m)+1)).",
     "space": "O(1).",
     "pitfalls": [
-      "Using cuts from 0 to n without the k-based bounds can access outside the second array.",
-      "For kth selection, the left side contains k elements, not k−1."
+      "k counts values, so the left side must contain k values, not k − 1.",
+      "Bounds based on k keep the second cut inside b. Searching 0 through n without those bounds can access an invalid index.",
+      "An absent left or right neighbour uses a sentinel. It does not add an actual value to the combined order."
     ],
     "tests": [
       "assert kth(new int[]{2,3,6,7,9},new int[]{1,4,8,10},5)==6;",
       "assert kth(new int[]{},new int[]{4,5},2)==5;",
-      "Random r=new Random(105);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(12)],b=new int[1+r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(11);for(int i=0;i<b.length;i++)b[i]=r.nextInt(11);Arrays.sort(a);Arrays.sort(b);int[] all=new int[a.length+b.length];System.arraycopy(a,0,all,0,a.length);System.arraycopy(b,0,all,a.length,b.length);Arrays.sort(all);for(int k=1;k<=all.length;k++)assert kth(a,b,k)==all[k-1];}"
-    ]
+      "Random r=new Random(105);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(12)],b=new int[1+r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(11);for(int i=0;i<b.length;i++)b[i]=r.nextInt(11);Arrays.sort(a);Arrays.sort(b);int[] all=new int[a.length+b.length];System.arraycopy(a,0,all,0,a.length);System.arraycopy(b,0,all,a.length,b.length);Arrays.sort(all);for(int k=1;k<=all.length;k++)assert kth(a,b,k)==all[k-1];}",
+      "assert kth(new int[]{2,7,9},new int[]{1,4,6,10},4)==6;",
+      "assert kth(new int[]{Integer.MIN_VALUE},new int[]{Integer.MAX_VALUE},1)==Integer.MIN_VALUE;assert kth(new int[]{Integer.MIN_VALUE},new int[]{Integer.MAX_VALUE},2)==Integer.MAX_VALUE;",
+      "assert kth(new int[]{},new int[]{},1)==-1;assert kth(new int[]{1},new int[]{2},0)==-1;assert kth(new int[]{1},new int[]{2},3)==-1;",
+      "Random r=new Random(1051);for(int run=0;run<200;run++){int[] a=new int[r.nextInt(12)],b=new int[1+r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(21)-10;for(int i=0;i<b.length;i++)b[i]=r.nextInt(21)-10;Arrays.sort(a);Arrays.sort(b);for(int k=1;k<=a.length+b.length;k++){int expected=kthBySorting(a,b,k);assert kthByWalking(a,b,k)==expected;assert kth(a,b,k)==expected;}}"
+    ],
+    "baselineTime": "O((n + m) log(n + m)) time and O(n + m) extra space.",
+    "baselineJava": "static int kthBySorting(int[] a, int[] b, int k) {\n    if (k < 1 || k > (long) a.length + b.length) return -1;\n    int[] values = new int[a.length + b.length];\n    System.arraycopy(a, 0, values, 0, a.length);\n    System.arraycopy(b, 0, values, a.length, b.length);\n    Arrays.sort(values);\n    return values[k - 1];\n}",
+    "better": {
+      "explanation": "Compare the next unused values in the two arrays and take the smaller one. After taking k values, the last one taken is the answer. If one array runs out, keep taking values from the other.",
+      "java": "static int kthByWalking(int[] a, int[] b, int k) {\n    if (k < 1 || k > (long) a.length + b.length) return -1;\n    int i = 0;\n    int j = 0;\n    int answer = -1;\n    for (int picked = 0; picked < k; picked++) {\n        if (i < a.length && (j == b.length || a[i] <= b[j])) {\n            answer = a[i++];\n        } else {\n            answer = b[j++];\n        }\n    }\n    return answer;\n}",
+      "time": "O(k).",
+      "space": "O(1)."
+    },
+    "trace": {
+      "columns": [
+        "Cut in a",
+        "Cut in b",
+        "Values beside the cuts",
+        "Decision"
+      ],
+      "rows": [
+        [
+          "1",
+          "3",
+          "a: 2 | 7; b: 6 | 10",
+          "2 ≤ 10 and 6 ≤ 7: the cuts fit."
+        ],
+        [
+          "1 value from a",
+          "3 values from b",
+          "Left values are 2 and [1, 4, 6]",
+          "The largest left value is 6."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/kth-element-of-two-sorted-arrays",
+      "title": "Kth Element of Two Sorted Arrays",
+      "checkedOn": "2026-10-29",
+      "approach": "Combine and sort, walk through k merged values, then binary search a valid partition.",
+      "adaptation": "The three Java approaches were checked. The merge walk uses one loop with an exhausted-array check. The partition uses long sentinels; invalid k returns −1 as in the lesson."
+    }
   },
   "106": {
-    "problem": "Find the row containing the most ones in a row-sorted binary matrix.",
-    "assumptions": "Every row has zeroes followed by ones. Return the first row on ties and -1 if there are no ones.",
+    "problem": "Return the index of the row with the most ones. If rows tie, return the earliest row. If the matrix has no ones, return −1.",
+    "assumptions": "The matrix is rectangular and contains only 0 and 1. Each row has all its zeros before its ones. Columns do not need to be sorted. An empty matrix returns −1.",
     "example": {
-      "input": "[[0,0,1],[0,1,1],[0,0,0]]",
+      "input": "[[0, 0, 1, 1], [0, 1, 1, 1], [0, 1, 1, 1]]",
       "output": "1",
-      "explanation": "Row 0 moves the leftmost known one boundary to column 2. Row 1 moves it farther left to column 1, proving that row has more ones."
+      "explanation": "Rows 1 and 2 each contain three ones. Row 1 wins because it comes first."
     },
-    "baseline": "Count every row in O(rows×columns), or binary search its first one in O(rows log columns).",
-    "approach": "Start at the top-right. Move left while the current cell is one; each left move proves a strictly larger row count than any previously seen. Then advance to the next row without resetting the column.",
+    "baseline": "Count the ones in each row. Replace the best row only when you find a strictly larger count, so equal counts keep the earlier row.",
+    "approach": "Start at the top-right cell. A 1 lets us move one step left and record this row as the best so far. A 0 tells us that everything farther left in this row is also 0, so we move down.\n\nDo not move back to the right when you change rows. The current column is the next position a row must fill with a 1 to beat our record. A row with an equal number of ones has a 0 at that position, so it cannot replace the earlier row.\n\nThe pointer moves left at most columns times and down at most rows times. That is why this walk avoids scanning the whole matrix.",
     "steps": [
-      "Initialize column to the final column and best row to -1.",
-      "For each row, keep moving left through ones.",
-      "Update best only when moving left, preserving the first row on equal counts."
+      "Start at row 0 and the last column, with answer −1.",
+      "On a 1, save the row and move left. This row has beaten the previous count.",
+      "On a 0, move down without changing the column.",
+      "Return the last saved row when the pointer leaves the matrix."
     ],
-    "java": "static int rowMostOnes(int[][] a){\n    if(a.length==0||a[0].length==0)return -1;int col=a[0].length-1,best=-1;\n    for(int row=0;row<a.length;row++)while(col>=0&&a[row][col]==1){best=row;col--;}\n    return best;\n}",
+    "java": "static int rowMostOnes(int[][] matrix) {\n    if (matrix.length == 0 || matrix[0].length == 0) return -1;\n    int row = 0;\n    int col = matrix[0].length - 1;\n    int answer = -1;\n    while (row < matrix.length && col >= 0) {\n        if (matrix[row][col] == 1) {\n            answer = row;\n            col--;\n        } else {\n            row++;\n        }\n    }\n    return answer;\n}",
     "time": "O(rows+columns), because the column pointer only moves left.",
     "space": "O(1).",
     "pitfalls": [
@@ -3706,25 +3793,77 @@
     "tests": [
       "assert rowMostOnes(new int[][]{{0,0,1},{0,1,1},{0,0,0}})==1;",
       "assert rowMostOnes(new int[][]{{0,1},{0,1}})==0;",
-      "assert rowMostOnes(new int[][]{{0,0},{0,0}})==-1;"
-    ]
+      "assert rowMostOnes(new int[][]{{0,0},{0,0}})==-1;",
+      "assert rowMostOnes(new int[][]{{0,0,1,1},{0,1,1,1},{0,1,1,1}})==1;assert rowMostOnes(new int[0][0])==-1;",
+      "Random r=new Random(106);for(int run=0;run<500;run++){int[][] a=new int[1+r.nextInt(12)][1+r.nextInt(12)];for(int[] row:a){int start=r.nextInt(row.length+1);Arrays.fill(row,start,row.length,1);}int expected=rowMostOnesByCounting(a);assert rowMostOnesByBinarySearch(a)==expected;assert rowMostOnes(a)==expected;}"
+    ],
+    "baselineTime": "O(rows × columns) time and O(1) extra space.",
+    "baselineJava": "static int rowMostOnesByCounting(int[][] matrix) {\n    int bestRow = -1;\n    int bestCount = 0;\n    for (int row = 0; row < matrix.length; row++) {\n        int count = 0;\n        for (int value : matrix[row]) {\n            if (value == 1) count++;\n        }\n        if (count > bestCount) {\n            bestCount = count;\n            bestRow = row;\n        }\n    }\n    return bestRow;\n}",
+    "better": {
+      "explanation": "In a sorted row, finding the first 1 is enough. If it is at column c, the row contains columns − c ones. Use binary search to find that first 1 in every row.",
+      "java": "static int rowMostOnesByBinarySearch(int[][] matrix) {\n    if (matrix.length == 0 || matrix[0].length == 0) return -1;\n    int columns = matrix[0].length;\n    int bestRow = -1;\n    int bestCount = 0;\n    for (int row = 0; row < matrix.length; row++) {\n        int low = 0;\n        int high = columns - 1;\n        int firstOne = columns;\n        while (low <= high) {\n            int mid = low + (high - low) / 2;\n            if (matrix[row][mid] == 1) {\n                firstOne = mid;\n                high = mid - 1;\n            } else {\n                low = mid + 1;\n            }\n        }\n        int count = columns - firstOne;\n        if (count > bestCount) {\n            bestCount = count;\n            bestRow = row;\n        }\n    }\n    return bestRow;\n}",
+      "time": "O(rows × log(columns + 1)).",
+      "space": "O(1)."
+    },
+    "trace": {
+      "columns": [
+        "Cell",
+        "Value",
+        "Move / best row"
+      ],
+      "rows": [
+        [
+          "(0, 3)",
+          "1",
+          "Left; best row = 0."
+        ],
+        [
+          "(0, 2)",
+          "1",
+          "Left; row 0 has at least 2 ones."
+        ],
+        [
+          "(0, 1)",
+          "0",
+          "Down, keeping column 1."
+        ],
+        [
+          "(1, 1)",
+          "1",
+          "Left; best row = 1, with 3 ones."
+        ],
+        [
+          "(1, 0), then (2, 0)",
+          "0, then 0",
+          "Move down twice. The tie in row 2 does not replace row 1."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-the-row-with-maximum-1s-in-a-sorted-binary-matrix",
+      "title": "Find the Row with Maximum 1s in a Sorted Binary Matrix",
+      "checkedOn": "2026-10-29",
+      "approach": "Count every row, binary search each first 1, then walk left/down from the top-right.",
+      "adaptation": "All three Java approaches were checked. The methods also return −1 for empty input."
+    }
   },
   "107": {
-    "problem": "Search a matrix whose row-major traversal is sorted.",
-    "assumptions": "Rows are ascending and each row’s first value is greater than the previous row’s last value. The matrix is rectangular.",
+    "problem": "Return whether a target value appears in a matrix that is sorted when read row by row.",
+    "assumptions": "All rows have the same length. Each row is sorted, and every row starts with a value greater than the last value of the previous row. Empty input returns false.",
     "example": {
-      "input": "[[1,3,5,7],[10,11,16,20],[23,30,34,60]], target = 3",
+      "input": "[[2, 5, 8], [11, 14, 18]], target = 14",
       "output": "true",
-      "explanation": "The entire matrix acts like one sorted list. Virtual index 1 maps to row 0, column 1, which contains 3."
+      "explanation": "Reading row by row gives [2, 5, 8, 11, 14, 18]. Position 4 in that order is row 1, column 1, which holds 14."
     },
-    "baseline": "Scan all cells in O(rows×columns), or identify a candidate row and binary search it.",
-    "approach": "Flatten only conceptually. A virtual index i maps to row i/columns and column i%columns. Binary search that virtual sorted list without allocating a copy.",
+    "baseline": "Visit every cell and compare it with the target. Return true on a match and false after checking them all.",
+    "approach": "Picture the rows placed end to end. The extra rule about where each row starts makes that whole sequence sorted. We can therefore use ordinary binary search without actually copying the values into a new array.\n\nFor a position mid in this imaginary array, mid / columns tells us the row and mid % columns tells us the column. With 3 columns, position 4 becomes row 1, column 1. Read that cell, compare it with the target, and discard half of the remaining positions.",
     "steps": [
-      "Search virtual indices zero through rows×columns−1.",
-      "Map each midpoint back to a matrix cell.",
-      "Compare it with the target and halve the interval."
+      "Search positions 0 through rows × columns − 1.",
+      "Convert the middle position to a row and column using division and remainder.",
+      "Return true on equality. If the cell is smaller, move low past it; otherwise move high before it.",
+      "If no positions remain, return false."
     ],
-    "java": "static boolean searchMatrix(int[][] a,int target){\n    if(a.length==0||a[0].length==0)return false;int cols=a[0].length;\n    long lo=0,hi=(long)a.length*cols-1;\n    while(lo<=hi){long mid=lo+(hi-lo)/2;int value=a[(int)(mid/cols)][(int)(mid%cols)];\n        if(value==target)return true;if(value<target)lo=mid+1;else hi=mid-1;\n    }\n    return false;\n}",
+    "java": "static boolean searchMatrix(int[][] matrix, int target) {\n    if (matrix.length == 0 || matrix[0].length == 0) return false;\n    int columns = matrix[0].length;\n    long low = 0;\n    long high = (long) matrix.length * columns - 1;\n    while (low <= high) {\n        long mid = low + (high - low) / 2;\n        int row = (int) (mid / columns);\n        int col = (int) (mid % columns);\n        int value = matrix[row][col];\n        if (value == target) return true;\n        if (value < target) {\n            low = mid + 1;\n        } else {\n            high = mid - 1;\n        }\n    }\n    return false;\n}",
     "time": "O(log(rows×columns)).",
     "space": "O(1).",
     "pitfalls": [
@@ -3734,8 +3873,38 @@
     "tests": [
       "assert searchMatrix(new int[][]{{1,3,5,7},{10,11,16,20},{23,30,34,60}},3);",
       "assert !searchMatrix(new int[][]{{1,3},{5,7}},4);",
-      "assert !searchMatrix(new int[0][0],1);"
-    ]
+      "assert !searchMatrix(new int[0][0],1);",
+      "assert searchMatrix(new int[][]{{2,5,8},{11,14,18}},14);assert !searchMatrix(new int[][]{{2,5,8},{11,14,18}},9);",
+      "Random r=new Random(107);for(int run=0;run<200;run++){int rows=1+r.nextInt(8),cols=1+r.nextInt(8);int[][] a=new int[rows][cols];int value=-100;for(int[] row:a)for(int c=0;c<cols;c++){value+=1+r.nextInt(4);row[c]=value;}for(int target=-105;target<=value+5;target++)assert searchMatrix(a,target)==searchByScanning(a,target);}"
+    ],
+    "baselineJava": "static boolean searchByScanning(int[][] matrix, int target) {\n    for (int[] row : matrix) {\n        for (int value : row) {\n            if (value == target) return true;\n        }\n    }\n    return false;\n}",
+    "baselineTime": "O(rows × columns) time and O(1) extra space.",
+    "trace": {
+      "columns": [
+        "low…high",
+        "mid → cell",
+        "Comparison"
+      ],
+      "rows": [
+        [
+          "0…5",
+          "2 → (0, 2), value 8",
+          "8 < 14, so low becomes 3."
+        ],
+        [
+          "3…5",
+          "4 → (1, 1), value 14",
+          "Match: return true."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/search-in-sorted-2d-matrix",
+      "title": "Search in a Sorted 2D Matrix Using Binary Search",
+      "checkedOn": "2026-10-29",
+      "approach": "Full scan, then binary search using virtual row-by-row indices.",
+      "adaptation": "The public Java implementations were checked. The virtual positions use long so multiplying the dimensions cannot overflow an int."
+    }
   },
   "108": {
     "problem": "Search a matrix sorted independently along every row and every column.",
@@ -3745,14 +3914,14 @@
       "output": "true",
       "explanation": "Start at 7 in the top-right. Move left to 4 because 7 is too large, then down to 5 and 6 because those cells are too small."
     },
-    "baseline": "Scan all cells, or binary search each row in O(rows log columns).",
-    "approach": "The top-right cell is the largest in its row and the smallest in its remaining column. If it is too large, discard the entire column; if too small, discard the entire row.",
+    "baseline": "Visit every cell and look for a match. This works even without sorted rows or columns.",
+    "approach": "Stand at the top-right corner of the remaining rectangle. The values to your left are no larger, and the values below you are no smaller. This gives each comparison a clear direction.\n\nIf the current value is too large, every value below it in that column is also too large. Remove that column by moving left. If the current value is too small, every value to its left in that row is also too small. Remove that row by moving down.\n\nEach move removes a row or a column. The search ends when it finds the target or runs out of cells. Reading the entire matrix row by row would not necessarily give a sorted array, so the previous question’s flattening trick does not apply here.",
     "steps": [
       "Start at row zero and the last column.",
       "Move left when the current value exceeds target.",
       "Move down when it is below target; stop on equality or when leaving the matrix."
     ],
-    "java": "static boolean staircaseSearch(int[][] a,int target){\n    if(a.length==0||a[0].length==0)return false;int row=0,col=a[0].length-1;\n    while(row<a.length&&col>=0){int value=a[row][col];if(value==target)return true;if(value>target)col--;else row++;}\n    return false;\n}",
+    "java": "static boolean staircaseSearch(int[][] matrix, int target) {\n    if (matrix.length == 0 || matrix[0].length == 0) return false;\n    int row = 0;\n    int col = matrix[0].length - 1;\n    while (row < matrix.length && col >= 0) {\n        int value = matrix[row][col];\n        if (value == target) return true;\n        if (value > target) {\n            col--;\n        } else {\n            row++;\n        }\n    }\n    return false;\n}",
     "time": "O(rows+columns).",
     "space": "O(1).",
     "pitfalls": [
@@ -3762,56 +3931,128 @@
     "tests": [
       "assert staircaseSearch(new int[][]{{1,4,7},{2,5,8},{3,6,9}},6);",
       "assert !staircaseSearch(new int[][]{{1,4},{2,5}},3);",
-      "assert staircaseSearch(new int[][]{{1,1},{1,2}},1);"
-    ]
+      "assert staircaseSearch(new int[][]{{1,1},{1,2}},1);",
+      "assert !staircaseSearch(new int[0][0],2);",
+      "Random r=new Random(108);for(int run=0;run<300;run++){int rows=1+r.nextInt(8),cols=1+r.nextInt(8);int[][] a=new int[rows][cols];for(int i=0;i<rows;i++)for(int j=0;j<cols;j++){int prev=-20;if(i>0)prev=Math.max(prev,a[i-1][j]);if(j>0)prev=Math.max(prev,a[i][j-1]);a[i][j]=prev+r.nextInt(4);}for(int target=-22;target<=a[rows-1][cols-1]+2;target++)assert staircaseSearch(a,target)==searchByScanning(a,target);}"
+    ],
+    "baselineJava": "static boolean searchByScanning(int[][] matrix, int target) {\n    for (int[] row : matrix) {\n        for (int value : row) {\n            if (value == target) return true;\n        }\n    }\n    return false;\n}",
+    "baselineTime": "O(rows × columns) time and O(1) extra space.",
+    "trace": {
+      "columns": [
+        "Cell",
+        "Value",
+        "Decision for target 6"
+      ],
+      "rows": [
+        [
+          "(0, 2)",
+          "7",
+          "Too large: move left."
+        ],
+        [
+          "(0, 1)",
+          "4",
+          "Too small: move down."
+        ],
+        [
+          "(1, 1)",
+          "5",
+          "Too small: move down."
+        ],
+        [
+          "(2, 1)",
+          "6",
+          "Found."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/search-in-a-row-and-column-wise-sorted-matrix",
+      "title": "Search in a Row and Column-Wise Sorted Matrix",
+      "checkedOn": "2026-10-29",
+      "approach": "Full scan, then staircase search starting at the top-right.",
+      "adaptation": "The public lesson and optimal Java solution were checked. The implementation follows the same row/column elimination."
+    }
   },
   "109": {
-    "problem": "Find a cell strictly larger than its four orthogonal neighbors.",
-    "assumptions": "Adjacent cells have unequal values. Outside the rectangle is treated as negative infinity. Return an empty pair for an empty matrix.",
+    "problem": "Find any cell that is bigger than each of its neighbours above, below, left and right. Return its row and column.",
+    "assumptions": "The matrix is rectangular and neighbouring cells have different values. The source uses a −1 outside border with nonnegative values. Here, missing neighbours are ignored, which also supports negative values. Empty input returns an empty pair.",
     "example": {
       "input": "[[1,4],[3,2]]",
       "output": "[0,1] or [1,0]",
       "explanation": "The cell 4 exceeds its left and lower neighbors; its other two neighbors are outside the matrix. Either listed peak is a valid answer."
     },
-    "baseline": "Scan all cells and check up to four neighbors in O(rows×columns) time.",
-    "approach": "Choose the maximum cell in the middle column. It already exceeds its vertical neighbors under the no-equal-adjacent assumption. If a horizontal neighbor is larger, the corresponding half contains a peak; otherwise this column maximum is a peak.",
+    "baseline": "Check every cell against its existing neighbours. The first cell that beats all of them is a valid answer. Diagonal cells do not count.",
+    "approach": "Choose the middle row, then find the largest value in that row. It already beats its immediate left and right neighbours: neither can be larger, and adjacent values cannot be equal. We only need a decision about the vertical direction.\n\nCompare this row maximum with the cell directly below it. If the lower cell is larger, move the search below the middle row. If it is smaller, keep the middle row and the rows above it. In each case there is still a peak on the side we keep.\n\nRepeat until one row remains, then return its largest value. The row maximum takes care of the horizontal neighbours, and the search choices take care of the vertical neighbours. This finds a local peak; it does not promise the largest value in the whole matrix.",
     "steps": [
-      "Binary search column indices.",
-      "Find the maximum row position within the middle column.",
-      "Compare its horizontal neighbors and move toward a larger one, or return the cell."
+      "Start with all row indices, from 0 through rows − 1.",
+      "While low < high, find the largest value in the middle row.",
+      "If it is larger than the cell below, set high = mid. Otherwise set low = mid + 1.",
+      "Find the largest value in the final row and return its coordinates."
     ],
-    "java": "static int[] peak2D(int[][] a){\n    if(a.length==0||a[0].length==0)return new int[0];int rows=a.length,cols=a[0].length,lo=0,hi=cols-1;\n    while(lo<=hi){int col=lo+(hi-lo)/2,row=0;for(int r=1;r<rows;r++)if(a[r][col]>a[row][col])row=r;\n        long left=col==0?Long.MIN_VALUE:a[row][col-1],right=col==cols-1?Long.MIN_VALUE:a[row][col+1];\n        if(a[row][col]>left&&a[row][col]>right)return new int[]{row,col};\n        if(left>a[row][col])hi=col-1;else lo=col+1;\n    }\n    throw new IllegalArgumentException(\"Adjacent values must be unequal\");\n}",
-    "time": "O(rows log(columns+1)).",
+    "java": "static int[] peak2D(int[][] matrix) {\n    if (matrix.length == 0 || matrix[0].length == 0) return new int[0];\n    int columns = matrix[0].length;\n    int low = 0;\n    int high = matrix.length - 1;\n    while (low < high) {\n        int mid = low + (high - low) / 2;\n        int bestCol = 0;\n        for (int col = 1; col < columns; col++) {\n            if (matrix[mid][col] > matrix[mid][bestCol]) bestCol = col;\n        }\n        if (matrix[mid][bestCol] > matrix[mid + 1][bestCol]) {\n            high = mid;\n        } else {\n            low = mid + 1;\n        }\n    }\n    int bestCol = 0;\n    for (int col = 1; col < columns; col++) {\n        if (matrix[low][col] > matrix[low][bestCol]) bestCol = col;\n    }\n    return new int[]{low, bestCol};\n}",
+    "time": "O(columns × (1 + log rows)); the final row also needs one scan.",
     "space": "O(1).",
     "pitfalls": [
-      "The matrix need not be sorted for this problem.",
-      "A fixed sentinel such as -1 is unsafe when matrix values may be negative.",
-      "Equal plateaus require a different contract for strict peaks."
+      "The matrix need not be sorted. Only neighbouring values must be unequal.",
+      "A peak beats its four direct neighbours, not diagonal cells and not necessarily every cell.",
+      "Keep mid when moving high: that row may contain the answer. Using high = mid − 1 can skip it."
     ],
     "tests": [
       "int[][] a={{1,4},{3,2}};int[] p=peak2D(a);assert (p[0]==0&&p[1]==1)||(p[0]==1&&p[1]==0);",
       "assert Arrays.equals(peak2D(new int[][]{{-5,-2,-7}}),new int[]{0,1});",
       "assert Arrays.equals(peak2D(new int[][]{{Integer.MIN_VALUE}}),new int[]{0,0});",
-      "Random r=new Random(109);for(int run=0;run<100;run++){int[][] a=new int[5][7];List<Integer> values=new ArrayList<>();for(int i=0;i<35;i++)values.add(i);Collections.shuffle(values,r);for(int i=0;i<35;i++)a[i/7][i%7]=values.get(i);int[] p=peak2D(a);int row=p[0],col=p[1],v=a[row][col];assert row==0||v>a[row-1][col];assert row==4||v>a[row+1][col];assert col==0||v>a[row][col-1];assert col==6||v>a[row][col+1];}"
-    ]
+      "Random r=new Random(109);for(int run=0;run<100;run++){int[][] a=new int[5][7];List<Integer> values=new ArrayList<>();for(int i=0;i<35;i++)values.add(i);Collections.shuffle(values,r);for(int i=0;i<35;i++)a[i/7][i%7]=values.get(i);int[] p=peak2D(a);int row=p[0],col=p[1],v=a[row][col];assert row==0||v>a[row-1][col];assert row==4||v>a[row+1][col];assert col==0||v>a[row][col-1];assert col==6||v>a[row][col+1];}",
+      "assert peak2D(new int[0][0]).length==0;",
+      "Random r=new Random(1091);for(int run=0;run<1000;run++){int rows=1+r.nextInt(8),cols=1+r.nextInt(8);int[][] a=new int[rows][cols];List<Integer> values=new ArrayList<>();for(int i=0;i<rows*cols;i++)values.add(i-40);Collections.shuffle(values,r);for(int i=0;i<rows*cols;i++)a[i/cols][i%cols]=values.get(i);int[] p=peak2D(a),q=peakByScanning(a);assert q.length==2;int row=p[0],col=p[1],v=a[row][col];assert row==0||v>a[row-1][col];assert row+1==rows||v>a[row+1][col];assert col==0||v>a[row][col-1];assert col+1==cols||v>a[row][col+1];}"
+    ],
+    "baselineTime": "O(rows × columns) time and O(1) extra space.",
+    "baselineJava": "static int[] peakByScanning(int[][] matrix) {\n    if (matrix.length == 0 || matrix[0].length == 0) return new int[0];\n    int rows = matrix.length;\n    int columns = matrix[0].length;\n    for (int row = 0; row < rows; row++) {\n        for (int col = 0; col < columns; col++) {\n            int value = matrix[row][col];\n            if (row > 0 && value <= matrix[row - 1][col]) continue;\n            if (row + 1 < rows && value <= matrix[row + 1][col]) continue;\n            if (col > 0 && value <= matrix[row][col - 1]) continue;\n            if (col + 1 < columns && value <= matrix[row][col + 1]) continue;\n            return new int[]{row, col};\n        }\n    }\n    return new int[0];\n}",
+    "trace": {
+      "columns": [
+        "Search rows",
+        "Middle row maximum",
+        "Decision"
+      ],
+      "rows": [
+        [
+          "0…1",
+          "Row 0: maximum 4 at column 1",
+          "The cell below is 2. Keep row 0 by setting high = 0."
+        ],
+        [
+          "0…0",
+          "4 at (0, 1)",
+          "Return [0, 1]. Its actual neighbours are 1 and 2."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-peak-element-2d-matrix",
+      "title": "Find a Peak Element in a 2D Matrix Using Binary Search",
+      "checkedOn": "2026-10-29",
+      "approach": "Scan neighbours, then binary search rows using each middle row’s maximum.",
+      "adaptation": "The public Java solution searches rows, so this guide now uses that variant. Missing neighbours are ignored instead of using −1, allowing the existing negative-value tests."
+    }
   },
   "110": {
     "problem": "Find the median value in a row-wise sorted matrix.",
     "assumptions": "The matrix is nonempty and rectangular, with an odd total cell count. Columns need not be sorted.",
     "example": {
-      "input": "[[1,3,5],[2,6,9],[3,6,9]]",
+      "input": "[[1, 4, 7], [2, 5, 8], [3, 6, 9]]",
       "output": "5",
-      "explanation": "The combined sorted values are 1,2,3,3,5,6,6,9,9. The fifth value is 5."
+      "explanation": "The nine values in sorted order are 1 through 9. Four values come before 5 and four after it, so 5 is the middle value."
     },
-    "baseline": "Flatten and sort all values in O(N log N) time and O(N) extra space, where N is the cell count.",
-    "approach": "Binary search the value domain. For each candidate value, use upper bound in every row to count cells <=candidate. The median is the smallest value whose cumulative count exceeds N/2.",
+    "baseline": "Collect all cells in one list, sort it, and return the value at index size / 2. This is a useful way to check the faster answer.",
+    "approach": "Instead of searching for a cell position, guess a value. Ask how many cells are less than or equal to that guess. For nine cells, the median is the first value that reaches a count of at least five.\n\nEach row is sorted, so its upper bound tells us how many values are at most the guess. Add those counts across all rows. If the total is at most half the number of cells, the guess is too small. Otherwise the guess is large enough, and we can try smaller values.\n\nThe smallest and largest values must be at row ends, so those give the starting bounds. We keep halving the range until one value remains. Duplicates work too: the count can jump past the middle, and the first value that causes that jump is the median.",
     "steps": [
-      "Bound candidate values by the smallest row-first and largest row-last entries.",
-      "Count values <=mid using a binary search per row.",
-      "Move the lower bound up when the count is at most N/2, otherwise lower the upper bound."
+      "Find the smallest row-first value and the largest row-last value.",
+      "Guess the middle value of that range. Use upper bound in each row to count cells ≤ the guess.",
+      "If the count is at most total / 2, set low = mid + 1. Otherwise set high = mid.",
+      "Return the single value left when low equals high."
     ],
-    "java": "static int matrixMedian(int[][] a){\n    if(a.length==0||a[0].length==0)throw new IllegalArgumentException();\n    int cols=a[0].length;long total=(long)a.length*cols;if(total%2==0)throw new IllegalArgumentException();\n    long lo=Long.MAX_VALUE,hi=Long.MIN_VALUE;\n    for(int[] row:a){lo=Math.min(lo,row[0]);hi=Math.max(hi,row[cols-1]);}\n    while(lo<hi){long mid=lo+(hi-lo)/2,count=0;\n        for(int[] row:a){int l=0,h=cols;while(l<h){int m=l+(h-l)/2;if(row[m]<=mid)l=m+1;else h=m;}count+=l;}\n        if(count<=total/2)lo=mid+1;else hi=mid;\n    }\n    return (int)lo;\n}",
-    "time": "O(rows × log(columns+1) × log(valueRange+1)); at most 32 value-search steps for int data.",
+    "java": "static int matrixMedian(int[][] matrix) {\n    if (matrix.length == 0 || matrix[0].length == 0) {\n        throw new IllegalArgumentException(\"No cells\");\n    }\n    int columns = matrix[0].length;\n    long total = (long) matrix.length * columns;\n    if (total % 2 == 0) throw new IllegalArgumentException(\"Need odd size\");\n    long low = matrix[0][0];\n    long high = matrix[0][columns - 1];\n    for (int[] row : matrix) {\n        low = Math.min(low, row[0]);\n        high = Math.max(high, row[columns - 1]);\n    }\n    while (low < high) {\n        long mid = low + (high - low) / 2;\n        long count = 0;\n        for (int[] row : matrix) count += upperBound(row, mid);\n        if (count <= total / 2) {\n            low = mid + 1;\n        } else {\n            high = mid;\n        }\n    }\n    return (int) low;\n}\n\nstatic int upperBound(int[] row, long target) {\n    int low = 0;\n    int high = row.length;\n    while (low < high) {\n        int mid = low + (high - low) / 2;\n        if (row[mid] <= target) {\n            low = mid + 1;\n        } else {\n            high = mid;\n        }\n    }\n    return low;\n}",
+    "time": "O(rows + rows × log(columns + 1) × log(valueRange + 1)). The first term finds the bounds. Int values need at most 32 value-search steps.",
     "space": "O(1).",
     "pitfalls": [
       "Count <=mid, not just <mid, to handle duplicates correctly.",
@@ -3821,8 +4062,54 @@
     "tests": [
       "assert matrixMedian(new int[][]{{1,3,5},{2,6,9},{3,6,9}})==5;",
       "assert matrixMedian(new int[][]{{2,2,2}})==2;",
-      "assert matrixMedian(new int[][]{{Integer.MIN_VALUE,0,Integer.MAX_VALUE}})==0;"
-    ]
+      "assert matrixMedian(new int[][]{{Integer.MIN_VALUE,0,Integer.MAX_VALUE}})==0;",
+      "assert matrixMedian(new int[][]{{1,4,7},{2,5,8},{3,6,9}})==5;",
+      "Random r=new Random(110);for(int run=0;run<500;run++){int rows=1+2*r.nextInt(5),cols=1+2*r.nextInt(5);int[][] a=new int[rows][cols];for(int[] row:a){for(int c=0;c<cols;c++)row[c]=r.nextInt(31)-15;Arrays.sort(row);}assert matrixMedian(a)==matrixMedianBySorting(a);}",
+      "assert matrixMedian(new int[][]{{Integer.MIN_VALUE},{Integer.MAX_VALUE},{Integer.MAX_VALUE}})==Integer.MAX_VALUE;"
+    ],
+    "baselineJava": "static int matrixMedianBySorting(int[][] matrix) {\n    List<Integer> values = new ArrayList<>();\n    for (int[] row : matrix) {\n        for (int value : row) values.add(value);\n    }\n    if (values.isEmpty() || values.size() % 2 == 0) {\n        throw new IllegalArgumentException(\"Need an odd number of cells\");\n    }\n    Collections.sort(values);\n    return values.get(values.size() / 2);\n}",
+    "baselineTime": "O(N log N) time and O(N) extra space, where N is the number of cells.",
+    "trace": {
+      "columns": [
+        "Value range",
+        "Guess",
+        "Count ≤ guess",
+        "Decision"
+      ],
+      "rows": [
+        [
+          "1…9",
+          "5",
+          "5",
+          "Enough: high = 5."
+        ],
+        [
+          "1…5",
+          "3",
+          "3",
+          "Too few: low = 4."
+        ],
+        [
+          "4…5",
+          "4",
+          "4",
+          "Too few: low = 5."
+        ],
+        [
+          "5…5",
+          "—",
+          "—",
+          "Return 5."
+        ]
+      ]
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/median-of-a-row-wise-sorted-matrix",
+      "title": "Median of a Row-Wise Sorted Matrix",
+      "checkedOn": "2026-10-29",
+      "approach": "Flatten and sort, then search the answer value using an upper bound in each row.",
+      "adaptation": "The optimal Java solution was checked. Long bounds and counts handle the full int range, and empty or even-sized inputs are rejected explicitly."
+    }
   },
   "111": {
     "problem": "Remove the first and last parenthesis from every primitive component of a valid parentheses string.",
