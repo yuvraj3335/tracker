@@ -3437,18 +3437,18 @@
     "problem": "Place cows in stalls to maximize the minimum distance between any two placed cows.",
     "assumptions": "Stall coordinates are integers; each stall holds one cow. The array is sorted in place. Return -1 if there are too few stalls and zero for one cow.",
     "example": {
-      "input": "stalls = [1,2,4,8,9], cows = 3",
-      "output": "3",
-      "explanation": "Placing cows at 1,4,8 achieves minimum distance 3. Distance 4 would allow only 1 and 8, leaving no third placement."
+      "input": "stalls = [2, 5, 9, 12, 15], cows = 3",
+      "output": "6",
+      "explanation": "Choose stalls 2, 9 and 15. The gaps are 7 and 6, so the minimum is 6. Requiring a gap of 7 allows 2 and 9, but no third stall."
     },
     "baseline": "Try each possible distance and test placement, which depends on the potentially large coordinate range.",
-    "approach": "For a fixed minimum distance, place the first cow at the earliest stall and each next cow at the earliest feasible stall. This leaves at least as much room for remaining cows as any later placement. Feasible distances form a prefix, so search for the last feasible one.",
+    "approach": "For a trial gap, place each cow in the earliest stall that is far enough from the previous cow. Waiting for a later stall cannot leave more room for the cows still to come.\n\nIf all cows fit, try a bigger gap. If they do not, the gap is too demanding, so try a smaller one. Here success moves the search right because we want the largest working gap.",
     "steps": [
       "Sort the coordinates.",
       "Greedily test whether the requested number of cows fits a candidate separation.",
       "Increase the distance after success and decrease it after failure."
     ],
-    "java": "static long aggressiveCows(int[] stalls,int cows){\n    if(cows<=0)throw new IllegalArgumentException();if(cows>stalls.length)return -1;if(cows==1)return 0;\n    Arrays.sort(stalls);long lo=0,hi=(long)stalls[stalls.length-1]-stalls[0];\n    while(lo<=hi){long mid=lo+(hi-lo)/2,last=stalls[0];int placed=1;\n        for(int i=1;i<stalls.length;i++)if((long)stalls[i]-last>=mid){placed++;last=stalls[i];}\n        if(placed>=cows)lo=mid+1;else hi=mid-1;\n    }\n    return hi;\n}",
+    "java": "static boolean canPlace(int[] stalls, int cows, long gap) {\n    int placed = 1;\n    int last = stalls[0];\n    for (int i = 1; i < stalls.length; i++) {\n        if ((long) stalls[i] - last >= gap) {\n            placed++;\n            last = stalls[i];\n            if (placed >= cows) return true;\n        }\n    }\n    return placed >= cows;\n}\n\nstatic long aggressiveCows(int[] stalls, int cows) {\n    if (cows <= 0) throw new IllegalArgumentException();\n    if (cows > stalls.length) return -1;\n    if (cows == 1) return 0;\n    Arrays.sort(stalls);\n    long low = 1;\n    long high = (long) stalls[stalls.length - 1] - stalls[0];\n    long answer = 0;\n    while (low <= high) {\n        long mid = low + (high - low) / 2;\n        if (canPlace(stalls, cows, mid)) {\n            answer = mid;\n            low = mid + 1;\n        } else {\n            high = mid - 1;\n        }\n    }\n    return answer;\n}",
     "time": "O(n log n + n log(coordinateRange+1)).",
     "space": "O(log n) sorting stack, O(1) search state.",
     "pitfalls": [
@@ -3458,25 +3458,35 @@
     "tests": [
       "assert aggressiveCows(new int[]{1,2,4,8,9},3)==3;",
       "assert aggressiveCows(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE},2)==4294967295L;",
-      "assert aggressiveCows(new int[]{1,2},3)==-1;"
-    ]
+      "assert aggressiveCows(new int[]{1,2},3)==-1;",
+      "assert aggressiveCows(new int[]{2,5,9,12,15},3)==6;",
+      "Random r=new Random(99);for(int t=0;t<150;t++){int n=2+r.nextInt(7),cows=2+r.nextInt(n-1);int[] a=new int[n];int position=0;for(int i=0;i<n;i++){position+=1+r.nextInt(4);a[i]=position;}long best=0;for(int mask=0;mask<(1<<n);mask++){if(Integer.bitCount(mask)!=cows)continue;int last=-1;long gap=Long.MAX_VALUE;for(int i=0;i<n;i++)if((mask&(1<<i))!=0){if(last>=0)gap=Math.min(gap,(long)a[i]-a[last]);last=i;}best=Math.max(best,gap);}assert aggressiveCows(a.clone(),cows)==best;assert cowsLinear(a.clone(),cows)==best;}"
+    ],
+    "baselineJava": "static long cowsLinear(int[] stalls, int cows) {\n    if (cows > stalls.length) return -1;\n    if (cows == 1) return 0;\n    Arrays.sort(stalls);\n    long largest = (long) stalls[stalls.length - 1] - stalls[0];\n    long answer = 0;\n    for (long gap = 1; gap <= largest; gap++) {\n        if (!canPlace(stalls, cows, gap)) break;\n        answer = gap;\n    }\n    return answer;\n}",
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/aggressive-cows",
+      "title": "aggressive-cows",
+      "checkedOn": "2026-10-29",
+      "approach": "greedy placement and binary search for the largest working distance",
+      "adaptation": "Coordinate differences use long. The helper also handles one cow and reports too few stalls explicitly."
+    }
   },
   "100": {
     "problem": "Assign books in order to exactly m students, minimizing the maximum pages assigned to one student.",
     "assumptions": "Page counts are positive. Every student receives a nonempty contiguous block, and every book is assigned once. Return -1 when m is invalid.",
     "example": {
-      "input": "pages = [12,34,67,90], m = 2",
-      "output": "113",
-      "explanation": "Splitting after 67 gives totals 113 and 90. Splitting earlier makes the second student read at least 157 pages."
+      "input": "pages = [20, 30, 10, 40], students = 2",
+      "output": "50",
+      "explanation": "Give [20, 30] to the first student and [10, 40] to the second. Both read 50 pages. A limit of 49 forces three students."
     },
-    "baseline": "Enumerate all choices of m−1 cut positions, which is combinatorial.",
-    "approach": "For a candidate page limit, greedily fill each student before starting the next. This minimizes the number of students required under the limit. If at most m are required and m<=n, split blocks further to obtain exactly m without increasing any load.",
+    "baseline": "Try page limits one by one, starting with the largest book. For each limit, assign consecutive books until the next book would exceed it.",
+    "approach": "A trial limit says how many pages one student may receive. Fill a student’s block before starting the next one. If that needs too many students, increase the limit; otherwise try lowering it.\n\nThe check may use fewer than the requested students. That is fine: split a block between two books until everyone has one. Splitting cannot increase a student’s pages, provided there are at least as many books as students.",
     "steps": [
       "Search limits from the largest book to total pages.",
       "Count the minimum required groups greedily.",
       "Keep a limit when the group count is at most m."
     ],
-    "java": "static long partitionLimit(int[] a,int groups){\n    if(groups<=0||groups>a.length)return -1;long lo=0,hi=0;\n    for(int x:a){lo=Math.max(lo,x);hi+=x;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,sum=0;int used=1;\n        for(int x:a){if(sum+x>mid){used++;sum=0;}sum+=x;}\n        if(used<=groups)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}\nstatic long allocateBooks(int[] pages,int students){return partitionLimit(pages,students);}",
+    "java": "static boolean canAllocate(int[] pages, int students, long limit) {\n    int used = 1;\n    long currentPages = 0;\n    for (int book : pages) {\n        if (currentPages + book <= limit) {\n            currentPages += book;\n        } else {\n            used++;\n            currentPages = book;\n        }\n        if (used > students) return false;\n    }\n    return true;\n}\n\nstatic long allocateBooks(int[] pages, int students) {\n    if (students <= 0 || students > pages.length) return -1;\n    long low = 0;\n    long high = 0;\n    for (int book : pages) {\n        low = Math.max(low, book);\n        high += book;\n    }\n    while (low < high) {\n        long mid = low + (high - low) / 2;\n        if (canAllocate(pages, students, mid)) {\n            high = mid;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return low;\n}",
     "time": "O(n log(totalPages−maxPages+1)).",
     "space": "O(1).",
     "pitfalls": [
@@ -3486,25 +3496,35 @@
     "tests": [
       "assert allocateBooks(new int[]{12,34,67,90},2)==113;",
       "assert allocateBooks(new int[]{10,20,30},3)==30;",
-      "assert allocateBooks(new int[]{10,20},3)==-1;"
-    ]
+      "assert allocateBooks(new int[]{10,20},3)==-1;",
+      "assert allocateBooks(new int[]{20,30,10,40},2)==50;assert allocateBooks(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE},1)==4294967294L;",
+      "Random r=new Random(100);for(int t=0;t<150;t++){int[] a=new int[1+r.nextInt(8)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(12);int groups=1+r.nextInt(a.length);long best=Long.MAX_VALUE;for(int mask=0;mask<(1<<(a.length-1));mask++){if(Integer.bitCount(mask)!=groups-1)continue;long sum=0,max=0;for(int i=0;i<a.length;i++){sum+=a[i];if(i==a.length-1||(mask&(1<<i))!=0){max=Math.max(max,sum);sum=0;}}best=Math.min(best,max);}assert allocateBooks(a,groups)==best;assert booksLinear(a,groups)==best;}"
+    ],
+    "baselineJava": "static long booksLinear(int[] pages, int students) {\n    if (students <= 0 || students > pages.length) return -1;\n    long largest = 0;\n    long total = 0;\n    for (int book : pages) {\n        largest = Math.max(largest, book);\n        total += book;\n    }\n    for (long limit = largest; limit <= total; limit++) {\n        if (canAllocate(pages, students, limit)) return limit;\n    }\n    return -1;\n}",
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/book-allocation-problem",
+      "title": "book-allocation",
+      "checkedOn": "2026-10-29",
+      "approach": "a page-limit check and binary search on the limit",
+      "adaptation": "The result stays long instead of narrowing back to int, so large page totals remain correct."
+    }
   },
   "101": {
     "problem": "Split an array into exactly k nonempty contiguous parts, minimizing the largest part sum.",
     "assumptions": "Values are nonnegative; k must lie between 1 and n. Return -1 for invalid k.",
     "example": {
-      "input": "[7,2,5,10,8], k = 2",
-      "output": "18",
-      "explanation": "The best split is [7,2,5] and [10,8], with sums 14 and 18. A limit below 18 cannot keep the final two values together and needs more groups."
+      "input": "nums = [4, 1, 7, 3, 2], k = 2",
+      "output": "12",
+      "explanation": "Split as [4, 1, 7] and [3, 2], with sums 12 and 5. At limit 11, the greedy check needs [4, 1], [7, 3], [2]: three parts, so 11 fails."
     },
-    "baseline": "Dynamic programming over prefixes and cut positions can solve the partition problem in O(k n²) time.",
-    "approach": "With nonnegative values, the minimum feasible maximum sum can be binary searched. Greedily starting a new group only when necessary yields the fewest groups for a limit. Splitting an existing group cannot increase its sum.",
+    "baseline": "Try every allowed maximum sum from the largest element to the total. Return the first one that permits at most k parts.",
+    "approach": "For a trial maximum sum, keep adding numbers to a part until the next would exceed the limit. Then begin another part. If even this packing needs more than k parts, the limit is too small.\n\nIf fewer than k parts are needed, split some of them further. Because values are nonnegative, splitting cannot increase a part’s sum. That is why the check can use “at most k” even though the answer requires exactly k.",
     "steps": [
       "Bound the answer by max(array) and sum(array).",
       "Greedily count groups under each candidate limit.",
       "Find the first candidate requiring at most k groups."
     ],
-    "java": "static long partitionLimit(int[] a,int groups){\n    if(groups<=0||groups>a.length)return -1;long lo=0,hi=0;\n    for(int x:a){lo=Math.max(lo,x);hi+=x;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,sum=0;int used=1;\n        for(int x:a){if(sum+x>mid){used++;sum=0;}sum+=x;}\n        if(used<=groups)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}\nstatic long splitArray(int[] a,int k){return partitionLimit(a,k);}",
+    "java": "static boolean canSplit(int[] nums, int k, long limit) {\n    int parts = 1;\n    long sum = 0;\n    for (int value : nums) {\n        if (sum + value > limit) {\n            parts++;\n            sum = value;\n            if (parts > k) return false;\n        } else {\n            sum += value;\n        }\n    }\n    return true;\n}\n\nstatic long splitArray(int[] nums, int k) {\n    if (k <= 0 || k > nums.length) return -1;\n    long low = 0;\n    long high = 0;\n    for (int value : nums) {\n        low = Math.max(low, value);\n        high += value;\n    }\n    long answer = high;\n    while (low <= high) {\n        long mid = low + (high - low) / 2;\n        if (canSplit(nums, k, mid)) {\n            answer = mid;\n            high = mid - 1;\n        } else {\n            low = mid + 1;\n        }\n    }\n    return answer;\n}",
     "time": "O(n log(totalSum−maxValue+1)); the all-zero case finishes immediately.",
     "space": "O(1).",
     "pitfalls": [
@@ -3515,8 +3535,18 @@
       "assert splitArray(new int[]{7,2,5,10,8},2)==18;",
       "assert splitArray(new int[]{0,0,0},2)==0;",
       "assert splitArray(new int[]{1,2,3},1)==6;",
-      "assert splitArray(new int[]{1,2,3},3)==3;"
-    ]
+      "assert splitArray(new int[]{1,2,3},3)==3;",
+      "assert splitArray(new int[]{4,1,7,3,2},2)==12;assert splitArray(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE},1)==4294967294L;",
+      "Random r=new Random(101);for(int t=0;t<150;t++){int[] a=new int[1+r.nextInt(8)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(12);int groups=1+r.nextInt(a.length);long best=Long.MAX_VALUE;for(int mask=0;mask<(1<<(a.length-1));mask++){if(Integer.bitCount(mask)!=groups-1)continue;long sum=0,max=0;for(int i=0;i<a.length;i++){sum+=a[i];if(i==a.length-1||(mask&(1<<i))!=0){max=Math.max(max,sum);sum=0;}}best=Math.min(best,max);}assert splitArray(a,groups)==best;assert splitLinear(a,groups)==best;}"
+    ],
+    "baselineJava": "static long splitLinear(int[] nums, int k) {\n    if (k <= 0 || k > nums.length) return -1;\n    long largest = 0;\n    long total = 0;\n    for (int value : nums) {\n        largest = Math.max(largest, value);\n        total += value;\n    }\n    for (long limit = largest; limit <= total; limit++) {\n        if (canSplit(nums, k, limit)) return limit;\n    }\n    return -1;\n}",
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/split-array-largest-sum",
+      "title": "split-array",
+      "checkedOn": "2026-10-29",
+      "approach": "a contiguous-group check and binary search with a saved answer",
+      "adaptation": "Sums and the returned result use long to avoid int overflow."
+    }
   },
   "102": {
     "problem": "Assign consecutive boards to painters to minimize the completion time when all painters work at the same rate.",
@@ -3554,26 +3584,45 @@
       "output": "2.5",
       "explanation": "Placing stations at 2.5,5,7.5 divides the original gap into four equal parts."
     },
-    "baseline": "Repeatedly split the currently largest segment using a priority queue; track how many subdivisions each original gap has. This costs O((n+k) log n).",
-    "approach": "For a candidate maximum gap d, an original gap g needs ceil(g/d)−1 inserted stations. Sum those requirements and compare with k. Increasing d cannot increase the needed count, so binary search real-valued distances.",
+    "baseline": "Keep a count of new stations assigned to each original gap. Add each next station to the gap whose current pieces are longest. Scan all gaps to choose it, and redistribute that gap’s stations evenly.",
+    "approach": "Instead of placing stations one at a time, ask whether a proposed largest gap is possible. A length-10 gap limited to 2 needs five pieces, so four stations. In general, the count is ceil(gap / limit) - 1.\n\nAdd those counts across the original gaps. If they exceed k, allow a larger distance. Otherwise try a smaller one. We search decimal distances because new stations need not sit at integer positions.",
     "steps": [
-      "Use zero and the largest original gap as search bounds.",
-      "Check how many inserted stations a candidate distance needs.",
-      "Run a fixed 100 iterations and return the feasible upper bound."
+      "Start between zero and the largest original gap.",
+      "Check the midpoint by counting the new stations it needs.",
+      "Keep the feasible upper end. After 100 halvings, return it as a floating-point approximation."
     ],
-    "java": "static double minGasGap(int[] stations,int k){\n    if(k<0)throw new IllegalArgumentException();if(stations.length<2)return 0;\n    double lo=0,hi=0;for(int i=1;i<stations.length;i++)hi=Math.max(hi,(double)stations[i]-stations[i-1]);\n    for(int iteration=0;iteration<100;iteration++){\n        double mid=(lo+hi)/2;long needed=0;boolean feasible=true;\n        for(int i=1;i<stations.length;i++){\n            double extra=Math.max(0,Math.ceil(((double)stations[i]-stations[i-1])/mid)-1);\n            if(extra>k-needed){feasible=false;break;}needed+=(long)extra;\n        }\n        if(feasible)hi=mid;else lo=mid;\n    }\n    return hi;\n}",
+    "java": "static boolean gasGapPossible(int[] stations, int k, double limit) {\n    long needed = 0;\n    for (int i = 1; i < stations.length; i++) {\n        double gap = (double) stations[i] - stations[i - 1];\n        double extra = Math.max(0, Math.ceil(gap / limit) - 1);\n        if (extra > k - needed) return false;\n        needed += (long) extra;\n    }\n    return true;\n}\n\nstatic double minGasGap(int[] stations, int k) {\n    if (k < 0) throw new IllegalArgumentException();\n    if (stations.length < 2) return 0;\n    double low = 0;\n    double high = 0;\n    for (int i = 1; i < stations.length; i++) {\n        high = Math.max(high, (double) stations[i] - stations[i - 1]);\n    }\n    for (int iteration = 0; iteration < 100; iteration++) {\n        double mid = low + (high - low) / 2;\n        if (gasGapPossible(stations, k, mid)) {\n            high = mid;\n        } else {\n            low = mid;\n        }\n    }\n    return high;\n}",
     "time": "O(100n); equivalently O(n log(initialRange/desiredPrecision)) for tolerance-based search.",
     "space": "O(1).",
     "pitfalls": [
-      "Using floor(g/d) overcounts when g is exactly divisible by d.",
-      "This is floating-point approximation, not an exact rational answer. Compare with a tolerance."
+      "Do not permanently split only the current longest piece in half. The scan and heap versions redistribute each original gap into equal pieces.",
+      "When a gap divides exactly, the number of new stations is one less than the number of pieces.",
+      "Compare decimal results with a tolerance, not exact equality."
     ],
     "tests": [
       "assert Math.abs(minGasGap(new int[]{0,10},3)-2.5)<1e-6;",
       "assert Math.abs(minGasGap(new int[]{1,2,3,4,5},4)-0.5)<1e-6;",
       "assert Math.abs(minGasGap(new int[]{0,4,10},0)-6)<1e-6;",
-      "assert minGasGap(new int[]{5},2)==0;"
-    ]
+      "assert minGasGap(new int[]{5},2)==0;",
+      "assert gasGapPossible(new int[]{0,10},4,2.0);assert !gasGapPossible(new int[]{0,10},3,2.0);",
+      "Random r=new Random(103);for(int t=0;t<150;t++){int[] a=new int[2+r.nextInt(5)];for(int i=1;i<a.length;i++)a[i]=a[i-1]+1+r.nextInt(10);int k=r.nextInt(12);double expected=gasGapScan(a,k);assert Math.abs(minGasGap(a,k)-expected)<1e-6;assert Math.abs(gasGapHeap(a,k)-expected)<1e-9;}",
+      "assert Math.abs(minGasGap(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE},1)-2147483647.5)<1e-6;"
+    ],
+    "baselineTime": "O((k + 1)n), with O(n) extra space.",
+    "baselineJava": "static double gasGapScan(int[] stations, int k) {\n    if (stations.length < 2) return 0;\n    int[] added = new int[stations.length - 1];\n    for (int placed = 0; placed < k; placed++) {\n        int chosen = 0;\n        double longest = -1;\n        for (int i = 0; i < added.length; i++) {\n            double gap = (double) stations[i + 1] - stations[i];\n            double piece = gap / (added[i] + 1.0);\n            if (piece > longest) {\n                longest = piece;\n                chosen = i;\n            }\n        }\n        added[chosen]++;\n    }\n    double answer = 0;\n    for (int i = 0; i < added.length; i++) {\n        double gap = (double) stations[i + 1] - stations[i];\n        answer = Math.max(answer, gap / (added[i] + 1.0));\n    }\n    return answer;\n}",
+    "better": {
+      "explanation": "A max heap keeps the longest current piece at the top. Remove that gap, increase its station count, and put back its new piece length. This avoids scanning every gap for each station.",
+      "time": "O((n + k) log n)",
+      "space": "O(n)",
+      "java": "static class Gap {\n    final int index;\n    final double piece;\n    Gap(int index, double piece) {\n        this.index = index;\n        this.piece = piece;\n    }\n}\n\nstatic double gasGapHeap(int[] stations, int k) {\n    if (stations.length < 2) return 0;\n    int[] added = new int[stations.length - 1];\n    PriorityQueue<Gap> queue = new PriorityQueue<>(\n        (a, b) -> Double.compare(b.piece, a.piece)\n    );\n    for (int i = 0; i < added.length; i++) {\n        queue.add(new Gap(i, (double) stations[i + 1] - stations[i]));\n    }\n    for (int placed = 0; placed < k; placed++) {\n        Gap largest = queue.remove();\n        int i = largest.index;\n        added[i]++;\n        double originalGap = (double) stations[i + 1] - stations[i];\n        queue.add(new Gap(i, originalGap / (added[i] + 1.0)));\n    }\n    return queue.element().piece;\n}"
+    },
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/minimize-maximum-distance-between-gas-stations",
+      "title": "gas-station spacing",
+      "checkedOn": "2026-10-29",
+      "approach": "scanning gaps, using a max heap, then binary search on distance",
+      "adaptation": "The station count uses ceil(gap / limit) - 1 to handle exact division correctly. Differences are widened before subtraction, and the search uses 100 bounded halvings instead of a tolerance-based loop."
+    }
   },
   "104": {
     "problem": "Find the median of two sorted arrays without merging them.",
