@@ -1,5 +1,7 @@
 import type { Reference } from './tutor';
 
+let stackRetryAt = 0;
+
 export function plainText(value: string): string {
   return value.replace(/<[^>]*>/g, '').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 }
@@ -18,12 +20,17 @@ export async function searchReferences(query: string, signal: AbortSignal, fetch
       return data.query.search.filter((r: { title?: unknown; snippet?: unknown }) => typeof r.title === 'string' && typeof r.snippet === 'string').slice(0, 3).map((r: { title: string; snippet: string }) => ({ title: r.title, url: `https://en.wikipedia.org/wiki/${encodeURIComponent(r.title.replace(/ /g, '_'))}`, excerpt: plainText(r.snippet).slice(0, 700) }));
     })(),
     (async (): Promise<Reference[]> => {
+      if (Date.now() < stackRetryAt) throw new Error('Stack Overflow cooling down');
       const url = new URL('https://api.stackexchange.com/2.3/search/advanced');
       url.search = new URLSearchParams({ site: 'stackoverflow', q: query, pagesize: '3', sort: 'relevance', order: 'desc', filter: 'withbody' }).toString();
       const res = await fetcher(url, { signal });
-      if (!res.ok) throw new Error('Stack Overflow unavailable');
+      if (!res.ok) {
+        if (res.status === 429) stackRetryAt = Date.now() + 60000;
+        throw new Error('Stack Overflow unavailable');
+      }
       const data = await res.json();
-      if (!Array.isArray(data.items) || data.error_id || data.backoff) throw new Error('Stack Overflow rate limited');
+      if (Number.isFinite(data.backoff) && data.backoff > 0) stackRetryAt = Date.now() + Math.min(data.backoff, 86400) * 1000;
+      if (!Array.isArray(data.items) || data.error_id) throw new Error('Stack Overflow rate limited');
       return data.items.filter((r: { link?: unknown; title?: unknown; body?: unknown }) => typeof r.link === 'string' && /^https:\/\/stackoverflow\.com\/questions\/\d+\//.test(r.link) && typeof r.title === 'string' && typeof r.body === 'string').slice(0, 3).map((r: { title: string; link: string; body: string }) => ({ title: plainText(r.title), url: r.link, excerpt: plainText(r.body).slice(0, 700) }));
     })(),
   ]);

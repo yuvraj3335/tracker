@@ -35,6 +35,8 @@ companion and starts no local speech/model inference.
 Reference search uses Wikipedia and Stack Overflow's public APIs without a key.
 Only the separate, explicit search phrase is sent to those sites. Retrieved
 titles, URLs and short excerpts are shared with Cloudflare alongside the chat.
+Repeated phrases reuse results for five minutes per server instance, and Stack
+Overflow backoff instructions are respected for that instance.
 The interface identifies sources and reports failures. This is limited reference
 search, not a Google results API or unrestricted browsing. A separate Google
 link opens the query in the user's browser. Code and queries are not logged by

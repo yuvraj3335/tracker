@@ -35,4 +35,10 @@ test('search failure is explicit and never fabricates sources', async () => {
   let calls = 0;
   const result = await searchReferences('recursion', new AbortController().signal, (async () => { calls++; return new Response('unavailable', { status: 429 }); }) as typeof fetch);
   assert.equal(calls, 2); assert.deepEqual(result.references, []); assert.match(result.warning!, /No references/);
+  const retryCalls: string[] = [];
+  await searchReferences('recursion', new AbortController().signal, (async url => {
+    retryCalls.push(String(url)); return Response.json({ query: { search: [] } });
+  }) as typeof fetch);
+  assert.equal(retryCalls.length, 1);
+  assert.ok(retryCalls[0].startsWith('https://en.wikipedia.org/'));
 });

@@ -6,6 +6,7 @@ import { searchReferences } from '@/lib/tutor-search';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 const take = createRateLimiter(20, 5 * 60000);
+const referenceCache = new Map<string, { until: number; value: Awaited<ReturnType<typeof searchReferences>> }>();
 const fail = (status: number, error: string) => Response.json({ error }, { status, headers: { 'cache-control': 'no-store' } });
 
 export async function POST(req: Request) {
@@ -43,7 +44,14 @@ export async function POST(req: Request) {
   const timeout = setTimeout(() => abort.abort(), 55000);
   const release = () => { clearTimeout(timeout); req.signal.removeEventListener('abort', onCancel); };
   try {
-    const search = input.search ? await searchReferences(input.search, AbortSignal.any([abort.signal, AbortSignal.timeout(7000)])) : { references: [], warning: null };
+    const cached = referenceCache.get(input.search);
+    const search = !input.search ? { references: [], warning: null }
+      : cached && cached.until > Date.now() ? cached.value
+      : await searchReferences(input.search, AbortSignal.any([abort.signal, AbortSignal.timeout(7000)]));
+    if (input.search && (!cached || cached.until <= Date.now())) {
+      if (referenceCache.size >= 100) referenceCache.delete(referenceCache.keys().next().value!);
+      referenceCache.set(input.search, { until: Date.now() + (search.references.length ? 300000 : 60000), value: search });
+    }
     const response = await fetch(endpoint, { method: 'POST', signal: abort.signal, redirect: 'error', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify({ messages: withStudyContext(input, search.references) }) });
     if (!response.ok || !response.body) {
       release();
