@@ -6370,5 +6370,222 @@
       "approach": "The public problem statement and constraints were checked.",
       "adaptation": "The current sheet has no public Java editorial for this entry. This saved Java solution is written for the checked problem, with executable tests."
     }
+  },
+  "168": {
+    "problem": "Find every combination of candidate values that adds to target. A candidate may be used repeatedly.",
+    "assumptions": "Candidates are distinct positive integers. Order within a combination does not create a new answer. The source uses candidates ≥ 2 and target ≤ 40. The input array is not changed.",
+    "example": {
+      "input": "candidates = [3, 4, 7], target = 10",
+      "output": "[[3, 3, 4], [3, 7]]",
+      "explanation": "The value 3 can be reused. [7, 3] is the same combination as [3, 7], so it is not returned again."
+    },
+    "baseline": "Try every candidate at every position and remove duplicate permutations afterward. That repeats the same combination in different orders and wastes work.",
+    "approach": "Keep an index for the candidate we are deciding about. Taking it reduces the remaining sum but keeps the same index, because reuse is allowed. Skipping it moves to the next candidate. Once skipped, we never return to it, so each combination is built in candidate-index order.\n\nA remaining sum of zero means the current selection is complete. Positive candidates ensure that taking a value always moves us closer to zero and cannot recurse forever. If a candidate is larger than the remaining sum, only the skip branch is possible.",
+    "steps": [
+      "Start at candidate 0 with the whole target remaining.",
+      "Take the current candidate when it fits, recurse at the same index, then undo the choice.",
+      "Skip it by recursing at index + 1.",
+      "Save a copy when remaining is 0. Stop when all candidates are exhausted."
+    ],
+    "java": "static List<List<Integer>> combinationSum(int[] candidates, int target) {\n    List<List<Integer>> answer = new ArrayList<>();\n    combinations(candidates, 0, target, new ArrayList<>(), answer);\n    return answer;\n}\n\nstatic void combinations(int[] a, int index, int remaining, List<Integer> current,\n                         List<List<Integer>> answer) {\n    if (remaining == 0) {\n        answer.add(new ArrayList<>(current));\n        return;\n    }\n    if (index == a.length) return;\n    if (a[index] <= remaining) {\n        current.add(a[index]);\n        combinations(a, index, remaining - a[index], current, answer);\n        current.remove(current.size() - 1);\n    }\n    combinations(a, index + 1, remaining, current, answer);\n}",
+    "time": "Exponential in the search depth. A conservative bound is O(2^(n + d) + A × d), where d = floor(target/minCandidate) and A is the number of answers.",
+    "space": "O(n + d) working space; O(A × d) output space.",
+    "pitfalls": [
+      "Taking must stay at the same index; moving forward would allow each candidate only once.",
+      "Zero and negative candidates are outside this problem’s constraints and would break the stopping argument.",
+      "The output follows input-index order; its numbers need not be sorted unless the input is sorted."
+    ],
+    "tests": [
+      "assert new HashSet<>(combinationSum(new int[]{3,4,7},10)).equals(Set.of(List.of(3,3,4),List.of(3,7)));assert combinationSum(new int[]{2},1).isEmpty();",
+      "for(int t=1;t<=30;t++){Set<List<Integer>>expected=new HashSet<>();for(int a=0;a*2<=t;a++)for(int b=0;a*2+b*3<=t;b++)for(int d=0;a*2+b*3+d*5<=t;d++)if(a*2+b*3+d*5==t){List<Integer>x=new ArrayList<>();for(int i=0;i<a;i++)x.add(2);for(int i=0;i<b;i++)x.add(3);for(int i=0;i<d;i++)x.add(5);expected.add(x);}List<List<Integer>>actual=combinationSum(new int[]{2,3,5},t);assert actual.size()==expected.size();assert new HashSet<>(actual).equals(expected);}",
+      "int[]a={7,3,4};List<List<Integer>>actual=combinationSum(a,10);Set<List<Integer>>normalized=new HashSet<>();for(List<Integer>x:actual){List<Integer>y=new ArrayList<>(x);Collections.sort(y);normalized.add(y);}assert normalized.equals(Set.of(List.of(3,3,4),List.of(3,7)));assert Arrays.equals(a,new int[]{7,3,4});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/combination-sum",
+      "title": "Combination Sum",
+      "checkedOn": "2026-10-29",
+      "approach": "The linked public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this current-sheet entry. The Java below is an original implementation of the stated task, checked with examples and independent exhaustive cases."
+    }
+  },
+  "169": {
+    "problem": "Find unique combinations adding to target when each candidate position may be used only once.",
+    "assumptions": "Candidates are positive and may contain duplicates. Different permutations are the same answer. Sort a copy so the caller’s array is preserved. The source asks for sorted combinations.",
+    "example": {
+      "input": "candidates = [1, 2, 1, 4], target = 4",
+      "output": "[[1, 1, 2], [4]]",
+      "explanation": "Both 1s may be used because they come from different positions. A single position cannot be reused."
+    },
+    "baseline": "Generate every index subset, keep those with the right sum, and use a set to remove duplicate value lists. This spends time building duplicates that sorting lets us avoid.",
+    "approach": "Sort the values and choose the next element from the remaining suffix. After choosing position i, continue at i + 1, so that position cannot be used again.\n\nAt a particular recursion level, skip a value if it is equal to the previous value at that same level. Those two choices would start identical combinations. Do not skip the first value of a deeper call: choosing a second 1 after a first 1 is how we correctly build [1, 1, 2]. Since the values are sorted and positive, stop the loop when a value exceeds the remaining sum.",
+    "steps": [
+      "Sort a copy of the input.",
+      "Loop from start through the remaining candidates.",
+      "Skip equal neighbours only when i > start.",
+      "Choose a value, recurse from i + 1, then remove it.",
+      "Save a copy when the remaining sum becomes zero."
+    ],
+    "java": "static List<List<Integer>> combinationSum2(int[] candidates, int target) {\n    int[] sorted = candidates.clone();\n    Arrays.sort(sorted);\n    List<List<Integer>> answer = new ArrayList<>();\n    uniqueCombinations(sorted, 0, target, new ArrayList<>(), answer);\n    return answer;\n}\n\nstatic void uniqueCombinations(int[] a, int start, int remaining,\n                               List<Integer> current, List<List<Integer>> answer) {\n    if (remaining == 0) {\n        answer.add(new ArrayList<>(current));\n        return;\n    }\n    for (int i = start; i < a.length; i++) {\n        if (i > start && a[i] == a[i - 1]) continue;\n        if (a[i] > remaining) break;\n        current.add(a[i]);\n        uniqueCombinations(a, i + 1, remaining - a[i], current, answer);\n        current.remove(current.size() - 1);\n    }\n}",
+    "time": "O(n log n + n × 2^n) as a conservative worst-case bound, including output copies. Pruning often avoids much of that search.",
+    "space": "O(n) working space, plus the returned combinations.",
+    "pitfalls": [
+      "The duplicate test is i > start, not i > 0.",
+      "Recurse with i + 1; staying at i incorrectly reuses a candidate.",
+      "A set must not be used to remove repeated input values: [1, 1] can be a valid combination."
+    ],
+    "tests": [
+      "assert combinationSum2(new int[]{1,2,1,4},4).equals(List.of(List.of(1,1,2),List.of(4)));assert combinationSum2(new int[]{1,1},2).equals(List.of(List.of(1,1)));",
+      "Random r=new Random(169);for(int n=0;n<=11;n++)for(int trial=0;trial<15;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=1+r.nextInt(6);int[]before=a.clone();int target=1+r.nextInt(15);Set<List<Integer>>expected=new HashSet<>();for(int mask=0;mask<(1<<n);mask++){List<Integer>x=new ArrayList<>();int sum=0;for(int j=0;j<n;j++)if((mask&(1<<j))!=0){x.add(a[j]);sum+=a[j];}if(sum==target){Collections.sort(x);expected.add(x);}}List<List<Integer>>actual=combinationSum2(a,target);assert actual.size()==expected.size();assert new HashSet<>(actual).equals(expected);assert Arrays.equals(a,before);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/combination-sum-ii",
+      "title": "Combination Sum II",
+      "checkedOn": "2026-10-29",
+      "approach": "The linked public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this current-sheet entry. The Java below is an original implementation of the stated task, checked with examples and independent exhaustive cases."
+    }
+  },
+  "170": {
+    "problem": "Return the sum of every index subset, including the empty subset’s sum of zero.",
+    "assumptions": "This is Subset Sum I / Subsets I. The TUF practice link asks for sums, even though the current sheet also has a LeetCode link that asks for the subsets themselves. Follow the tracker’s TUF task here. Equal sums from different selections must be kept. Source n ≤ 15.",
+    "example": {
+      "input": "nums = [3, 3]",
+      "output": "[0, 3, 3, 6] in any order",
+      "explanation": "There are two ways to choose one 3, so the sum 3 appears twice."
+    },
+    "baseline": "Build every subset as a list and then add its elements. Carrying only the running sum avoids making all those intermediate lists.",
+    "approach": "Each value is either included in the sum or left out. Make both recursive calls and advance the index. Once every position has been considered, save the sum. There are exactly 2^n leaves, including the branch that skips every value.\n\nThe task allows any output order, so sorting is unnecessary. If you want sorted sums for display, sort the returned list afterward; that adds O(n × 2^n) time.",
+    "steps": [
+      "Start at index 0 with sum 0.",
+      "Recurse with the current value added.",
+      "Recurse without adding it.",
+      "At the end of the array, append the sum, even if an equal sum is already present."
+    ],
+    "java": "static List<Integer> subsetSums(int[] nums) {\n    List<Integer> answer = new ArrayList<>();\n    collectSums(nums, 0, 0, answer);\n    return answer;\n}\n\nstatic void collectSums(int[] nums, int index, int sum, List<Integer> answer) {\n    if (index == nums.length) {\n        answer.add(sum);\n        return;\n    }\n    collectSums(nums, index + 1, sum + nums[index], answer);\n    collectSums(nums, index + 1, sum, answer);\n}",
+    "time": "O(2^n), without sorting the result.",
+    "space": "O(n) recursive working space and O(2^n) output space.",
+    "pitfalls": [
+      "Use a list, not a set: duplicate sums are required.",
+      "The source maximum sum is 15 × 10,000, which fits in int. Larger constraints may need long.",
+      "Do not confuse this with returning the actual subset elements."
+    ],
+    "tests": [
+      "List<Integer>a=subsetSums(new int[]{3,3});Collections.sort(a);assert a.equals(List.of(0,3,3,6));assert subsetSums(new int[]{}).equals(List.of(0));",
+      "Random r=new Random(170);for(int n=0;n<=15;n++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(21)-10;List<Integer>expected=new ArrayList<>();for(int mask=0;mask<(1<<n);mask++){int sum=0;for(int j=0;j<n;j++)if((mask&(1<<j))!=0)sum+=a[j];expected.add(sum);}List<Integer>actual=subsetSums(a);Collections.sort(actual);Collections.sort(expected);assert actual.equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/subsets-i",
+      "title": "Subsets I",
+      "checkedOn": "2026-10-29",
+      "approach": "The linked public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this current-sheet entry. The Java below is an original implementation of the stated task, checked with examples and independent exhaustive cases."
+    }
+  },
+  "171": {
+    "problem": "Return every distinct subset when the input may contain repeated values.",
+    "assumptions": "Subsets are compared by their values, not by the indices that supplied them. Include the empty subset. Values may be negative. The source bounds n by 10. The input array is preserved.",
+    "example": {
+      "input": "nums = [2, 2, 5]",
+      "output": "[[], [2], [2, 2], [2, 2, 5], [2, 5], [5]]",
+      "explanation": "There is one subset [2], but [2, 2] is also valid because two copies are available."
+    },
+    "baseline": "Generate all index subsets, sort each, and insert them into a set. This is correct but generates duplicate value lists before discarding them.",
+    "approach": "Sort a copy so equal values sit next to each other. At the start of every call, save the current subset: it is already a valid answer. Then try each remaining value as the next element.\n\nSkip repeated choices only at the same recursion level. If we already tried starting this extension with a 2, starting it with the next 2 would repeat the same answers. But inside the call that has already chosen one 2, the next 2 is allowed, giving [2, 2].",
+    "steps": [
+      "Sort a copy of the input.",
+      "Save a copy of the current subset on entry to each call.",
+      "Loop through remaining positions, skipping equal neighbours when i > start.",
+      "Choose position i, recurse from i + 1, then undo it."
+    ],
+    "java": "static List<List<Integer>> subsetsWithDup(int[] nums) {\n    int[] sorted = nums.clone();\n    Arrays.sort(sorted);\n    List<List<Integer>> answer = new ArrayList<>();\n    uniqueSubsets(sorted, 0, new ArrayList<>(), answer);\n    return answer;\n}\n\nstatic void uniqueSubsets(int[] a, int start, List<Integer> current,\n                          List<List<Integer>> answer) {\n    answer.add(new ArrayList<>(current));\n    for (int i = start; i < a.length; i++) {\n        if (i > start && a[i] == a[i - 1]) continue;\n        current.add(a[i]);\n        uniqueSubsets(a, i + 1, current, answer);\n        current.remove(current.size() - 1);\n    }\n}",
+    "time": "O(n log n + n × 2^n) in the worst case. Repeated values reduce the number of answers.",
+    "space": "O(n) working space; up to O(n × 2^n) output space.",
+    "pitfalls": [
+      "Skipping all duplicate input values would lose subsets containing two or more copies.",
+      "Save a copy of current each time."
+    ],
+    "tests": [
+      "assert subsetsWithDup(new int[]{2,2,5}).equals(List.of(List.of(),List.of(2),List.of(2,2),List.of(2,2,5),List.of(2,5),List.of(5)));",
+      "Random r=new Random(171);for(int n=0;n<=10;n++)for(int trial=0;trial<15;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(5)-2;int[]before=a.clone();Set<List<Integer>>expected=new HashSet<>();for(int mask=0;mask<(1<<n);mask++){List<Integer>x=new ArrayList<>();for(int j=0;j<n;j++)if((mask&(1<<j))!=0)x.add(a[j]);Collections.sort(x);expected.add(x);}List<List<Integer>>actual=subsetsWithDup(a);assert actual.size()==expected.size();assert new HashSet<>(actual).equals(expected);assert Arrays.equals(a,before);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/subsets-ii",
+      "title": "Subsets II",
+      "checkedOn": "2026-10-29",
+      "approach": "The linked public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this current-sheet entry. The Java below is an original implementation of the stated task, checked with examples and independent exhaustive cases."
+    }
+  },
+  "172": {
+    "problem": "Choose exactly k different numbers from 1 through 9 whose sum is n.",
+    "assumptions": "Each number may be used once. Return combinations, so changing their order does not create another answer. The source uses 2 ≤ k ≤ 9 and 1 ≤ n ≤ 60.",
+    "example": {
+      "input": "k = 2, n = 9",
+      "output": "[[1, 8], [2, 7], [3, 6], [4, 5]]",
+      "explanation": "Every pair has two different values and adds to 9."
+    },
+    "baseline": "There are only 512 subsets of 1 through 9. Testing each subset’s size and sum is a valid simple solution. Backtracking makes the exact-size and remaining-sum conditions explicit.",
+    "approach": "Build each combination in increasing order. After choosing value v, the next choice starts at v + 1, so no number repeats and no permutation is generated twice. Keep track of how many values are still needed and how much sum remains.\n\nWhen no more values are needed, save the selection only if the remaining sum is zero. If fewer values are available than the number still needed, stop that branch. Positive values also let us stop once the next value exceeds the remaining sum.",
+    "steps": [
+      "Start with value 1, k slots and remaining sum n.",
+      "Try each possible next value in increasing order.",
+      "Recurse with one fewer slot, a smaller remaining sum and next value v + 1.",
+      "Save only when both slots and remaining sum reach zero."
+    ],
+    "java": "static List<List<Integer>> combinationSum3(int k, int n) {\n    List<List<Integer>> answer = new ArrayList<>();\n    chooseDigits(1, k, n, new ArrayList<>(), answer);\n    return answer;\n}\n\nstatic void chooseDigits(int start, int slots, int remaining, List<Integer> current,\n                         List<List<Integer>> answer) {\n    if (slots == 0) {\n        if (remaining == 0) answer.add(new ArrayList<>(current));\n        return;\n    }\n    if (10 - start < slots) return;\n    for (int value = start; value <= 9 && value <= remaining; value++) {\n        current.add(value);\n        chooseDigits(value + 1, slots - 1, remaining - value, current, answer);\n        current.remove(current.size() - 1);\n    }\n}",
+    "time": "O(9 × 2^9) is a simple upper bound, including result copies. The universe is fixed at nine numbers.",
+    "space": "O(k) working space, plus O(k) for each returned combination.",
+    "pitfalls": [
+      "Reaching the target with too few numbers is not an answer.",
+      "The number 0 is not a candidate.",
+      "Move to value + 1 to prevent reuse."
+    ],
+    "tests": [
+      "assert combinationSum3(2,9).equals(List.of(List.of(1,8),List.of(2,7),List.of(3,6),List.of(4,5)));",
+      "for(int k=1;k<=9;k++)for(int target=1;target<=60;target++){Set<List<Integer>>expected=new HashSet<>();for(int mask=0;mask<512;mask++){if(Integer.bitCount(mask)!=k)continue;int sum=0;List<Integer>x=new ArrayList<>();for(int j=0;j<9;j++)if((mask&(1<<j))!=0){sum+=j+1;x.add(j+1);}if(sum==target)expected.add(x);}List<List<Integer>>actual=combinationSum3(k,target);assert actual.size()==expected.size();assert new HashSet<>(actual).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/combination-sum-iii",
+      "title": "Combination Sum III",
+      "checkedOn": "2026-10-29",
+      "approach": "The linked public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this current-sheet entry. The Java below is an original implementation of the stated task, checked with examples and independent exhaustive cases."
+    }
+  },
+  "173": {
+    "problem": "Return every letter string represented by a phone keypad digit string.",
+    "assumptions": "Digits are from 2 to 9. The source allows up to four digits. The tracker’s LeetCode version also allows an empty input; return an empty list for that case. Standard mapping: 2 abc, 3 def, 4 ghi, 5 jkl, 6 mno, 7 pqrs, 8 tuv, 9 wxyz.",
+    "example": {
+      "input": "digits = \"28\"",
+      "output": "[at, au, av, bt, bu, bv, ct, cu, cv]",
+      "explanation": "Choose one letter from abc, then one from tuv."
+    },
+    "baseline": "Start with one empty prefix and repeatedly extend every prefix by every letter for the next digit. That iterative approach is valid too; recursion holds just one unfinished prefix at a time.",
+    "approach": "Each position has its own small list of allowed letters. Pick a letter for the first position, then let recursion fill the remaining positions. When the buffer is full, save it as a string.\n\nThere is no take-or-skip choice here: every digit must contribute exactly one letter. The buffer can be reused because a new String is created for each complete answer.",
+    "steps": [
+      "Return an empty list for an empty input.",
+      "Find the letters mapped to the current digit.",
+      "Write each letter into the current position and recurse.",
+      "Save the completed buffer at the end."
+    ],
+    "java": "static final String[] KEYS = {\"\", \"\", \"abc\", \"def\", \"ghi\", \"jkl\", \"mno\", \"pqrs\", \"tuv\", \"wxyz\"};\n\nstatic List<String> letterCombinations(String digits) {\n    List<String> answer = new ArrayList<>();\n    if (digits.isEmpty()) return answer;\n    phoneLetters(digits, 0, new char[digits.length()], answer);\n    return answer;\n}\n\nstatic void phoneLetters(String digits, int index, char[] current, List<String> answer) {\n    if (index == digits.length()) {\n        answer.add(new String(current));\n        return;\n    }\n    String letters = KEYS[digits.charAt(index) - '0'];\n    for (int i = 0; i < letters.length(); i++) {\n        current[index] = letters.charAt(i);\n        phoneLetters(digits, index + 1, current, answer);\n    }\n}",
+    "time": "O(n × A), where A is the product of the letter counts. At most O(n × 4^n).",
+    "space": "O(n) working space and O(n × A) output space.",
+    "pitfalls": [
+      "Digits 7 and 9 have four letters, not three.",
+      "An empty digit string returns no combinations for the linked task.",
+      "Digits 0 and 1 are outside the stated input constraints."
+    ],
+    "tests": [
+      "assert letterCombinations(\"28\").equals(List.of(\"at\",\"au\",\"av\",\"bt\",\"bu\",\"bv\",\"ct\",\"cu\",\"cv\"));assert letterCombinations(\"\").isEmpty();assert letterCombinations(\"79\").size()==16;",
+      "for(String digits:List.of(\"2\",\"9\",\"234\",\"7777\",\"2987\")){List<String>expected=new ArrayList<>(List.of(\"\"));for(char digit:digits.toCharArray()){List<String>next=new ArrayList<>();for(String prefix:expected)for(char ch:KEYS[digit-'0'].toCharArray())next.add(prefix+ch);expected=next;}assert letterCombinations(digits).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/letter-combinations-of-a-phone-number",
+      "title": "Letter Combinations of a Phone Number",
+      "checkedOn": "2026-10-29",
+      "approach": "The linked public practice statement was checked.",
+      "adaptation": "No public Java editorial is linked for this current-sheet entry. The Java below is an original implementation of the stated task, checked with examples and independent exhaustive cases."
+    }
   }
 }
