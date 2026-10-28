@@ -8207,5 +8207,98 @@
       "approach": "Count every strictly larger value in each queried suffix.",
       "adaptation": "The public practice task and its n ≤ 10,000, q ≤ 100 limits were checked. No public Java editorial is linked. Direct scans fit those limits; the guide explains why nearest-greater stack shortcuts would be incorrect."
     }
+  },
+  "218": {
+    "problem": "Calculate the total rainwater held between non-negative bars of width 1.",
+    "assumptions": "Water needs a boundary on both sides. The tracker’s linked limits are at most 20,000 bars with heights at most 100,000, so the total fits in int. The helper also returns 0 for empty or very short arrays.",
+    "example": {
+      "input": "height = [4, 1, 3, 1, 5]",
+      "output": "7",
+      "explanation": "The three inner bars hold 3, 1 and 3 units. The outer bars hold no water."
+    },
+    "baseline": "At each index, scan for the tallest bar on its left and right, including itself. Its water is min(leftMax, rightMax) − height[i]. Repeating those scans costs O(n²).",
+    "approach": "The shorter of the tallest left and right boundaries limits the water level. The current bar occupies part of that height, so subtract its height to get the water above it. Prefix and suffix maximum arrays let us calculate this in linear time.\n\nTo avoid those arrays, move inward from both ends, keeping the tallest boundary seen on each side. Process the side whose current bar is shorter. If it sets a new maximum, update that maximum; otherwise add the gap above it. The opposite side is sufficient for this decision: when a side’s maximum was established, the other side had a boundary at least that high, and a higher bar would have made us process the other side first. Continue until the pointers meet.",
+    "steps": [
+      "Set left and right to the two ends and both running maxima to 0.",
+      "If the left bar is shorter, update leftMax and add leftMax − height[left], then move left.",
+      "Otherwise do the symmetric step on the right.",
+      "Stop when left meets right."
+    ],
+    "java": "static int trap(int[] height) {\n    int left = 0, right = height.length - 1;\n    int leftMax = 0, rightMax = 0, water = 0;\n    while (left < right) {\n        if (height[left] < height[right]) {\n            leftMax = Math.max(leftMax, height[left]);\n            water += leftMax - height[left];\n            left++;\n        } else {\n            rightMax = Math.max(rightMax, height[right]);\n            water += rightMax - height[right];\n            right--;\n        }\n    }\n    return water;\n}",
+    "time": "O(n).",
+    "space": "O(1) for the final two-pointer method.",
+    "pitfalls": [
+      "Use the smaller boundary, not the taller one.",
+      "Include the current bar in the maxima, so its water contribution cannot become negative.",
+      "The input array is not changed.",
+      "If expanding the height or length limits, use long for the accumulated water."
+    ],
+    "tests": [
+      "assert trap(new int[]{4,1,3,1,5})==7;assert trap(new int[]{})==0;assert trap(new int[]{2})==0;assert trap(new int[]{1,2,3})==0;assert trap(new int[]{3,2,1})==0;",
+      "assert trap(new int[]{0,1,0,2,1,0,1,3,2,1,2,1})==6;assert trap(new int[]{4,2,0,3,2,5})==9;",
+      "Random r=new Random(218);for(int n=0;n<=100;n++)for(int trial=0;trial<20;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(20);int[]before=a.clone();int expected=trapScan(a);assert trap(a)==expected;assert trapWithMaxima(a)==expected;assert Arrays.equals(a,before);}",
+      "int[]a=new int[20000];a[0]=a[a.length-1]=100000;assert trap(a)==1999800000;assert trapWithMaxima(a)==1999800000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/trapping-rain-water",
+      "title": "Trapping Rain Water: Calculate Trapped Water in an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated side scans, prefix/suffix maxima, then two inward-moving pointers.",
+      "adaptation": "All three public Java methods were checked. The final method follows the same current-height comparison and running maxima, combining each update-and-gap branch into two statements."
+    },
+    "baselineJava": "static int trapScan(int[] height) {\n    int water = 0;\n    for (int i = 0; i < height.length; i++) {\n        int leftMax = 0, rightMax = 0;\n        for (int j = 0; j <= i; j++) leftMax = Math.max(leftMax, height[j]);\n        for (int j = i; j < height.length; j++) rightMax = Math.max(rightMax, height[j]);\n        water += Math.min(leftMax, rightMax) - height[i];\n    }\n    return water;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space.",
+    "better": {
+      "explanation": "Store the tallest bar through each index from the left, and the tallest bar through each index from the right. Each water contribution then needs only two array lookups. This removes repeated scans but uses two extra arrays.",
+      "java": "static int trapWithMaxima(int[] height) {\n    int n = height.length;\n    if (n < 3) return 0;\n    int[] left = new int[n], right = new int[n];\n    left[0] = height[0];\n    for (int i = 1; i < n; i++) left[i] = Math.max(left[i - 1], height[i]);\n    right[n - 1] = height[n - 1];\n    for (int i = n - 2; i >= 0; i--) right[i] = Math.max(right[i + 1], height[i]);\n    int water = 0;\n    for (int i = 0; i < n; i++) water += Math.min(left[i], right[i]) - height[i];\n    return water;\n}",
+      "time": "O(n).",
+      "space": "O(n) for the two maximum arrays."
+    },
+    "trace": {
+      "columns": [
+        "Index",
+        "Bar height",
+        "Tallest left",
+        "Tallest right",
+        "Water"
+      ],
+      "rows": [
+        [
+          "0",
+          "4",
+          "4",
+          "5",
+          "0"
+        ],
+        [
+          "1",
+          "1",
+          "4",
+          "5",
+          "3"
+        ],
+        [
+          "2",
+          "3",
+          "4",
+          "5",
+          "1"
+        ],
+        [
+          "3",
+          "1",
+          "4",
+          "5",
+          "3"
+        ],
+        [
+          "4",
+          "5",
+          "5",
+          "5",
+          "0"
+        ]
+      ]
+    }
   }
 }
