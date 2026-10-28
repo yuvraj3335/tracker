@@ -5805,5 +5805,91 @@
     },
     "baselineJava": "static Node uniqueCopy(Node head) {\n    List<Integer> values = new ArrayList<>();\n    while (head != null) {\n        int value = head.data;\n        values.add(value);\n        while (head != null && head.data == value) head = head.next;\n    }\n    Node newHead = null;\n    Node tail = null;\n    for (int value : values) {\n        Node node = new Node(value);\n        node.prev = tail;\n        if (tail == null) newHead = node;\n        else tail.next = node;\n        tail = node;\n    }\n    return newHead;\n}",
     "baselineTime": "O(n) time and O(n) space for the collected values and new nodes."
+  },
+  "153": {
+    "problem": "Reverse each complete group of k linked-list nodes. Leave a final group smaller than k in its original order.",
+    "assumptions": "k is positive. Change links, not node values. The tracker’s LeetCode problem and Striver’s recursive/optimal methods keep an incomplete group unchanged, although the article’s introduction and stack method describe reversing it.",
+    "example": {
+      "input": "4 → 1 → 8 → 2 → 9, k = 3",
+      "output": "8 → 1 → 4 → 2 → 9",
+      "explanation": "Reverse the complete group [4, 1, 8]. Only two nodes remain, so [2, 9] stays as it was."
+    },
+    "baseline": "Collect a complete group in a stack and reconnect nodes in pop order. First confirm that k nodes exist; otherwise attach the remaining chain unchanged. That extra check makes the source’s stack idea match the tracker’s rule.",
+    "approach": "Find the kth node before changing any link. When it exists, save the start of the next group and cut the current group after its kth node. Reverse this detached group using the normal list-reversal loop.\n\nThe old kth node becomes the group’s head, and the old first node becomes its tail. Connect the previous group’s tail to this new head, then remember the old first node as the next connector. If fewer than k nodes remain, connect that untouched remainder and stop.",
+    "steps": [
+      "Find the kth node from the current group head.",
+      "If there is no kth node, attach the remainder unchanged and stop.",
+      "Save kth.next, detach the complete group, and reverse it.",
+      "Connect the previous group, update the result head for the first group, and continue at the saved next group."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node kthNode(Node start, int k) {\n    while (start != null && k > 1) {\n        start = start.next;\n        k--;\n    }\n    return start;\n}\n\nstatic Node reverse(Node head) {\n    Node previous = null;\n    while (head != null) {\n        Node next = head.next;\n        head.next = previous;\n        previous = head;\n        head = next;\n    }\n    return previous;\n}\n\nstatic Node reverseKGroup(Node head, int k) {\n    if (k < 1) throw new IllegalArgumentException(\"k must be positive\");\n    if (head == null || k == 1) return head;\n    Node current = head;\n    Node previousTail = null;\n    while (current != null) {\n        Node kth = kthNode(current, k);\n        if (kth == null) {\n            if (previousTail != null) previousTail.next = current;\n            break;\n        }\n        Node nextGroup = kth.next;\n        kth.next = null;\n        Node groupHead = reverse(current);\n        if (previousTail == null) head = groupHead;\n        else previousTail.next = groupHead;\n        previousTail = current;\n        current = nextGroup;\n    }\n    return head;\n}",
+    "time": "O(n); group checking and reversal each visit nodes a constant number of times.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Verify the incomplete-group rule in the actual problem; the current source page mixes two variants.",
+      "Save the next group before cutting kth.next.",
+      "The old group head becomes its tail after reversal.",
+      "Do not return the last reversed group’s head as the entire list’s head."
+    ],
+    "tests": [
+      "Node[] a=new Node[5];int[] v={4,1,8,2,9};for(int i=0;i<5;i++){a[i]=new Node(v[i]);if(i>0)a[i-1].next=a[i];}Node p=reverseKGroup(a[0],3);for(int i:new int[]{2,1,0,3,4}){assert p==a[i]&&p.data==v[i];p=p.next;}assert p==null;",
+      "assert reverseKGroup(null,3)==null&&reverseKStack(null,3)==null&&reverseKRecursive(null,3)==null;",
+      "for(int n=1;n<=30;n++)for(int k=1;k<=n+2;k++)for(int method=0;method<3;method++){Node[] a=new Node[n];for(int i=0;i<n;i++){a[i]=new Node(i);if(i>0)a[i-1].next=a[i];}Node p=method==0?reverseKGroup(a[0],k):method==1?reverseKStack(a[0],k):reverseKRecursive(a[0],k);for(int start=0;start<n;start+=k){int end=Math.min(n,start+k);if(end-start==k){for(int i=end-1;i>=start;i--){assert p==a[i]&&p.data==i;p=p.next;}}else{for(int i=start;i<end;i++){assert p==a[i]&&p.data==i;p=p.next;}}}assert p==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/reverse-linked-list-k-groups",
+      "title": "Reverse a Linked List in Groups of K Nodes",
+      "checkedOn": "2026-10-29",
+      "approach": "Stack grouping, recursive full-group reversal, then iterative detach/reverse/reconnect.",
+      "adaptation": "All three Java algorithms were checked. The page is inconsistent about an incomplete group. The tracker and the source’s recursive/optimal methods preserve it; the stack variant here adds that same full-group check."
+    },
+    "baselineJava": "static Node reverseKStack(Node head, int k) {\n    if (k < 1) throw new IllegalArgumentException(\"k must be positive\");\n    Node dummy = new Node(0);\n    Node tail = dummy;\n    Node current = head;\n    while (current != null) {\n        if (kthNode(current, k) == null) {\n            tail.next = current;\n            return dummy.next;\n        }\n        Deque<Node> stack = new ArrayDeque<>();\n        for (int count = 0; count < k; count++) {\n            stack.push(current);\n            current = current.next;\n        }\n        while (!stack.isEmpty()) {\n            tail.next = stack.pop();\n            tail = tail.next;\n        }\n        tail.next = current;\n    }\n    return dummy.next;\n}",
+    "baselineTime": "O(n) time and O(k) space for a complete group.",
+    "better": {
+      "explanation": "Check that a full group exists, reverse its first k nodes, and recursively process the rest. Connect the old group head, now its tail, to the returned remainder. Recursion saves the group connections but uses call-stack space.",
+      "java": "static Node reverseKRecursive(Node head, int k) {\n    if (k < 1) throw new IllegalArgumentException(\"k must be positive\");\n    if (head == null || k == 1 || kthNode(head, k) == null) return head;\n    Node previous = null;\n    Node current = head;\n    for (int count = 0; count < k; count++) {\n        Node next = current.next;\n        current.next = previous;\n        previous = current;\n        current = next;\n    }\n    head.next = reverseKRecursive(current, k);\n    return previous;\n}",
+      "time": "O(n).",
+      "space": "O(n / k + 1) call-stack frames; k = 1 returns immediately."
+    }
+  },
+  "154": {
+    "problem": "Rotate a singly linked list to the right by k places.",
+    "assumptions": "k is nonnegative and the list has no cycle. A right rotation moves the tail to the front. Reuse the same nodes and preserve their values.",
+    "example": {
+      "input": "3 → 6 → 1 → 8 → 4, k = 2",
+      "output": "8 → 4 → 3 → 6 → 1",
+      "explanation": "The last two nodes become the first two, in the same order."
+    },
+    "baseline": "Count the length and reduce k modulo that length. For each remaining rotation, find the last two nodes, detach the last node, and move it before head. Repeated tail searches can take quadratic time.",
+    "approach": "Rotating by the list length changes nothing, so only k % length matters. After that reduction, the new head has zero-based index length − k, and the node before it becomes the new tail.\n\nConnect the old tail to the old head to make one temporary circle. Walk to the new tail, save its next as the new head, then set newTail.next to null. Breaking that circle is part of the algorithm, not optional cleanup.",
+    "steps": [
+      "Find the length and the old tail.",
+      "Reduce k modulo length; return the original head if the result is zero.",
+      "Connect tail.next to head. Walk length − k − 1 steps from head to the new tail.",
+      "Save newTail.next, cut that link, and return the saved new head."
+    ],
+    "java": "static class Node {\n    int data;\n    Node next;\n    Node(int data) { this.data = data; }\n}\n\nstatic Node rotateRight(Node head, int k) {\n    if (k < 0) throw new IllegalArgumentException(\"k must be nonnegative\");\n    if (head == null || head.next == null || k == 0) return head;\n    int length = 1;\n    Node tail = head;\n    while (tail.next != null) {\n        tail = tail.next;\n        length++;\n    }\n    k %= length;\n    if (k == 0) return head;\n    tail.next = head;\n    Node newTail = head;\n    for (int step = 0; step < length - k - 1; step++) {\n        newTail = newTail.next;\n    }\n    Node newHead = newTail.next;\n    newTail.next = null;\n    return newHead;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Right rotation is not left rotation: the last k nodes move to the front.",
+      "Handle an empty list before taking k % length.",
+      "Cut the temporary circle before returning.",
+      "The new tail index is length − k − 1, one before the new head."
+    ],
+    "tests": [
+      "int[] v={3,6,1,8,4};Node[] a=new Node[5];for(int i=0;i<5;i++){a[i]=new Node(v[i]);if(i>0)a[i-1].next=a[i];}Node p=rotateRight(a[0],2);for(int i:new int[]{3,4,0,1,2}){assert p==a[i]&&p.data==v[i];p=p.next;}assert p==null;",
+      "assert rotateRight(null,3)==null&&rotateRightRepeated(null,3)==null;",
+      "for(int n=1;n<=30;n++)for(int k:new int[]{0,1,2,7,30,101,Integer.MAX_VALUE})for(int method=0;method<2;method++){Node[] a=new Node[n];for(int i=0;i<n;i++){a[i]=new Node(i);if(i>0)a[i-1].next=a[i];}Node p=method==0?rotateRight(a[0],k):rotateRightRepeated(a[0],k);int start=(n-k%n)%n;for(int i=0;i<n;i++){assert p==a[(start+i)%n]&&p.data==(start+i)%n;p=p.next;}assert p==null;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/rotate-linked-list-right-k-places",
+      "title": "Rotate a Linked List to the Right by K Places",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated tail-to-head moves, then a temporary circle broken at the new tail.",
+      "adaptation": "Both Java algorithms were checked. The public snippets contain a shadowed constructor assignment and C++ pointer syntax; these examples use a valid Node constructor and Java dot access."
+    },
+    "baselineJava": "static Node rotateRightRepeated(Node head, int k) {\n    if (k < 0) throw new IllegalArgumentException(\"k must be nonnegative\");\n    if (head == null || head.next == null) return head;\n    int length = 0;\n    for (Node p = head; p != null; p = p.next) length++;\n    k %= length;\n    while (k-- > 0) {\n        Node previous = null;\n        Node tail = head;\n        while (tail.next != null) {\n            previous = tail;\n            tail = tail.next;\n        }\n        previous.next = null;\n        tail.next = head;\n        head = tail;\n    }\n    return head;\n}",
+    "baselineTime": "O(n + n × (k % n)) time, O(1) extra space."
   }
 }
