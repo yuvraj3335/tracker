@@ -8538,5 +8538,123 @@
     },
     "baselineJava": "static long histogramByExpansion(int[] heights) {\n    long best = 0;\n    for (int i = 0; i < heights.length; i++) {\n        int left = i, right = i;\n        while (left > 0 && heights[left - 1] >= heights[i]) left--;\n        while (right + 1 < heights.length && heights[right + 1] >= heights[i]) right++;\n        best = Math.max(best, (long) heights[i] * (right - left + 1));\n    }\n    return best;\n}",
     "baselineTime": "O(n²) time and O(1) extra space."
+  },
+  "224": {
+    "problem": "Find the largest rectangle containing only 1s in a binary matrix. Return its area, not its coordinates.",
+    "assumptions": "The tracker links to LeetCode’s char[][] interface, so compare cells with '1', not integer 1. All rows have the same width. The empty-matrix guard below is an additional convenience.",
+    "example": {
+      "input": "[\"1101\", \"1111\", \"0111\"]",
+      "output": "6",
+      "explanation": "The last two rows and last three columns form a 2 × 3 rectangle of 1s."
+    },
+    "baseline": "Choose every top, bottom, left and right boundary. Check whether all cells inside are 1. This direct method is useful for tiny test cases, but can take O(rows³ × cols³) time.",
+    "approach": "Fix a bottom row and count how many consecutive 1s end at that row in each column. These counts form a histogram. Any rectangle of 1s ending here is a rectangle beneath that histogram.\n\nMove down one row at a time. A 1 increases its column’s height by one; a 0 resets it to zero. Run the histogram stack algorithm after every row and keep the largest area. Every possible rectangle has some bottom row, so this checks all candidates without choosing all four boundaries.\n\nFor the example, the heights become [1,1,0,1], then [2,2,1,2], then [0,3,2,3]. In the last histogram, columns 1 through 3 support height 2 and width 3, giving area 6.",
+    "steps": [
+      "Keep one heights array with one entry per column.",
+      "For each row, increment a height for '1' or reset it for '0'.",
+      "Find the largest rectangle in the current histogram using an increasing stack.",
+      "Keep the best area across every bottom row."
+    ],
+    "java": "static int maximalRectangle(char[][] matrix) {\n    if (matrix.length == 0 || matrix[0].length == 0) return 0;\n    int[] heights = new int[matrix[0].length];\n    int best = 0;\n    for (char[] row : matrix) {\n        for (int col = 0; col < heights.length; col++) {\n            heights[col] = row[col] == '1' ? heights[col] + 1 : 0;\n        }\n        best = Math.max(best, histogramArea(heights));\n    }\n    return best;\n}\n\nstatic int histogramArea(int[] heights) {\n    Deque<Integer> stack = new ArrayDeque<>();\n    int best = 0;\n    for (int right = 0; right <= heights.length; right++) {\n        int current = right == heights.length ? 0 : heights[right];\n        while (!stack.isEmpty() && heights[stack.peek()] >= current) {\n            int height = heights[stack.pop()];\n            int left = stack.isEmpty() ? -1 : stack.peek();\n            best = Math.max(best, height * (right - left - 1));\n        }\n        if (right < heights.length) stack.push(right);\n    }\n    return best;\n}",
+    "time": "O(rows × cols): each row takes one height update and one linear histogram scan.",
+    "space": "O(cols) for heights and the stack.",
+    "pitfalls": [
+      "Reset a height to zero when a zero cell breaks the vertical run.",
+      "Process every row as a possible bottom, not only the last row.",
+      "The rectangle may be wider than it is tall; this is not the maximal-square problem.",
+      "For the TUF int[][] interface, change the parameter and compare cells with integer 1."
+    ],
+    "tests": [
+      "assert maximalRectangle(new char[][]{\"1101\".toCharArray(),\"1111\".toCharArray(),\"0111\".toCharArray()})==6;assert maximalRectangle(new char[][]{{'0'}})==0;assert maximalRectangle(new char[][]{{'1'}})==1;assert maximalRectangle(new char[0][])==0;",
+      "for(int mask=0;mask<(1<<12);mask++){char[][]a=new char[3][4];for(int i=0;i<12;i++)a[i/4][i%4]=(mask&(1<<i))==0?'0':'1';int expected=0;for(int top=0;top<3;top++)for(int bottom=top;bottom<3;bottom++)for(int left=0;left<4;left++)for(int right=left;right<4;right++){boolean full=true;for(int r=top;r<=bottom;r++)for(int col=left;col<=right;col++)if(a[r][col]=='0')full=false;if(full)expected=Math.max(expected,(bottom-top+1)*(right-left+1));}assert maximalRectangle(a)==expected;}",
+      "char[][]a=new char[200][200];for(char[]row:a)Arrays.fill(row,'1');assert maximalRectangle(a)==40000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/maximum-rectangles",
+      "title": "Maximum Rectangles",
+      "checkedOn": "2026-10-29",
+      "approach": "Build consecutive-one heights by row and solve each histogram.",
+      "adaptation": "The current public practice statement and histogram-related prompts were checked; no public Java editorial is exposed there, and the old DP article URL now returns Page Not Found. This authored row wrapper uses the stack algorithm checked in Striver’s current Largest Rectangle Java lesson, adapted to the tracker’s char[][] judge interface."
+    }
+  },
+  "225": {
+    "problem": "Return the maximum value in each contiguous window of exactly k elements as the window moves one step to the right.",
+    "assumptions": "1 ≤ k ≤ nums.length(). Negative and repeated values are allowed. There are nums.length() − k + 1 answers.",
+    "example": {
+      "input": "nums = [8, 2, 5, 5, 1, 7], k = 3",
+      "output": "[8, 5, 5, 7]",
+      "explanation": "The windows are [8,2,5], [2,5,5], [5,5,1] and [5,1,7]."
+    },
+    "baseline": "For each window, scan its k elements and keep the largest value. This takes O(n × k) time and no working storage besides the answer.",
+    "approach": "Keep useful indices in a deque, with the largest value at the front. First remove an index from the front if it has left the window. Then remove indices from the back while their values are no greater than the incoming value.\n\nWhy can those smaller values be discarded? The incoming value is at least as large and occurs later, so it will remain in future windows longer. A discarded value cannot become the maximum before the incoming value leaves. After appending the new index, the front gives the maximum as soon as we have a complete window.",
+    "steps": [
+      "Remove front indices ≤ right − k because they are outside the window.",
+      "Remove back indices whose values are ≤ nums[right].",
+      "Append right to the back.",
+      "Once right ≥ k − 1, save the value at the front."
+    ],
+    "java": "static int[] maxSlidingWindow(int[] nums, int k) {\n    if (k < 1 || k > nums.length) throw new IllegalArgumentException(\"Invalid window size\");\n    int[] answer = new int[nums.length - k + 1];\n    Deque<Integer> deque = new ArrayDeque<>();\n    for (int right = 0; right < nums.length; right++) {\n        while (!deque.isEmpty() && deque.peekFirst() <= right - k) deque.removeFirst();\n        while (!deque.isEmpty() && nums[deque.peekLast()] <= nums[right]) deque.removeLast();\n        deque.addLast(right);\n        if (right >= k - 1) answer[right - k + 1] = nums[deque.peekFirst()];\n    }\n    return answer;\n}",
+    "time": "O(n): every index is added once and removed at most once.",
+    "space": "O(k) working space, plus O(n − k + 1) for the answer.",
+    "pitfalls": [
+      "Store indices so expired candidates can be removed.",
+      "Initialize a scan maximum from a window value, not zero, because inputs can be negative.",
+      "Discarding equal older values is safe: the newer equal value expires later.",
+      "The deque contains candidates, not every element in the window."
+    ],
+    "tests": [
+      "assert Arrays.equals(maxSlidingWindow(new int[]{8,2,5,5,1,7},3),new int[]{8,5,5,7});assert Arrays.equals(maxSlidingWindow(new int[]{-4,-2,-5},2),new int[]{-2,-2});",
+      "Random r=new Random(225);for(int n=1;n<=50;n++)for(int trial=0;trial<20;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(15)-7;for(int k=1;k<=n;k++)assert Arrays.equals(maxSlidingWindow(a,k),windowByScanning(a,k));}",
+      "assert Arrays.equals(maxSlidingWindow(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE},1),new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE});assert Arrays.equals(maxSlidingWindow(new int[]{4,4,4,4},4),new int[]{4});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/sliding-window-maximum",
+      "title": "Sliding Window Maximum",
+      "checkedOn": "2026-10-29",
+      "approach": "Maintain a deque of maximum candidates, removing expired front indices and dominated back indices.",
+      "adaptation": "The current public problem and deque-related prompts were checked. It exposes a starter method rather than a public Java editorial; this is an authored, tested Java implementation of the deque method."
+    },
+    "baselineJava": "static int[] windowByScanning(int[] nums, int k) {\n    int[] answer = new int[nums.length - k + 1];\n    for (int start = 0; start + k <= nums.length; start++) {\n        int best = nums[start];\n        for (int i = start + 1; i < start + k; i++) best = Math.max(best, nums[i]);\n        answer[start] = best;\n    }\n    return answer;\n}",
+    "baselineTime": "O(n × k) time and O(1) working space, excluding the answer."
+  },
+  "226": {
+    "problem": "For each arriving stock price, count consecutive days ending today whose prices are no greater than today’s price. Include today.",
+    "assumptions": "The tracker links to Online Stock Span: implement StockSpanner.next(price) and retain state between calls. Striver’s current article uses an array instead; the calculateSpan helper below provides that interface too.",
+    "example": {
+      "input": "next prices: [90, 60, 70, 70, 100]",
+      "output": "[1, 1, 2, 3, 5]",
+      "explanation": "The fourth price includes the previous 70 and 60, but stops at 90. The final 100 includes every day."
+    },
+    "baseline": "Save all prices. On each call, walk backward until finding a price strictly greater than today’s. A growing price sequence makes the total work quadratic.",
+    "approach": "We only need earlier prices that can stop a span. Keep them on a stack in decreasing price order, paired with their day indices. Remove every top price ≤ today’s price. Those days cannot stop today’s span or any later span that gets past today.\n\nIf a price remains, it is the nearest greater price. Subtract its day index from today’s index. If none remains, today’s span reaches day zero, so it is today + 1. Push today’s price and index for future calls. Equal prices are removed too because the span includes them.",
+    "steps": [
+      "Keep a day counter and a stack of [price, day] pairs.",
+      "On next(price), pop all prices ≤ the new price.",
+      "Return the distance to the remaining top day, or day + 1 when empty.",
+      "Push the new pair and advance the counter."
+    ],
+    "java": "static class StockSpanner {\n    private final Deque<int[]> stack = new ArrayDeque<>();\n    private int day = 0;\n\n    public int next(int price) {\n        while (!stack.isEmpty() && stack.peek()[0] <= price) stack.pop();\n        int span = stack.isEmpty() ? day + 1 : day - stack.peek()[1];\n        stack.push(new int[]{price, day});\n        day++;\n        return span;\n    }\n}\n\nstatic int[] calculateSpan(int[] prices) {\n    StockSpanner spanner = new StockSpanner();\n    int[] answer = new int[prices.length];\n    for (int i = 0; i < prices.length; i++) answer[i] = spanner.next(prices[i]);\n    return answer;\n}",
+    "time": "O(n) across n calls; amortized O(1) per call. One call can still pop O(n) previous entries.",
+    "space": "O(n) worst-case retained state, reached by strictly decreasing prices.",
+    "pitfalls": [
+      "Use ≤ when removing prices; equal prices extend the span.",
+      "The answer counts consecutive days, not all earlier prices that are smaller.",
+      "Do not clear the stack between next calls.",
+      "Amortized O(1) does not mean every individual call is constant time."
+    ],
+    "tests": [
+      "assert Arrays.equals(calculateSpan(new int[]{90,60,70,70,100}),new int[]{1,1,2,3,5});assert Arrays.equals(calculateSpan(new int[]{100,80,60,70,60,75,85}),new int[]{1,1,1,2,1,4,6});",
+      "Random r=new Random(226);for(int trial=0;trial<500;trial++){int[]a=new int[r.nextInt(150)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(30);assert Arrays.equals(calculateSpan(a),spansByScanning(a));}",
+      "StockSpanner s=new StockSpanner();for(int i=0;i<10000;i++)assert s.next(50)==i+1;StockSpanner other=new StockSpanner();assert other.next(10)==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/stock-span-problem",
+      "title": "Stock Span Problem Using a Monotonic Stack",
+      "checkedOn": "2026-10-29",
+      "approach": "Backward scanning, then indices of strictly greater boundaries on a decreasing stack.",
+      "adaptation": "Both public Java array methods were checked. The tracker’s linked task is online, so the same index-boundary logic is retained in a StockSpanner object using [price, day] pairs; calculateSpan also supplies the article’s array interface."
+    },
+    "baselineJava": "static int[] spansByScanning(int[] prices) {\n    int[] answer = new int[prices.length];\n    for (int day = 0; day < prices.length; day++) {\n        int previous = day - 1;\n        while (previous >= 0 && prices[previous] <= prices[day]) previous--;\n        answer[day] = day - previous;\n    }\n    return answer;\n}",
+    "baselineTime": "O(n²) time and O(1) working space beyond the returned array."
   }
 }
