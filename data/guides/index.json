@@ -12736,5 +12736,125 @@
     },
     "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic class PrecomputedIterator {\n    private final List<Integer> values;\n    private int next;\n    PrecomputedIterator(TreeNode root) { values = inorderValues(root); }\n    boolean hasNext() { return next < values.size(); }\n    int next() {\n        if (!hasNext()) throw new NoSuchElementException(\"Iterator is exhausted\");\n        return values.get(next++);\n    }\n}\nstatic List<Integer> mergeByLists(TreeNode first, TreeNode second) {\n    List<Integer> a = inorderValues(first), b = inorderValues(second), answer = new ArrayList<>();\n    int i = 0, j = 0;\n    while (i < a.size() || j < b.size()) {\n        if (j == b.size() || (i < a.size() && a.get(i) <= b.get(j))) answer.add(a.get(i++));\n        else answer.add(b.get(j++));\n    }\n    return answer;\n}",
     "baselineTime": "O(n) initialization and O(n) stored values for an eager iterator; O(n + m) time/storage for merging two saved lists."
+  },
+  "327": {
+    "problem": "Decide whether two different nodes in a BST have values that add up to the target.",
+    "assumptions": "The usual problem supplies a strict BST. A node cannot be used twice. The iterator implementation also accepts a BST whose inorder values are nondecreasing, so two distinct nodes with the same value may form a pair. Sums use long to avoid overflowing int.",
+    "example": {
+      "input": "BST values {2, 4, 7, 9}; target = 11",
+      "output": "true",
+      "explanation": "2 + 9 is 11. These values belong to different nodes. A single node with value 5 would not satisfy target 10."
+    },
+    "baseline": "Save inorder values in a sorted list, then use one index at each end. Move the lower index when the sum is too small and the upper index when it is too large. Stop when the indices meet.",
+    "approach": "Use two paused inorder traversals. One returns nodes from smallest to largest; the other returns them from largest to smallest. They act like the two indices in the sorted-list solution, without saving the full list.\n\nIf the sum is too small, keeping the smaller value cannot help: every remaining partner is no larger than the current largest value. Advance the ascending iterator. If the sum is too large, advance the descending iterator instead.\n\nStop when both iterators point to the same node. Comparing node identity prevents using a node twice, while still allowing two separate equal-valued nodes. Each iterator pushes and pops any node at most once.",
+    "steps": [
+      "Prepare ascending and descending stacks.",
+      "Read one node from each end.",
+      "Compare their long sum with the target; advance only the necessary end.",
+      "Return false when the two node references meet."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class DirectionalIterator {\n    final Deque<TreeNode> stack = new ArrayDeque<>();\n    final boolean ascending;\n    DirectionalIterator(TreeNode root, boolean ascending) {\n        this.ascending = ascending;\n        pushPath(root);\n    }\n    void pushPath(TreeNode node) {\n        while (node != null) {\n            stack.push(node);\n            node = ascending ? node.left : node.right;\n        }\n    }\n    TreeNode next() {\n        TreeNode node = stack.pop();\n        pushPath(ascending ? node.right : node.left);\n        return node;\n    }\n}\nstatic boolean findTarget(TreeNode root, int target) {\n    if (root == null) return false;\n    DirectionalIterator forward = new DirectionalIterator(root, true);\n    DirectionalIterator backward = new DirectionalIterator(root, false);\n    TreeNode low = forward.next(), high = backward.next();\n    while (low != high) {\n        long sum = (long) low.val + high.val;\n        if (sum == target) return true;\n        if (sum < target) low = forward.next();\n        else high = backward.next();\n    }\n    return false;\n}",
+    "time": "O(n) worst case.",
+    "space": "O(h) for the two iterator stacks.",
+    "pitfalls": [
+      "One node cannot form a pair with itself.",
+      "Cast before adding: (long) a + b. Casting an already overflowed int sum is too late.",
+      "The two-pointer argument requires sorted inorder values.",
+      "Do not modify the tree while the iterators are active."
+    ],
+    "tests": [
+      "assert !findTarget(null,0);assert !findTarget(new TreeNode(5),10);TreeNode r=new TreeNode(5);r.left=new TreeNode(5);assert findTarget(r,10);r.left.val=Integer.MIN_VALUE;r.val=Integer.MAX_VALUE;assert findTarget(r,-1);r.left.val=Integer.MAX_VALUE-1;assert !findTarget(r,-3);",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}for(int t=0;t<20;t++){int target=random.nextInt();if(t<10&&ordered.size()>1){TreeNode a=ordered.get(random.nextInt(ordered.size())),b=ordered.get(random.nextInt(ordered.size()));long s=(long)a.val+b.val;if(s>=Integer.MIN_VALUE&&s<=Integer.MAX_VALUE)target=(int)s;}boolean expected=false;for(int i=0;i<ordered.size();i++)for(int j=i+1;j<ordered.size();j++)if((long)ordered.get(i).val+ordered.get(j).val==target)expected=true;assert findTarget(root,target)==expected;assert pairByList(root,target)==expected;}}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert findTarget(r,199997);assert !findTarget(r,199998);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/two-sum-in-bst",
+      "title": "Two Sum in BST",
+      "checkedOn": "2026-10-29",
+      "approach": "Sorted inorder two pointers, then ascending and descending stack iterators.",
+      "adaptation": "Both public Java methods were checked. This adaptation returns nodes from the iterators and stops on node identity rather than comparing endpoint values. Sums use long; the source adds int values."
+    },
+    "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic boolean pairByList(TreeNode root, int target) {\n    List<Integer> values = inorderValues(root);\n    int left = 0, right = values.size() - 1;\n    while (left < right) {\n        long sum = (long) values.get(left) + values.get(right);\n        if (sum == target) return true;\n        if (sum < target) left++;\n        else right--;\n    }\n    return false;\n}",
+    "baselineTime": "O(n) time and O(n) saved values, plus O(h) traversal stack."
+  },
+  "328": {
+    "problem": "Repair a BST in which the values of exactly two nodes were swapped. Keep every node and child connection in place.",
+    "assumptions": "Values were distinct before the swap. Only two values changed position; the shape is unchanged. Null and already valid trees are handled as no-ops. Inputs with more extensive corruption are outside this contract.",
+    "example": {
+      "input": "inorder values after the swap: [1, 5, 3, 4, 2, 6]",
+      "output": "inorder after repair: [1, 2, 3, 4, 5, 6]",
+      "explanation": "The drops 5 > 3 and 4 > 2 identify 5 and 2 as the swapped values. Exchange those two values without moving nodes."
+    },
+    "baseline": "Collect all values, sort them, then assign the sorted values during inorder traversal. This restores ordering but uses O(n) storage and O(n log n) sorting time. It does more work than needed when only two values are misplaced.",
+    "approach": "Inorder should be strictly increasing. Compare each visited node with the previous node. A decrease reveals an inversion. At the first inversion, remember the previous node as first and the current node as middle. At a second inversion, remember the current node as last.\n\nIf there are two inversions, exchange first and last. If there is only one, the swapped values were adjacent in inorder, so exchange first and middle.\n\nThe explicit traversal stack avoids recursive calls on a long chain. All tracking variables are local to the method, so repairing another tree cannot reuse stale nodes from an earlier call.",
+    "steps": [
+      "Visit nodes in inorder with a stack.",
+      "Record first and middle at the first decrease.",
+      "Record last if another decrease appears.",
+      "Swap first with last, or with middle when there was only one decrease."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic void recoverTree(TreeNode root) {\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root, previous = null;\n    TreeNode first = null, middle = null, last = null;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        if (previous != null && previous.val > current.val) {\n            if (first == null) { first = previous; middle = current; }\n            else last = current;\n        }\n        previous = current;\n        current = current.right;\n    }\n    if (first != null) {\n        TreeNode other = last == null ? middle : last;\n        int temporary = first.val;\n        first.val = other.val;\n        other.val = temporary;\n    }\n}",
+    "time": "O(n).",
+    "space": "O(h) traversal stack.",
+    "pitfalls": [
+      "Adjacent swaps create one inversion; separated swaps create two.",
+      "Exchange values, not node references or child links.",
+      "Do not use a numeric sentinel for previous; Integer.MIN_VALUE can be a real value.",
+      "The article’s optimal prose describes this linear method, but its current optimal Java tab repeats the sorting solution. This implementation follows the prose."
+    ],
+    "tests": [
+      "recoverTree(null);TreeNode r=new TreeNode(2);r.left=new TreeNode(3);r.right=new TreeNode(1);recoverTree(r);assert r.left.val==1&&r.val==2&&r.right.val==3;recoverTree(r);assert r.val==2;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}List<Integer>expected=new ArrayList<>(keys);Map<TreeNode,TreeNode[]>links=new IdentityHashMap<>();for(TreeNode x:ordered)links.put(x,new TreeNode[]{x.left,x.right});for(int t=0;t<12;t++){if(ordered.size()<2)break;int a=random.nextInt(ordered.size()),b=(a+1+random.nextInt(ordered.size()-1))%ordered.size();int v=ordered.get(a).val;ordered.get(a).val=ordered.get(b).val;ordered.get(b).val=v;if(t%2==0)recoverTree(root);else recoverBySorting(root);for(int i=0;i<ordered.size();i++){TreeNode x=ordered.get(i);assert x.val==expected.get(i);assert x.left==links.get(x)[0]&&x.right==links.get(x)[1];}}}",
+      "TreeNode r=new TreeNode(99999),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}p.val=0;recoverTree(r);int i=0;for(p=r;p!=null;p=p.right)assert p.val==i++;assert i==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/recover-binary-search-tree",
+      "title": "Recover Binary Search Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Find one or two inorder inversions and swap the misplaced values.",
+      "adaptation": "The sorting Java and optimal prose were checked. The current optimal Java tab duplicates the sorting code, so the linear implementation here is authored from the stated inversion algorithm, with an explicit stack and local state."
+    },
+    "baselineJava": "static void recoverBySorting(TreeNode root) {\n    List<TreeNode> nodes = new ArrayList<>();\n    collectRecoveryNodes(root, nodes);\n    List<Integer> values = new ArrayList<>();\n    for (TreeNode node : nodes) values.add(node.val);\n    Collections.sort(values);\n    for (int i = 0; i < nodes.size(); i++) nodes.get(i).val = values.get(i);\n}\nstatic void collectRecoveryNodes(TreeNode node, List<TreeNode> nodes) {\n    if (node == null) return;\n    collectRecoveryNodes(node.left, nodes);\n    nodes.add(node);\n    collectRecoveryNodes(node.right, nodes);\n}",
+    "baselineTime": "O(n log n) time, O(n) lists and O(h) recursion."
+  },
+  "329": {
+    "problem": "Find the number of nodes in the largest subtree that is a valid BST inside an arbitrary binary tree.",
+    "assumptions": "A subtree includes its root and every descendant below that root. You cannot discard an inconvenient child. BST comparisons are strict, so duplicate values invalidate a containing subtree. An empty tree has answer 0.",
+    "example": {
+      "input": "root 10; left child 5 with children 1 and 8; right child 15 with right child 7",
+      "output": "3",
+      "explanation": "The subtree rooted at 5 is a BST of size 3. The subtree rooted at 15 is invalid because its right child is smaller. The whole tree is therefore invalid too."
+    },
+    "baseline": "Try each node as a subtree root. Check every descendant against inherited lower and upper bounds, then count the nodes of valid subtrees. Repeated checks can cost O(n²).",
+    "approach": "A parent needs only a small report from each child: the smallest value, the largest value, and a size. If both child subtrees are valid and left maximum < current value < right minimum, the whole subtree is a BST. Add the two sizes and one for the current node.\n\nFor an invalid subtree, return impossible bounds: minimum = Long.MIN_VALUE and maximum = Long.MAX_VALUE. These make an ancestor’s strict comparison fail. Its size field carries the best valid subtree found below it.\n\nAn empty child uses the opposite bounds: minimum = Long.MAX_VALUE and maximum = Long.MIN_VALUE. It imposes no restriction and contributes size zero. Long sentinels stay outside the full int value range, including its endpoints.",
+    "steps": [
+      "Get reports for the left and right subtrees using postorder.",
+      "Check the strict ordering around the current value.",
+      "If valid, combine sizes and extend the minimum and maximum.",
+      "If invalid, return impossible bounds and the larger child answer."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class BstReport {\n    final long minimum, maximum;\n    final int size;\n    BstReport(long minimum, long maximum, int size) {\n        this.minimum = minimum; this.maximum = maximum; this.size = size;\n    }\n}\nstatic int largestBSTSubtree(TreeNode root) { return inspectBst(root).size; }\nstatic BstReport inspectBst(TreeNode node) {\n    if (node == null) return new BstReport(Long.MAX_VALUE, Long.MIN_VALUE, 0);\n    BstReport left = inspectBst(node.left), right = inspectBst(node.right);\n    if (left.maximum < node.val && node.val < right.minimum) {\n        return new BstReport(Math.min(left.minimum, node.val),\n            Math.max(right.maximum, node.val), left.size + right.size + 1);\n    }\n    return new BstReport(Long.MIN_VALUE, Long.MAX_VALUE, Math.max(left.size, right.size));\n}",
+    "time": "O(n): one report per node.",
+    "space": "O(h) live recursive stack and reports. A very deep tree may exceed Java’s call-stack limit.",
+    "pitfalls": [
+      "A largest BST subtree is different from selecting an arbitrary subset of nodes.",
+      "Use strict comparisons; equality is not valid under this contract.",
+      "Empty and invalid reports use opposite sentinel bounds. Mixing them up accepts invalid trees.",
+      "The size field means whole-subtree size for a valid report and best descendant answer for an invalid report."
+    ],
+    "tests": [
+      "assert largestBSTSubtree(null)==0;TreeNode r=new TreeNode(10);r.left=new TreeNode(5);r.left.left=new TreeNode(1);r.left.right=new TreeNode(8);r.right=new TreeNode(15);r.right.right=new TreeNode(7);assert largestBSTSubtree(r)==3;TreeNode x=new TreeNode(Integer.MIN_VALUE);x.right=new TreeNode(Integer.MAX_VALUE);assert largestBSTSubtree(x)==2;x.right.val=x.val;assert largestBSTSubtree(x)==1;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}int expected=0;for(TreeNode candidate:paths.keySet()){String prefix=paths.get(candidate);List<TreeNode>sub=new ArrayList<>();for(TreeNode x:paths.keySet())if(paths.get(x).startsWith(prefix))sub.add(x);sub.sort(Comparator.comparing(x->paths.get(x)+\"M\"));boolean valid=true;for(int i=1;i<sub.size();i++)if(sub.get(i-1).val>=sub.get(i).val)valid=false;if(valid)expected=Math.max(expected,sub.size());}assert largestBSTSubtree(root)==expected;assert largestByRepeatedChecks(root)==expected;}",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}assert largestBSTSubtree(root)==paths.size();assert largestByRepeatedChecks(root)==paths.size();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/largest-bst-in-binary-tree",
+      "title": "Largest BST in Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Postorder minimum/maximum/size reports with invalid sentinel bounds.",
+      "adaptation": "Both public Java approaches were checked. The postorder report and long sentinels are retained; TreeNode.val replaces the article’s Node.data to match the other tree guides."
+    },
+    "baselineJava": "static int largestByRepeatedChecks(TreeNode root) {\n    if (root == null) return 0;\n    if (withinBounds(root, Long.MIN_VALUE, Long.MAX_VALUE)) return countSubtree(root);\n    return Math.max(largestByRepeatedChecks(root.left), largestByRepeatedChecks(root.right));\n}\nstatic boolean withinBounds(TreeNode node, long low, long high) {\n    return node == null || (low < node.val && node.val < high\n        && withinBounds(node.left, low, node.val)\n        && withinBounds(node.right, node.val, high));\n}\nstatic int countSubtree(TreeNode node) {\n    return node == null ? 0 : 1 + countSubtree(node.left) + countSubtree(node.right);\n}",
+    "baselineTime": "O(n²) worst-case upper bound; O(h) recursion space."
   }
 }
