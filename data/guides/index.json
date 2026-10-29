@@ -9300,5 +9300,160 @@
     },
     "baselineJava": "static String subsequenceByStarts(String source, String target) {\n    if (target.isEmpty()) return \"\";\n    int bestStart = -1, bestLength = Integer.MAX_VALUE;\n    for (int left = 0; left < source.length(); left++) {\n        int matched = 0;\n        for (int right = left; right < source.length(); right++) {\n            if (source.charAt(right) == target.charAt(matched)) matched++;\n            if (matched == target.length()) {\n                if (right - left + 1 < bestLength) {\n                    bestStart = left;\n                    bestLength = right - left + 1;\n                }\n                break;\n            }\n        }\n    }\n    return bestStart < 0 ? \"\" : source.substring(bestStart, bestStart + bestLength);\n}",
     "baselineTime": "O(n²) time and O(1) working space, excluding the returned string."
+  },
+  "242": {
+    "problem": "Understand how a binary heap implements a priority queue, and use Java’s PriorityQueue to repeatedly take the smallest or largest value.",
+    "assumptions": "This is a foundation lesson, not a single online-judge problem. A binary heap is a complete binary tree stored in an array. A priority queue selects by priority rather than insertion order. Equal priorities have no guaranteed original order.",
+    "example": {
+      "input": "values = [8, 3, 6, 3]",
+      "output": "Min-first: [3,3,6,8]; max-first: [8,6,3,3]",
+      "explanation": "A min-heap exposes the smallest remaining value. Reversing its comparison makes the largest remaining value come out first."
+    },
+    "baseline": "An unsorted list can append quickly but must scan to find the next minimum. A sorted list exposes the minimum quickly but may shift many elements for insertion. A heap keeps only enough order to make both insertion and root removal efficient.",
+    "approach": "A min-heap requires each parent to be no greater than its children. A max-heap reverses that comparison. There is no ordering rule between siblings, so the backing array is not a sorted list.\n\nFor an index i, children are at 2i + 1 and 2i + 2, and the parent is at (i − 1) / 2 for i > 0. Insertion appends a value and moves it up while it outranks its parent. Removal replaces the root with the last value and moves it down through the better-priority child. The complete-tree shape keeps these paths logarithmic.\n\nJava’s PriorityQueue<Integer> is min-first by default. Use Comparator.reverseOrder() for max-first. Repeated poll calls produce priority order; iterating over the queue does not promise that order.",
+    "steps": [
+      "Choose the priority order: natural for minimum first, reversed for maximum first.",
+      "Insert with offer. Read the root without removing it with peek.",
+      "Remove the root with poll when you want the next item.",
+      "Check isEmpty before unboxing a possibly null result."
+    ],
+    "java": "static List<Integer> minFirst(int[] values) {\n    PriorityQueue<Integer> queue = new PriorityQueue<>();\n    for (int value : values) queue.offer(value);\n    List<Integer> order = new ArrayList<>();\n    while (!queue.isEmpty()) order.add(queue.poll());\n    return order;\n}\n\nstatic List<Integer> maxFirst(int[] values) {\n    PriorityQueue<Integer> queue = new PriorityQueue<>(Comparator.reverseOrder());\n    for (int value : values) queue.offer(value);\n    List<Integer> order = new ArrayList<>();\n    while (!queue.isEmpty()) order.add(queue.poll());\n    return order;\n}",
+    "time": "peek is O(1); offer and poll take O(log n) heap work. Each complete insert-and-drain demonstration is O(n log n). A backing-array resize can occasionally add linear work.",
+    "space": "O(n) for the queue and returned order.",
+    "pitfalls": [
+      "A heap is not a binary search tree and its array is not fully sorted.",
+      "Do not use queue iteration when you need sorted output.",
+      "Use a comparator such as reverseOrder(), not b − a, which may overflow.",
+      "peek and poll return null on an empty PriorityQueue; unboxing that into int throws.",
+      "Bottom-up heap construction takes O(n); inserting values individually is a different O(n log n) procedure."
+    ],
+    "tests": [
+      "assert minFirst(new int[]{8,3,6,3}).equals(List.of(3,3,6,8));assert maxFirst(new int[]{8,3,6,3}).equals(List.of(8,6,3,3));assert minFirst(new int[]{}).isEmpty();",
+      "assert maxFirst(new int[]{Integer.MIN_VALUE,0,Integer.MAX_VALUE}).equals(List.of(Integer.MAX_VALUE,0,Integer.MIN_VALUE));Random r=new Random(242);for(int t=0;t<500;t++){int[]a=new int[r.nextInt(60)];for(int i=0;i<a.length;i++)a[i]=r.nextInt();int[]sorted=a.clone();Arrays.sort(sorted);List<Integer>min=minFirst(a),max=maxFirst(a);for(int i=0;i<a.length;i++){assert min.get(i)==sorted[i];assert max.get(i)==sorted[a.length-1-i];}}",
+      "PriorityQueue<Integer>q=new PriorityQueue<>();q.offer(4);q.offer(2);assert q.peek()==2&&q.size()==2;assert q.poll()==2&&q.size()==1;assert q.poll()==4;assert q.poll()==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/introduction-to-heap",
+      "title": "Introduction to Heap",
+      "checkedOn": "2026-10-29",
+      "approach": "Complete-tree array layout, parent-child order, sift up/down and priority-queue operations.",
+      "adaptation": "The current theory article was read; it deliberately contains no Java code. These authored Java demonstrations use the same min/max-priority concepts. PriorityQueue ordering, empty results and iteration behaviour were also checked against Oracle’s Java API documentation."
+    }
+  },
+  "243": {
+    "problem": "Implement both a min-heap and a max-heap with insertion, root lookup/removal, size, empty check, reset and an indexed key change.",
+    "assumptions": "The pinned item combines min and max heaps, while its link opens the min-heap task. Both current TUF practice contracts were checked. changeKey refers to the current heap-array index, not insertion order. Extraction returns void in those contracts. Empty lookup/removal throws here because the public statement does not specify a sentinel; negative values are valid. For equal children, the max-heap contract requires choosing the left child.",
+    "example": {
+      "input": "MinHeap: insert 6, 2, 9; extractMin(); changeKey(0, 12); getMin()",
+      "output": "9",
+      "explanation": "The heap becomes [2,6,9], then [6,9]. Changing its current root to 12 requires moving down, producing [9,12]."
+    },
+    "baseline": "Keeping values sorted after every update makes finding an extreme easy, but insertions and indexed changes can shift O(n) elements. A heap repairs only one path after each change.",
+    "approach": "Use an ArrayList as the complete tree. A comparison helper says which of two values should be nearer the root: smaller for a min-heap, larger for a max-heap. Everything else is shared.\n\nInsert at the end, then sift upward. To remove the root, move the last value into its place, remove the last slot, then sift downward through the better child. When children tie, keep the left child. For changeKey, first replace the requested array position. If the new value outranks its parent, sift up; otherwise sift down. Only relationships along that path can have broken.",
+    "steps": [
+      "Store values in an array-backed list and define the priority comparison.",
+      "Sift upward after appending a new value.",
+      "Replace the root with the last value and sift downward after removal.",
+      "For changeKey, choose up or down by comparing with the parent.",
+      "Expose min/max method names through small wrapper classes."
+    ],
+    "java": "static class BinaryHeap {\n    private final List<Integer> values = new ArrayList<>();\n    private final boolean minHeap;\n    BinaryHeap(boolean minHeap) { this.minHeap = minHeap; }\n\n    private boolean before(int a, int b) { return minHeap ? a < b : a > b; }\n    public void initializeHeap() { values.clear(); }\n    public int heapSize() { return values.size(); }\n    public boolean isEmpty() { return values.isEmpty(); }\n\n    public void insert(int value) {\n        values.add(value);\n        siftUp(values.size() - 1);\n    }\n\n    public void changeKey(int index, int value) {\n        if (index < 0 || index >= values.size()) throw new IndexOutOfBoundsException(index);\n        values.set(index, value);\n        if (index > 0 && before(value, values.get((index - 1) / 2))) siftUp(index);\n        else siftDown(index);\n    }\n\n    protected int root() {\n        if (isEmpty()) throw new NoSuchElementException(\"Empty heap\");\n        return values.get(0);\n    }\n\n    protected void removeRoot() {\n        if (isEmpty()) throw new NoSuchElementException(\"Empty heap\");\n        int last = values.remove(values.size() - 1);\n        if (!values.isEmpty()) {\n            values.set(0, last);\n            siftDown(0);\n        }\n    }\n\n    private void siftUp(int index) {\n        while (index > 0) {\n            int parent = (index - 1) / 2;\n            if (!before(values.get(index), values.get(parent))) break;\n            Collections.swap(values, index, parent);\n            index = parent;\n        }\n    }\n\n    private void siftDown(int index) {\n        while (index < values.size() / 2) {\n            int child = 2 * index + 1;\n            int right = child + 1;\n            if (right < values.size() && before(values.get(right), values.get(child))) child = right;\n            if (!before(values.get(child), values.get(index))) break;\n            Collections.swap(values, index, child);\n            index = child;\n        }\n    }\n}\n\nstatic class MinHeap extends BinaryHeap {\n    MinHeap() { super(true); }\n    public int getMin() { return root(); }\n    public void extractMin() { removeRoot(); }\n}\n\nstatic class MaxHeap extends BinaryHeap {\n    MaxHeap() { super(false); }\n    public int getMax() { return root(); }\n    public void extractMax() { removeRoot(); }\n}",
+    "time": "Root lookup, size and empty check are O(1). Insert is amortized O(log n); extraction and key changes take O(log n). Reset is O(n) because ArrayList.clear releases its stored references.",
+    "space": "O(n) storage, with O(1) extra working space for iterative repairs.",
+    "pitfalls": [
+      "Do not sift only down after every key change: a new extreme may need to rise.",
+      "Choose the better child before swapping down. Equal children choose left in this implementation.",
+      "A key’s array position can change after any heap operation.",
+      "After removing the only value, do not write a replacement root into an empty list.",
+      "Negating values to simulate a max-heap fails for Integer.MIN_VALUE; direct comparisons avoid that issue."
+    ],
+    "tests": [
+      "MinHeap h=new MinHeap();h.insert(6);h.insert(2);h.insert(9);assert h.getMin()==2;h.extractMin();h.changeKey(0,12);assert h.getMin()==9;assert h.heapSize()==2;h.initializeHeap();assert h.isEmpty();h.insert(7);h.extractMin();assert h.isEmpty();",
+      "MaxHeap max=new MaxHeap();for(int v:new int[]{10,9,9,8,7,6,5})max.insert(v);max.extractMax();assert ((BinaryHeap)max).values.equals(List.of(9,8,9,5,7,6));MinHeap min=new MinHeap();for(int v:new int[]{0,1,1,2,3,4,5})min.insert(v);min.extractMin();assert ((BinaryHeap)min).values.equals(List.of(1,2,1,5,3,4));",
+      "Random r=new Random(243);for(boolean min:new boolean[]{true,false}){BinaryHeap heap=new BinaryHeap(min);List<Integer>model=new ArrayList<>();for(int op=0;op<10000;op++){int action=r.nextInt(4);if(model.isEmpty()||action==0){int value=r.nextInt();heap.insert(value);model.add(value);}else if(action==1){int expected=min?Collections.min(model):Collections.max(model);assert heap.root()==expected;heap.removeRoot();model.remove(Integer.valueOf(expected));}else if(action==2){int index=r.nextInt(heap.heapSize()),old=heap.values.get(index),value=r.nextInt();heap.changeKey(index,value);model.remove(Integer.valueOf(old));model.add(value);}else{heap.initializeHeap();model.clear();}assert heap.heapSize()==model.size();for(int child=1;child<heap.values.size();child++){int parent=(child-1)/2;assert !heap.before(heap.values.get(child),heap.values.get(parent));}if(!model.isEmpty())assert heap.root()==(min?Collections.min(model):Collections.max(model));}}",
+      "MinHeap h=new MinHeap();boolean caught=false;try{h.getMin();}catch(NoSuchElementException e){caught=true;}assert caught;h.insert(Integer.MIN_VALUE);h.insert(Integer.MAX_VALUE);assert h.getMin()==Integer.MIN_VALUE;h.changeKey(1,Integer.MIN_VALUE);h.extractMin();assert h.getMin()==Integer.MIN_VALUE;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/implement-min-heap",
+      "title": "Implement Min Heap",
+      "checkedOn": "2026-10-29",
+      "approach": "Array storage with sift-up insertion, sift-down extraction and directional repair after changeKey.",
+      "adaptation": "Both public min-heap and max-heap operation contracts were checked, together with the current heap theory lesson. Those practice pages expose starter methods, not Java editorials. This authored shared implementation includes both wrappers and preserves the max-heap statement’s left-child tie rule."
+    }
+  },
+  "244": {
+    "problem": "Check whether an array, read in level order as a complete binary tree, satisfies the min-heap rule.",
+    "assumptions": "The array is already packed, so the complete-tree shape is given. Each parent must be ≤ each existing child. Equal values are allowed. The empty array is accepted here as an extra convenience.",
+    "example": {
+      "input": "nums = [2, 6, 3, 8, 7, 4]",
+      "output": "true",
+      "explanation": "2 ≤ 6 and 3; 6 ≤ 8 and 7; 3 ≤ 4. The array is not sorted, but every parent-child relation is valid."
+    },
+    "baseline": "You could compare every node with all descendants, but checking direct children is sufficient: the order carries through every path. Sorting first would destroy the arrangement you were asked to validate.",
+    "approach": "Visit only parent indices 0 through n / 2 − 1. Every later index is a leaf and has no children to violate the rule. Check the left child and then the right child if it exists. Return false on the first parent larger than a child.\n\nWhy are direct checks enough? If each parent is no larger than its children, following a path downward can never decrease the value. The root is therefore no larger than any descendant, and the same argument applies to every subtree.",
+    "steps": [
+      "Visit each non-leaf index.",
+      "Compare nums[parent] with its left child at 2 × parent + 1.",
+      "If a right child exists at 2 × parent + 2, compare it too.",
+      "Return true if no relation fails."
+    ],
+    "java": "static boolean isHeap(int[] nums) {\n    for (int parent = 0; parent < nums.length / 2; parent++) {\n        int left = 2 * parent + 1, right = left + 1;\n        if (nums[parent] > nums[left]) return false;\n        if (right < nums.length && nums[parent] > nums[right]) return false;\n    }\n    return true;\n}",
+    "time": "O(n) time.",
+    "space": "O(1).",
+    "pitfalls": [
+      "A min-heap need not be fully sorted.",
+      "Check all parents, not only the root.",
+      "Use > to detect failure so equal parent and child values remain valid.",
+      "The last parent may have only a left child."
+    ],
+    "tests": [
+      "assert isHeap(new int[]{2,6,3,8,7,4});assert !isHeap(new int[]{1,4,2,3});assert isHeap(new int[]{1,1,1});assert isHeap(new int[]{});assert isHeap(new int[]{5});assert !isHeap(new int[]{3,2});",
+      "Random r=new Random(244);for(int n=0;n<100;n++)for(int trial=0;trial<100;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(20)-10;boolean expected=true;for(int child=1;child<n;child++)if(a[(child-1)/2]>a[child])expected=false;assert isHeap(a)==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/check-if-an-array-represents-a-min-heap-",
+      "title": "Check if an array represents a min heap",
+      "checkedOn": "2026-10-29",
+      "approach": "Inspect every parent-child relation without changing the array.",
+      "adaptation": "The public practice definition and current heap theory’s parent-scan algorithm were checked. Neither exposes a Java solution for this task; this is an authored implementation of that algorithm."
+    }
+  },
+  "245": {
+    "problem": "Rearrange a min-heap array into a valid max-heap, keeping exactly the same values.",
+    "assumptions": "The input is a min-heap, but the bottom-up method works for any array. Several max-heap layouts can be correct. This Java method changes the supplied array in place and returns the same array.",
+    "example": {
+      "input": "nums = [1, 4, 2, 8, 5, 3]",
+      "output": "One result: [8, 5, 3, 4, 1, 2]",
+      "explanation": "Every parent is at least as large as its children, and all original values are still present."
+    },
+    "baseline": "Sort the values in descending order. That arrangement is a valid max-heap, but sorting costs O(n log n) and does more ordering work than needed.",
+    "approach": "The complete-tree shape is already present. Rebuild only the ordering, starting at the last parent and moving toward the root. Each repair assumes its child subtrees are already max-heaps, which is why the direction matters.\n\nAt a parent, choose the larger child. If that child is larger than the parent, swap and continue downward. Otherwise this subtree is already valid. Processing all parents this way takes O(n), not O(n log n): about half the nodes are leaves, about a quarter can move only one level, and progressively fewer can travel far.",
+    "steps": [
+      "Start at index n / 2 − 1, the last non-leaf.",
+      "Sift that value down, always choosing the larger child.",
+      "Repeat for each earlier parent through index 0.",
+      "Return the same array after all repairs."
+    ],
+    "java": "static int[] minToMaxHeap(int[] nums) {\n    for (int parent = nums.length / 2 - 1; parent >= 0; parent--) {\n        int index = parent;\n        while (index < nums.length / 2) {\n            int child = 2 * index + 1, right = child + 1;\n            if (right < nums.length && nums[right] > nums[child]) child = right;\n            if (nums[index] >= nums[child]) break;\n            int temp = nums[index]; nums[index] = nums[child]; nums[child] = temp;\n            index = child;\n        }\n    }\n    return nums;\n}",
+    "time": "O(n) for bottom-up heap construction.",
+    "space": "O(1) extra working space; the input array is reused.",
+    "pitfalls": [
+      "Start at the last parent, not the root, because sift-down needs valid child subtrees.",
+      "Reversing a min-heap array does not generally create a max-heap.",
+      "Do not compare only with the left child; the right child may be larger.",
+      "Verify heap order and the preserved multiset, not one exact arrangement."
+    ],
+    "tests": [
+      "int[]a={1,4,2,8,5,3};assert minToMaxHeap(a)==a;assert Arrays.equals(a,new int[]{8,5,3,4,1,2});assert minToMaxHeap(new int[]{}).length==0;",
+      "Random r=new Random(245);for(int n=0;n<200;n++)for(int trial=0;trial<20;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(30)-15;int[]expected=a.clone();Arrays.sort(expected);minToMaxHeap(a);for(int child=1;child<n;child++)assert a[(child-1)/2]>=a[child];int[]after=a.clone();Arrays.sort(after);assert Arrays.equals(after,expected);}",
+      "int[]a={Integer.MIN_VALUE,0,Integer.MAX_VALUE};minToMaxHeap(a);assert a[0]==Integer.MAX_VALUE;int[]b={4,4,4,4};minToMaxHeap(b);assert Arrays.equals(b,new int[]{4,4,4,4});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/convert-min-heap-to-max-heap",
+      "title": "Convert Min Heap to Max Heap",
+      "checkedOn": "2026-10-29",
+      "approach": "Apply max-heap sift-down to every parent in bottom-up order.",
+      "adaptation": "The public practice contract and current Introduction to Heap conversion algorithm were checked. The practice page exposes a starter method rather than Java; this authored implementation follows that bottom-up algorithm and states its in-place behaviour."
+    }
   }
 }
