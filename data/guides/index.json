@@ -8906,5 +8906,125 @@
     },
     "baselineJava": "static int fruitByExpansion(int[] fruits) {\n    int best = 0;\n    for (int start = 0; start < fruits.length; start++) {\n        Set<Integer> types = new HashSet<>();\n        for (int end = start; end < fruits.length; end++) {\n            types.add(fruits[end]);\n            if (types.size() > 2) break;\n            best = Math.max(best, end - start + 1);\n        }\n    }\n    return best;\n}",
     "baselineTime": "The runnable incremental baseline takes O(n²) time and O(1) space: its set stops at three types."
+  },
+  "233": {
+    "problem": "Return the longest substring that can become one repeated uppercase letter after replacing at most k characters.",
+    "assumptions": "s contains uppercase English letters and k is non-negative. Only the length is required. The source’s extra guard returns 0 for a negative k.",
+    "example": {
+      "input": "s = \"ABBBAAC\", k = 1",
+      "output": "4",
+      "explanation": "Change the first A in \"ABBB\" to B. A five-character range needs at least two changes, so length 4 is best."
+    },
+    "baseline": "Try every substring, count its letters and keep the largest frequency. All other letters need replacing. Recounting from scratch is O(n³); carrying the counts forward for each start improves it to O(n²).",
+    "approach": "For a window of length L, keep its most frequent letter and replace the others. The cost is L − largestFrequency. A frequency array lets us update the incoming and outgoing counts quickly.\n\nThe current Striver Java keeps a historical maximum frequency: it increases when a larger count is seen but is not reduced when left moves. If the window length minus that record exceeds k, remove one character from the left.\n\nThis shortcut is for finding the best length, not for reporting the current window’s contents. Once shrinking makes the record stale, a valid length of record + k has already been reached. With the same record, a later invalid window cannot grow beyond that length. To grow farther, a real character count must reach a new record. That is why keeping the old record does not invent a better answer.",
+    "steps": [
+      "Increment the count of s[right] and update the highest frequency seen.",
+      "If window length − highest frequency exceeds k, remove one left character.",
+      "Keep the largest adjusted length.",
+      "Do not decrease the historical highest frequency in this variant."
+    ],
+    "java": "static int characterReplacement(String s, int k) {\n    if (k < 0) return 0;\n    int[] frequency = new int[26];\n    int left = 0, highestFrequency = 0, best = 0;\n    for (int right = 0; right < s.length(); right++) {\n        int index = s.charAt(right) - 'A';\n        frequency[index]++;\n        highestFrequency = Math.max(highestFrequency, frequency[index]);\n        if (right - left + 1 - highestFrequency > k) {\n            frequency[s.charAt(left) - 'A']--;\n            left++;\n        }\n        best = Math.max(best, right - left + 1);\n    }\n    return best;\n}",
+    "time": "O(n), with one right step and at most one left step per iteration.",
+    "space": "O(1), using 26 counters.",
+    "pitfalls": [
+      "The historical maximum may differ from the true maximum of the current window.",
+      "Do not return this window’s indices as a valid answer without checking them separately.",
+      "The replacement count is length minus the most frequent letter count, not the number of distinct letters.",
+      "This 26-slot implementation assumes uppercase English letters."
+    ],
+    "tests": [
+      "assert characterReplacement(\"ABBBAAC\",1)==4;assert characterReplacement(\"AABABBA\",1)==4;assert characterReplacement(\"ABAB\",2)==4;assert characterReplacement(\"ABBBCC\",0)==3;assert characterReplacement(\"\",2)==0;",
+      "for(int n=0;n<=8;n++){int limit=1;for(int i=0;i<n;i++)limit*=3;for(int encoded=0;encoded<limit;encoded++){int x=encoded;StringBuilder s=new StringBuilder();for(int i=0;i<n;i++){s.append((char)('A'+x%3));x/=3;}for(int k=0;k<=3;k++){String value=s.toString();assert characterReplacement(value,k)==replacementByGrowing(value,k);}}}",
+      "assert characterReplacement(\"AAAAABCDEF\",1)==6;assert characterReplacement(\"ABCDE\",10)==5;assert characterReplacement(\"AB\",-1)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/longest-repeating-character-replacement",
+      "title": "Longest Repeating Character Replacement",
+      "checkedOn": "2026-10-29",
+      "approach": "Range counting, incremental per-start counting, then a single-shrink window with a historical maximum frequency.",
+      "adaptation": "All three public Java methods were checked. The final version preserves the source’s non-decreasing maximum frequency and single if; the text distinguishes a best-length guarantee from current-window validity."
+    },
+    "baselineJava": "static int replacementByGrowing(String s, int k) {\n    if (k < 0) return 0;\n    int best = 0;\n    for (int start = 0; start < s.length(); start++) {\n        int[] counts = new int[26];\n        int maximum = 0;\n        for (int end = start; end < s.length(); end++) {\n            maximum = Math.max(maximum, ++counts[s.charAt(end) - 'A']);\n            if (end - start + 1 - maximum > k) break;\n            best = Math.max(best, end - start + 1);\n        }\n    }\n    return best;\n}",
+    "baselineTime": "The runnable incremental baseline takes O(n²) time and O(1) space."
+  },
+  "234": {
+    "problem": "Count non-empty contiguous subarrays of a binary array whose sum is exactly goal.",
+    "assumptions": "nums contains only 0 and 1, and goal is non-negative. Different index ranges count separately even when they contain the same values. The linked task’s length bound of 30,000 keeps the answer within int.",
+    "example": {
+      "input": "nums = [0, 1, 0, 1], goal = 1",
+      "output": "6",
+      "explanation": "The valid ranges are [0..1], [0..2], [1..1], [1..2], [2..3] and [3..3]."
+    },
+    "baseline": "Choose every start and extend the end while maintaining a sum. Count each equality and stop when the sum exceeds goal. A zero after an equality may produce another valid range, so do not stop merely because a match was found.",
+    "approach": "Counting only exact matches with one window is awkward because leading zeroes create several valid starts. Count an easier group first: all subarrays whose sum is at most a limit.\n\nExpand right and shrink left while the sum is too large. Once valid, every start from left through right gives a valid subarray ending at right. That contributes right − left + 1, not just one. Non-negative values make this possible: removing more from the left cannot increase the sum.\n\nAtMost(goal) includes sums 0 through goal. AtMost(goal − 1) includes every smaller sum. Subtract them to leave exactly goal. Return 0 immediately for a negative limit, which is needed when goal is zero.",
+    "steps": [
+      "Write a helper that counts subarrays with sum at most limit.",
+      "Return 0 from the helper when limit < 0.",
+      "Maintain a valid window and add its length for each right endpoint.",
+      "Return atMost(goal) − atMost(goal − 1)."
+    ],
+    "java": "static int numSubarraysWithSum(int[] nums, int goal) {\n    return sumAtMost(nums, goal) - sumAtMost(nums, goal - 1);\n}\n\nstatic int sumAtMost(int[] nums, int limit) {\n    if (limit < 0) return 0;\n    int left = 0, sum = 0, count = 0;\n    for (int right = 0; right < nums.length; right++) {\n        sum += nums[right];\n        while (sum > limit) sum -= nums[left++];\n        count += right - left + 1;\n    }\n    return count;\n}",
+    "time": "O(n): two linear scans.",
+    "space": "O(1).",
+    "pitfalls": [
+      "The at-most helper adds the number of valid starts, not one per window.",
+      "Keep the negative-limit guard for goal = 0.",
+      "This window argument relies on non-negative values; it does not extend to arbitrary negative arrays.",
+      "All-zero input has n × (n + 1) / 2 valid ranges when goal is zero."
+    ],
+    "tests": [
+      "assert numSubarraysWithSum(new int[]{0,1,0,1},1)==6;assert numSubarraysWithSum(new int[]{1,0,1,0,1},2)==4;assert numSubarraysWithSum(new int[]{0,0,0,0,0},0)==15;",
+      "for(int n=0;n<=10;n++)for(int mask=0;mask<(1<<n);mask++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=(mask>>i)&1;for(int goal=0;goal<=n+1;goal++)assert numSubarraysWithSum(a,goal)==binarySumByExpansion(a,goal);}",
+      "assert numSubarraysWithSum(new int[30000],0)==450015000;assert numSubarraysWithSum(new int[]{1,1},0)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-subarrays-with-sum",
+      "title": "Binary Subarrays with a Given Sum: Count All Matches",
+      "checkedOn": "2026-10-29",
+      "approach": "Count at-most sums with a sliding window and subtract consecutive limits.",
+      "adaptation": "All three public Java methods were checked. The final Java keeps the source’s negative-limit guard, valid-window shrink and length contribution. The runnable baseline is its incremental O(n²) approach."
+    },
+    "baselineJava": "static int binarySumByExpansion(int[] nums, int goal) {\n    int count = 0;\n    for (int start = 0; start < nums.length; start++) {\n        int sum = 0;\n        for (int end = start; end < nums.length; end++) {\n            sum += nums[end];\n            if (sum == goal) count++;\n            if (sum > goal) break;\n        }\n    }\n    return count;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space."
+  },
+  "235": {
+    "problem": "Count non-empty contiguous subarrays that contain exactly k odd numbers. Such a subarray is called nice.",
+    "assumptions": "The linked task uses positive integers and 1 ≤ k ≤ nums.length(), with length at most 50,000. The same code also supports k = 0 and negative integers because it checks remainder != 0. Values affect the answer only through whether they are odd or even.",
+    "example": {
+      "input": "nums = [2, 5, 4, 7, 6], k = 2",
+      "output": "4",
+      "explanation": "A valid range must contain both 5 and 7. Its start can be index 0 or 1, and its end can be index 3 or 4: 2 × 2 = 4 choices."
+    },
+    "baseline": "For each start, extend the end and keep an odd count. Count every range with exactly k odds, and stop once more than k odds are present. Even numbers can extend a match without changing its odd count.",
+    "approach": "Think of each odd number as 1 and each even number as 0, without actually building another array. The question becomes the exact-sum binary problem.\n\nCount windows with at most k odds, then subtract windows with at most k − 1 odds. In an at-most scan, shrink left while there are too many odds. After that, all starts from left through right are valid for this endpoint, so add the window length. Even values at the edges naturally create extra counted starts or ends.",
+    "steps": [
+      "Write an at-most helper that tracks the number of odd values in its window.",
+      "Increment on an incoming odd number; decrement when an odd number leaves.",
+      "Shrink until the odd count is within the limit, then add right − left + 1.",
+      "Subtract the counts for limits k and k − 1."
+    ],
+    "java": "static int numberOfSubarrays(int[] nums, int k) {\n    return oddsAtMost(nums, k) - oddsAtMost(nums, k - 1);\n}\n\nstatic int oddsAtMost(int[] nums, int limit) {\n    if (limit < 0) return 0;\n    int left = 0, odds = 0, count = 0;\n    for (int right = 0; right < nums.length; right++) {\n        if (nums[right] % 2 != 0) odds++;\n        while (odds > limit) {\n            if (nums[left] % 2 != 0) odds--;\n            left++;\n        }\n        count += right - left + 1;\n    }\n    return count;\n}",
+    "time": "O(n), using two forward window scans.",
+    "space": "O(1); no transformed binary array is needed.",
+    "pitfalls": [
+      "Count odd elements, not the sum of their values.",
+      "Use % 2 != 0 if you want negative odd values to work too.",
+      "Do not discard even prefixes or suffixes: they create distinct valid index ranges.",
+      "Keep the negative-limit guard so k = 0 works."
+    ],
+    "tests": [
+      "assert numberOfSubarrays(new int[]{2,5,4,7,6},2)==4;assert numberOfSubarrays(new int[]{1,1,2,1,1},3)==2;assert numberOfSubarrays(new int[]{2,4,6},1)==0;assert numberOfSubarrays(new int[]{2,4,6},0)==6;",
+      "for(int n=0;n<=10;n++)for(int mask=0;mask<(1<<n);mask++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=((mask>>i)&1)==1?-3:4;for(int k=0;k<=n+1;k++)assert numberOfSubarrays(a,k)==niceByExpansion(a,k);}",
+      "int[]a=new int[50000];Arrays.fill(a,2);assert numberOfSubarrays(a,0)==1250025000;assert numberOfSubarrays(new int[]{-3,2,-5},2)==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-nice-subarrays",
+      "title": "Count Nice Subarrays with Exactly K Odd Numbers",
+      "checkedOn": "2026-10-29",
+      "approach": "Treat odd/even as one/zero and subtract at-most odd-count windows.",
+      "adaptation": "All three public Java approaches were checked. This preserves the source’s remainder != 0 checks, negative-limit guard and exact-count subtraction. The code needs no allocated parity array."
+    },
+    "baselineJava": "static int niceByExpansion(int[] nums, int k) {\n    int count = 0;\n    for (int start = 0; start < nums.length; start++) {\n        int odds = 0;\n        for (int end = start; end < nums.length; end++) {\n            if (nums[end] % 2 != 0) odds++;\n            if (odds == k) count++;\n            if (odds > k) break;\n        }\n    }\n    return count;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space."
   }
 }
