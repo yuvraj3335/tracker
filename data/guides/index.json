@@ -14839,5 +14839,88 @@
     },
     "baselineJava": "static int removeStonesByTraversal(int[][] stones) {\n    boolean[] visited = new boolean[stones.length];\n    int components = 0;\n    for (int start = 0; start < stones.length; start++) if (!visited[start]) {\n        components++;\n        Deque<Integer> stack = new ArrayDeque<>();\n        stack.push(start); visited[start] = true;\n        while (!stack.isEmpty()) {\n            int current = stack.pop();\n            for (int next = 0; next < stones.length; next++)\n                if (!visited[next] && (stones[current][0] == stones[next][0] || stones[current][1] == stones[next][1])) {\n                    visited[next] = true; stack.push(next);\n                }\n        }\n    }\n    return stones.length-components;\n}",
     "baselineTime": "O(N²) time and O(N) space."
+  },
+  "377": {
+    "problem": "Merge account records that share an email address, including connections through other records. Return each merged name followed by its unique emails in sorted order.",
+    "assumptions": "Every account has a name and at least one email. Records belonging to one person have the same name, but different people may share a name. The order of merged accounts does not matter. Email matching is exact; do not lowercase or otherwise rewrite addresses.",
+    "example": {
+      "input": "[[\"Riya\",\"a@x\",\"b@x\"], [\"Riya\",\"c@x\"], [\"Riya\",\"b@x\",\"d@x\"]]",
+      "output": "[[\"Riya\",\"a@x\",\"b@x\",\"d@x\"], [\"Riya\",\"c@x\"]]",
+      "explanation": "The first and third records share b@x. The second record stays separate even though its name is also Riya."
+    },
+    "baseline": "Compare every pair of accounts for a shared email, then traverse the resulting components. This is easy to understand but repeatedly checks many pairs that share nothing.",
+    "approach": "An email identifies a connection; a name does not. Map each email to the first account index where it appears. When the same email appears in another account, union those two account indices. A chain of shared emails is then handled automatically by DSU.\n\nDo all unions before collecting the result. For each unique email in the map, find the final root of its recorded account and put the email in that root’s bucket. Sort each bucket and prepend the root account’s name.\n\nThe email map has one entry per distinct email, so repeated email strings do not create duplicates in the result. Choosing a different account as the root does not change the merged emails.",
+    "steps": [
+      "Create a DSU over account indices and an email-to-account map.",
+      "For each email, remember its first account or union with the account already recorded.",
+      "After every union is complete, group unique emails by final account root.",
+      "Sort each group’s emails and prepend the corresponding name."
+    ],
+    "java": "static class DSU {\n    final int[] parent, size;\n    DSU(int n) {\n        parent = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int root(int node) {\n        if (parent[node] != node) parent[node] = root(parent[node]);\n        return parent[node];\n    }\n    boolean unite(int a, int b) {\n        a = root(a); b = root(b);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n}\n\nstatic List<List<String>> accountsMerge(List<List<String>> accounts) {\n    DSU dsu = new DSU(accounts.size());\n    Map<String,Integer> owner = new HashMap<>();\n    for (int i = 0; i < accounts.size(); i++) {\n        for (int j = 1; j < accounts.get(i).size(); j++) {\n            String email = accounts.get(i).get(j);\n            Integer earlier = owner.putIfAbsent(email,i);\n            if (earlier != null) dsu.unite(i,earlier);\n        }\n    }\n    Map<Integer,List<String>> grouped = new HashMap<>();\n    for (Map.Entry<String,Integer> entry : owner.entrySet()) {\n        int root = dsu.root(entry.getValue());\n        grouped.computeIfAbsent(root,key -> new ArrayList<>()).add(entry.getKey());\n    }\n    List<List<String>> result = new ArrayList<>();\n    for (Map.Entry<Integer,List<String>> entry : grouped.entrySet()) {\n        List<String> emails = entry.getValue();\n        Collections.sort(emails);\n        List<String> merged = new ArrayList<>();\n        merged.add(accounts.get(entry.getKey()).get(0));\n        merged.addAll(emails);\n        result.add(merged);\n    }\n    return result;\n}",
+    "time": "O(A + Tα(A) + U log U) expected time with bounded-length strings: A accounts, T email occurrences, U unique emails. Sorting across all groups is at most O(U log U).",
+    "space": "O(A + U) extra storage, plus the output.",
+    "pitfalls": [
+      "Equal names alone never justify a merge.",
+      "Merge transitively: A sharing with B and B with C puts all three together.",
+      "Collect buckets after the unions; representatives can change during merging.",
+      "Return each email once, and sort emails within every account.",
+      "Do not merge by names or normalize email text beyond the problem’s exact-match rule."
+    ],
+    "tests": [
+      "List<List<String>>a=List.of(List.of(\"Riya\",\"a@x\",\"b@x\"),List.of(\"Riya\",\"c@x\"),List.of(\"Riya\",\"b@x\",\"d@x\"));Set<List<String>>expected=Set.of(List.of(\"Riya\",\"a@x\",\"b@x\",\"d@x\"),List.of(\"Riya\",\"c@x\"));assert new HashSet<>(accountsMerge(a)).equals(expected);assert new HashSet<>(accountsMergeByTraversal(a)).equals(expected);",
+      "Random random=new Random(377);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(10);List<List<String>>a=new ArrayList<>();for(int i=0;i<n;i++){List<String>row=new ArrayList<>();row.add(\"Noor\");row.add(\"private\"+i+\"@x\");for(int e=0;e<10;e++)if(random.nextInt(5)==0)row.add(\"mail\"+e+\"@x\");if(random.nextBoolean())row.add(row.get(1));a.add(row);}\n List<List<String>>before=new ArrayList<>();for(List<String>row:a)before.add(new ArrayList<>(row));\n List<List<String>>actual=accountsMerge(a),expected=accountsMergeByTraversal(a);assert new HashSet<>(actual).equals(new HashSet<>(expected));assert actual.size()==expected.size();assert a.equals(before);\n for(List<String>row:actual){assert row.size()>1;for(int j=2;j<row.size();j++)assert row.get(j-1).compareTo(row.get(j))<0;}\n}",
+      "List<List<String>>a=List.of(List.of(\"Sam\",\"x@x\",\"x@x\"),List.of(\"Sam\",\"y@x\",\"z@x\"),List.of(\"Sam\",\"x@x\",\"y@x\"),List.of(\"Sam\",\"alone@x\"));assert new HashSet<>(accountsMerge(a)).equals(Set.of(List.of(\"Sam\",\"x@x\",\"y@x\",\"z@x\"),List.of(\"Sam\",\"alone@x\")));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/accounts-merge",
+      "title": "Accounts Merge",
+      "checkedOn": "2026-10-29",
+      "approach": "Join account components through shared email addresses, then sort unique emails by final root.",
+      "adaptation": "The public statement and grouping hint were checked. The solution tab requires sign-in, so its Java was not inspectable. This implementation applies the checked public DSU pattern to the specified account/email contract; the traversal baseline is an authored comparison."
+    },
+    "baselineJava": "static List<List<String>> accountsMergeByTraversal(List<List<String>> accounts) {\n    int n = accounts.size();\n    List<Set<String>> emails = new ArrayList<>();\n    for (List<String> account : accounts) emails.add(new HashSet<>(account.subList(1,account.size())));\n    boolean[] visited = new boolean[n];\n    List<List<String>> result = new ArrayList<>();\n    for (int start = 0; start < n; start++) if (!visited[start]) {\n        TreeSet<String> mergedEmails = new TreeSet<>();\n        Queue<Integer> queue = new ArrayDeque<>();\n        visited[start] = true; queue.offer(start);\n        while (!queue.isEmpty()) {\n            int current = queue.poll();\n            mergedEmails.addAll(emails.get(current));\n            for (int next = 0; next < n; next++)\n                if (!visited[next] && !Collections.disjoint(emails.get(current),emails.get(next))) {\n                    visited[next] = true; queue.offer(next);\n                }\n        }\n        List<String> merged = new ArrayList<>();\n        merged.add(accounts.get(start).get(0)); merged.addAll(mergedEmails);\n        result.add(merged);\n    }\n    return result;\n}",
+    "baselineTime": "O(A²L + T log U) expected time for at most L emails per account and bounded string length; O(A + T) space."
+  },
+  "378": {
+    "problem": "Start with an all-water grid. After each operation turns one cell into land, report the number of four-directional islands.",
+    "assumptions": "rows and cols may differ. Every operation is within the grid. Repeating an already-land cell changes nothing, but still produces an answer. The code uses the pinned LeetCode method name numIslands2.",
+    "example": {
+      "input": "rows = 2, cols = 3, positions = [[0,0], [0,2], [0,1], [0,1], [1,2]]",
+      "output": "[1, 2, 1, 1, 1]",
+      "explanation": "The first two cells are separate islands. Adding the middle cell joins them. Repeating it leaves the count at one, and the final cell attaches to that island."
+    },
+    "baseline": "After each update, scan the whole grid and count islands with BFS. This correctly handles every case, but repeats O(rows × cols) work for each operation.",
+    "approach": "Make a DSU node for every grid position, but keep a separate land array: water nodes are not islands yet. Map (row, col) to row × cols + col.\n\nWhen a new land cell appears, first count it as one new island. Check its four neighbors. Each successful union with a land neighbor joins two previously separate islands, so subtract one. A failed union means the neighbor already belongs to the same island; subtracting again would be wrong.\n\nIf the cell was already land, append the existing count immediately. Do not increase it or repeat the unions. Only additions are supported; removing land could split a component and requires a different approach.",
+    "steps": [
+      "Allocate DSU and land flags for rows × cols cells.",
+      "For an already-land update, append the unchanged count.",
+      "Otherwise activate the cell and increment the island count.",
+      "Union it with each valid land neighbor; decrement only for a successful union.",
+      "Append the current count after every operation."
+    ],
+    "java": "static class DSU {\n    final int[] parent, size;\n    DSU(int n) {\n        parent = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int root(int node) {\n        if (parent[node] != node) parent[node] = root(parent[node]);\n        return parent[node];\n    }\n    boolean unite(int a, int b) {\n        a = root(a); b = root(b);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n}\n\nstatic List<Integer> numIslands2(int rows, int cols, int[][] positions) {\n    DSU dsu = new DSU(rows*cols);\n    boolean[] land = new boolean[rows*cols];\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    int islands = 0;\n    List<Integer> answer = new ArrayList<>();\n    for (int[] position : positions) {\n        int r = position[0], c = position[1], id = r*cols+c;\n        if (land[id]) { answer.add(islands); continue; }\n        land[id] = true;\n        islands++;\n        for (int direction = 0; direction < 4; direction++) {\n            int nr = r+dr[direction], nc = c+dc[direction];\n            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;\n            int next = nr*cols+nc;\n            if (land[next] && dsu.unite(id,next)) islands--;\n        }\n        answer.add(islands);\n    }\n    return answer;\n}",
+    "time": "O(RC + Kα(RC)) time, including initialization; each of K updates checks at most four neighbors.",
+    "space": "O(RC) for DSU and land flags, plus O(K) output.",
+    "pitfalls": [
+      "Use row × cols + col, not row × rows + col on a rectangular grid.",
+      "Water has a DSU slot but is not an active island.",
+      "Repeated land additions must leave the count unchanged.",
+      "Subtract once per successful component merge, not once per adjacent land cell.",
+      "A new cell may touch the same island from several sides."
+    ],
+    "tests": [
+      "int[][]p={{0,0},{0,2},{0,1},{0,1},{1,2}};assert numIslands2(2,3,p).equals(List.of(1,2,1,1,1));assert numIslands2ByRecount(2,3,p).equals(List.of(1,2,1,1,1));assert numIslands2(1,1,new int[][]{{0,0},{0,0}}).equals(List.of(1,1));",
+      "for(int length=0;length<=5;length++){\n int sequences=1;for(int i=0;i<length;i++)sequences*=6;\n for(int encoded=0;encoded<sequences;encoded++){int code=encoded;int[][]p=new int[length][2];for(int i=0;i<length;i++){int cell=code%6;code/=6;p[i]=new int[]{cell/3,cell%3};}assert numIslands2(2,3,p).equals(numIslands2ByRecount(2,3,p));}\n}",
+      "assert numIslands2(1000,1000,new int[][]{{0,999},{1,0},{1,999},{1,998},{0,998},{0,999}}).equals(List.of(1,2,2,2,2,2));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/number-of-islands-ii",
+      "title": "Number of Islands II",
+      "checkedOn": "2026-10-29",
+      "approach": "Activate land cells and use DSU to merge only distinct adjacent land components.",
+      "adaptation": "The public statement, repeated-cell example, constraints, and neighbor-union hint were checked. The older public tutorial URL now returns Page Not Found; the practice solution is not claimed as inspected. This Java applies the checked DSU pattern and uses the linked LeetCode entry point."
+    },
+    "baselineJava": "static List<Integer> numIslands2ByRecount(int rows, int cols, int[][] positions) {\n    boolean[][] land = new boolean[rows][cols];\n    List<Integer> answer = new ArrayList<>();\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    for (int[] p : positions) {\n        land[p[0]][p[1]] = true;\n        boolean[][] seen = new boolean[rows][cols];\n        int count = 0;\n        for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) if (land[r][c] && !seen[r][c]) {\n            count++;\n            Queue<int[]> queue = new ArrayDeque<>();\n            queue.offer(new int[]{r,c}); seen[r][c] = true;\n            while (!queue.isEmpty()) {\n                int[] cell = queue.poll();\n                for (int d = 0; d < 4; d++) {\n                    int nr = cell[0]+dr[d], nc = cell[1]+dc[d];\n                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && land[nr][nc] && !seen[nr][nc]) {\n                        seen[nr][nc] = true; queue.offer(new int[]{nr,nc});\n                    }\n                }\n            }\n        }\n        answer.add(count);\n    }\n    return answer;\n}",
+    "baselineTime": "O(KRC) time and O(RC + K) space including the answer."
   }
 }
