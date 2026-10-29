@@ -1886,32 +1886,84 @@
     ]
   },
   "58": {
-    "problem": "Maximize profit from at most one purchase followed by one sale.",
-    "assumptions": "Prices are nonnegative. Buying must precede selling; choosing no trade gives profit zero.",
+    "problem": "Choose at most one purchase and one later sale to maximize profit. You may choose no trade and earn zero.",
+    "assumptions": "Prices are nonnegative and the sale must happen on a later day than the purchase. The tracker repeats this problem in the arrays and DP sections. Both entries use the same checked lesson. The source returns long; the helper preserves that arithmetic and the maxProfit wrapper matches LeetCode’s int return.",
     "example": {
-      "input": "[7, 1, 5, 3, 6, 4]",
-      "output": "5",
-      "explanation": "Buy at 1 and sell later at 6. The earlier price 7 is not a valid selling price for that purchase."
+      "input": "prices = [9,4,7,2,8]",
+      "output": "6",
+      "explanation": "Buy at 2 and sell later at 8. The earlier price 9 cannot be used as the selling price for that purchase because it appears before the buy."
     },
-    "baseline": "Try all buy/sell index pairs in O(n²) time.",
-    "approach": "For each potential sale, the cheapest earlier price is the best purchase. Maintain that minimum as the scan advances.",
+    "baseline": "Try every buying day paired with every later selling day. Compare their differences with zero. This is correct but checks O(n²) pairs.",
+    "approach": "Fix a selling day. Among all earlier purchase prices, the cheapest one gives the largest profit for this particular sale. So we only need to remember the cheapest earlier price, not every earlier day.\n\nStart with day 0 as the cheapest buy candidate. On each later day, first calculate the profit from selling today using that earlier minimum. Update the best answer. Then consider today’s price as a new minimum for future sales. That order keeps buying strictly earlier than selling.\n\nThe best answer starts at zero because trading is optional. Falling or equal prices never force a loss. This one-transaction limit matters: adding every upward price move belongs to the next problem, which allows several completed trades.",
     "steps": [
-      "Keep the minimum price seen so far.",
-      "Compare the current sale profit with the best.",
-      "Update the minimum for later sales."
+      "Return zero if there are fewer than two days.",
+      "Remember day 0 as the cheapest earlier purchase.",
+      "For each later day, compare its sale profit with the best so far.",
+      "After evaluating the sale, update the cheapest price for future days.",
+      "Return the best nonnegative profit."
     ],
-    "java": "static long maxProfit(int[] prices) {\n    if(prices.length==0)return 0;\n    int minimum=prices[0];long best=0;\n    for(int price:prices){best=Math.max(best,(long)price-minimum);minimum=Math.min(minimum,price);}\n    return best;\n}",
+    "java": "static long singleTradeProfit(int[] prices) {\n    if (prices.length < 2) return 0;\n    int cheapest = prices[0];\n    long best = 0;\n    for (int day = 1; day < prices.length; day++) {\n        best = Math.max(best,(long)prices[day]-cheapest);\n        cheapest = Math.min(cheapest,prices[day]);\n    }\n    return best;\n}\nstatic int maxProfit(int[] prices) {\n    return Math.toIntExact(singleTradeProfit(prices));\n}",
     "time": "O(n).",
     "space": "O(1).",
     "pitfalls": [
-      "The global minimum and maximum are insufficient if the maximum occurs first.",
-      "This is one transaction, not the unlimited-transactions variant."
+      "The global minimum and maximum are not enough unless the minimum occurs first.",
+      "Evaluate today’s sale before making today a candidate buy for later days.",
+      "Return zero when no profitable trade exists; this is at most one transaction.",
+      "Do not sum separate rises when only one completed trade is permitted."
     ],
     "tests": [
-      "assert maxProfit(new int[]{7,1,5,3,6,4})==5;",
-      "assert maxProfit(new int[]{7,6,4,3,1})==0;",
-      "assert maxProfit(new int[]{})==0;"
-    ]
+      "assert maxProfit(new int[]{9,4,7,2,8})==6;assert maxProfit(new int[]{9,7,5})==0;assert maxProfit(new int[]{})==0;assert maxProfit(new int[]{5})==0;assert maxProfit(new int[]{0,Integer.MAX_VALUE})==Integer.MAX_VALUE;",
+      "for(int length=0;length<=7;length++){int count=1<<(2*length);for(int code=0;code<count;code++){int[] prices=new int[length];int digits=code;for(int i=0;i<length;i++){prices[i]=digits%4;digits/=4;}int[] saved=prices.clone();long expected=0;for(int buy=0;buy<length;buy++)for(int sell=buy+1;sell<length;sell++)expected=Math.max(expected,(long)prices[sell]-prices[buy]);assert singleTradeProfit(prices)==expected;assert tradeByPairs(prices)==expected;assert maxProfit(prices)==expected;assert Arrays.equals(prices,saved);}}",
+      "int[] prices=new int[100000];for(int i=0;i<prices.length;i++)prices[i]=i;assert maxProfit(prices)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/best-time-to-buy-and-sell-stock",
+      "title": "Best Time to Buy and Sell Stock",
+      "checkedOn": "2026-10-29",
+      "approach": "Compare all later-sale pairs, then retain only the cheapest earlier purchase during one scan.",
+      "adaptation": "Both complete public Java methods were checked. The source’s sale-before-minimum-update order and long profit arithmetic are preserved. The int wrapper fits the pinned judge. This also replaces the shorter earlier arrays-section explanation for the same problem."
+    },
+    "baselineJava": "static long tradeByPairs(int[] prices) {\n    long best = 0;\n    for (int buy = 0; buy < prices.length; buy++) {\n        for (int sell = buy+1; sell < prices.length; sell++) {\n            best = Math.max(best,(long)prices[sell]-prices[buy]);\n        }\n    }\n    return best;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space.",
+    "trace": {
+      "columns": [
+        "Today’s price",
+        "Cheapest earlier buy",
+        "Today’s profit",
+        "Best profit",
+        "Minimum for later days"
+      ],
+      "rows": [
+        [
+          "4",
+          "9",
+          "−5",
+          "0",
+          "4"
+        ],
+        [
+          "7",
+          "4",
+          "3",
+          "3",
+          "4"
+        ],
+        [
+          "2",
+          "4",
+          "−2",
+          "3",
+          "2"
+        ],
+        [
+          "8",
+          "2",
+          "6",
+          "6",
+          "2"
+        ]
+      ]
+    }
   },
   "59": {
     "problem": "Alternate positive and negative values while retaining their relative order within each sign.",
@@ -16967,6 +17019,86 @@
       "java": "static boolean wildcardTable(String text, String pattern) {\n    boolean[][] dp = new boolean[text.length()+1][pattern.length()+1];\n    dp[0][0] = true;\n    for (int j = 1; j <= pattern.length(); j++) dp[0][j] = dp[0][j-1] && pattern.charAt(j-1) == '*';\n    for (int i = 1; i <= text.length(); i++) for (int j = 1; j <= pattern.length(); j++) {\n        char token = pattern.charAt(j-1);\n        if (token == '*') dp[i][j] = dp[i][j-1] || dp[i-1][j];\n        else if (token == '?' || token == text.charAt(i-1)) dp[i][j] = dp[i-1][j-1];\n    }\n    return dp[text.length()][pattern.length()];\n}",
       "time": "O(n × m + m).",
       "space": "O((n + 1) × (m + 1))."
+    }
+  },
+  "418": {
+    "problem": "Choose at most one purchase and one later sale to maximize profit. You may choose no trade and earn zero.",
+    "assumptions": "Prices are nonnegative and the sale must happen on a later day than the purchase. The tracker repeats this problem in the arrays and DP sections. Both entries use the same checked lesson. The source returns long; the helper preserves that arithmetic and the maxProfit wrapper matches LeetCode’s int return.",
+    "example": {
+      "input": "prices = [9,4,7,2,8]",
+      "output": "6",
+      "explanation": "Buy at 2 and sell later at 8. The earlier price 9 cannot be used as the selling price for that purchase because it appears before the buy."
+    },
+    "baseline": "Try every buying day paired with every later selling day. Compare their differences with zero. This is correct but checks O(n²) pairs.",
+    "approach": "Fix a selling day. Among all earlier purchase prices, the cheapest one gives the largest profit for this particular sale. So we only need to remember the cheapest earlier price, not every earlier day.\n\nStart with day 0 as the cheapest buy candidate. On each later day, first calculate the profit from selling today using that earlier minimum. Update the best answer. Then consider today’s price as a new minimum for future sales. That order keeps buying strictly earlier than selling.\n\nThe best answer starts at zero because trading is optional. Falling or equal prices never force a loss. This one-transaction limit matters: adding every upward price move belongs to the next problem, which allows several completed trades.",
+    "steps": [
+      "Return zero if there are fewer than two days.",
+      "Remember day 0 as the cheapest earlier purchase.",
+      "For each later day, compare its sale profit with the best so far.",
+      "After evaluating the sale, update the cheapest price for future days.",
+      "Return the best nonnegative profit."
+    ],
+    "java": "static long singleTradeProfit(int[] prices) {\n    if (prices.length < 2) return 0;\n    int cheapest = prices[0];\n    long best = 0;\n    for (int day = 1; day < prices.length; day++) {\n        best = Math.max(best,(long)prices[day]-cheapest);\n        cheapest = Math.min(cheapest,prices[day]);\n    }\n    return best;\n}\nstatic int maxProfit(int[] prices) {\n    return Math.toIntExact(singleTradeProfit(prices));\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The global minimum and maximum are not enough unless the minimum occurs first.",
+      "Evaluate today’s sale before making today a candidate buy for later days.",
+      "Return zero when no profitable trade exists; this is at most one transaction.",
+      "Do not sum separate rises when only one completed trade is permitted."
+    ],
+    "tests": [
+      "assert maxProfit(new int[]{9,4,7,2,8})==6;assert maxProfit(new int[]{9,7,5})==0;assert maxProfit(new int[]{})==0;assert maxProfit(new int[]{5})==0;assert maxProfit(new int[]{0,Integer.MAX_VALUE})==Integer.MAX_VALUE;",
+      "for(int length=0;length<=7;length++){int count=1<<(2*length);for(int code=0;code<count;code++){int[] prices=new int[length];int digits=code;for(int i=0;i<length;i++){prices[i]=digits%4;digits/=4;}int[] saved=prices.clone();long expected=0;for(int buy=0;buy<length;buy++)for(int sell=buy+1;sell<length;sell++)expected=Math.max(expected,(long)prices[sell]-prices[buy]);assert singleTradeProfit(prices)==expected;assert tradeByPairs(prices)==expected;assert maxProfit(prices)==expected;assert Arrays.equals(prices,saved);}}",
+      "int[] prices=new int[100000];for(int i=0;i<prices.length;i++)prices[i]=i;assert maxProfit(prices)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/best-time-to-buy-and-sell-stock",
+      "title": "Best Time to Buy and Sell Stock",
+      "checkedOn": "2026-10-29",
+      "approach": "Compare all later-sale pairs, then retain only the cheapest earlier purchase during one scan.",
+      "adaptation": "Both complete public Java methods were checked. The source’s sale-before-minimum-update order and long profit arithmetic are preserved. The int wrapper fits the pinned judge. This also replaces the shorter earlier arrays-section explanation for the same problem."
+    },
+    "baselineJava": "static long tradeByPairs(int[] prices) {\n    long best = 0;\n    for (int buy = 0; buy < prices.length; buy++) {\n        for (int sell = buy+1; sell < prices.length; sell++) {\n            best = Math.max(best,(long)prices[sell]-prices[buy]);\n        }\n    }\n    return best;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space.",
+    "trace": {
+      "columns": [
+        "Today’s price",
+        "Cheapest earlier buy",
+        "Today’s profit",
+        "Best profit",
+        "Minimum for later days"
+      ],
+      "rows": [
+        [
+          "4",
+          "9",
+          "−5",
+          "0",
+          "4"
+        ],
+        [
+          "7",
+          "4",
+          "3",
+          "3",
+          "4"
+        ],
+        [
+          "2",
+          "4",
+          "−2",
+          "3",
+          "2"
+        ],
+        [
+          "8",
+          "2",
+          "6",
+          "6",
+          "2"
+        ]
+      ]
     }
   }
 }
