@@ -14426,5 +14426,90 @@
       "approach": "Repeated relaxation followed by one extra scan for a reachable negative cycle.",
       "adaptation": "The complete public Java method was checked. Its long infinity return differs from the article’s stated 100000000 contract, so this guide separates the long core from a judge-format wrapper and documents that difference."
     }
+  },
+  "368": {
+    "problem": "Find the shortest distance from every vertex to every other vertex in a directed graph supplied as an adjacency matrix.",
+    "assumptions": "In the pinned practice problem, −1 means no edge and all actual weights are nonnegative. A vertex has distance 0 to itself. shortestDistance updates the int matrix in place; the long helper leaves the input untouched and uses −1 for unreachable pairs.",
+    "example": {
+      "input": "matrix = [[0,4,10], [-1,0,3], [-1,-1,0]]",
+      "output": "[[0,4,7], [-1,0,3], [-1,-1,0]]",
+      "explanation": "Going from 0 through 1 to 2 costs 7, improving the direct cost 10. There is still no route back from 2 to either earlier vertex."
+    },
+    "baseline": "Run a single-source shortest-path algorithm once for each starting vertex. That is useful for a sparse graph. With a small matrix, Floyd–Warshall handles all pairs using three simple loops.",
+    "approach": "Initially, a distance is either a direct edge, zero for staying at the same vertex, or infinity. Now allow vertex 0 as a possible intermediate stop. For every pair, ask whether going through 0 is cheaper. Then allow vertex 1, then vertex 2, and so on.\n\nAt the start of iteration middle, the matrix already contains the best routes whose intermediate vertices come before middle. A best route with middle available either avoids it or splits into from→middle and middle→to. Take the cheaper of those options.\n\nThe intermediate-vertex loop must be outermost. Also check that both halves exist before adding them. Finally turn infinity back into −1 for the problem’s output format.",
+    "steps": [
+      "Copy direct weights into a long distance matrix, using infinity for absent edges and 0 on the diagonal.",
+      "For each middle vertex, try every ordered pair from, to.",
+      "If both halves exist, compare the direct answer with distance[from][middle] + distance[middle][to].",
+      "Convert infinity to −1; the judge wrapper writes the result back into the original matrix."
+    ],
+    "java": "static long[][] allPairDistances(int[][] matrix) {\n    int n = matrix.length;\n    long[][] distance = new long[n][n];\n    for (int i = 0; i < n; i++) for (int j = 0; j < n; j++)\n        distance[i][j] = i == j ? 0 : matrix[i][j] == -1 ? Long.MAX_VALUE : matrix[i][j];\n    relaxAllPairs(distance);\n    for (int i = 0; i < n; i++) for (int j = 0; j < n; j++)\n        if (distance[i][j] == Long.MAX_VALUE) distance[i][j] = -1;\n    return distance;\n}\nstatic void shortestDistance(int[][] matrix) {\n    long[][] distance = allPairDistances(matrix);\n    for (int i = 0; i < matrix.length; i++) for (int j = 0; j < matrix.length; j++)\n        matrix[i][j] = Math.toIntExact(distance[i][j]);\n}\n\nstatic void relaxAllPairs(long[][] distance) {\n    int n = distance.length;\n    for (int middle = 0; middle < n; middle++) {\n        for (int from = 0; from < n; from++) {\n            if (distance[from][middle] == Long.MAX_VALUE) continue;\n            for (int to = 0; to < n; to++) {\n                if (distance[middle][to] == Long.MAX_VALUE) continue;\n                distance[from][to] = Math.min(distance[from][to],\n                    distance[from][middle] + distance[middle][to]);\n            }\n        }\n    }\n}",
+    "time": "O(V³) time.",
+    "space": "O(V²) extra space in this long-matrix implementation.",
+    "pitfalls": [
+      "Keep middle as the outer loop. A single from-to-middle pass is not the same dynamic program.",
+      "Treat −1 as missing, not as a negative edge. The pinned problem has no actual negative weights.",
+      "Do not add infinity to a finite number.",
+      "Directed distances need not be symmetric.",
+      "A general version can handle negative edges, but negative cycles need separate reporting. That is outside this pinned nonnegative contract."
+    ],
+    "tests": [
+      "int[][]m={{0,4,10},{-1,0,3},{-1,-1,0}};shortestDistance(m);assert Arrays.deepEquals(m,new int[][]{{0,4,7},{-1,0,3},{-1,-1,0}});",
+      "Random random=new Random(368);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(8);int[][]m=new int[n][n];for(int i=0;i<n;i++)for(int j=0;j<n;j++)m[i][j]=i==j?0:random.nextBoolean()?-1:random.nextInt(30);\n long[][]actual=allPairDistances(m);for(int s=0;s<n;s++){long[]d=new long[n];Arrays.fill(d,Long.MAX_VALUE);d[s]=0;for(int pass=1;pass<n;pass++){long[]next=d.clone();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(m[i][j]>=0&&d[i]!=Long.MAX_VALUE)next[j]=Math.min(next[j],d[i]+m[i][j]);d=next;}for(int v=0;v<n;v++)assert actual[s][v]==(d[v]==Long.MAX_VALUE?-1:d[v]);}\n int[][]copy=new int[n][];for(int i=0;i<n;i++)copy[i]=m[i].clone();shortestDistance(copy);for(int i=0;i<n;i++)for(int j=0;j<n;j++)assert copy[i][j]==actual[i][j];\n}",
+      "assert allPairDistances(new int[][]{{0,Integer.MAX_VALUE,-1},{-1,0,Integer.MAX_VALUE},{-1,-1,0}})[0][2]==2L*Integer.MAX_VALUE;int[][]m={{0,0,-1},{-1,0,0},{-1,-1,0}};shortestDistance(m);assert m[0][2]==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/floyd-warshall-algorithm",
+      "title": "Floyd–Warshall Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "All-pairs shortest paths with the intermediate vertex as the outer loop.",
+      "adaptation": "The public practice statement and constraints were checked; its solution requires sign-in. The complete Floyd–Warshall Java in Striver’s public “Find the City” article was checked and adapted to this directed matrix input, in-place judge interface, and −1 output convention."
+    }
+  },
+  "369": {
+    "problem": "Return the city that can reach the fewest other cities within distanceThreshold. If several cities tie, return the greatest index.",
+    "assumptions": "Roads are undirected and have positive weights. A city does not count itself. Distance equal to the threshold qualifies. The implementation keeps the cheaper of duplicate roads as a harmless extension to the judge’s unique-road input.",
+    "example": {
+      "input": "n = 4, edges = [[0,1,2], [1,2,2], [2,3,2]], threshold = 2",
+      "output": "3",
+      "explanation": "Cities 0 and 3 each reach one other city; cities 1 and 2 each reach two. The tie between 0 and 3 goes to 3."
+    },
+    "baseline": "You could solve a shortest-path problem separately from every city. The source gives repeated Dijkstra as an alternative; it often saves work on sparse graphs, especially when few cities lie within the threshold.",
+    "approach": "First compute every pair’s shortest distance with Floyd–Warshall. For each city, count how many other cities have distance at most the threshold. Keep the city with the smallest count.\n\nVisit city indices in increasing order and replace the answer when count <= bestCount. The equality is deliberate: a later city has a larger index, so it wins a tie.\n\nA road longer than the threshold might be irrelevant, but a series of short roads can also exceed it. Count by total shortest-path distance, not by the number or weight of direct edges alone.",
+    "steps": [
+      "Initialize the distance matrix with 0 on the diagonal and infinity elsewhere.",
+      "Store each road in both directions, keeping the smaller weight for duplicates.",
+      "Run Floyd–Warshall with the intermediate vertex outermost.",
+      "Count qualifying other cities for each source.",
+      "Replace the answer on a smaller or equal count."
+    ],
+    "java": "static int findTheCity(int n, int[][] edges, int threshold) {\n    long[][] distance = new long[n][n];\n    for (int i = 0; i < n; i++) {\n        Arrays.fill(distance[i],Long.MAX_VALUE);\n        distance[i][i] = 0;\n    }\n    for (int[] edge : edges) {\n        int u = edge[0], v = edge[1];\n        distance[u][v] = Math.min(distance[u][v],edge[2]);\n        distance[v][u] = Math.min(distance[v][u],edge[2]);\n    }\n    relaxAllPairs(distance);\n    int answer = -1, bestCount = n;\n    for (int city = 0; city < n; city++) {\n        int count = 0;\n        for (int other = 0; other < n; other++)\n            if (other != city && distance[city][other] <= threshold) count++;\n        if (count <= bestCount) { bestCount = count; answer = city; }\n    }\n    return answer;\n}\n\nstatic void relaxAllPairs(long[][] distance) {\n    int n = distance.length;\n    for (int middle = 0; middle < n; middle++) {\n        for (int from = 0; from < n; from++) {\n            if (distance[from][middle] == Long.MAX_VALUE) continue;\n            for (int to = 0; to < n; to++) {\n                if (distance[middle][to] == Long.MAX_VALUE) continue;\n                distance[from][to] = Math.min(distance[from][to],\n                    distance[from][middle] + distance[middle][to]);\n            }\n        }\n    }\n}",
+    "time": "O(V³ + E) time.",
+    "space": "O(V²) for all-pairs distances.",
+    "pitfalls": [
+      "Use <= threshold, not < threshold.",
+      "Exclude the source city itself.",
+      "Tie-breaking chooses the greatest index, so equality must replace the earlier answer.",
+      "Unreachable cities do not count, even with a very large threshold.",
+      "The Dijkstra alternative prunes only because weights are positive."
+    ],
+    "tests": [
+      "int[][]e={{0,1,2},{1,2,2},{2,3,2}};assert findTheCity(4,e,2)==3;assert findTheCityByHeap(4,e,2)==3;assert findTheCity(4,new int[0][],100)==3;assert findTheCity(3,new int[][]{{0,1,3},{1,2,3}},6)==2;",
+      "Random random=new Random(369);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(7),threshold=random.nextInt(31);List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(random.nextBoolean())list.add(new int[]{i,j,1+random.nextInt(20)});int[][]e=list.toArray(new int[0][]);\n int answer=-1,best=n;for(int s=0;s<n;s++){long[]d=new long[n];Arrays.fill(d,Long.MAX_VALUE);d[s]=0;for(int pass=1;pass<n;pass++){long[]next=d.clone();for(int[]edge:e){if(d[edge[0]]!=Long.MAX_VALUE)next[edge[1]]=Math.min(next[edge[1]],d[edge[0]]+edge[2]);if(d[edge[1]]!=Long.MAX_VALUE)next[edge[0]]=Math.min(next[edge[0]],d[edge[1]]+edge[2]);}d=next;}int count=0;for(int v=0;v<n;v++)if(v!=s&&d[v]<=threshold)count++;if(count<=best){best=count;answer=s;}}\n assert findTheCity(n,e,threshold)==answer;assert findTheCityByHeap(n,e,threshold)==answer;\n}",
+      "int[][]e={{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}};assert findTheCity(3,e,Integer.MAX_VALUE)==2;assert findTheCityByHeap(3,e,Integer.MAX_VALUE)==2;assert findTheCity(3,new int[][]{{0,1,2},{0,1,9}},2)==2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-city-smallest-number-neighbors-threshold-distance",
+      "title": "Find the City with the Smallest Number of Neighbors at a Threshold Distance",
+      "checkedOn": "2026-10-29",
+      "approach": "Floyd–Warshall and repeated threshold-pruned Dijkstra, with greatest-index tie-breaking.",
+      "adaptation": "Both complete public Java methods were checked. The guide retains both source approaches, uses long distances, and makes the equality checks and exclusion of the source explicit."
+    },
+    "better": {
+      "explanation": "For a sparse graph, run Dijkstra from each city instead of storing an all-pairs matrix. Only enqueue candidate distances within the threshold: a positive road can never bring an over-budget route back under it. Count each current heap removal except the source. The same <= bestCount comparison resolves ties.",
+      "java": "static int findTheCityByHeap(int n, int[][] edges, int threshold) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int i = 0; i < n; i++) graph.add(new ArrayList<>());\n    for (int[] e : edges) {\n        graph.get(e[0]).add(new int[]{e[1],e[2]});\n        graph.get(e[1]).add(new int[]{e[0],e[2]});\n    }\n    int answer = -1, bestCount = n;\n    for (int source = 0; source < n; source++) {\n        long[] distance = new long[n];\n        Arrays.fill(distance,Long.MAX_VALUE);\n        PriorityQueue<long[]> heap = new PriorityQueue<>(Comparator.comparingLong(a -> a[0]));\n        distance[source] = 0;\n        heap.offer(new long[]{0,source});\n        int count = 0;\n        while (!heap.isEmpty()) {\n            long[] entry = heap.poll();\n            int node = (int)entry[1];\n            if (entry[0] != distance[node]) continue;\n            if (node != source) count++;\n            for (int[] edge : graph.get(node)) {\n                long candidate = entry[0] + edge[1];\n                if (candidate <= threshold && candidate < distance[edge[0]]) {\n                    distance[edge[0]] = candidate;\n                    heap.offer(new long[]{candidate,edge[0]});\n                }\n            }\n        }\n        if (count <= bestCount) { bestCount = count; answer = source; }\n    }\n    return answer;\n}",
+      "time": "O(V(V + E) log V) for a simple graph; threshold pruning can reduce actual work.",
+      "space": "O(V + E) for adjacency and one source’s heap and distances."
+    }
   }
 }
