@@ -13928,5 +13928,87 @@
     },
     "baselineJava": "static String alienDfs(String[] words) {\n    Map<Character,Set<Character>> graph = alphabetGraph(words);\n    if (graph == null) return \"\";\n    Map<Character,Integer> state = new HashMap<>();\n    StringBuilder finished = new StringBuilder();\n    for (char letter : graph.keySet()) if (!finishLetter(letter,graph,state,finished)) return \"\";\n    return finished.reverse().toString();\n}\nstatic boolean finishLetter(char letter, Map<Character,Set<Character>> graph,\n                            Map<Character,Integer> state, StringBuilder finished) {\n    int status = state.getOrDefault(letter,0);\n    if (status == 1) return false;\n    if (status == 2) return true;\n    state.put(letter,1);\n    for (char next : graph.get(letter)) if (!finishLetter(next,graph,state,finished)) return false;\n    state.put(letter,2);\n    finished.append(letter);\n    return true;\n}",
     "baselineTime": "O(C + U + E) expected time and O(U + E) storage, including O(U) recursion."
+  },
+  "357": {
+    "problem": "Find the shortest number of edges from a source to every vertex in an undirected graph whose edges all cost one.",
+    "assumptions": "Vertices are 0-based, the source is valid for a nonempty graph, and edges are undirected. Return −1 for unreachable vertices and 0 for the source. This returns distances, not the actual paths.",
+    "example": {
+      "input": "V = 5; edges = [[0,1], [1,2], [0,3], [3,2]]; source = 0",
+      "output": "[0,1,2,1,−1]",
+      "explanation": "Both routes to 2 use two edges. Vertex 4 has no route from 0, so its distance stays −1."
+    },
+    "baseline": "Repeatedly scan every edge and improve distances in both directions. After at most V−1 rounds, all shortest simple paths are covered. This costs O(VE); BFS avoids rescanning edges across many rounds.",
+    "approach": "BFS visits vertices in increasing distance from the source. A queued vertex at distance d can discover neighbors at distance d + 1. By the time such a neighbor is first discovered, every shorter layer has already had a chance to reach it.\n\nUse −1 as both the unvisited marker and the final unreachable answer. Set a neighbor’s distance before enqueuing it, so another route at the same or a later layer does not add duplicate work.\n\nBuild both directions of every input edge. A directed version would store only the stated direction, but the same unit-weight BFS rule would still apply.",
+    "steps": [
+      "Build undirected adjacency lists.",
+      "Fill distances with −1 and set source distance to 0.",
+      "Enqueue each unvisited neighbor with current distance + 1.",
+      "Return the distance array after the queue empties."
+    ],
+    "java": "static List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}\n\nstatic int[] shortestPath(int vertices, int[][] edges, int source) {\n    int[] distance = new int[vertices];\n    if (vertices == 0) return distance;\n    Arrays.fill(distance,-1);\n    List<List<Integer>> graph = adjacency(vertices,edges);\n    Deque<Integer> queue = new ArrayDeque<>();\n    distance[source] = 0;\n    queue.add(source);\n    while (!queue.isEmpty()) {\n        int vertex = queue.remove();\n        for (int next : graph.get(vertex)) if (distance[next] == -1) {\n            distance[next] = distance[vertex]+1;\n            queue.add(next);\n        }\n    }\n    return distance;\n}",
+    "time": "O(V + E).",
+    "space": "O(V + E) including adjacency lists; O(V) distance and queue storage.",
+    "pitfalls": [
+      "Source distance is 0 because no edge is needed to stay there.",
+      "The first-visit rule relies on equal edge costs.",
+      "Do not start at vertex 0 unless it is the requested source.",
+      "Leave disconnected vertices at −1."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}for(int source=0;source<n;source++){int[]actual=shortestPath(n,edges,source),other=shortestByRounds(n,edges,source);for(int v=0;v<n;v++){int expected=distance[source][v]>=1000?-1:distance[source][v];assert actual[v]==expected&&other[v]==expected;}}}}",
+      "assert Arrays.equals(shortestPath(5,new int[][]{{0,1},{1,2},{0,3},{3,2}},0),new int[]{0,1,2,1,-1});assert shortestPath(0,new int[0][],0).length==0;",
+      "int n=100000;int[][]e=new int[n-1][2];for(int i=0;i<n-1;i++)e[i]=new int[]{i,i+1};assert shortestPath(n,e,n-1)[0]==n-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/shortest-path-in-an-unweighted-undirected-graph-using-bfs",
+      "title": "Shortest Path in an Unweighted Undirected Graph Using BFS",
+      "checkedOn": "2026-10-29",
+      "approach": "BFS assigns minimum edge counts on first discovery.",
+      "adaptation": "The complete public Java method was checked. Its two-way adjacency, −1 initialization, and first-visit distance rule are retained. The redundant edge-count parameter is omitted; the round-based baseline is an authored comparison."
+    },
+    "baselineJava": "static int[] shortestByRounds(int vertices, int[][] edges, int source) {\n    int[] distance = new int[vertices];\n    if (vertices == 0) return distance;\n    Arrays.fill(distance,vertices);\n    distance[source] = 0;\n    for (int round = 1; round < vertices; round++) {\n        boolean changed = false;\n        for (int[] edge : edges) {\n            int u = edge[0], v = edge[1];\n            if (distance[u]+1 < distance[v]) { distance[v] = distance[u]+1; changed = true; }\n            if (distance[v]+1 < distance[u]) { distance[u] = distance[v]+1; changed = true; }\n        }\n        if (!changed) break;\n    }\n    for (int v = 0; v < vertices; v++) if (distance[v] == vertices) distance[v] = -1;\n    return distance;\n}",
+    "baselineTime": "O(VE) worst-case time and O(V) distance storage."
+  },
+  "358": {
+    "problem": "Find shortest weighted distances from vertex 0 to every vertex in a directed acyclic graph.",
+    "assumptions": "Each edge is [from, to, weight]. The linked practice uses positive weights whose path sums fit int. The long-distance helper also supports negative weights in a DAG and keeps Long.MAX_VALUE as its unreachable marker. The judge-style int wrapper converts unreachable to −1. Cyclic inputs are rejected.",
+    "example": {
+      "input": "edges = [[0,1,7], [0,2,2], [2,1,1], [1,3,4]]",
+      "output": "[0,3,2,7]",
+      "explanation": "Vertex 1 improves from 7 to 3 through 2. Processing 1 after its predecessors ensures that 3 receives 3 + 4 = 7, not the earlier longer value."
+    },
+    "baseline": "DFS can build the same topological order by finishing outgoing neighbors first, then reversing the finish list. Relax edges in that order. It has the same linear time as Kahn’s method, but recursion can be deep.",
+    "approach": "A DAG lets us process vertices in an order where every edge points forward. Before a vertex is processed, every possible predecessor has already passed its best distance to it. We can therefore relax each outgoing edge once.\n\nBuild a topological order with indegrees. Start all distances at infinity except distance[0] = 0. For each vertex in order, skip it if unreachable; otherwise try distance[vertex] + weight for each neighbor and keep the smaller value.\n\nNegative edges do not break this argument because no edge can lead back to an already processed vertex. The DAG requirement matters more than the sign of the weights. Keep unreachable separate from numeric distances internally, since a valid negative distance could equal −1.",
+    "steps": [
+      "Build weighted directed adjacency and a topological order.",
+      "Reject the graph if fewer than V vertices appear in that order.",
+      "Set source 0 to distance 0 and skip unreachable vertices.",
+      "Relax every outgoing edge once in topological order, then format unreachable results."
+    ],
+    "java": "static List<List<int[]>> weightedDirected(int vertices, int[][] edges) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int i = 0; i < vertices; i++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) graph.get(edge[0]).add(new int[]{edge[1],edge[2]});\n    return graph;\n}\n\nstatic long[] dagDistances(int vertices, int[][] edges) {\n    List<List<int[]>> graph = weightedDirected(vertices,edges);\n    int[] indegree = new int[vertices];\n    for (int[] edge : edges) indegree[edge[1]]++;\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int v = 0; v < vertices; v++) if (indegree[v] == 0) queue.add(v);\n    List<Integer> order = new ArrayList<>();\n    while (!queue.isEmpty()) {\n        int vertex = queue.remove();\n        order.add(vertex);\n        for (int[] edge : graph.get(vertex)) if (--indegree[edge[0]] == 0) queue.add(edge[0]);\n    }\n    if (order.size() != vertices) throw new IllegalArgumentException(\"A DAG is required\");\n    return relaxDag(graph,order);\n}\nstatic long[] relaxDag(List<List<int[]>> graph, List<Integer> order) {\n    long[] distance = new long[graph.size()];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    if (distance.length > 0) distance[0] = 0;\n    for (int vertex : order) {\n        if (distance[vertex] == Long.MAX_VALUE) continue;\n        for (int[] edge : graph.get(vertex)) {\n            long candidate = distance[vertex] + edge[1];\n            distance[edge[0]] = Math.min(distance[edge[0]],candidate);\n        }\n    }\n    return distance;\n}\nstatic int[] shortestPath(int vertices, int[][] edges) {\n    long[] distance = dagDistances(vertices,edges);\n    int[] answer = new int[vertices];\n    for (int v = 0; v < vertices; v++) answer[v] = distance[v] == Long.MAX_VALUE ? -1 : Math.toIntExact(distance[v]);\n    return answer;\n}",
+    "time": "O(V + E).",
+    "space": "O(V + E) including weighted adjacency and topological-order storage.",
+    "pitfalls": [
+      "Ordinary BFS order is not enough when edge weights differ.",
+      "Never add a weight to the unreachable sentinel.",
+      "Do not process vertices by numeric label unless that label order is known to be topological.",
+      "Use the long helper when sums exceed int or when −1 must be distinguished from unreachable.",
+      "A DAG can have negative edges, but this method is not valid on arbitrary cyclic graphs."
+    ],
+    "tests": [
+      "assert Arrays.equals(shortestPath(4,new int[][]{{0,1,7},{0,2,2},{2,1,1},{1,3,4}}),new int[]{0,3,2,7});assert Arrays.equals(dagDistances(4,new int[][]{{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}}),new long[]{0,Integer.MAX_VALUE,2L*Integer.MAX_VALUE,Long.MAX_VALUE});assert dagDistances(0,new int[0][]).length==0;",
+      "Random random=new Random(358);\nfor(int trial=0;trial<800;trial++){\n int n=1+random.nextInt(20);List<Integer>labels=new ArrayList<>();for(int i=0;i<n;i++)labels.add(i);Collections.shuffle(labels,random);\n List<int[]>list=new ArrayList<>();long inf=1000000000000L;long[][]expected=new long[n][n];for(int i=0;i<n;i++){Arrays.fill(expected[i],inf);expected[i][i]=0;}\n for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(random.nextInt(4)==0){int u=labels.get(i),v=labels.get(j),w=random.nextInt(101)-50;list.add(new int[]{u,v,w});expected[u][v]=Math.min(expected[u][v],w);}\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(expected[i][k]!=inf&&expected[k][j]!=inf)expected[i][j]=Math.min(expected[i][j],expected[i][k]+expected[k][j]);\n int[][]edges=list.toArray(new int[0][]);long[]a=dagDistances(n,edges),b=dagByDfs(n,edges);\n for(int v=0;v<n;v++){long value=expected[0][v]==inf?Long.MAX_VALUE:expected[0][v];assert a[v]==value&&b[v]==value;}\n}",
+      "boolean failed=false;try{dagDistances(2,new int[][]{{0,1,1},{1,0,1}});}catch(IllegalArgumentException e){failed=true;}assert failed;failed=false;try{dagByDfs(1,new int[][]{{0,0,1}});}catch(IllegalArgumentException e){failed=true;}assert failed;",
+      "int n=100000;int[][]e=new int[n-1][3];for(int i=1;i<n;i++)e[i-1]=new int[]{i-1,i,10000};assert dagDistances(n,e)[n-1]==999990000L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/shortest-path-in-a-directed-acyclic-graph-dag",
+      "title": "Shortest Path in a Directed Acyclic Graph (DAG)",
+      "checkedOn": "2026-10-29",
+      "approach": "Construct a topological order with DFS or Kahn, then relax each reachable outgoing edge once.",
+      "adaptation": "Both complete public Java methods and the positive-weight practice limits were checked. This adaptation uses long distances, skips unreachable vertices, detects invalid cycles, and uses checked int conversion in the judge-style wrapper. The source DFS uses an int sentinel; its Kahn version uses long internally."
+    },
+    "baselineJava": "static long[] dagByDfs(int vertices, int[][] edges) {\n    List<List<int[]>> graph = weightedDirected(vertices,edges);\n    int[] state = new int[vertices];\n    List<Integer> finished = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) if (state[v] == 0) finishDag(v,graph,state,finished);\n    Collections.reverse(finished);\n    return relaxDag(graph,finished);\n}\nstatic void finishDag(int vertex, List<List<int[]>> graph, int[] state, List<Integer> finished) {\n    if (state[vertex] == 1) throw new IllegalArgumentException(\"A DAG is required\");\n    if (state[vertex] == 2) return;\n    state[vertex] = 1;\n    for (int[] edge : graph.get(vertex)) finishDag(edge[0],graph,state,finished);\n    state[vertex] = 2;\n    finished.add(vertex);\n}",
+    "baselineTime": "O(V + E) time and graph storage, with O(V) recursive stack."
   }
 }
