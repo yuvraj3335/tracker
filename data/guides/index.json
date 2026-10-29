@@ -13246,5 +13246,124 @@
     },
     "baselineJava": "static int[][] fillRecursive(int[][] image, int row, int col, int color) {\n    int oldColor = image[row][col];\n    if (oldColor != color) recolor(image, row, col, oldColor, color);\n    return image;\n}\nstatic void recolor(int[][] image, int row, int col, int oldColor, int color) {\n    if (row < 0 || row >= image.length || col < 0 || col >= image[0].length\n            || image[row][col] != oldColor) return;\n    image[row][col] = color;\n    for (int[] direction : DIRECTIONS) recolor(image, row + direction[0], col + direction[1], oldColor, color);\n}",
     "baselineTime": "O(K) time and up to O(K) recursive stack, where K is the region size."
+  },
+  "340": {
+    "problem": "Detect whether any component of an undirected graph contains a cycle, using BFS.",
+    "assumptions": "The input is an undirected adjacency list: every edge appears at both endpoints. The practice statement excludes self-edges. The explanation assumes a simple graph. Empty graphs and isolated vertices have no cycle.",
+    "example": {
+      "input": "adjacency = [[1,2], [0,2], [0,1], []]",
+      "output": "true",
+      "explanation": "Vertices 0, 1, and 2 form a triangle. Vertex 3 is isolated, but that does not remove the cycle elsewhere."
+    },
+    "baseline": "DFS can detect the same condition by remembering the parent in each recursive call. It has the same O(V + E) time; BFS uses an explicit queue instead of a recursive stack.",
+    "approach": "Every undirected edge is stored twice. After moving from 0 to 1, seeing 0 in 1’s neighbor list is normal: it is the reverse of the edge we just used. This alone is not a cycle.\n\nStore each queued vertex together with the parent that discovered it. An unvisited neighbor becomes a new queue entry. A visited neighbor different from the parent gives another route to an already reached vertex, so a cycle exists.\n\nRestart BFS at each unvisited vertex. A cycle can sit in a component that vertex 0 cannot reach.",
+    "steps": [
+      "Start a queue for each unvisited component.",
+      "Store pairs of vertex and discovery parent.",
+      "Mark new neighbors when they enter the queue.",
+      "Return true for a visited neighbor other than the parent; otherwise finish all components and return false."
+    ],
+    "java": "static boolean cycleBfs(List<List<Integer>> graph) {\n    boolean[] seen = new boolean[graph.size()];\n    Deque<int[]> queue = new ArrayDeque<>();\n    for (int start = 0; start < graph.size(); start++) {\n        if (seen[start]) continue;\n        seen[start] = true;\n        queue.add(new int[]{start,-1});\n        while (!queue.isEmpty()) {\n            int[] item = queue.remove();\n            int vertex = item[0], parent = item[1];\n            for (int next : graph.get(vertex)) {\n                if (!seen[next]) {\n                    seen[next] = true;\n                    queue.add(new int[]{next,vertex});\n                } else if (next != parent) return true;\n            }\n        }\n    }\n    return false;\n}\n\nstatic List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}",
+    "time": "O(V + E).",
+    "space": "O(V) extra beyond the input adjacency lists.",
+    "pitfalls": [
+      "A visited parent is not evidence of a cycle.",
+      "Mark on insertion so multiple parents cannot queue the same vertex.",
+      "Checking only the component of 0 misses disconnected cycles.",
+      "This parent rule is for undirected graphs. Directed cycle detection needs an active-path or indegree rule."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}List<List<Integer>>a=adjacency(n,edges);boolean expected=edges.length>n-components;assert cycleBfs(a)==expected;assert cycleDfs(a)==expected;}}",
+      "List<List<Integer>>a=adjacency(6,new int[][]{{0,1},{3,4},{4,5},{5,3}});assert cycleBfs(a)&&cycleDfs(a);assert !cycleBfs(adjacency(2,new int[][]{{0,1}}));assert !cycleDfs(adjacency(2,new int[][]{{0,1}}));",
+      "int n=100000;int[][]e=new int[n-1][2];for(int i=0;i<n-1;i++)e[i]=new int[]{i,i+1};assert !cycleBfs(adjacency(n,e));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/detect-a-cycle-in-an-undirected-graph",
+      "title": "Detect a Cycle in an Undirected Graph",
+      "checkedOn": "2026-10-29",
+      "approach": "Track each traversal parent and detect an already visited non-parent neighbor.",
+      "adaptation": "Both public Java approaches and the adjacency-list practice contract were checked. The same parent rule and outer component loop are retained with List interfaces and ArrayDeque."
+    },
+    "baselineJava": "static boolean cycleDfs(List<List<Integer>> graph) {\n    boolean[] seen = new boolean[graph.size()];\n    for (int start = 0; start < graph.size(); start++) {\n        if (!seen[start] && cycleVisit(start, -1, graph, seen)) return true;\n    }\n    return false;\n}\nstatic boolean cycleVisit(int vertex, int parent, List<List<Integer>> graph, boolean[] seen) {\n    seen[vertex] = true;\n    for (int next : graph.get(vertex)) {\n        if (!seen[next]) {\n            if (cycleVisit(next, vertex, graph, seen)) return true;\n        } else if (next != parent) return true;\n    }\n    return false;\n}",
+    "baselineTime": "O(V + E) time and O(V) recursive/visited space."
+  },
+  "341": {
+    "problem": "Detect an undirected cycle using depth-first search and parent tracking.",
+    "assumptions": "The adjacency list stores both directions of every edge. The graph may be disconnected. The practice excludes self-edges; the explanation uses a simple graph. Recursive depth can reach V on a chain.",
+    "example": {
+      "input": "edges = 0–1, 1–2, 2–0; plus isolated vertex 3",
+      "output": "true",
+      "explanation": "DFS follows 0 → 1 → 2. At 2, neighbor 0 is already visited and is not its parent 1, revealing the cycle."
+    },
+    "baseline": "BFS carries a parent alongside each queued vertex and applies the same visited-non-parent check. It avoids recursive call depth and has the same time complexity.",
+    "approach": "Mark the current vertex before following any edge. For an unvisited neighbor, recursively explore it with the current vertex as its parent. If that recursive call finds a cycle, return true immediately.\n\nFor a visited neighbor, ignore the immediate parent. Any other visited neighbor completes an alternate path and confirms a cycle. The parent exception prevents counting a single undirected edge twice as a cycle.\n\nUse one visited array across all starts. Start a new DFS only at an unvisited vertex so every component is checked once.",
+    "steps": [
+      "Mark a vertex as soon as DFS enters it.",
+      "Recurse into unvisited neighbors while passing the current vertex as parent.",
+      "Reject only the normal reverse edge to the parent.",
+      "Propagate true immediately and repeat across components if no cycle was found."
+    ],
+    "java": "static boolean cycleDfs(List<List<Integer>> graph) {\n    boolean[] seen = new boolean[graph.size()];\n    for (int start = 0; start < graph.size(); start++) {\n        if (!seen[start] && cycleVisit(start, -1, graph, seen)) return true;\n    }\n    return false;\n}\nstatic boolean cycleVisit(int vertex, int parent, List<List<Integer>> graph, boolean[] seen) {\n    seen[vertex] = true;\n    for (int next : graph.get(vertex)) {\n        if (!seen[next]) {\n            if (cycleVisit(next, vertex, graph, seen)) return true;\n        } else if (next != parent) return true;\n    }\n    return false;\n}\n\nstatic List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}",
+    "time": "O(V + E).",
+    "space": "O(V) visited array and recursive stack.",
+    "pitfalls": [
+      "Forgetting to return a true result from a child loses detected cycles.",
+      "The root has no parent; use −1 with 0-based vertex labels.",
+      "Recursive DFS can overflow on a long chain; use the BFS alternative for such inputs.",
+      "A directed graph requires a different cycle test."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}List<List<Integer>>a=adjacency(n,edges);boolean expected=edges.length>n-components;assert cycleBfs(a)==expected;assert cycleDfs(a)==expected;}}",
+      "List<List<Integer>>a=adjacency(6,new int[][]{{0,1},{3,4},{4,5},{5,3}});assert cycleBfs(a)&&cycleDfs(a);assert !cycleBfs(adjacency(2,new int[][]{{0,1}}));assert !cycleDfs(adjacency(2,new int[][]{{0,1}}));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/detect-a-cycle-in-an-undirected-graph",
+      "title": "Detect a Cycle in an Undirected Graph",
+      "checkedOn": "2026-10-29",
+      "approach": "Track each traversal parent and detect an already visited non-parent neighbor.",
+      "adaptation": "Both public Java approaches and the adjacency-list practice contract were checked. The same parent rule and outer component loop are retained with List interfaces and ArrayDeque."
+    },
+    "baselineJava": "static boolean cycleBfs(List<List<Integer>> graph) {\n    boolean[] seen = new boolean[graph.size()];\n    Deque<int[]> queue = new ArrayDeque<>();\n    for (int start = 0; start < graph.size(); start++) {\n        if (seen[start]) continue;\n        seen[start] = true;\n        queue.add(new int[]{start,-1});\n        while (!queue.isEmpty()) {\n            int[] item = queue.remove();\n            int vertex = item[0], parent = item[1];\n            for (int next : graph.get(vertex)) {\n                if (!seen[next]) {\n                    seen[next] = true;\n                    queue.add(new int[]{next,vertex});\n                } else if (next != parent) return true;\n            }\n        }\n    }\n    return false;\n}",
+    "baselineTime": "O(V + E) time and O(V) queue/visited space."
+  },
+  "342": {
+    "problem": "For every cell in a binary matrix, find its four-direction distance to the nearest zero.",
+    "assumptions": "This is the tracker’s linked LeetCode 01 Matrix contract, which guarantees at least one zero. Striver’s current article instead asks for the nearest one. The code includes both wrappers over the same BFS. All cells are traversable; zeros and ones are not obstacles. With no matching source, the extension returns −1 for every cell.",
+    "example": {
+      "input": "[[1,1,0], [1,1,1]]",
+      "output": "[[2,1,0], [3,2,1]]",
+      "explanation": "The zero at the upper right is distance 0. Each horizontal or vertical move adds one; diagonal moves are not allowed."
+    },
+    "baseline": "Collect the source cells. For each cell, compare its Manhattan distance with every source and keep the smallest. This works because the grid has no blocked cells, but can require O((R × C)²) comparisons.",
+    "approach": "Start from the answers we already know: every zero has distance 0. Put all of them into the queue together. Set other distances to −1, meaning unvisited.\n\nWhen a cell with distance d is removed, give each unvisited neighbor distance d + 1 and enqueue it. BFS expands all distance-0 sources before distance-1 cells, then distance-2 cells, and so on. The first arrival at a cell is therefore its nearest-source distance.\n\nFor Striver’s nearest-one variant, change only which value is placed in the initial queue. The direction rules and BFS loop are identical.",
+    "steps": [
+      "Initialize all distances to −1.",
+      "Set each target-valued cell to distance 0 and enqueue it.",
+      "Assign current distance + 1 to each unvisited orthogonal neighbor.",
+      "Use target 0 for updateMatrix and target 1 for nearestOne."
+    ],
+    "java": "static int[][] updateMatrix(int[][] matrix) { return nearestValue(matrix, 0); }\nstatic int[][] nearestOne(int[][] matrix) { return nearestValue(matrix, 1); }\nstatic int[][] nearestValue(int[][] matrix, int target) {\n    int rows = matrix.length, cols = rows == 0 ? 0 : matrix[0].length;\n    int[][] distance = new int[rows][cols];\n    Deque<int[]> queue = new ArrayDeque<>();\n    for (int r = 0; r < rows; r++) {\n        Arrays.fill(distance[r], -1);\n        for (int c = 0; c < cols; c++) if (matrix[r][c] == target) {\n            distance[r][c] = 0;\n            queue.add(new int[]{r,c});\n        }\n    }\n    int[][] directions = {{-1,0},{1,0},{0,-1},{0,1}};\n    while (!queue.isEmpty()) {\n        int[] cell = queue.remove();\n        for (int[] direction : directions) {\n            int r = cell[0] + direction[0], c = cell[1] + direction[1];\n            if (r >= 0 && r < rows && c >= 0 && c < cols && distance[r][c] == -1) {\n                distance[r][c] = distance[cell[0]][cell[1]] + 1;\n                queue.add(new int[]{r,c});\n            }\n        }\n    }\n    return distance;\n}",
+    "time": "O(R × C).",
+    "space": "O(R × C) for the result and queue. The input is unchanged.",
+    "pitfalls": [
+      "The pinned problem asks for zeros, while the current Striver article asks for ones.",
+      "Both cell values are traversable; neither acts as a wall.",
+      "Running a separate BFS from each cell repeats work.",
+      "Assign the distance before enqueuing to avoid repeated entries."
+    ],
+    "tests": [
+      "assert Arrays.deepEquals(updateMatrix(new int[][]{{1,1,0},{1,1,1}}),new int[][]{{2,1,0},{3,2,1}});assert updateMatrix(new int[0][]).length==0;",
+      "for(int rows=1;rows<=3;rows++)for(int cols=1;cols<=3;cols++)for(int mask=0;mask<(1<<(rows*cols));mask++){\n int[][]a=new int[rows][cols];for(int i=0;i<rows*cols;i++)a[i/cols][i%cols]=(mask>>i)&1;\n for(int target=0;target<=1;target++){\n  int[][]actual=target==0?updateMatrix(a):nearestOne(a),expected=nearestByComparison(a,target);\n  assert Arrays.deepEquals(actual,expected);\n }\n for(int i=0;i<rows*cols;i++)assert a[i/cols][i%cols]==((mask>>i)&1);\n}",
+      "int[][]a=new int[1][100000];Arrays.fill(a[0],1);a[0][0]=0;assert updateMatrix(a)[0][99999]==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/distance-of-the-nearest-cell-having-1-in-a-binary-matrix",
+      "title": "Distance of the Nearest Cell Having 1 in a Binary Matrix",
+      "checkedOn": "2026-10-29",
+      "approach": "Compare Manhattan distances, then expand a multi-source BFS.",
+      "adaptation": "Both public Java methods were checked. The pinned LeetCode statement was also checked: it targets zero, unlike this article’s one. Two explicit wrappers preserve both contracts. The baseline returns −1 when no source exists, matching BFS instead of the source baseline’s rows + cols sentinel."
+    },
+    "baselineJava": "static int[][] nearestByComparison(int[][] matrix, int target) {\n    int rows = matrix.length, cols = rows == 0 ? 0 : matrix[0].length;\n    List<int[]> sources = new ArrayList<>();\n    for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++)\n        if (matrix[r][c] == target) sources.add(new int[]{r,c});\n    int[][] answer = new int[rows][cols];\n    for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {\n        int best = Integer.MAX_VALUE;\n        for (int[] source : sources) best = Math.min(best, Math.abs(r-source[0]) + Math.abs(c-source[1]));\n        answer[r][c] = sources.isEmpty() ? -1 : best;\n    }\n    return answer;\n}",
+    "baselineTime": "O(R × C × K) for K source cells, at most O((R × C)²); O(R × C) storage."
   }
 }
