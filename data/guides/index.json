@@ -16680,5 +16680,51 @@
       "time": "O(n²).",
       "space": "O(n²)."
     }
+  },
+  "413": {
+    "problem": "Find the fewest character insertions and deletions needed to turn the first string into the second. Replacement is not an allowed one-step operation.",
+    "assumptions": "The lesson title and Striver source describe transforming the first string with insertions and deletions. The saved LeetCode 583 link instead allows deleting from either string until they match. Both have the same minimum count, n + m − 2 × LCS length. The pinned strings contain lowercase English letters and have length at most 500; empty strings are also handled.",
+    "example": {
+      "input": "first = \"stone\", second = \"tones\"",
+      "output": "2",
+      "explanation": "For conversion, delete the first s and insert s at the end. For the saved deletion-only problem, delete s from each string to leave \"tone\" in both. Both use two operations."
+    },
+    "baseline": "Compare the ends of two prefixes. Equal characters can be kept together at no cost. Otherwise delete one ending character and try the smaller prefix pair. For the conversion wording, the two branches correspond to deleting from the first string or inserting the second string’s required character. Plain recursion repeats prefix pairs.",
+    "approach": "Any characters kept unchanged must appear in both strings in the same order. They therefore form a common subsequence. Keeping as many as possible means keeping an LCS.\n\nIf that shared part has length L, delete n − L characters from the first string and insert m − L missing characters from the second. Their sum is n + m − 2L. A shorter shared part would require more changes, so a longest one gives the minimum.\n\nFor the saved deletion-only problem, keep the same LCS in both strings and delete everything else. The arithmetic is identical, but the explanation of the second group of operations changes from insertions into the first string to deletions from the second.\n\nThis is not ordinary edit distance with a one-cost replacement. Turning \"a\" into \"b\" costs two here: delete a, then insert b. A replacement-enabled problem would count one.",
+    "steps": [
+      "Compute the LCS length with two rows.",
+      "Count first.length − LCS deletions.",
+      "Count second.length − LCS insertions, or second-string deletions for the saved link.",
+      "Add the two counts."
+    ],
+    "java": "static int minDistance(String first, String second) {\n    int common = longestCommonSubsequence(first,second);\n    return first.length()+second.length()-2*common;\n}\nstatic int minOperations(String first, String second) {\n    return minDistance(first,second);\n}\n\nstatic int longestCommonSubsequence(String first, String second) {\n    if (second.length() > first.length()) {\n        String swap = first; first = second; second = swap;\n    }\n    int[] previous = new int[second.length()+1];\n    for (int i = 1; i <= first.length(); i++) {\n        int[] current = new int[second.length()+1];\n        for (int j = 1; j <= second.length(); j++) {\n            if (first.charAt(i-1) == second.charAt(j-1)) current[j] = 1+previous[j-1];\n            else current[j] = Math.max(previous[j],current[j-1]);\n        }\n        previous = current;\n    }\n    return previous[second.length()];\n}",
+    "time": "O(n × m).",
+    "space": "O(min(n,m) + 1).",
+    "pitfalls": [
+      "A replacement costs two operations under this contract. Do not add a one-cost diagonal mismatch transition.",
+      "The shared part is a subsequence, not necessarily one contiguous block.",
+      "The saved judge and lesson wording have equal counts but describe different operations.",
+      "If one string is empty, every character of the other needs one operation."
+    ],
+    "tests": [
+      "assert minDistance(\"stone\",\"tones\")==2;assert minOperations(\"a\",\"b\")==2;assert minDistance(\"\",\"abc\")==3;assert minDistance(\"same\",\"same\")==0;",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=5;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nMap<String,Set<String>> choices=new HashMap<>();for(String text:words){Set<String> set=new HashSet<>();for(int mask=0;mask<(1<<text.length());mask++){StringBuilder candidate=new StringBuilder();for(int i=0;i<text.length();i++)if((mask&(1<<i))!=0)candidate.append(text.charAt(i));set.add(candidate.toString());}choices.put(text,set);}\nfor(String a:words)for(String b:words){int expected=a.length()+b.length();for(String kept:choices.get(a))if(choices.get(b).contains(kept))expected=Math.min(expected,a.length()-kept.length()+b.length()-kept.length());assert minDistance(a,b)==expected;assert conversionTable(a,b)==expected;assert conversionRecursive(a,b,a.length(),b.length())==expected;}",
+      "assert minDistance(\"a\".repeat(500),\"b\".repeat(500))==1000;assert minDistance(\"ab\".repeat(250),\"ba\".repeat(250))==2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-insertions-or-deletions-to-convert-string-a-to-b",
+      "title": "Minimum insertions or deletions to convert string A to B",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep an LCS; remove first-string leftovers and add second-string leftovers.",
+      "adaptation": "The public statement and both LCS reduction hints were checked. The full solution requires sign-in, so its Java was not inspected. The linked LeetCode deletion-only contract was checked separately. These original methods explicitly explain why the two operation models have the same count and do not allow a one-cost replacement."
+    },
+    "baselineJava": "static int conversionRecursive(String first, String second, int i, int j) {\n    if (i == 0) return j;\n    if (j == 0) return i;\n    if (first.charAt(i-1) == second.charAt(j-1)) return conversionRecursive(first,second,i-1,j-1);\n    return 1+Math.min(conversionRecursive(first,second,i-1,j),conversionRecursive(first,second,i,j-1));\n}",
+    "baselineTime": "O(2^(n + m)) calls as an upper bound and O(n + m) stack depth.",
+    "better": {
+      "explanation": "A direct operation-count table avoids the LCS formula. Empty prefixes need one operation per remaining character. Matching endings cost nothing; different endings require one operation plus the cheaper of dropping one side. A mismatch does not get a one-cost diagonal replacement.",
+      "java": "static int conversionTable(String first, String second) {\n    int[][] dp = new int[first.length()+1][second.length()+1];\n    for (int i = 0; i <= first.length(); i++) dp[i][0] = i;\n    for (int j = 0; j <= second.length(); j++) dp[0][j] = j;\n    for (int i = 1; i <= first.length(); i++) for (int j = 1; j <= second.length(); j++) {\n        if (first.charAt(i-1) == second.charAt(j-1)) dp[i][j] = dp[i-1][j-1];\n        else dp[i][j] = 1+Math.min(dp[i-1][j],dp[i][j-1]);\n    }\n    return dp[first.length()][second.length()];\n}",
+      "time": "O(n × m).",
+      "space": "O((n + 1) × (m + 1))."
+    }
   }
 }
