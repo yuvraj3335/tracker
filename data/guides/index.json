@@ -17364,5 +17364,139 @@
         ]
       ]
     }
+  },
+  "422": {
+    "problem": "Earn the largest stock-trading profit when the day after each sale must be spent resting.",
+    "assumptions": "Prices are nonnegative. There is no fee and no cap on completed trades. Hold at most one share. Selling on day d prevents buying on day d+1; the earliest next buy is day d+2.",
+    "example": {
+      "input": "prices = [2,4,6,1,5]",
+      "output": "6",
+      "explanation": "Buy on day 0 at 2, sell on day 1 at 4, rest on day 2, then buy at 1 and sell at 5. The gains are 2 + 4. Selling the first share later at 6 would block the cheap purchase at 1."
+    },
+    "baseline": "Try buy/wait or sell/hold recursively. After a sale, jump forward by two days. This enumerates legal schedules but revisits the same remaining day and holding state.",
+    "approach": "The cooldown changes one edge in the Stock II recurrence. Buying, waiting, and holding still move to tomorrow. Selling moves to the empty-hand state two days ahead because tomorrow is reserved for rest.\n\nSo an empty hand compares wait = empty(day+1) with buy = −price + holding(day+1). A held share compares hold = holding(day+1) with sell = price + empty(day+2). The jump enforces the rule without a separate cooldown flag.\n\nFill days backward. Keep tomorrow’s pair and the pair two days ahead. Calculate today into a new pair, shift tomorrow into the two-days-ahead slot, then put today into tomorrow’s slot. Both future slots start at zero because no days remain beyond the array.",
+    "steps": [
+      "Keep zero-filled answers for the next day and two days ahead.",
+      "Walk backward through the prices.",
+      "Buy/wait reads the next-day pair.",
+      "Sell reads the empty-hand answer two days ahead; hold reads tomorrow.",
+      "Shift the two future layers in order, then return day 0 with an empty hand."
+    ],
+    "java": "static long cooldownProfit(int[] prices) {\n    long[] nextDay = new long[2];\n    long[] afterRest = new long[2];\n    for (int day=prices.length-1;day>=0;day--) {\n        long[] current = new long[2];\n        current[0] = Math.max(nextDay[0],-(long)prices[day]+nextDay[1]);\n        current[1] = Math.max(nextDay[1],(long)prices[day]+afterRest[0]);\n        afterRest = nextDay;\n        nextDay = current;\n    }\n    return nextDay[0];\n}\nstatic int maxProfit(int[] prices) {\n    return Math.toIntExact(cooldownProfit(prices));\n}",
+    "time": "O(n).",
+    "space": "O(1) working space; only three pairs are needed at a time.",
+    "pitfalls": [
+      "Rest is required after selling, not after buying.",
+      "A sale must read day+2. Reading day+1 silently solves the no-cooldown problem.",
+      "The recursive base case needs day >= length because a sale can jump past the end.",
+      "If you shift the future layers in the wrong order, both may end up describing the same day."
+    ],
+    "tests": [
+      "assert maxProfit(new int[]{2,4,6,1,5})==6;assert maxProfit(new int[]{1,4,2,7})==6;assert maxProfit(new int[]{})==0;",
+      "Random random=new Random(422);for(int trial=0;trial<1200;trial++){int n=random.nextInt(11);int[] p=new int[n];for(int i=0;i<n;i++)p[i]=random.nextInt(11);long expected=0;for(int mask=0;mask<(1<<n);mask++){if((Integer.bitCount(mask)&1)!=0)continue;boolean selling=false,valid=true;int lastSale=-2;long cash=0;for(int day=0;day<n;day++)if((mask&(1<<day))!=0){if(!selling){if(day<=lastSale+1){valid=false;break;}cash-=p[day];}else{cash+=p[day];lastSale=day;}selling=!selling;}if(valid)expected=Math.max(expected,cash);}assert cooldownProfit(p)==expected;assert cooldownMemo(p)==expected;assert cooldownTable(p)==expected;assert cooldownRecursive(p,0,false)==expected;}",
+      "int[] p=new int[5000];for(int i=0;i<p.length;i++)p[i]=i;assert maxProfit(p)==4999;assert cooldownProfit(new int[]{0,Integer.MAX_VALUE,0,0,Integer.MAX_VALUE})==4294967294L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/best-time-to-buy-and-sell-stock-with-cooldown",
+      "title": "Best Time to Buy and Sell Stock with Cooldown",
+      "checkedOn": "2026-10-29",
+      "approach": "Two holding states; move two days ahead after selling, then roll the two required future layers.",
+      "adaptation": "All four complete public Java implementations were checked. This version keeps the same transitions and layer order, uses descriptive names, and widens profit arithmetic to long before adapting to the pinned int signature."
+    },
+    "baselineJava": "static long cooldownRecursive(int[] prices, int day, boolean held) {\n    if(day>=prices.length) return 0;\n    long wait = cooldownRecursive(prices,day+1,held);\n    long act = held ? (long)prices[day]+cooldownRecursive(prices,day+2,false)\n                    : -(long)prices[day]+cooldownRecursive(prices,day+1,true);\n    return Math.max(wait,act);\n}",
+    "baselineTime": "O(2ⁿ) upper bound, O(n) stack; for small examples only.",
+    "better": {
+      "explanation": "Memoization caches each day and holding state. Tabulation uses n+2 rows so a final-day sale can safely read day+2. Both preserve exactly the same two-day jump as the main method.",
+      "java": "static long cooldownMemo(int[] p) {\n    long[][] memo = new long[p.length][2];\n    for(long[] row:memo) Arrays.fill(row,-1);\n    return cooldownAt(p,0,0,memo);\n}\nstatic long cooldownAt(int[] p, int day, int held, long[][] memo) {\n    if(day>=p.length) return 0;\n    if(memo[day][held]!=-1) return memo[day][held];\n    long wait = cooldownAt(p,day+1,held,memo);\n    long act = held==1 ? (long)p[day]+cooldownAt(p,day+2,0,memo)\n                       : -(long)p[day]+cooldownAt(p,day+1,1,memo);\n    return memo[day][held] = Math.max(wait,act);\n}\nstatic long cooldownTable(int[] p) {\n    long[][] dp = new long[p.length+2][2];\n    for(int day=p.length-1;day>=0;day--) {\n        dp[day][0] = Math.max(dp[day+1][0],-(long)p[day]+dp[day+1][1]);\n        dp[day][1] = Math.max(dp[day+1][1],(long)p[day]+dp[day+2][0]);\n    }\n    return dp[0][0];\n}",
+      "time": "O(n).",
+      "space": "O(n) table. Memoization also needs an O(n) call stack."
+    },
+    "trace": {
+      "columns": [
+        "Day",
+        "Price",
+        "Action",
+        "Cash so far"
+      ],
+      "rows": [
+        [
+          "0",
+          "2",
+          "Buy",
+          "−2"
+        ],
+        [
+          "1",
+          "4",
+          "Sell",
+          "2"
+        ],
+        [
+          "2",
+          "6",
+          "Required rest",
+          "2"
+        ],
+        [
+          "3",
+          "1",
+          "Buy",
+          "1"
+        ],
+        [
+          "4",
+          "5",
+          "Sell",
+          "6"
+        ]
+      ]
+    }
+  },
+  "423": {
+    "problem": "Maximize stock-trading profit when each completed buy/sell pair pays one fixed fee.",
+    "assumptions": "Prices and fee are nonnegative. Any number of non-overlapping trades are allowed. This pinned LeetCode problem and the linked Striver article have a fee but no cooldown. The helper returns long; maxProfit matches the pinned int signature.",
+    "example": {
+      "input": "prices = [1,4,3,8], fee = 2",
+      "output": "5",
+      "explanation": "One trade from 1 to 8 earns 8−1−2 = 5. Splitting at 4 and buying again at 3 pays the fee twice and earns only (4−1−2)+(8−3−2) = 4."
+    },
+    "baseline": "Recursively try buy/wait and sell/hold. Subtract the fee only in the sell branch. This explores the right schedules but repeats the same suffix/holding state.",
+    "approach": "Use the two states from Stock II: an empty hand and a held share. Buying still costs today’s price. Selling now brings in price−fee rather than the full price. Every completed trade has exactly one sell, so this charges the fee exactly once.\n\nFor each day, compare buying against waiting and selling against holding. Holding across a small dip can be better than closing and reopening the trade because another sale would pay another fee. That is why collecting every positive daily rise is no longer enough.\n\nWork backward and keep just tomorrow’s two answers. Compute both current states before replacing either future state. Trading is optional, so zero remains available even when every possible trade loses money after fees. Charging the fee on buying instead can also work, but then it must not be charged again on selling.",
+    "steps": [
+      "Initialize tomorrow’s empty and holding answers to zero.",
+      "For each price in reverse, compare waiting with buying at that price.",
+      "Compare holding with selling for price−fee.",
+      "Update both tomorrow values together.",
+      "Return the empty-hand answer for the first day."
+    ],
+    "java": "static long feeProfit(int[] prices, int fee) {\n    long nextEmpty = 0, nextHolding = 0;\n    for(int day=prices.length-1;day>=0;day--) {\n        long empty = Math.max(nextEmpty,-(long)prices[day]+nextHolding);\n        long holding = Math.max(nextHolding,(long)prices[day]-fee+nextEmpty);\n        nextEmpty = empty;\n        nextHolding = holding;\n    }\n    return nextEmpty;\n}\nstatic int maxProfit(int[] prices, int fee) {\n    return Math.toIntExact(feeProfit(prices,fee));\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Charge one fee per completed trade, not one fee per day or one on each side of the trade.",
+      "There is no mandatory rest day in this problem. Do not carry over day+2 from the cooldown lesson.",
+      "With fee zero, this becomes the unlimited-transactions problem.",
+      "A fee larger than every possible gain makes skipping all trades optimal."
+    ],
+    "tests": [
+      "assert maxProfit(new int[]{1,4,3,8},2)==5;assert maxProfit(new int[]{1,4,2,7},1)==6;assert maxProfit(new int[]{1,4,2,7},10)==0;assert maxProfit(new int[]{},2)==0;",
+      "Random random=new Random(423);for(int trial=0;trial<1200;trial++){int n=random.nextInt(11);int[] p=new int[n];for(int i=0;i<n;i++)p[i]=random.nextInt(11);for(int fee=0;fee<=4;fee++){long expected=0;for(int mask=0;mask<(1<<n);mask++){int count=Integer.bitCount(mask);if((count&1)!=0)continue;boolean selling=false;long cash=-(long)fee*(count/2);for(int day=0;day<n;day++)if((mask&(1<<day))!=0){cash+=selling?p[day]:-p[day];selling=!selling;}expected=Math.max(expected,cash);}assert feeProfit(p,fee)==expected;assert feeMemo(p,fee)==expected;assert feeTable(p,fee)==expected;assert feeRecursive(p,fee,0,false)==expected;}}",
+      "int[] p=new int[50000];for(int i=0;i<p.length;i++)p[i]=(i%2)*49999;assert maxProfit(p,1)==1249950000;assert feeProfit(new int[]{0,Integer.MAX_VALUE,0,Integer.MAX_VALUE},0)==4294967294L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/best-time-to-buy-and-sell-stock-with-transaction-fee",
+      "title": "Best Time to Buy and Sell Stock with Transaction Fee",
+      "checkedOn": "2026-10-29",
+      "approach": "The two daily holding states with one fee deduction on each sale; recursion through constant-space DP.",
+      "adaptation": "All four complete public Java implementations were checked. The source’s long arithmetic and sale-side fee deduction are preserved. The current sheet’s practice URL includes the words cooldown-and-transaction-fees, but its linked article and pinned LeetCode target used here are fee-only; no cooldown rule is added."
+    },
+    "baselineJava": "static long feeRecursive(int[] p, int fee, int day, boolean held) {\n    if(day==p.length) return 0;\n    long wait = feeRecursive(p,fee,day+1,held);\n    long act = (held ? (long)p[day]-fee : -(long)p[day])\n        + feeRecursive(p,fee,day+1,!held);\n    return Math.max(wait,act);\n}",
+    "baselineTime": "O(2ⁿ) time and O(n) stack; for small examples only.",
+    "better": {
+      "explanation": "Memoization saves each suffix/holding answer. The full table writes those answers backward from an extra zero-filled final row. In both methods the fee appears in the sell transition only.",
+      "java": "static long feeMemo(int[] p, int fee) {\n    long[][] memo = new long[p.length][2];\n    for(long[] row:memo) Arrays.fill(row,-1);\n    return feeAt(p,fee,0,0,memo);\n}\nstatic long feeAt(int[] p, int fee, int day, int held, long[][] memo) {\n    if(day==p.length) return 0;\n    if(memo[day][held]!=-1) return memo[day][held];\n    long wait = feeAt(p,fee,day+1,held,memo);\n    long act = (held==1 ? (long)p[day]-fee : -(long)p[day])\n        + feeAt(p,fee,day+1,1-held,memo);\n    return memo[day][held] = Math.max(wait,act);\n}\nstatic long feeTable(int[] p, int fee) {\n    long[][] dp = new long[p.length+1][2];\n    for(int day=p.length-1;day>=0;day--) {\n        dp[day][0] = Math.max(dp[day+1][0],-(long)p[day]+dp[day+1][1]);\n        dp[day][1] = Math.max(dp[day+1][1],(long)p[day]-fee+dp[day+1][0]);\n    }\n    return dp[0][0];\n}",
+      "time": "O(n).",
+      "space": "O(n) table; memoization also has an O(n) stack."
+    }
   }
 }
