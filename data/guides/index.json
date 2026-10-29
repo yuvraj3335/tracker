@@ -13365,5 +13365,85 @@
     },
     "baselineJava": "static int[][] nearestByComparison(int[][] matrix, int target) {\n    int rows = matrix.length, cols = rows == 0 ? 0 : matrix[0].length;\n    List<int[]> sources = new ArrayList<>();\n    for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++)\n        if (matrix[r][c] == target) sources.add(new int[]{r,c});\n    int[][] answer = new int[rows][cols];\n    for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {\n        int best = Integer.MAX_VALUE;\n        for (int[] source : sources) best = Math.min(best, Math.abs(r-source[0]) + Math.abs(c-source[1]));\n        answer[r][c] = sources.isEmpty() ? -1 : best;\n    }\n    return answer;\n}",
     "baselineTime": "O(R × C × K) for K source cells, at most O((R × C)²); O(R × C) storage."
+  },
+  "343": {
+    "problem": "Change every enclosed region of O cells into X, while preserving all regions connected to a board edge.",
+    "assumptions": "The rectangular board contains only X and O. Connections use up, down, left, and right. A region is safe if any of its cells can reach a boundary O through other O cells. Modify the board in place.",
+    "example": {
+      "input": "XXXX / XOOX / XXXO / XXXX",
+      "output": "XXXX / XXXX / XXXO / XXXX",
+      "explanation": "The middle pair of O cells has no path to an edge and is captured. The O on the right edge stays O. Diagonal contact between them does not connect the regions."
+    },
+    "baseline": "Start recursive DFS from every boundary O, marking its whole region with #. Then capture unmarked O cells and restore # to O. This is already O(R × C), but its recursion may be deep.",
+    "approach": "It is easier to identify the cells that must survive. Every boundary O is safe. Every O connected to one of those cells is safe too. Start a queue from all boundary O cells and temporarily mark each safe cell with # before enqueuing it.\n\nAfter this search, any O still on the board has no path to an edge. Change those cells to X. Restore the temporary # markers to O.\n\nMarking before insertion also handles corners and one-row boards: the same cell may be encountered while scanning two borders, but it only enters the queue once.",
+    "steps": [
+      "Mark and enqueue boundary O cells from all four borders.",
+      "Expand through orthogonally adjacent O cells, marking each with #.",
+      "Turn remaining O cells into X.",
+      "Restore every # to O."
+    ],
+    "java": "static void solve(char[][] board) {\n    if (board.length == 0 || board[0].length == 0) return;\n    int rows = board.length, cols = board[0].length;\n    Deque<int[]> queue = new ArrayDeque<>();\n    for (int r = 0; r < rows; r++) { enqueueSafe(board,r,0,queue); enqueueSafe(board,r,cols-1,queue); }\n    for (int c = 0; c < cols; c++) { enqueueSafe(board,0,c,queue); enqueueSafe(board,rows-1,c,queue); }\n    int[][] directions = {{-1,0},{1,0},{0,-1},{0,1}};\n    while (!queue.isEmpty()) {\n        int[] cell = queue.remove();\n        for (int[] direction : directions) enqueueSafe(board,cell[0]+direction[0],cell[1]+direction[1],queue);\n    }\n    finishBoard(board);\n}\nstatic void enqueueSafe(char[][] board, int row, int col, Deque<int[]> queue) {\n    if (row < 0 || row >= board.length || col < 0 || col >= board[0].length || board[row][col] != 'O') return;\n    board[row][col] = '#';\n    queue.add(new int[]{row,col});\n}\n\nstatic void finishBoard(char[][] board) {\n    for (char[] row : board) for (int c = 0; c < row.length; c++) {\n        if (row[c] == 'O') row[c] = 'X';\n        else if (row[c] == '#') row[c] = 'O';\n    }\n}",
+    "time": "O(R × C).",
+    "space": "O(R × C) worst-case queue space.",
+    "pitfalls": [
+      "An interior O can still be safe through a long path to the border.",
+      "Do not count diagonal contact as a connection.",
+      "Restore temporary markers before returning.",
+      "The source’s BFS section currently displays DFS Java; the queue implementation here follows its BFS prose."
+    ],
+    "tests": [
+      "for(int rows=1;rows<=3;rows++)for(int cols=1;cols<=4;cols++)for(int mask=0;mask<(1<<(rows*cols));mask++){\n int n=rows*cols;boolean[][]reach=new boolean[n][n];\n for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]=((mask>>i)&1)==1&&((mask>>j)&1)==1&&(i==j||Math.abs(i/cols-j/cols)+Math.abs(i%cols-j%cols)==1);\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n boolean[]safe=new boolean[n];for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(j/cols==0||j/cols==rows-1||j%cols==0||j%cols==cols-1)safe[i]|=reach[i][j];char[][]a=new char[rows][cols],b=new char[rows][cols],expected=new char[rows][cols];for(int i=0;i<n;i++){a[i/cols][i%cols]=b[i/cols][i%cols]=((mask>>i)&1)==1?'O':'X';expected[i/cols][i%cols]=safe[i]?'O':'X';}solve(a);solveRecursive(b);assert Arrays.deepEquals(a,expected);assert Arrays.deepEquals(b,expected);}",
+      "char[][]b={\"XXXX\".toCharArray(),\"XOOX\".toCharArray(),\"XXXO\".toCharArray(),\"XXXX\".toCharArray()};solve(b);assert new String(b[1]).equals(\"XXXX\")&&new String(b[2]).equals(\"XXXO\");solve(new char[0][]);",
+      "char[][]a=new char[1][100000];Arrays.fill(a[0],'O');solve(a);for(char v:a[0])assert v=='O';"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/surrounded-regions",
+      "title": "Surrounded Regions: Replace Enclosed O Cells with X",
+      "checkedOn": "2026-10-29",
+      "approach": "Mark boundary-connected cells, capture the rest, then restore safe cells.",
+      "adaptation": "The public DFS Java and BFS prose were checked. The BFS section’s Java currently repeats the DFS implementation. The main queue version is authored from the described BFS, while the recursive alternative follows the checked DFS code."
+    },
+    "baselineJava": "static void solveRecursive(char[][] board) {\n    if (board.length == 0 || board[0].length == 0) return;\n    int rows = board.length, cols = board[0].length;\n    for (int r = 0; r < rows; r++) { markSafe(board,r,0); markSafe(board,r,cols-1); }\n    for (int c = 0; c < cols; c++) { markSafe(board,0,c); markSafe(board,rows-1,c); }\n    finishBoard(board);\n}\nstatic void markSafe(char[][] board, int row, int col) {\n    if (row < 0 || row >= board.length || col < 0 || col >= board[0].length || board[row][col] != 'O') return;\n    board[row][col] = '#';\n    markSafe(board,row-1,col); markSafe(board,row+1,col);\n    markSafe(board,row,col-1); markSafe(board,row,col+1);\n}",
+    "baselineTime": "O(R × C) time and up to O(R × C) recursive stack."
+  },
+  "344": {
+    "problem": "Count land cells that cannot reach the edge of the grid through other land cells.",
+    "assumptions": "1 is land and 0 is water. Movement is four-directional. Count individual trapped cells, not the number of islands. The implementation removes boundary-connected land by changing it to 0; enclosed land remains 1.",
+    "example": {
+      "input": "00000 / 01100 / 00100 / 00001",
+      "output": "3",
+      "explanation": "The three connected inner land cells cannot escape. The bottom-right land cell touches the border and is excluded. The answer counts three cells, although they form only one island."
+    },
+    "baseline": "Recursive DFS from boundary land removes all land that can escape. Count the remaining ones. This has the same time complexity as BFS but may need a deep recursive stack.",
+    "approach": "Walking from land to the boundary is equivalent to walking from boundary land back to it, because every permitted move works both ways. Start from every land cell on the four edges.\n\nChange each discovered land cell to water before adding it to the queue. This marks it as processed and removes it from the eventual count. Continue through its land neighbors until no boundary-connected land remains.\n\nNow every remaining 1 is trapped. Add those cells, not their connected groups, to get the answer.",
+    "steps": [
+      "Enqueue all boundary land, changing it to 0 immediately.",
+      "Remove every land cell reachable from those sources.",
+      "Scan the grid after the queue empties.",
+      "Count the remaining ones."
+    ],
+    "java": "static int numEnclaves(int[][] grid) {\n    if (grid.length == 0 || grid[0].length == 0) return 0;\n    int rows = grid.length, cols = grid[0].length;\n    Deque<int[]> queue = new ArrayDeque<>();\n    for (int r = 0; r < rows; r++) { removeLand(grid,r,0,queue); removeLand(grid,r,cols-1,queue); }\n    for (int c = 0; c < cols; c++) { removeLand(grid,0,c,queue); removeLand(grid,rows-1,c,queue); }\n    int[][] directions = {{-1,0},{1,0},{0,-1},{0,1}};\n    while (!queue.isEmpty()) {\n        int[] cell = queue.remove();\n        for (int[] direction : directions) removeLand(grid,cell[0]+direction[0],cell[1]+direction[1],queue);\n    }\n    int answer = 0;\n    for (int[] row : grid) for (int cell : row) answer += cell;\n    return answer;\n}\nstatic void removeLand(int[][] grid, int row, int col, Deque<int[]> queue) {\n    if (row < 0 || row >= grid.length || col < 0 || col >= grid[0].length || grid[row][col] != 1) return;\n    grid[row][col] = 0;\n    queue.add(new int[]{row,col});\n}",
+    "time": "O(R × C).",
+    "space": "O(R × C) worst-case queue space.",
+    "pitfalls": [
+      "The answer counts trapped cells, not trapped components.",
+      "A land cell need not itself touch the border to escape.",
+      "Corners can appear in two border scans; mark before enqueuing.",
+      "The input is changed. Copy it first if you need the original grid later."
+    ],
+    "tests": [
+      "for(int rows=1;rows<=3;rows++)for(int cols=1;cols<=4;cols++)for(int mask=0;mask<(1<<(rows*cols));mask++){\n int n=rows*cols;boolean[][]reach=new boolean[n][n];\n for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]=((mask>>i)&1)==1&&((mask>>j)&1)==1&&(i==j||Math.abs(i/cols-j/cols)+Math.abs(i%cols-j%cols)==1);\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n boolean[]safe=new boolean[n];for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(j/cols==0||j/cols==rows-1||j%cols==0||j%cols==cols-1)safe[i]|=reach[i][j];int[][]a=new int[rows][cols],b=new int[rows][cols],after=new int[rows][cols];int expected=0;for(int i=0;i<n;i++){a[i/cols][i%cols]=b[i/cols][i%cols]=(mask>>i)&1;after[i/cols][i%cols]=safe[i]?0:((mask>>i)&1);expected+=after[i/cols][i%cols];}assert numEnclaves(a)==expected;assert enclavesRecursive(b)==expected;assert Arrays.deepEquals(a,after)&&Arrays.deepEquals(b,after);}",
+      "int[][]a={{0,0,0,0,0},{0,1,1,0,0},{0,0,1,0,0},{0,0,0,0,1}};assert numEnclaves(a)==3;assert numEnclaves(new int[0][])==0;",
+      "int[][]a=new int[1][100000];Arrays.fill(a[0],1);assert numEnclaves(a)==0;for(int v:a[0])assert v==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/number-of-enclaves",
+      "title": "Number of Enclaves: Count Land Cells Trapped in a Grid",
+      "checkedOn": "2026-10-29",
+      "approach": "Remove boundary-connected land with DFS or multi-source BFS, then count remaining cells.",
+      "adaptation": "The public DFS and BFS Java methods were checked. The same destructive marking and border traversal are retained, with a shared enqueue helper and empty-grid handling."
+    },
+    "baselineJava": "static int enclavesRecursive(int[][] grid) {\n    if (grid.length == 0 || grid[0].length == 0) return 0;\n    int rows = grid.length, cols = grid[0].length;\n    for (int r = 0; r < rows; r++) { eraseLand(grid,r,0); eraseLand(grid,r,cols-1); }\n    for (int c = 0; c < cols; c++) { eraseLand(grid,0,c); eraseLand(grid,rows-1,c); }\n    int answer = 0;\n    for (int[] row : grid) for (int cell : row) answer += cell;\n    return answer;\n}\nstatic void eraseLand(int[][] grid, int row, int col) {\n    if (row < 0 || row >= grid.length || col < 0 || col >= grid[0].length || grid[row][col] == 0) return;\n    grid[row][col] = 0;\n    eraseLand(grid,row-1,col); eraseLand(grid,row+1,col);\n    eraseLand(grid,row,col-1); eraseLand(grid,row,col+1);\n}",
+    "baselineTime": "O(R × C) time and up to O(R × C) recursive stack."
   }
 }
