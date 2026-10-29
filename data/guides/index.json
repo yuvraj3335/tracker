@@ -14346,5 +14346,85 @@
     },
     "baselineJava": "static int countPathsByEnumeration(int n, int[][] roads) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int i = 0; i < n; i++) graph.add(new ArrayList<>());\n    for (int[] road : roads) {\n        graph.get(road[0]).add(new int[]{road[1],road[2]});\n        graph.get(road[1]).add(new int[]{road[0],road[2]});\n    }\n    long[] result = {Long.MAX_VALUE,0}; // best time, count\n    enumerateRoutes(0,n-1,0,graph,new boolean[n],result);\n    return (int)result[1];\n}\nstatic void enumerateRoutes(int node, int target, long time, List<List<int[]>> graph,\n                            boolean[] used, long[] result) {\n    if (node == target) {\n        if (time < result[0]) { result[0] = time; result[1] = 1; }\n        else if (time == result[0]) result[1] = (result[1]+1)%1_000_000_007;\n        return;\n    }\n    used[node] = true;\n    for (int[] edge : graph.get(node)) if (!used[edge[0]])\n        enumerateRoutes(edge[0],target,time+edge[1],graph,used,result);\n    used[node] = false;\n}",
     "baselineTime": "Factorially many route prefixes in a dense graph; O(V + E) space for adjacency, visited flags, and the recursion stack."
+  },
+  "366": {
+    "problem": "Starting from start, repeatedly multiply by any number in arr and take the remainder modulo 100000. Find the fewest operations needed to reach end.",
+    "assumptions": "Each multiplier is a positive int. start and end lie from 0 through 99999. Multipliers may be reused. Return −1 if end cannot be reached.",
+    "example": {
+      "input": "arr = [3, 4], start = 2, end = 24",
+      "output": "2",
+      "explanation": "One shortest sequence is 2→6→24. The first multiplication uses 3 and the second uses 4."
+    },
+    "baseline": "Trying every multiplication sequence repeats the same values many times and can run forever around a cycle. You could first build every edge between all 100000 possible values, but that stores transitions we can calculate when needed.",
+    "approach": "The numbers are the graph. Each possible remainder is a node, and multiplying once is an edge. Every edge costs one operation, so use BFS.\n\nMark a value when it first enters the queue. That first discovery already uses the fewest operations. This also prevents loops such as multiplying by 1 over and over. There are only 100000 possible remainders, so the search eventually finishes even if the target is unreachable.\n\nThe multiplication can overflow int before the remainder is taken. Cast current to long before multiplying, then convert the small remainder back to int.",
+    "steps": [
+      "Return 0 immediately when start equals end.",
+      "Set every distance to −1, then set the start distance to 0 and enqueue it.",
+      "For each removed value, try every multiplier and compute the next remainder using long.",
+      "Visit each new remainder once; return its distance as soon as it equals end.",
+      "If the queue empties, return −1."
+    ],
+    "java": "static int minimumMultiplications(int[] multipliers, int start, int end) {\n    if (start == end) return 0;\n    final int MOD = 100_000;\n    int[] distance = new int[MOD];\n    Arrays.fill(distance,-1);\n    Queue<Integer> queue = new ArrayDeque<>();\n    distance[start] = 0;\n    queue.offer(start);\n    while (!queue.isEmpty()) {\n        int current = queue.poll();\n        for (int multiplier : multipliers) {\n            int next = (int)((long)current * multiplier % MOD);\n            if (distance[next] != -1) continue;\n            distance[next] = distance[current] + 1;\n            if (next == end) return distance[next];\n            queue.offer(next);\n        }\n    }\n    return -1;\n}",
+    "time": "O(M + NM), where M = 100000 and N is the number of multipliers. Each reachable remainder tries N multipliers; initializing distances costs O(M).",
+    "space": "O(M) for distances and the queue. No explicit edges are stored.",
+    "pitfalls": [
+      "Apply modulo after each multiplication, not only at the end of a sequence.",
+      "Use (long) current * multiplier; casting the already overflowed product is too late.",
+      "The values do not have to increase, so sorting or a greedy choice of the biggest multiplier is unsuitable.",
+      "Check start == end before BFS.",
+      "Mark on discovery so cycles do not create endless queue entries."
+    ],
+    "tests": [
+      "assert minimumMultiplications(new int[]{3,4},2,24)==2;assert minimumMultiplications(new int[]{1,1},8,9)==-1;assert minimumMultiplications(new int[]{2,3},0,1)==-1;assert minimumMultiplications(new int[]{3},7,7)==0;assert minimumMultiplications(new int[]{100000},17,0)==1;assert minimumMultiplications(new int[]{Integer.MAX_VALUE},99999,(int)(99999L*Integer.MAX_VALUE%100000))==1;",
+      "Random random=new Random(366);\n// Multiples of 10000 stay in a closed set of ten residues.\nfor(int trial=0;trial<100;trial++){\n int[]a=new int[1+random.nextInt(5)];for(int i=0;i<a.length;i++)a[i]=1+random.nextInt(20);\n int[][]d=new int[10][10];for(int i=0;i<10;i++){Arrays.fill(d[i],1000);d[i][i]=0;for(int m:a)d[i][i*m%10]=Math.min(d[i][i*m%10],1);}\n for(int k=0;k<10;k++)for(int i=0;i<10;i++)for(int j=0;j<10;j++)d[i][j]=Math.min(d[i][j],d[i][k]+d[k][j]);\n for(int query=0;query<4;query++){int s=random.nextInt(10),t=random.nextInt(10);assert minimumMultiplications(a,s*10000,t*10000)==(d[s][t]==1000?-1:d[s][t]);}\n}",
+      "int current=7;Map<Integer,Integer>first=new HashMap<>();while(!first.containsKey(current)){first.put(current,first.size());current=(int)(current*99999L%100000);}for(var e:first.entrySet())assert minimumMultiplications(new int[]{99999},7,e.getKey())==e.getValue();assert minimumMultiplications(new int[]{99999},7,8)==-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/minimum-multiplications-to-reach-end",
+      "title": "Minimum Multiplications to Reach End",
+      "checkedOn": "2026-10-29",
+      "approach": "BFS over modulo-100000 residues, discovering each value once.",
+      "adaptation": "The complete public Java method was checked, including its early zero-step return and cast before multiplication. The guide explains the implicit graph without introducing a heap."
+    }
+  },
+  "367": {
+    "problem": "Find shortest distances from one source in a directed graph that may contain negative edges. Return [-1] if a negative cycle can be reached from that source.",
+    "assumptions": "Vertices are 0-based. The core method uses Long.MAX_VALUE for unreachable nodes and long distances. The judge wrapper returns 100000000 for unreachable nodes and checked int distances. A negative cycle in a disconnected region does not invalidate this source’s result.",
+    "example": {
+      "input": "V = 5, edges = [[0,1,4], [0,2,7], [1,2,-2], [2,3,3]], source = 0",
+      "output": "[0, 4, 2, 5, 100000000]",
+      "explanation": "The negative edge improves the route to 2 from 7 to 2. Vertex 3 is then reached at cost 5. No route reaches vertex 4."
+    },
+    "baseline": "For nonnegative edges, Dijkstra is faster. With negative edges, finalizing the currently nearest vertex can be wrong. Repeated edge scans let later improvements flow through the graph instead.",
+    "approach": "To relax an edge u→v means to ask: would going to u and then taking this edge improve the current answer for v? If yes, save that smaller distance. Ignore edges whose starting vertex is unreachable.\n\nRepeat a full edge scan up to V − 1 times. A shortest path without a negative cycle can be chosen without repeating vertices, so it has at most V − 1 edges. Each full scan propagates at least one more edge of every such path; input order may propagate more.\n\nThen scan once more. If a reachable edge can still improve a distance, some reachable negative cycle lets us keep lowering costs. Return [-1]. Otherwise the distances are final. A scan that changes nothing allows an early stop.",
+    "steps": [
+      "Initialize source distance to 0 and other distances to infinity.",
+      "Make up to V − 1 full passes, relaxing reachable edges.",
+      "Stop early if a pass changes nothing.",
+      "Make one extra scan: a remaining improvement means a reachable negative cycle.",
+      "Convert unreachable values only when formatting the judge result."
+    ],
+    "java": "static long[] bellmanFordLong(int vertices, int[][] edges, int source) {\n    long[] distance = new long[vertices];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    distance[source] = 0;\n    for (int pass = 1; pass < vertices; pass++) {\n        boolean changed = false;\n        for (int[] edge : edges) {\n            int from = edge[0], to = edge[1];\n            if (distance[from] == Long.MAX_VALUE) continue;\n            long candidate = distance[from] + edge[2];\n            if (candidate < distance[to]) {\n                distance[to] = candidate;\n                changed = true;\n            }\n        }\n        if (!changed) break;\n    }\n    for (int[] edge : edges) {\n        if (distance[edge[0]] != Long.MAX_VALUE &&\n            distance[edge[0]] + edge[2] < distance[edge[1]]) return new long[]{-1};\n    }\n    return distance;\n}\nstatic int[] bellmanFord(int vertices, int[][] edges, int source) {\n    long[] distance = bellmanFordLong(vertices,edges,source);\n    int[] result = new int[distance.length];\n    for (int i = 0; i < result.length; i++)\n        result[i] = distance[i] == Long.MAX_VALUE ? 100_000_000 : Math.toIntExact(distance[i]);\n    return result;\n}",
+    "time": "O(VE + V) time, including initialization and the extra cycle scan.",
+    "space": "O(V) for distances and the returned result.",
+    "pitfalls": [
+      "Only a negative cycle reachable from the source causes [-1].",
+      "Never add a weight to the infinity sentinel.",
+      "A negative edge is not automatically a negative cycle.",
+      "The source prose requests 100000000 for unreachable nodes, but its Java returns its long infinity sentinel directly. The wrapper here explicitly performs the required conversion.",
+      "In-place scans are valid here. The copied layers needed by a flight-count limit solve a different requirement."
+    ],
+    "tests": [
+      "assert Arrays.equals(bellmanFord(5,new int[][]{{0,1,4},{0,2,7},{1,2,-2},{2,3,3}},0),new int[]{0,4,2,5,100000000});assert Arrays.equals(bellmanFord(3,new int[][]{{0,1,1},{1,2,-3},{2,1,1}},0),new int[]{-1});assert Arrays.equals(bellmanFord(3,new int[][]{{1,2,-3},{2,1,1}},0),new int[]{0,100000000,100000000});assert Arrays.equals(bellmanFord(1,new int[][]{{0,0,-1}},0),new int[]{-1});",
+      "Random random=new Random(367);\nfor(int trial=0;trial<1200;trial++){\n int n=1+random.nextInt(7);long inf=1_000_000;long[][]d=new long[n][n];for(int i=0;i<n;i++){Arrays.fill(d[i],inf);d[i][i]=0;}\n List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(random.nextInt(5)==0){int w=random.nextInt(15)-5;list.add(new int[]{i,j,w});d[i][j]=Math.min(d[i][j],w);}\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(d[i][k]!=inf&&d[k][j]!=inf)d[i][j]=Math.min(d[i][j],d[i][k]+d[k][j]);\n int[][]edges=list.toArray(new int[0][]);for(int s=0;s<n;s++){boolean negative=false;for(int k=0;k<n;k++)if(d[s][k]!=inf&&d[k][k]<0)negative=true;long[]actual=bellmanFordLong(n,edges,s);if(negative){assert Arrays.equals(actual,new long[]{-1});}else{assert actual.length==n;for(int v=0;v<n;v++)assert actual[v]==(d[s][v]==inf?Long.MAX_VALUE:d[s][v]);}}\n}",
+      "assert Arrays.equals(bellmanFordLong(3,new int[][]{{1,2,Integer.MAX_VALUE},{0,1,Integer.MAX_VALUE}},0),new long[]{0,Integer.MAX_VALUE,2L*Integer.MAX_VALUE});assert Arrays.equals(bellmanFordLong(3,new int[][]{{1,2,Integer.MIN_VALUE},{0,1,Integer.MIN_VALUE}},0),new long[]{0,Integer.MIN_VALUE,2L*Integer.MIN_VALUE});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/bellman-ford-algorithm",
+      "title": "Bellman–Ford Algorithm: Shortest Paths with Negative Edges",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated relaxation followed by one extra scan for a reachable negative cycle.",
+      "adaptation": "The complete public Java method was checked. Its long infinity return differs from the article’s stated 100000000 contract, so this guide separates the long core from a judge-format wrapper and documents that difference."
+    }
   }
 }
