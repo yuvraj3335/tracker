@@ -12395,5 +12395,132 @@
     },
     "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic int[] floorCeilByScan(TreeNode root, int key) {\n    int floor = -1, ceil = -1;\n    for (int value : inorderValues(root)) {\n        if (value <= key) floor = value;\n        if (value >= key) { ceil = value; break; }\n    }\n    return new int[]{floor, ceil};\n}",
     "baselineTime": "O(n) time and O(n) stored values, plus O(h) traversal stack."
+  },
+  "319": {
+    "problem": "Insert a new value into a binary search tree and return the resulting root.",
+    "assumptions": "The linked problem guarantees that the value is absent. We insert it as a new leaf and preserve all existing nodes. For an empty tree, the new node becomes the root. As a stated extension, inserting an existing value leaves this strict BST unchanged.",
+    "example": {
+      "input": "root 8; children 4 and 12; insert 10",
+      "output": "10 becomes the left child of 12",
+      "explanation": "10 is greater than 8, so move right. It is smaller than 12, whose left position is empty, so attach the new leaf there."
+    },
+    "baseline": "Recursively choose left or right, and assign the returned subtree back to that child reference. The null base case creates the new leaf. This takes O(h) time and O(h) call-stack space.",
+    "approach": "Follow the same comparisons used for search. Keep walking while the required child exists. At the first empty child position, attach a new node and stop.\n\nEvery comparison adds a restriction: moving right from 8 means the new value must exceed 8; moving left from 12 means it must be below 12. Following the whole path satisfies all ancestor restrictions automatically.\n\nUse a separate current reference so the original root is still available to return. This basic insertion does not rebalance the tree, so insertion order affects its shape and future performance.",
+    "steps": [
+      "If root is null, return a new node.",
+      "Compare the value with current and choose one child direction.",
+      "If that child is absent, create the new leaf there. Otherwise continue down that child.",
+      "Return the original root."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode insertIntoBST(TreeNode root, int value) {\n    if (root == null) return new TreeNode(value);\n    TreeNode current = root;\n    while (true) {\n        if (value == current.val) return root;\n        if (value < current.val) {\n            if (current.left == null) { current.left = new TreeNode(value); break; }\n            current = current.left;\n        } else {\n            if (current.right == null) { current.right = new TreeNode(value); break; }\n            current = current.right;\n        }\n    }\n    return root;\n}",
+    "time": "O(h), ranging from O(log n) when balanced to O(n) for a chain.",
+    "space": "O(1) auxiliary space and one new node.",
+    "pitfalls": [
+      "Assign root = insertIntoBST(root, value), because an empty tree needs a new root.",
+      "Recursive insertion must reconnect the returned child subtree.",
+      "Ordinary insertion does not keep a BST balanced.",
+      "Do not create a second copy of an existing value unless the problem defines a duplicate policy."
+    ],
+    "tests": [
+      "TreeNode r=insertIntoBST(null,8);TreeNode same=insertIntoBST(r,4);assert same==r&&r.left.val==4;insertIntoBST(r,12);insertIntoBST(r,10);assert r.right.left.val==10;TreeNode existing=r.right.left;assert insertIntoBST(r,10)==r&&r.right.left==existing;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}Map<TreeNode,TreeNode[]>before=new IdentityHashMap<>();for(TreeNode x:paths.keySet())before.put(x,new TreeNode[]{x.left,x.right});int value;do{value=random.nextInt();}while(keys.contains(value));TreeNode result=insertIntoBST(root,value);assert result==root;keys.add(value);List<Integer>actual=new ArrayList<>();Deque<TreeNode>stack=new ArrayDeque<>();TreeNode current=result;Set<TreeNode>seen=Collections.newSetFromMap(new IdentityHashMap<>());while(current!=null||!stack.isEmpty()){while(current!=null){assert seen.add(current);stack.push(current);current=current.left;}current=stack.pop();actual.add(current.val);current=current.right;}assert actual.equals(new ArrayList<>(keys));assert seen.size()==before.size()+1;for(TreeNode x:before.keySet()){assert seen.contains(x);if(before.get(x)[0]!=null)assert x.left==before.get(x)[0];if(before.get(x)[1]!=null)assert x.right==before.get(x)[1];}}",
+      "Random r=new Random(319);for(int t=0;t<100;t++){TreeNode a=null,b=null;TreeSet<Integer>want=new TreeSet<>();for(int i=0;i<100;i++){int value=r.nextInt(10000);a=insertIntoBST(a,value);b=insertRecursive(b,value);want.add(value);}assert inorderValues(a).equals(new ArrayList<>(want));assert inorderValues(b).equals(new ArrayList<>(want));}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert insertIntoBST(r,100000)==r;assert p.right.val==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/insert-into-a-binary-search-tree",
+      "title": "Insert into a Binary Search Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Follow one ordered path and attach the new value at an empty child position.",
+      "adaptation": "Both public Java methods were checked. The iterative leaf insertion and original-root return are retained. Both versions explicitly ignore an already-present value as an extension beyond the source’s absent-value guarantee."
+    },
+    "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic TreeNode insertRecursive(TreeNode root, int value) {\n    if (root == null) return new TreeNode(value);\n    if (value < root.val) root.left = insertRecursive(root.left, value);\n    else if (value > root.val) root.right = insertRecursive(root.right, value);\n    return root;\n}",
+    "baselineTime": "O(h) time and O(h) recursive stack space."
+  },
+  "320": {
+    "problem": "Remove a key from a binary search tree and return the updated root while preserving the remaining values and BST ordering.",
+    "assumptions": "The BST has distinct values. If the key is absent, return the same tree unchanged. This implementation removes the matching node object from the returned tree and reuses all other node objects, without copying successor values. The root can change.",
+    "example": {
+      "input": "root 8; left child 4; right child 12 with children 10 and 14; delete 8",
+      "output": "new root 12; its left child is 10; 10.left is 4; 12.right is 14",
+      "explanation": "Promote the original right subtree. Its smallest node, 10, has an empty left reference where the entire old left subtree can be attached."
+    },
+    "baseline": "Recursively search for the key and return a replacement subtree when found. A helper handles zero, one, or two children. The recursive caller reconnects that returned subtree to its parent.",
+    "approach": "First handle deletion of the root. Otherwise walk down the BST and look for a child whose value matches the key, so its parent reference can be updated directly.\n\nFor a node with no left child, its right child replaces it. With no right child, its left child replaces it. For two children, promote the right subtree and attach the old left subtree to the leftmost node of that right subtree.\n\nWhy is that attachment valid? Every old-left value is below the deleted key, and every old-right value is above it. The right subtree’s minimum has no left child, so that empty position can safely hold all the old-left values. No new tree nodes or value replacements are needed.",
+    "steps": [
+      "Handle an empty tree or a matching root.",
+      "Follow comparisons until the matching child is found.",
+      "Replace that child using the zero/one/two-child helper.",
+      "Return the original root unless the root itself was deleted."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode replacement(TreeNode node) {\n    if (node.left == null) return node.right;\n    if (node.right == null) return node.left;\n    TreeNode promoted = node.right;\n    TreeNode smallest = promoted;\n    while (smallest.left != null) smallest = smallest.left;\n    smallest.left = node.left;\n    return promoted;\n}\nstatic TreeNode deleteNode(TreeNode root, int key) {\n    if (root == null) return null;\n    if (root.val == key) return replacement(root);\n    TreeNode current = root;\n    while (current != null) {\n        if (key < current.val) {\n            if (current.left != null && current.left.val == key) {\n                current.left = replacement(current.left);\n                break;\n            }\n            current = current.left;\n        } else {\n            if (current.right != null && current.right.val == key) {\n                current.right = replacement(current.right);\n                break;\n            }\n            current = current.right;\n        }\n    }\n    return root;\n}",
+    "time": "O(h), including the search and replacement path.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "Always retain the returned root; deleting the root may promote another node.",
+      "Attach the old left subtree at the minimum of the promoted right subtree, not at an occupied child position.",
+      "An absent key must not change the tree.",
+      "Other valid solutions copy a successor’s value; this version instead reconnects whole subtrees."
+    ],
+    "tests": [
+      "assert deleteNode(null,0)==null;TreeNode one=new TreeNode(1);assert deleteNode(one,1)==null;TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(12);r.right.left=new TreeNode(10);r.right.right=new TreeNode(14);TreeNode left=r.left,right=r.right,minimum=r.right.left;TreeNode result=deleteNode(r,8);assert result==right&&minimum.left==left;assert deleteNode(result,99)==result;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}List<Integer>deletions=new ArrayList<>(keys);Collections.shuffle(deletions,random);for(int variant=0;variant<2;variant++){Map<TreeNode,TreeNode>copies=new IdentityHashMap<>();for(TreeNode x:paths.keySet())copies.put(x,new TreeNode(x.val));for(TreeNode x:paths.keySet()){copies.get(x).left=copies.get(x.left);copies.get(x).right=copies.get(x.right);}TreeNode currentRoot=copies.get(root);TreeSet<Integer>want=new TreeSet<>(keys);for(int key:deletions){currentRoot=variant==0?deleteNode(currentRoot,key):deleteRecursive(currentRoot,key);want.remove(key);List<Integer>actual=new ArrayList<>();Deque<TreeNode>stack=new ArrayDeque<>();TreeNode current=currentRoot;Set<TreeNode>seen=Collections.newSetFromMap(new IdentityHashMap<>());while(current!=null||!stack.isEmpty()){while(current!=null){assert seen.add(current);stack.push(current);current=current.left;}current=stack.pop();assert current==copies.get(byValue.get(current.val));actual.add(current.val);current=current.right;}assert actual.equals(new ArrayList<>(want));assert !seen.contains(copies.get(byValue.get(key)));}assert currentRoot==null;}}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert deleteNode(r,99999)==r;assert deleteNode(r,0).val==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/delete-node-in-a-bst",
+      "title": "Delete Node in a BST",
+      "checkedOn": "2026-10-29",
+      "approach": "Promote the right subtree and attach the old left subtree at its minimum; search recursively or iteratively.",
+      "adaptation": "Both complete public Java methods were checked. The source’s subtree-splicing helper and iterative parent-child update strategy are retained, including a separate root-deletion case."
+    },
+    "baselineJava": "static TreeNode deleteRecursive(TreeNode root, int key) {\n    if (root == null) return null;\n    if (root.val == key) return replacement(root);\n    if (key < root.val) root.left = deleteRecursive(root.left, key);\n    else root.right = deleteRecursive(root.right, key);\n    return root;\n}",
+    "baselineTime": "O(h) time and O(h) call-stack space."
+  },
+  "321": {
+    "problem": "Find the kth smallest and kth largest values in a binary search tree. Ranks start at 1.",
+    "assumptions": "The pinned LeetCode question asks only for kthSmallest; the sheet title and Striver article cover both ranks, so both methods are included. The tree has distinct values. Valid ranks satisfy 1 ≤ k ≤ n. This code rejects an invalid rank rather than returning a value that could be mistaken for an answer.",
+    "example": {
+      "input": "BST values {2, 4, 6, 8, 10, 12}; k = 2",
+      "output": "kth smallest = 4; kth largest = 10",
+      "explanation": "Counting from the small end gives 2, then 4. Counting from the large end gives 12, then 10."
+    },
+    "baseline": "Save the entire inorder traversal. The kth smallest value is at index k − 1; the kth largest is at index n − k. This takes O(n) time and O(n) stored values.",
+    "approach": "Inorder produces increasing values, so count visits until the kth value is reached. Reverse inorder—right, node, left—does the same from the largest end.\n\nAn explicit stack lets us pause each traversal. For the small end, push a left chain, pop its next smallest node, then continue from its right subtree. Reverse the directions for the large end. Return immediately on the kth pop.\n\nOnly the path and pending ancestors are stored. A single query takes O(h + k) time and O(h) space. These ordinary stack traversals do not modify the tree, so stopping early leaves no temporary links behind.",
+    "steps": [
+      "Reject a nonpositive rank.",
+      "Push the outer chain: left for smallest, right for largest.",
+      "Pop one node and decrease the remaining rank; return its value at zero.",
+      "Continue from its opposite child, or reject k if traversal ends too soon."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int kthSmallest(TreeNode root, int k) { return kth(root, k, false); }\nstatic int kthLargest(TreeNode root, int k) { return kth(root, k, true); }\nstatic int[] findKthElements(TreeNode root, int k) {\n    return new int[]{kthSmallest(root, k), kthLargest(root, k)};\n}\nstatic int kth(TreeNode root, int k, boolean largest) {\n    if (k < 1) throw new IllegalArgumentException(\"Rank must be positive\");\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) {\n            stack.push(current);\n            current = largest ? current.right : current.left;\n        }\n        current = stack.pop();\n        if (--k == 0) return current.val;\n        current = largest ? current.left : current.right;\n    }\n    throw new IllegalArgumentException(\"Rank exceeds tree size\");\n}",
+    "time": "O(h + k) per rank query; O(n) in the worst case. Asking for both ends keeps the same asymptotic bound.",
+    "space": "O(h) explicit stack space.",
+    "pitfalls": [
+      "Ranks are 1-based; list indices are 0-based.",
+      "Reset counters for every call if using recursion.",
+      "The smallest query goes left first; the largest goes right first.",
+      "Do not return early from a threaded Morris traversal without restoring every thread. This implementation uses an ordinary stack."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(12);r.left.left=new TreeNode(2);r.left.right=new TreeNode(6);r.right.left=new TreeNode(10);assert Arrays.equals(findKthElements(r,2),new int[]{4,10});assert kthSmallest(r,1)==2;assert kthSmallest(r,6)==12;assert kthLargest(r,1)==12;assert kthRecursive(r,2,false)==4;assert kthRecursive(r,1,false)==2;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}List<Integer>sorted=new ArrayList<>(keys);for(int k=1;k<=sorted.size();k++){int[]want={sorted.get(k-1),sorted.get(sorted.size()-k)};assert Arrays.equals(findKthElements(root,k),want);assert Arrays.equals(kthByList(root,k),want);assert kthRecursive(root,k,false)==want[0];assert kthRecursive(root,k,true)==want[1];}for(int k:new int[]{0,-1,sorted.size()+1}){boolean rejected=false;try{kthSmallest(root,k);}catch(IllegalArgumentException e){rejected=true;}assert rejected;rejected=false;try{kthRecursive(root,k,false);}catch(IllegalArgumentException e){rejected=true;}assert rejected;}}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert kthSmallest(r,100000)==99999;assert kthLargest(r,100000)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/kth-smallest-and-largest-elements-in-a-bst",
+      "title": "Find the Kth Smallest and Largest Elements in a Binary Search Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Count inorder visits from either end instead of storing every value.",
+      "adaptation": "Both public Java methods were checked. The source’s recursive counters persist between calls; the version here keeps state local and stops after the requested visit. The primary explicit-stack adaptation follows the same traversal orders and supports the pinned kthSmallest interface as well as both ranks."
+    },
+    "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic int[] kthByList(TreeNode root, int k) {\n    List<Integer> values = inorderValues(root);\n    if (k < 1 || k > values.size()) throw new IllegalArgumentException(\"Invalid rank\");\n    return new int[]{values.get(k - 1), values.get(values.size() - k)};\n}",
+    "baselineTime": "O(n) time and O(n) stored values, plus the traversal stack.",
+    "better": {
+      "explanation": "The recursive version follows the same increasing or decreasing order. Keep the remaining rank and answer in state created for this call. Check again after returning from the first child, because that child may already have found the answer. This avoids stale counters across repeated calls.",
+      "java": "static int kthRecursive(TreeNode root, int k, boolean largest) {\n    if (k < 1) throw new IllegalArgumentException(\"Rank must be positive\");\n    int[] state = {k, 0};\n    visitRank(root, largest, state);\n    if (state[0] != 0) throw new IllegalArgumentException(\"Rank exceeds tree size\");\n    return state[1];\n}\nstatic void visitRank(TreeNode node, boolean largest, int[] state) {\n    if (node == null || state[0] == 0) return;\n    visitRank(largest ? node.right : node.left, largest, state);\n    if (state[0] == 0) return;\n    if (--state[0] == 0) { state[1] = node.val; return; }\n    visitRank(largest ? node.left : node.right, largest, state);\n}",
+      "time": "O(h + k), at most O(n).",
+      "space": "O(h) recursive stack. Deep trees may exceed Java’s call-stack limit."
+    }
   }
 }
