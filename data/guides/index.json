@@ -15398,5 +15398,100 @@
       "time": "O(n × min(k,n)) for either version.",
       "space": "O(n) including recursion for memoization; O(min(k,n)) for the circular buffer."
     }
+  },
+  "388": {
+    "problem": "Select non-adjacent array positions to get the largest possible sum. This is the same linear problem as House Robber.",
+    "assumptions": "The pinned LeetCode values are nonnegative; the source describes positive values. Keep the original order because adjacency refers to original positions. Empty input returns 0 as an extension. Core totals use long, with an int rob wrapper for the judge.",
+    "example": {
+      "input": "nums = [4, 5, 4]",
+      "output": "8",
+      "explanation": "Take the first and third positions. Choosing the locally largest value 5 would block both and give a smaller answer."
+    },
+    "baseline": "At the last available position, either take its value and skip the neighboring position, or leave it and solve the previous prefix. Plain recursion explores both choices repeatedly.",
+    "approach": "Let dp[i] be the best sum from positions 0 through i. If we skip i, the answer is dp[i − 1]. If we take i, add nums[i] to dp[i − 2], because i − 1 is forbidden. Take the maximum of those two choices.\n\nThis is not “choose all even positions or all odd positions.” The best selection can switch parity across a larger gap. The DP compares complete valid selections, so it covers those possibilities.\n\nOnly the previous two prefix answers are needed. Start both at zero for empty prefixes, calculate current, then shift them. The source initializes the first positive element separately; the zero-prefix initialization also handles the pinned problem’s zero-valued houses.",
+    "steps": [
+      "Keep the best answers for the previous prefix and the prefix two positions back.",
+      "For each value, compare skipping it with taking it plus the two-back answer.",
+      "Save the better total, then shift the old prefix answers forward.",
+      "Return the final best sum."
+    ],
+    "java": "static long robLinear(int[] nums) {\n    long twoBack = 0, oneBack = 0;\n    for (int value : nums) {\n        long current = Math.max(oneBack,twoBack+value);\n        twoBack = oneBack;\n        oneBack = current;\n    }\n    return oneBack;\n}\nstatic int rob(int[] nums) { return Math.toIntExact(robLinear(nums)); }",
+    "time": "O(n) time.",
+    "space": "O(1) extra space in the primary version.",
+    "pitfalls": [
+      "Do not sort: sorting changes which positions are adjacent.",
+      "A locally largest value can block two smaller values whose sum is larger.",
+      "Do not restrict the solution to one index parity.",
+      "Take uses the two-back total, not the previous total.",
+      "The circular version needs an extra endpoint restriction and is the next lesson."
+    ],
+    "tests": [
+      "assert rob(new int[]{4,5,4})==8;assert rob(new int[]{2,1,1,2})==4;assert rob(new int[]{0,0})==0;assert rob(new int[0])==0;",
+      "for(int n=0;n<=7;n++){\n int arrays=1;for(int i=0;i<n;i++)arrays*=4;\n for(int encoded=0;encoded<arrays;encoded++){\n  int[]nums=new int[n];int code=encoded;for(int i=0;i<n;i++){nums[i]=code%4;code/=4;}\n  long expected=0;for(int mask=0;mask<(1<<n);mask++){\n   if((mask&(mask<<1))!=0)continue;\n   \n   long sum=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)sum+=nums[i];expected=Math.max(expected,sum);\n  }assert robLinear(nums)==expected;assert robMemoized(nums)==expected;assert robTabulated(nums)==expected;assert robRecursive(nums,n-1)==expected;\n}}",
+      "int[]nums={Integer.MAX_VALUE,0,Integer.MAX_VALUE};assert robLinear(nums)==2L*Integer.MAX_VALUE;assert robMemoized(nums)==2L*Integer.MAX_VALUE;assert robTabulated(nums)==2L*Integer.MAX_VALUE;int[]large=new int[100000];Arrays.fill(large,1);assert robLinear(large)==50000;assert robTabulated(large)==50000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/maximum-sum-of-non-adjacent-elements",
+      "title": "Maximum Sum of Non-Adjacent Elements",
+      "checkedOn": "2026-10-29",
+      "approach": "Take-or-skip recursion, memoization, tabulation, and two-state storage.",
+      "adaptation": "All four complete public Java methods were checked. The pinned question is linear House Robber. The guide includes its rob entry point, accommodates zero values with empty-prefix initialization, and uses long totals internally."
+    },
+    "baselineJava": "static long robRecursive(int[] nums, int index) {\n    if (index < 0) return 0;\n    return Math.max(robRecursive(nums,index-1),nums[index]+robRecursive(nums,index-2));\n}",
+    "baselineTime": "O(2^n) time as an upper bound and O(n) recursion space.",
+    "better": {
+      "explanation": "Memoization caches the best answer for each prefix. Tabulation fills those same prefixes left to right. Both use O(n) storage and expose the complete state before the primary version reduces it to two variables.",
+      "java": "static long robMemoized(int[] nums) {\n    long[] memo = new long[nums.length];\n    Arrays.fill(memo,-1);\n    return robMemo(nums,nums.length-1,memo);\n}\nstatic long robMemo(int[] nums, int index, long[] memo) {\n    if (index < 0) return 0;\n    if (memo[index] != -1) return memo[index];\n    return memo[index] = Math.max(robMemo(nums,index-1,memo),nums[index]+robMemo(nums,index-2,memo));\n}\nstatic long robTabulated(int[] nums) {\n    if (nums.length == 0) return 0;\n    long[] dp = new long[nums.length];\n    dp[0] = nums[0];\n    for (int i = 1; i < nums.length; i++)\n        dp[i] = Math.max(dp[i-1],nums[i]+(i > 1 ? dp[i-2] : 0));\n    return dp[nums.length-1];\n}",
+      "time": "O(n) for both versions.",
+      "space": "O(n); memoization also has O(n) recursion depth."
+    }
+  },
+  "389": {
+    "problem": "Choose non-adjacent houses around a circle to maximize the amount collected. The first and last houses are neighbors.",
+    "assumptions": "Amounts are nonnegative. A single house can be chosen; it is not considered adjacent to itself. The tracker’s pinned question is House Robber II. Empty input returns 0 as an extension.",
+    "example": {
+      "input": "nums = [5, 1, 1, 5]",
+      "output": "6",
+      "explanation": "The two endpoint houses cannot both be chosen. Take index 0 with index 2, or index 1 with index 3, for a total of 6."
+    },
+    "baseline": "Use the same take-or-skip recursion as the linear problem, but run it on two legal ranges: one without the last house and one without the first. Plain recursion still repeats prefix states.",
+    "approach": "Every valid circular selection excludes at least one endpoint. That gives two cases: use only indices 0…n − 2, or use only indices 1…n − 1. Each range is a straight line, so the usual take-or-skip DP applies. Return the larger result.\n\nThe cases overlap: a selection that skips both endpoints belongs to both. That is fine because we take a maximum, not a count. Also, excluding the last house does not force us to take the first. Each range still chooses its own best subset.\n\nHandle one house before splitting, since both shortened ranges would otherwise be empty. In the memoized alternative, use a fresh cache for each range: a prefix with start = 0 is a different state from one with start = 1.",
+    "steps": [
+      "Return the single amount when only one house exists.",
+      "Solve the linear range excluding the last house.",
+      "Solve the linear range excluding the first house.",
+      "Return the maximum of those two results."
+    ],
+    "java": "static long robRange(int[] nums, int start, int end) {\n    long twoBack = 0, oneBack = 0;\n    for (int i = start; i <= end; i++) {\n        long current = Math.max(oneBack,twoBack+nums[i]);\n        twoBack = oneBack; oneBack = current;\n    }\n    return oneBack;\n}\nstatic long robCircle(int[] nums) {\n    if (nums.length == 0) return 0;\n    if (nums.length == 1) return nums[0];\n    return Math.max(robRange(nums,0,nums.length-2),robRange(nums,1,nums.length-1));\n}\nstatic int rob(int[] nums) { return Math.toIntExact(robCircle(nums)); }",
+    "time": "O(n) time for two linear scans.",
+    "space": "O(1) extra space; ranges are passed by indices rather than copied.",
+    "pitfalls": [
+      "Never allow both circular endpoints in one candidate.",
+      "Do not add the two range answers.",
+      "Excluding one endpoint does not force taking the other.",
+      "Do not reuse an index-only memo cache across ranges with different starts.",
+      "Handle n = 1 separately.",
+      "The current sheet’s external House Robber link is linear, but its article and your pinned House Robber II question are circular. This guide follows the pinned circular problem."
+    ],
+    "tests": [
+      "assert rob(new int[]{5,1,1,5})==6;assert rob(new int[]{9})==9;assert rob(new int[]{3,8})==8;assert rob(new int[]{2,3,2})==3;assert rob(new int[0])==0;",
+      "for(int n=0;n<=7;n++){\n int arrays=1;for(int i=0;i<n;i++)arrays*=4;\n for(int encoded=0;encoded<arrays;encoded++){\n  int[]nums=new int[n];int code=encoded;for(int i=0;i<n;i++){nums[i]=code%4;code/=4;}\n  long expected=0;for(int mask=0;mask<(1<<n);mask++){\n   if((mask&(mask<<1))!=0)continue;\n   if(n>1&&(mask&1)!=0&&(mask&(1<<(n-1)))!=0)continue;\n   long sum=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)sum+=nums[i];expected=Math.max(expected,sum);\n  }assert robCircle(nums)==expected;assert robCircleMemoized(nums)==expected;assert robCircleTabulated(nums)==expected;assert robCircleRecursive(nums)==expected;\n}}",
+      "int[]nums={Integer.MAX_VALUE,0,Integer.MAX_VALUE};assert robCircle(nums)==Integer.MAX_VALUE;assert robCircleMemoized(nums)==Integer.MAX_VALUE;assert robCircleTabulated(nums)==Integer.MAX_VALUE;int[]large=new int[100000];Arrays.fill(large,1);assert robCircle(large)==50000;assert robCircleTabulated(large)==50000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/house-robber-ii",
+      "title": "House Robber II: Maximum Profit from Circular Houses",
+      "checkedOn": "2026-10-29",
+      "approach": "Split into two linear ranges, then use recursion, memoization, tabulation, or rolling values.",
+      "adaptation": "All four complete public Java methods were checked. The current sheet row links externally to linear House Robber, while this public article and the tracker’s pinned LeetCode link specify House Robber II; the guide keeps the pinned circular contract. Totals use long and ranges are not copied."
+    },
+    "baselineJava": "static long robCircleRecursive(int[] nums) {\n    if (nums.length == 0) return 0;\n    if (nums.length == 1) return nums[0];\n    return Math.max(robRangeRecursive(nums,0,nums.length-2),robRangeRecursive(nums,1,nums.length-1));\n}\nstatic long robRangeRecursive(int[] nums, int start, int index) {\n    if (index < start) return 0;\n    return Math.max(robRangeRecursive(nums,start,index-1),nums[index]+robRangeRecursive(nums,start,index-2));\n}",
+    "baselineTime": "O(2^n) time as an upper bound and O(n) recursion space.",
+    "better": {
+      "explanation": "These versions keep a cache or table for each permitted range. Fresh memo arrays prevent a result calculated with one starting boundary from leaking into the other search. The table version walks from the range’s start to its end. Both produce the same answer as the two-variable scan.",
+      "java": "static long robCircleMemoized(int[] nums) {\n    if (nums.length == 0) return 0;\n    if (nums.length == 1) return nums[0];\n    return Math.max(robRangeMemoized(nums,0,nums.length-2),robRangeMemoized(nums,1,nums.length-1));\n}\nstatic long robRangeMemoized(int[] nums, int start, int end) {\n    long[] memo = new long[nums.length];\n    Arrays.fill(memo,-1);\n    return robRangeMemo(nums,start,end,memo);\n}\nstatic long robRangeMemo(int[] nums, int start, int index, long[] memo) {\n    if (index < start) return 0;\n    if (memo[index] != -1) return memo[index];\n    return memo[index] = Math.max(robRangeMemo(nums,start,index-1,memo),nums[index]+robRangeMemo(nums,start,index-2,memo));\n}\nstatic long robCircleTabulated(int[] nums) {\n    if (nums.length == 0) return 0;\n    if (nums.length == 1) return nums[0];\n    return Math.max(robRangeTable(nums,0,nums.length-2),robRangeTable(nums,1,nums.length-1));\n}\nstatic long robRangeTable(int[] nums, int start, int end) {\n    long[] dp = new long[nums.length];\n    dp[start] = nums[start];\n    for (int i = start+1; i <= end; i++)\n        dp[i] = Math.max(dp[i-1],nums[i]+(i-2 >= start ? dp[i-2] : 0));\n    return dp[end];\n}",
+      "time": "O(n) for each approach across both ranges.",
+      "space": "O(n); memoization also has O(n) recursion depth."
+    }
   }
 }
