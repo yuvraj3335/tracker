@@ -19219,5 +19219,83 @@
         ]
       ]
     }
+  },
+  "448": {
+    "problem": "Return term n of the Count and Say sequence, starting from the string \"1\".",
+    "assumptions": "n is positive; the pinned judge uses n <= 30. Each next term describes consecutive runs in the previous term. It does not count all occurrences of a digit across the whole string. The code rejects nonpositive n.",
+    "example": {
+      "input": "n = 5",
+      "output": "\"111221\"",
+      "explanation": "Term 4 is 1211. Read its runs as one 1, one 2, and two 1s. Writing each count before its digit gives 11 + 12 + 21 = 111221."
+    },
+    "baseline": "The recursive definition is already a direct solution: get term n−1, then describe its consecutive runs. Avoid repeatedly concatenating immutable strings inside the scan; use StringBuilder so appending does not copy the whole result each time.",
+    "approach": "Keep an index at the start of a run. Remember that digit, then advance until a different digit appears or the string ends. The distance moved is the run count. Append the count, then the digit. Continue from the first unread position.\n\nFor example, the two 1s at the end of 1211 form one run, but the 1 at the beginning is separated by 2 and must be described separately. A frequency map would lose that order and produce the wrong term.\n\nStriver’s Java follows the recursive definition: term 1 is fixed, and every later call encodes the result of the preceding call. The iterative version below applies the same encoding n−1 times and avoids the recursion stack. Neither version treats the term as an integer; the sequence is text throughout.",
+    "steps": [
+      "Return \"1\" for the first term.",
+      "Obtain the previous term.",
+      "Scan one maximal run of equal digits at a time.",
+      "Append run length followed by the digit.",
+      "Return the built string."
+    ],
+    "java": "static String describeRuns(String term) {\n    StringBuilder result=new StringBuilder();\n    int start=0;\n    while(start<term.length()) {\n        char digit=term.charAt(start);\n        int end=start+1;\n        while(end<term.length() && term.charAt(end)==digit) end++;\n        result.append(end-start).append(digit);\n        start=end;\n    }\n    return result.toString();\n}\nstatic String countAndSay(int n) {\n    if(n<1) throw new IllegalArgumentException(\"n must be positive\");\n    if(n==1) return \"1\";\n    return describeRuns(countAndSay(n-1));\n}",
+    "time": "O(sum of generated term lengths), at most O(nL) if L is the longest generated length.",
+    "space": "O(n+L) live working space for recursion and the current/next strings.",
+    "pitfalls": [
+      "Group consecutive equal digits, not all equal digits in the string.",
+      "Append the count before the digit.",
+      "Do not parse terms as int or long; their length grows beyond numeric types.",
+      "The inner loop must test the end boundary before reading the next character."
+    ],
+    "tests": [
+      "String[] expected={\"1\",\"11\",\"21\",\"1211\",\"111221\",\"312211\",\"13112221\",\"1113213211\"};for(int i=0;i<expected.length;i++){assert countAndSay(i+1).equals(expected[i]);assert countAndSayIterative(i+1).equals(expected[i]);}assert describeRuns(\"111111111111222\").equals(\"1232\");assert describeRuns(\"\").isEmpty();",
+      "String expected=\"1\";java.util.regex.Pattern runs=java.util.regex.Pattern.compile(\"(.)\\\\1*\");for(int n=1;n<=30;n++){assert countAndSay(n).equals(expected);assert countAndSayIterative(n).equals(expected);java.util.regex.Matcher matcher=runs.matcher(expected);StringBuilder next=new StringBuilder();while(matcher.find())next.append(matcher.group().length()).append(matcher.group().charAt(0));expected=next.toString();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-and-say",
+      "title": "Count and Say: Generate the Nth Sequence Term",
+      "checkedOn": "2026-10-29",
+      "approach": "Recursively obtain the previous term, then encode each consecutive digit run as its count followed by its digit.",
+      "adaptation": "The complete public Java implementation was checked. The same recursive definition and StringBuilder run encoding are preserved, with explicit start/end positions and a positive-n guard. The iterative alternative applies the same encoder without recursion."
+    },
+    "better": {
+      "explanation": "Start with the first term and repeatedly apply the same run encoder until term n. Only the current term is needed, so the recurrence does not require a recursive call stack.",
+      "java": "static String countAndSayIterative(int n) {\n    if(n<1) throw new IllegalArgumentException(\"n must be positive\");\n    String term=\"1\";\n    for(int index=2;index<=n;index++) term=describeRuns(term);\n    return term;\n}",
+      "time": "O(sum of generated term lengths).",
+      "space": "O(L), where L is the longest generated term."
+    },
+    "trace": {
+      "columns": [
+        "Term number",
+        "Previous term read as runs",
+        "New term"
+      ],
+      "rows": [
+        [
+          "1",
+          "Defined starting value",
+          "1"
+        ],
+        [
+          "2",
+          "One 1",
+          "11"
+        ],
+        [
+          "3",
+          "Two 1s",
+          "21"
+        ],
+        [
+          "4",
+          "One 2, one 1",
+          "1211"
+        ],
+        [
+          "5",
+          "One 1, one 2, two 1s",
+          "111221"
+        ]
+      ]
+    }
   }
 }
