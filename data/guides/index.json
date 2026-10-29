@@ -18388,5 +18388,92 @@
         ]
       ]
     }
+  },
+  "436": {
+    "problem": "Split a string into contiguous palindromic pieces using the fewest cuts.",
+    "assumptions": "Every character must belong to exactly one nonempty piece, in the original order. Pieces are substrings, not subsequences. A string already equal to its reverse needs zero cuts. The code also returns zero for an empty string.",
+    "example": {
+      "input": "s = \"abacdc\"",
+      "output": "1",
+      "explanation": "aba | cdc gives two palindromic pieces, so it needs one cut. The whole string is not a palindrome, so zero cuts is impossible."
+    },
+    "baseline": "Choose the last palindromic piece of each prefix and recursively solve the earlier prefix. Without caching, this explores many repeated partitions. Memoization removes repeated prefixes, but scanning each candidate substring for palindrome status still gives O(n³) time.",
+    "approach": "Count pieces first. Let pieces[end] mean the fewest palindromic pieces covering the first end characters. If s[left..right] is a palindrome, it can be the last piece of that prefix, giving pieces[left]+1 for pieces[right+1]. For a nonempty string, cuts = pieces−1.\n\nThe table version precomputes which substrings are palindromes. Striver’s space-saving version discovers those substrings by expanding around their centers instead. Expand once around a character for odd lengths, and once between two characters for even lengths. Every time the two ends match, we have another palindrome and can update the prefix answer.\n\nProcess centers from left to right. When a palindrome beginning at left is found, pieces[left] is already final: any palindrome in a partition of the earlier prefix ends before left, so its center was processed earlier. This order is why the updates are safe even though a center expansion can reach far to the right.\n\nInitialize pieces[end] = end, the valid fallback of one character per piece. The empty prefix has zero pieces. Handle the empty string before subtracting one.",
+    "steps": [
+      "Initialize each prefix with one piece per character.",
+      "Visit centers from left to right.",
+      "Expand odd and even palindromes from each center.",
+      "For every matching range, improve the prefix ending after that range using pieces[left]+1.",
+      "Return the final piece count minus one; return zero for empty input."
+    ],
+    "java": "static int minCut(String s) {\n    if(s.isEmpty()) return 0;\n    int[] pieces=new int[s.length()+1];\n    for(int end=0;end<pieces.length;end++) pieces[end]=end;\n    for(int center=0;center<s.length();center++) {\n        improvePalindromes(s,center,center,pieces);\n        improvePalindromes(s,center-1,center,pieces);\n    }\n    return pieces[s.length()]-1;\n}\nstatic void improvePalindromes(String s,int left,int right,int[] pieces) {\n    while(left>=0 && right<s.length() && s.charAt(left)==s.charAt(right)) {\n        pieces[right+1]=Math.min(pieces[right+1],pieces[left]+1);\n        left--;\n        right++;\n    }\n}",
+    "time": "O(n²) in the worst case.",
+    "space": "O(n).",
+    "pitfalls": [
+      "Pieces and cuts differ by one for a nonempty string.",
+      "Include even centers; otherwise palindromes such as aa or abba are missed.",
+      "Subsequence deletions are not allowed in this partition problem.",
+      "Do not choose the longest palindromic prefix greedily; the remaining suffix may then require more cuts.",
+      "Keep the left-to-right center order because prefix answers are dependencies."
+    ],
+    "tests": [
+      "assert minCut(\"abacdc\")==1;assert minCut(\"abba\")==0;assert minCut(\"abc\")==2;assert minCut(\"\")==0;assert minCut(\"a\")==0;",
+      "for(int n=0;n<=9;n++)for(int bits=0;bits<(1<<n);bits++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((bits&(1<<i))==0?'a':'b');String s=b.toString();int expected=n==0?0:n-1;for(int mask=0;mask<(1<<Math.max(0,n-1));mask++){int start=0;boolean valid=true;for(int end=1;end<=n;end++)if(end==n||(mask&(1<<(end-1)))!=0){String piece=s.substring(start,end);if(!piece.equals(new StringBuilder(piece).reverse().toString())){valid=false;break;}start=end;}if(valid)expected=Math.min(expected,Integer.bitCount(mask));}assert minCut(s)==expected;assert palindromeCutsTable(s)==expected;assert palindromeCutsMemo(s)==expected;assert (s.isEmpty()?0:palindromePiecesRecursive(s,s.length())-1)==expected;}",
+      "String same=\"a\".repeat(2000);assert minCut(same)==0;assert palindromeCutsTable(same)==0;String alternating=\"ab\".repeat(1000);assert minCut(alternating)==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/palindrome-partitioning-ii-minimum-cuts",
+      "title": "Palindrome Partitioning II: Minimum Cuts",
+      "checkedOn": "2026-10-29",
+      "approach": "Minimize prefix piece counts, then subtract one cut; use recursion, memoization, palindrome-table tabulation, and center expansion.",
+      "adaptation": "All four complete public Java implementations were checked. The primary method preserves the source’s left-to-right centers and both parity expansions. The other implementations retain the same prefix-piece meaning so their transitions can be compared directly."
+    },
+    "baselineJava": "static boolean isPalindromicRange(String s,int left,int right) {\n    while(left<right) if(s.charAt(left++)!=s.charAt(right--)) return false;\n    return true;\n}\n\nstatic int palindromePiecesRecursive(String s,int end) {\n    if(end==0) return 0;\n    int best=end;\n    for(int start=0;start<end;start++)\n        if(isPalindromicRange(s,start,end-1))\n            best=Math.min(best,1+palindromePiecesRecursive(s,start));\n    return best;\n}",
+    "baselineTime": "O(n²·2ⁿ) conservative upper bound including palindrome scans; O(n) stack. Small strings only.",
+    "better": {
+      "explanation": "Memoization saves the fewest pieces for each prefix, but still scans candidate substrings. The table method first records every palindromic substring using matching ends and a palindromic middle, then fills prefixes left to right. It reduces time to O(n²) at the cost of an O(n²) boolean table.",
+      "java": "static int palindromeCutsMemo(String s) {\n    if(s.isEmpty()) return 0;\n    int[] saved=new int[s.length()+1];\n    Arrays.fill(saved,-1);\n    saved[0]=0;\n    return palindromePiecesAt(s,s.length(),saved)-1;\n}\nstatic int palindromePiecesAt(String s,int end,int[] saved) {\n    if(saved[end]!=-1) return saved[end];\n    int best=end;\n    for(int start=0;start<end;start++)\n        if(isPalindromicRange(s,start,end-1))\n            best=Math.min(best,1+palindromePiecesAt(s,start,saved));\n    return saved[end]=best;\n}\nstatic int palindromeCutsTable(String s) {\n    int n=s.length();\n    if(n==0) return 0;\n    boolean[][] palindrome=new boolean[n][n];\n    for(int left=n-1;left>=0;left--)\n        for(int right=left;right<n;right++)\n            palindrome[left][right]=s.charAt(left)==s.charAt(right)\n                && (right-left<2 || palindrome[left+1][right-1]);\n    int[] pieces=new int[n+1];\n    for(int end=1;end<=n;end++) {\n        pieces[end]=end;\n        for(int start=0;start<end;start++)\n            if(palindrome[start][end-1]) pieces[end]=Math.min(pieces[end],pieces[start]+1);\n    }\n    return pieces[n]-1;\n}",
+      "time": "Memoization with scans: O(n³). Palindrome-table tabulation: O(n²).",
+      "space": "Memoization: O(n) table and stack. Tabulation: O(n²) palindrome table and O(n) prefix counts."
+    },
+    "trace": {
+      "columns": [
+        "Prefix",
+        "Fewest pieces",
+        "One partition"
+      ],
+      "rows": [
+        [
+          "a",
+          "1",
+          "a"
+        ],
+        [
+          "ab",
+          "2",
+          "a | b"
+        ],
+        [
+          "aba",
+          "1",
+          "aba"
+        ],
+        [
+          "abac",
+          "2",
+          "aba | c"
+        ],
+        [
+          "abacd",
+          "3",
+          "aba | c | d"
+        ],
+        [
+          "abacdc",
+          "2",
+          "aba | cdc; one cut"
+        ]
+      ]
+    }
   }
 }
