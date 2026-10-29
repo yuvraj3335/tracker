@@ -14618,7 +14618,7 @@
   },
   "372": {
     "problem": "Maintain disjoint groups of nodes. Merge two groups and quickly tell whether two nodes belong to the same group.",
-    "assumptions": "Nodes are 1 through n, matching Striver’s foundation lesson. Index 0 is unused. Groups only merge; this structure does not remove connections. The boolean union result is an addition: true means two previously separate groups were joined.",
+    "assumptions": "Nodes are 1 through n, matching Striver’s foundation lesson. Index 0 is unused. Groups only merge; this structure does not remove connections. The boolean union result is an addition: true means two previously separate groups were joined. The linked practice judge differs: it uses 0-based nodes and calls both union methods on one object. Use the combined DisjointSet class in “Another approach” for that judge.",
     "example": {
       "input": "n = 6; merge(1,2), merge(3,4), merge(2,4); then ask connected(1,3), connected(1,6)",
       "output": "true, false",
@@ -14641,26 +14641,34 @@
       "Repeatedly merging the same group must do nothing.",
       "Rank is not component size and is not recomputed after compression.",
       "This 1-based class is separate from the 0-based DSU used in graph solutions.",
-      "Use one balancing policy consistently; the source’s rank and size Java examples are separate classes."
+      "The article’s separate examples are 1-based. The practice judge is 0-based and can mix policies; its combined implementation below maintains both metadata arrays after every merge."
     ],
     "tests": [
       "RankDSU d=new RankDSU(6);assert d.unionByRank(1,2);assert d.unionByRank(3,4);assert d.unionByRank(2,4);assert d.find(1,3);assert !d.find(1,6);assert !d.unionByRank(1,4);assert !d.unionByRank(5,5);",
       "Random random=new Random(372);\nfor(int trial=0;trial<100;trial++){\n int n=1+random.nextInt(40);RankDSU d=new RankDSU(n);QuickFind oracle=new QuickFind(n);\n for(int step=0;step<300;step++){\n  int a=1+random.nextInt(n),b=1+random.nextInt(n);assert d.unionByRank(a,b)==oracle.unite(a,b);\n  for(int query=0;query<4;query++){int u=1+random.nextInt(n),v=1+random.nextInt(n);assert d.find(u,v)==oracle.connected(u,v);}\n }\n}",
-      "RankDSU d=new RankDSU(100000);for(int i=2;i<=100000;i++)assert d.unionByRank(i-1,i);for(int i=1;i<=100000;i++)assert d.find(1,i);"
+      "RankDSU d=new RankDSU(100000);for(int i=2;i<=100000;i++)assert d.unionByRank(i-1,i);for(int i=1;i<=100000;i++)assert d.find(1,i);",
+      "DisjointSet d=new DisjointSet(5);d.unionByRank(0,1);d.unionBySize(3,4);d.unionByRank(1,2);assert d.find(0,2);assert !d.find(1,3);assert d.componentSizeOf(0)==3;d.unionBySize(2,4);assert d.find(0,4);assert d.componentSizeOf(3)==5;d.unionByRank(0,4);assert d.componentSizeOf(0)==5;",
+      "Random random=new Random(372373);\nfor(int trial=0;trial<100;trial++){\n int n=1+random.nextInt(50);DisjointSet d=new DisjointSet(n);QuickFind oracle=new QuickFind(n);\n for(int step=0;step<400;step++){\n  int a=random.nextInt(n),b=random.nextInt(n);if(random.nextBoolean())d.unionByRank(a,b);else d.unionBySize(a,b);oracle.unite(a+1,b+1);\n  for(int query=0;query<3;query++){int u=random.nextInt(n),v=random.nextInt(n);assert d.find(u,v)==oracle.connected(u+1,v+1);assert d.componentSizeOf(u)==oracle.sizeOf(u+1);}\n }\n}"
     ],
     "reference": {
       "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/disjoint-set-union",
       "title": "Disjoint Set Union: Union by Rank, Size and Path Compression",
       "checkedOn": "2026-10-29",
       "approach": "Path compression with union by rank.",
-      "adaptation": "Both complete public Java examples were checked. This lesson uses the separate rank implementation and preserves its 1-based indexing. A boolean union result reports whether a merge occurred; the source’s union method is void. The label-array baseline is an authored comparison."
+      "adaptation": "Both complete public Java examples were checked. This lesson uses the separate rank implementation and preserves its 1-based indexing. A boolean union result reports whether a merge occurred; the source’s union method is void. The label-array baseline is an authored comparison. The public practice statement was also checked: it uses 0-based nodes and permits mixed union calls. A separately labelled combined judge class is provided; it is an authored adaptation, not a claim that the public article contains this combined Java."
     },
     "baselineJava": "static class QuickFind {\n    private final int[] label;\n    QuickFind(int n) {\n        label = new int[n+1];\n        for (int i = 1; i <= n; i++) label[i] = i;\n    }\n    boolean unite(int u, int v) {\n        int old = label[v], replacement = label[u];\n        if (old == replacement) return false;\n        for (int i = 1; i < label.length; i++) if (label[i] == old) label[i] = replacement;\n        return true;\n    }\n    boolean connected(int u, int v) { return label[u] == label[v]; }\n    int sizeOf(int node) {\n        int count = 0;\n        for (int i = 1; i < label.length; i++) if (label[i] == label[node]) count++;\n        return count;\n    }\n}",
-    "baselineTime": "O(n) initialization and union, O(1) connectivity check, and O(n) for the optional size query. O(n) space."
+    "baselineTime": "O(n) initialization and union, O(1) connectivity check, and O(n) for the optional size query. O(n) space.",
+    "better": {
+      "explanation": "For the linked practice judge, use this 0-based DisjointSet class. It supports both unionByRank and unionBySize on the same object. Every accepted merge updates the surviving size and preserves a rank upper bound. This matters when a size-based merge changes the tree later used by rank-based operations. The two pure-policy classes above are simpler for learning; this class matches the judge’s mixed-operation interface.",
+      "java": "static class DisjointSet {\n    private final int[] parent, rank, size;\n    DisjointSet(int n) {\n        parent = new int[n]; rank = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int findParent(int node) {\n        if (parent[node] != node) parent[node] = findParent(parent[node]);\n        return parent[node];\n    }\n    boolean find(int u, int v) { return findParent(u) == findParent(v); }\n    int componentSizeOf(int node) { return size[findParent(node)]; }\n    void unionByRank(int u, int v) {\n        int a = findParent(u), b = findParent(v);\n        if (a == b) return;\n        if (rank[a] < rank[b]) { int temp = a; a = b; b = temp; }\n        attach(a,b);\n    }\n    void unionBySize(int u, int v) {\n        int a = findParent(u), b = findParent(v);\n        if (a == b) return;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        attach(a,b);\n    }\n    private void attach(int root, int child) {\n        parent[child] = root;\n        size[root] += size[child];\n        // Both policies keep size exact and rank a valid height upper bound.\n        rank[root] = Math.max(rank[root],rank[child]+1);\n    }\n}",
+      "time": "O(n) initialization and O(α(n)) amortized per union/find.",
+      "space": "O(n) for parent, rank, and size arrays."
+    }
   },
   "373": {
     "problem": "Maintain disjoint groups of nodes. Merge two groups and quickly tell whether two nodes belong to the same group. Also report a group’s size.",
-    "assumptions": "Nodes are 1 through n, matching Striver’s foundation lesson. Index 0 is unused. Groups only merge; this structure does not remove connections. The boolean union result is an addition: true means two previously separate groups were joined.",
+    "assumptions": "Nodes are 1 through n, matching Striver’s foundation lesson. Index 0 is unused. Groups only merge; this structure does not remove connections. The boolean union result is an addition: true means two previously separate groups were joined. The linked practice judge differs: it uses 0-based nodes and calls both union methods on one object. Use the combined DisjointSet class in “Another approach” for that judge.",
     "example": {
       "input": "n = 6; merge(1,2), merge(3,4), merge(2,4); then ask connected(1,3), connected(1,6)",
       "output": "true, false",
@@ -14683,22 +14691,30 @@
       "Repeatedly merging the same group must do nothing.",
       "Only the root’s size is authoritative; query through findParent.",
       "This 1-based class is separate from the 0-based DSU used in graph solutions.",
-      "Use one balancing policy consistently; the source’s rank and size Java examples are separate classes."
+      "The article’s separate examples are 1-based. The practice judge is 0-based and can mix policies; its combined implementation below maintains both metadata arrays after every merge."
     ],
     "tests": [
       "SizeDSU d=new SizeDSU(6);assert d.unionBySize(1,2);assert d.unionBySize(3,4);assert d.unionBySize(2,4);assert d.find(1,3);assert !d.find(1,6);assert !d.unionBySize(1,4);assert !d.unionBySize(5,5);assert d.componentSizeOf(3)==4;assert d.componentSizeOf(5)==1;",
       "Random random=new Random(373);\nfor(int trial=0;trial<100;trial++){\n int n=1+random.nextInt(40);SizeDSU d=new SizeDSU(n);QuickFind oracle=new QuickFind(n);\n for(int step=0;step<300;step++){\n  int a=1+random.nextInt(n),b=1+random.nextInt(n);assert d.unionBySize(a,b)==oracle.unite(a,b);\n  for(int query=0;query<4;query++){int u=1+random.nextInt(n),v=1+random.nextInt(n);assert d.find(u,v)==oracle.connected(u,v);assert d.componentSizeOf(u)==oracle.sizeOf(u);}\n }\n}",
-      "SizeDSU d=new SizeDSU(100000);for(int i=2;i<=100000;i++)assert d.unionBySize(i-1,i);for(int i=1;i<=100000;i++)assert d.find(1,i);assert d.componentSizeOf(99999)==100000;"
+      "SizeDSU d=new SizeDSU(100000);for(int i=2;i<=100000;i++)assert d.unionBySize(i-1,i);for(int i=1;i<=100000;i++)assert d.find(1,i);assert d.componentSizeOf(99999)==100000;",
+      "DisjointSet d=new DisjointSet(5);d.unionByRank(0,1);d.unionBySize(3,4);d.unionByRank(1,2);assert d.find(0,2);assert !d.find(1,3);assert d.componentSizeOf(0)==3;d.unionBySize(2,4);assert d.find(0,4);assert d.componentSizeOf(3)==5;d.unionByRank(0,4);assert d.componentSizeOf(0)==5;",
+      "Random random=new Random(372373);\nfor(int trial=0;trial<100;trial++){\n int n=1+random.nextInt(50);DisjointSet d=new DisjointSet(n);QuickFind oracle=new QuickFind(n);\n for(int step=0;step<400;step++){\n  int a=random.nextInt(n),b=random.nextInt(n);if(random.nextBoolean())d.unionByRank(a,b);else d.unionBySize(a,b);oracle.unite(a+1,b+1);\n  for(int query=0;query<3;query++){int u=random.nextInt(n),v=random.nextInt(n);assert d.find(u,v)==oracle.connected(u+1,v+1);assert d.componentSizeOf(u)==oracle.sizeOf(u+1);}\n }\n}"
     ],
     "reference": {
       "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/disjoint-set-union",
       "title": "Disjoint Set Union: Union by Rank, Size and Path Compression",
       "checkedOn": "2026-10-29",
       "approach": "Path compression with union by size.",
-      "adaptation": "Both complete public Java examples were checked. This lesson uses the separate size implementation and preserves its 1-based indexing. A boolean union result reports whether a merge occurred; the source’s union method is void. The label-array baseline is an authored comparison."
+      "adaptation": "Both complete public Java examples were checked. This lesson uses the separate size implementation and preserves its 1-based indexing. A boolean union result reports whether a merge occurred; the source’s union method is void. The label-array baseline is an authored comparison. The public practice statement was also checked: it uses 0-based nodes and permits mixed union calls. A separately labelled combined judge class is provided; it is an authored adaptation, not a claim that the public article contains this combined Java."
     },
     "baselineJava": "static class QuickFind {\n    private final int[] label;\n    QuickFind(int n) {\n        label = new int[n+1];\n        for (int i = 1; i <= n; i++) label[i] = i;\n    }\n    boolean unite(int u, int v) {\n        int old = label[v], replacement = label[u];\n        if (old == replacement) return false;\n        for (int i = 1; i < label.length; i++) if (label[i] == old) label[i] = replacement;\n        return true;\n    }\n    boolean connected(int u, int v) { return label[u] == label[v]; }\n    int sizeOf(int node) {\n        int count = 0;\n        for (int i = 1; i < label.length; i++) if (label[i] == label[node]) count++;\n        return count;\n    }\n}",
-    "baselineTime": "O(n) initialization and union, O(1) connectivity check, and O(n) for the optional size query. O(n) space."
+    "baselineTime": "O(n) initialization and union, O(1) connectivity check, and O(n) for the optional size query. O(n) space.",
+    "better": {
+      "explanation": "For the linked practice judge, use this 0-based DisjointSet class. It supports both unionByRank and unionBySize on the same object. Every accepted merge updates the surviving size and preserves a rank upper bound. This matters when a size-based merge changes the tree later used by rank-based operations. The two pure-policy classes above are simpler for learning; this class matches the judge’s mixed-operation interface.",
+      "java": "static class DisjointSet {\n    private final int[] parent, rank, size;\n    DisjointSet(int n) {\n        parent = new int[n]; rank = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int findParent(int node) {\n        if (parent[node] != node) parent[node] = findParent(parent[node]);\n        return parent[node];\n    }\n    boolean find(int u, int v) { return findParent(u) == findParent(v); }\n    int componentSizeOf(int node) { return size[findParent(node)]; }\n    void unionByRank(int u, int v) {\n        int a = findParent(u), b = findParent(v);\n        if (a == b) return;\n        if (rank[a] < rank[b]) { int temp = a; a = b; b = temp; }\n        attach(a,b);\n    }\n    void unionBySize(int u, int v) {\n        int a = findParent(u), b = findParent(v);\n        if (a == b) return;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        attach(a,b);\n    }\n    private void attach(int root, int child) {\n        parent[child] = root;\n        size[root] += size[child];\n        // Both policies keep size exact and rank a valid height upper bound.\n        rank[root] = Math.max(rank[root],rank[child]+1);\n    }\n}",
+      "time": "O(n) initialization and O(α(n)) amortized per union/find.",
+      "space": "O(n) for parent, rank, and size arrays."
+    }
   },
   "374": {
     "problem": "Use Kruskal’s algorithm to find the minimum total weight needed to connect every vertex without cycles.",
