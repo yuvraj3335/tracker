@@ -19452,5 +19452,131 @@
         ]
       ]
     }
+  },
+  "452": {
+    "problem": "Build the KMP prefix-function array and use it to find pattern matches without moving backward through the text.",
+    "assumptions": "lps[i] is the length of the longest proper prefix of pattern[0..i] that is also its suffix. Proper excludes the entire prefix itself. The current TUF practice asks for all zero-based occurrences through search(pattern,text); the tracker’s LeetCode target asks for only the first index through strStr(text,pattern). Both interfaces are included. Empty-pattern first search returns 0; the all-match wrapper returns an empty list as an extension.",
+    "example": {
+      "input": "text = \"abababa\", pattern = \"ababa\"",
+      "output": "All matches [0,2]; first match 0",
+      "explanation": "The pattern’s LPS array is [0,0,1,2,3]. After matching the first ababa, its final aba can be reused as the start of the overlapping match at index 2."
+    },
+    "baseline": "Try matching the pattern from every possible text start. On repetitive inputs, the same characters are compared many times, producing O(nm) worst-case time.",
+    "approach": "Suppose several pattern characters matched and the next one fails. Starting over at pattern index zero throws away useful information. The text suffix just matched is identical to a pattern prefix, so a shorter prefix that is also its suffix may still be usable. LPS tells us the longest such length.\n\nTo build LPS at position i, first try extending the preceding prefix/suffix match. On a mismatch, fall back to lps[matched−1] and try again. This moves to the next shorter border that could still work. It is not the same as subtracting one: most shorter lengths cannot be both a prefix and suffix.\n\nWhile searching text, use the same fallback on a mismatch and retry the current text character against the shorter pattern prefix. The text index never moves backward. When matched reaches the pattern length, record the starting position. For all matches, fall back to the final LPS value so overlapping matches remain possible. For first-match search, return immediately.\n\nEvery increase in matched comes from consuming a character, and every fallback decreases it. These movements give O(n+m) work without hash collisions or repeated full-window verification.",
+    "steps": [
+      "Build LPS from left to right using shorter-border fallback on mismatches.",
+      "Scan text once while tracking the number of matched pattern characters.",
+      "On mismatch, follow LPS links until a match is possible or the count reaches zero.",
+      "On a full match, return or record its start.",
+      "For all occurrences, fall back through LPS after a match to preserve overlaps."
+    ],
+    "java": "static int[] prefixFunction(String s) {\n    int[] lps=new int[s.length()];\n    for(int i=1;i<s.length();i++) {\n        int matched=lps[i-1];\n        while(matched>0 && s.charAt(i)!=s.charAt(matched)) matched=lps[matched-1];\n        if(s.charAt(i)==s.charAt(matched)) matched++;\n        lps[i]=matched;\n    }\n    return lps;\n}\n\nstatic int strStr(String text,String pattern) {\n    if(pattern.isEmpty()) return 0;\n    int[] lps=prefixFunction(pattern);\n    int matched=0;\n    for(int i=0;i<text.length();i++) {\n        while(matched>0 && text.charAt(i)!=pattern.charAt(matched)) matched=lps[matched-1];\n        if(text.charAt(i)==pattern.charAt(matched)) matched++;\n        if(matched==pattern.length()) return i-pattern.length()+1;\n    }\n    return -1;\n}\nstatic List<Integer> search(String pattern,String text) {\n    List<Integer> matches=new ArrayList<>();\n    if(pattern.isEmpty()) return matches;\n    int[] lps=prefixFunction(pattern);\n    int matched=0;\n    for(int i=0;i<text.length();i++) {\n        while(matched>0 && text.charAt(i)!=pattern.charAt(matched)) matched=lps[matched-1];\n        if(text.charAt(i)==pattern.charAt(matched)) matched++;\n        if(matched==pattern.length()) {\n            matches.add(i-pattern.length()+1);\n            matched=lps[matched-1];\n        }\n    }\n    return matches;\n}",
+    "time": "O(n+m), where n is text length and m is pattern length.",
+    "space": "O(m) for LPS, plus the returned match positions when collecting all occurrences.",
+    "pitfalls": [
+      "LPS is a length, not an index. Its fallback uses lps[matched−1].",
+      "Do not advance the text during a fallback; the current character still needs to be tested.",
+      "After a full match, reset through LPS rather than zero if overlaps are required.",
+      "The two judge wrappers use different argument order and return types.",
+      "A prefix/suffix may overlap; proper only excludes the whole string."
+    ],
+    "tests": [
+      "assert Arrays.equals(prefixFunction(\"ababa\"),new int[]{0,0,1,2,3});assert search(\"ababa\",\"abababa\").equals(List.of(0,2));assert search(\"aa\",\"aaaa\").equals(List.of(0,1,2));assert strStr(\"abababa\",\"ababa\")==0;assert strStr(\"abc\",\"\")==0;",
+      "for(int n=0;n<=11;n++)for(int mask=0;mask<(1<<n);mask++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((mask&(1<<i))==0?'a':'b');String s=b.toString();int[] actual=prefixFunction(s);for(int end=0;end<n;end++){int expected=0;for(int length=1;length<=end;length++)if(s.substring(0,length).equals(s.substring(end-length+1,end+1)))expected=length;assert actual[end]==expected;}}",
+      "Random random=new Random(452);for(int trial=0;trial<2500;trial++){StringBuilder a=new StringBuilder(),b=new StringBuilder();for(int i=0,n=random.nextInt(80);i<n;i++)a.append((char)('a'+random.nextInt(4)));for(int i=0,n=random.nextInt(20);i<n;i++)b.append((char)('a'+random.nextInt(4)));String text=a.toString(),pattern=b.toString();assert strStr(text,pattern)==text.indexOf(pattern);List<Integer> expected=new ArrayList<>();if(!pattern.isEmpty())for(int at=text.indexOf(pattern);at>=0;at=text.indexOf(pattern,at+1))expected.add(at);assert search(pattern,text).equals(expected);}",
+      "assert strStr(\"a\".repeat(100000)+\"b\",\"a\".repeat(50000)+\"b\")==50000;assert search(\"aa\",\"a\".repeat(50000)).size()==49999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/kmp-algorithm-or-lps-array",
+      "title": "KMP Algorithm or LPS array",
+      "checkedOn": "2026-10-29",
+      "approach": "Build longest proper prefix/suffix lengths and reuse them on search mismatches and after overlapping matches.",
+      "adaptation": "The current practice statement, both hints, and fallback/overlap FAQs were checked. Its Solution panel is gated. The complete Java prefix-function construction was checked in the public Longest Happy Prefix article. This original KMP scan applies that LPS to the practice all-match and pinned first-match interfaces."
+    }
+  },
+  "454": {
+    "problem": "Return the longest proper prefix of a string that is also its suffix.",
+    "assumptions": "The prefix and suffix may overlap. The whole string is excluded. If no nonempty answer exists, return an empty string. Empty input is also handled. The return value is the prefix text, not its length.",
+    "example": {
+      "input": "s = \"abcabca\"",
+      "output": "\"abca\"",
+      "explanation": "The first four characters and last four characters are both abca. They overlap at the middle a, which is allowed. The entire string is excluded by the word proper."
+    },
+    "baseline": "Try candidate lengths from n−1 down to one and compare the prefix and suffix directly. This is simple but can take O(n²) character comparisons.",
+    "approach": "This question asks exactly what the final LPS value stores. For each prefix ending at i, LPS gives the longest shorter prefix that is also a suffix. The final entry therefore gives the answer length for the complete string.\n\nBuild the array by trying to extend the previous match with the next character. If it fails, move to lps[matched−1], the next shorter prefix/suffix candidate, without advancing the current index. Continue until a match is possible or no shorter border remains.\n\nA successful comparison extends the match by one. If no candidate matches, the value is zero. Starting at index one and only extending previously proper borders ensures that the whole string is never returned.\n\nOnce the array is ready, return s.substring(0,lps[n−1]). There is no non-overlap restriction: for aaaa the answer is aaa, even though the two occurrences share characters.",
+    "steps": [
+      "Handle empty input with an empty result.",
+      "Build LPS using shorter-border fallback on mismatches.",
+      "Read the final LPS value as the answer length.",
+      "Return that many characters from the start."
+    ],
+    "java": "static int[] prefixFunction(String s) {\n    int[] lps=new int[s.length()];\n    for(int i=1;i<s.length();i++) {\n        int matched=lps[i-1];\n        while(matched>0 && s.charAt(i)!=s.charAt(matched)) matched=lps[matched-1];\n        if(s.charAt(i)==s.charAt(matched)) matched++;\n        lps[i]=matched;\n    }\n    return lps;\n}\n\nstatic String longestPrefix(String s) {\n    if(s.isEmpty()) return \"\";\n    int[] lps=prefixFunction(s);\n    return s.substring(0,lps[s.length()-1]);\n}",
+    "time": "O(n).",
+    "space": "O(n) for LPS and the returned prefix.",
+    "pitfalls": [
+      "Proper excludes the whole string, but does not forbid overlap.",
+      "A single character has no nonempty proper prefix, so return empty.",
+      "On mismatch, use lps[matched−1], not matched−1.",
+      "Do not confuse this with the longest common prefix across several strings."
+    ],
+    "tests": [
+      "assert longestPrefix(\"abcabca\").equals(\"abca\");assert longestPrefix(\"aaaa\").equals(\"aaa\");assert longestPrefix(\"abcd\").isEmpty();assert longestPrefix(\"a\").isEmpty();assert longestPrefix(\"\").isEmpty();",
+      "for(int n=0;n<=11;n++)for(int mask=0;mask<(1<<n);mask++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((mask&(1<<i))==0?'a':'b');String s=b.toString();int[] actual=prefixFunction(s);for(int end=0;end<n;end++){int expected=0;for(int length=1;length<=end;length++)if(s.substring(0,length).equals(s.substring(end-length+1,end+1)))expected=length;assert actual[end]==expected;}}",
+      "for(int n=0;n<=12;n++)for(int bits=0;bits<(1<<n);bits++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((bits&(1<<i))==0?'a':'b');String s=b.toString();String expected=\"\";for(int length=1;length<s.length();length++)if(s.startsWith(s.substring(s.length()-length)))expected=s.substring(0,length);assert longestPrefix(s).equals(expected);assert happyPrefixByScan(s).equals(expected);}",
+      "assert longestPrefix(\"a\".repeat(100000)).length()==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/longest-happy-prefix",
+      "title": "Longest Happy Prefix Using the KMP Prefix Function",
+      "checkedOn": "2026-10-29",
+      "approach": "The final LPS entry is the longest proper prefix that also forms a suffix; use border fallback to construct it in linear time.",
+      "adaptation": "The complete public Java and overlap/proper-prefix contract were checked. This version factors the source’s LPS construction into a reusable helper and adds an empty-string guard before accessing the final entry."
+    },
+    "baselineJava": "static String happyPrefixByScan(String s) {\n    for(int length=s.length()-1;length>0;length--)\n        if(s.regionMatches(0,s,s.length()-length,length)) return s.substring(0,length);\n    return \"\";\n}",
+    "baselineTime": "O(n²) time and O(1) working space apart from the returned string.",
+    "trace": {
+      "columns": [
+        "Prefix examined",
+        "Longest proper border",
+        "LPS length"
+      ],
+      "rows": [
+        [
+          "a",
+          "None",
+          "0"
+        ],
+        [
+          "ab",
+          "None",
+          "0"
+        ],
+        [
+          "abc",
+          "None",
+          "0"
+        ],
+        [
+          "abca",
+          "a",
+          "1"
+        ],
+        [
+          "abcab",
+          "ab",
+          "2"
+        ],
+        [
+          "abcabc",
+          "abc",
+          "3"
+        ],
+        [
+          "abcabca",
+          "abca",
+          "4"
+        ]
+      ]
+    }
   }
 }
