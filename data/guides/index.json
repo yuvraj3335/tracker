@@ -14169,5 +14169,52 @@
       "time": "O(R × C).",
       "space": "O(R × C)."
     }
+  },
+  "362": {
+    "problem": "Find a top-left to bottom-right path whose largest single height change is as small as possible.",
+    "assumptions": "Movement is up, down, left, or right. Every cell is traversable. Effort is the maximum adjacent height difference along the path, not the sum. The pinned constraints give a nonempty rectangular grid with heights from 1 to 10^6, so int differences are safe.",
+    "example": {
+      "input": "heights = [[1,10], [4,7]]",
+      "output": "3",
+      "explanation": "Going down then right has differences 3 and 3, so its effort is 3. Going right first creates a jump of 9. The answer is the largest step on the chosen route, not 3 + 3."
+    },
+    "baseline": "Try effort limits from 0 up to the height range. For each limit, run BFS using only edges whose height difference is at most that limit. The first reachable limit is optimal, but trying every integer can be slow.",
+    "approach": "Use a Dijkstra-style heap, but change what a route costs. Extending a route with current effort e across a jump of size d gives effort max(e,d), not e + d. Keep the smallest effort found for each cell.\n\nRemove the smallest current effort from the heap and skip stale entries. Once the destination is removed with its current best effort, return it. Extending any other route cannot lower that route’s existing largest jump, so no unprocessed larger effort can produce a better answer.\n\nThe threshold view gives another useful method: if a limit works, every larger limit works too. Binary search finds the first feasible limit using the same BFS check as the simple solution.",
+    "steps": [
+      "Set the source effort to 0 and other efforts to infinity.",
+      "Remove the smallest current heap effort and skip stale entries.",
+      "For each neighbor, try max(current effort, height difference).",
+      "Return when the destination is removed with its current best effort."
+    ],
+    "java": "static final int[][] DIRECTIONS = {{-1,0},{0,1},{1,0},{0,-1}};\n\nstatic int minimumEffortPath(int[][] heights) {\n    int rows = heights.length, cols = heights[0].length;\n    int[][] effort = new int[rows][cols];\n    for (int[] row : effort) Arrays.fill(row,Integer.MAX_VALUE);\n    PriorityQueue<int[]> heap = new PriorityQueue<>(Comparator.comparingInt((int[] state) -> state[0]));\n    effort[0][0] = 0;\n    heap.add(new int[]{0,0,0});\n    while (!heap.isEmpty()) {\n        int[] state = heap.remove();\n        int cost = state[0], row = state[1], col = state[2];\n        if (cost != effort[row][col]) continue;\n        if (row == rows-1 && col == cols-1) return cost;\n        for (int[] direction : DIRECTIONS) {\n            int r = row+direction[0], c = col+direction[1];\n            if (r < 0 || r >= rows || c < 0 || c >= cols) continue;\n            int candidate = Math.max(cost,Math.abs(heights[r][c]-heights[row][col]));\n            if (candidate < effort[r][c]) {\n                effort[r][c] = candidate;\n                heap.add(new int[]{candidate,r,c});\n            }\n        }\n    }\n    throw new IllegalStateException(\"Every cell in a nonempty rectangular height grid is reachable\");\n}",
+    "time": "O(RC log(RC + 1)).",
+    "space": "O(R × C) for efforts and heap states.",
+    "pitfalls": [
+      "Using addition solves a different objective.",
+      "Return when the destination is popped with current effort, not when it is first discovered.",
+      "A single cell has effort 0 because there is no height change.",
+      "Do not apply first-visit BFS marking to weighted effort without fixing a threshold.",
+      "For arbitrary int heights, cast to long before subtraction; the stated judge bounds are what make int safe here."
+    ],
+    "tests": [
+      "assert minimumEffortPath(new int[][]{{1,10},{4,7}})==3;assert minimumEffortPath(new int[][]{{99}})==0;assert effortBinarySearch(new int[][]{{99}})==0;assert effortByLimits(new int[][]{{99}})==0;",
+      "Random random=new Random(362);\nfor(int trial=0;trial<2000;trial++){\n int rows=1+random.nextInt(4),cols=1+random.nextInt(4),n=rows*cols;int[][]heights=new int[rows][cols];for(int i=0;i<n;i++)heights[i/cols][i%cols]=1+random.nextInt(trial<1000?5:1000000);\n int[][]d=new int[n][n];for(int i=0;i<n;i++){Arrays.fill(d[i],Integer.MAX_VALUE);d[i][i]=0;for(int j=0;j<n;j++)if(Math.abs(i/cols-j/cols)+Math.abs(i%cols-j%cols)==1)d[i][j]=Math.abs(heights[i/cols][i%cols]-heights[j/cols][j%cols]);}\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)d[i][j]=Math.min(d[i][j],Math.max(d[i][k],d[k][j]));\n int expected=d[0][n-1];assert minimumEffortPath(heights)==expected;assert effortBinarySearch(heights)==expected;if(trial<1000)assert effortByLimits(heights)==expected;\n assert canReach(heights,expected);if(expected>0)assert !canReach(heights,expected-1);\n}",
+      "int[][]a=new int[100][100];for(int[]row:a)Arrays.fill(row,1000000);assert minimumEffortPath(a)==0;a[0][0]=1;assert minimumEffortPath(a)==999999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/path-with-minimum-effort",
+      "title": "Path with Minimum Effort",
+      "checkedOn": "2026-10-29",
+      "approach": "Threshold BFS, binary search on feasible effort, and minimax Dijkstra relaxation.",
+      "adaptation": "All three complete public Java methods and the pinned height bounds were checked. The same max-based relaxation and stale-state check are retained. An unreachable defensive fallback throws instead of silently returning zero; valid nonempty height grids always have a route."
+    },
+    "baselineJava": "static boolean canReach(int[][] heights, int limit) {\n    int rows = heights.length, cols = heights[0].length;\n    boolean[][] seen = new boolean[rows][cols];\n    Deque<int[]> queue = new ArrayDeque<>();\n    seen[0][0] = true; queue.add(new int[]{0,0});\n    while (!queue.isEmpty()) {\n        int[] cell = queue.remove();\n        if (cell[0] == rows-1 && cell[1] == cols-1) return true;\n        for (int[] direction : DIRECTIONS) {\n            int r = cell[0]+direction[0], c = cell[1]+direction[1];\n            if (r >= 0 && r < rows && c >= 0 && c < cols && !seen[r][c]\n                    && Math.abs(heights[r][c]-heights[cell[0]][cell[1]]) <= limit) {\n                seen[r][c] = true; queue.add(new int[]{r,c});\n            }\n        }\n    }\n    return false;\n}\nstatic int heightRange(int[][] heights) {\n    int minimum = heights[0][0], maximum = minimum;\n    for (int[] row : heights) for (int value : row) { minimum = Math.min(minimum,value); maximum = Math.max(maximum,value); }\n    return maximum-minimum;\n}\n\nstatic int effortByLimits(int[][] heights) {\n    int maximum = heightRange(heights);\n    for (int limit = 0; limit <= maximum; limit++) if (canReach(heights,limit)) return limit;\n    throw new IllegalStateException(\"The full height range must permit a path\");\n}",
+    "baselineTime": "O((H + 1)RC) time for height range H, and O(RC) space.",
+    "better": {
+      "explanation": "Binary search the effort limit. At a given limit, BFS answers whether the destination is reachable using only allowed jumps. If it works, lower the upper bound; otherwise raise the lower bound past that limit. The reachability check and height-range helper are in the simple solution above.",
+      "java": "static int effortBinarySearch(int[][] heights) {\n    int low = 0, high = heightRange(heights);\n    while (low < high) {\n        int middle = low+(high-low)/2;\n        if (canReach(heights,middle)) high = middle;\n        else low = middle+1;\n    }\n    return low;\n}",
+      "time": "O(RC log(H + 1) + RC), including the height-range scan.",
+      "space": "O(RC) for each BFS check."
+    }
   }
 }
