@@ -19,7 +19,7 @@
     "crawler:setup": "bash scripts/crawler-setup.sh",
     "connect": "node scripts/connect-ai.mjs",
     "check:boards": "tsx scripts/check-boards.ts",
-    "test:miso": "node --test cloudflare/tutor-worker.test.mjs && tsx --test scripts/selftest-miso.ts",
+    "test:miso": "node --test cloudflare/tutor-worker.test.mjs && tsx --test scripts/selftest-miso.ts scripts/selftest-miso-playback.ts",
     "check:guides": "node scripts/check-guides.mjs"
   },
   "dependencies": {

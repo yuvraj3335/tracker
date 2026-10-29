@@ -37,6 +37,17 @@ test('speech chunks preserve content and punctuation', () => {
   const [pieces, rest] = speechPieces(text); const [last] = speechPieces(rest, true);
   assert.equal([...pieces, ...last].join(' '), text); assert.ok(pieces.length);
 });
+test('a short finished sentence is released before the rest of the answer', () => {
+  assert.deepEqual(speechPieces('Check the middle value. Then'), [['Check the middle value.'], 'Then']);
+  assert.deepEqual(speechPieces('It takes 3.'), [[], 'It takes 3.']);
+  assert.deepEqual(speechPieces('It takes 3.5 seconds. Next'), [['It takes 3.5 seconds.'], 'Next']);
+  const text = 'Keep comparing the middle value and narrowing the interval '.repeat(40).trim();
+  const [chunks, rest] = speechPieces(text);
+  const [last] = speechPieces(rest, true);
+  assert.ok(chunks.length > 1, 'an unpunctuated answer must not wait for completion');
+  assert.equal([...chunks, ...last].join(' '), text);
+  assert.ok([...chunks, ...last].every(chunk => chunk.length <= 300));
+});
 test('body size enforced on actual streamed bytes before parsing', async () => {
   const req = new Request('https://test', { method: 'POST', body: JSON.stringify({ text: 'x'.repeat(200) }) });
   await assert.rejects(boundedJSON(req, 100), (e: unknown) => e instanceof CloudError && e.status === 413);

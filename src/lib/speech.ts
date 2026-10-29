@@ -210,59 +210,7 @@ export {
  * A two-word fragment mid-reply is a gap with a word in it, so it waits for
  * whatever follows it.
  */
-export const SENTENCE_MIN = 10;
-
-/**
- * ...except the first one, which is the entire wait.
- *
- * Nothing is heard until the first sentence is complete, so holding a finished
- * "Nice one." back until the sentence after it arrives is paying the whole
- * cost of the reply to avoid one short utterance. Measured on the streamed
- * path: an eleven-character opener starts being said 100 ms after the first
- * byte, a nine-character one 1,051 ms after it. The prompt asks for a
- * two-to-five word reaction on every single reply, so that was the common
- * case rather than the edge.
- */
-export const FIRST_MIN = 3;
-
-/**
- * Pulls finished sentences out of a buffer that is still being written to.
- *
- * The reply arrives a few characters at a time, and the whole point is to
- * start speaking before it has finished arriving. This returns the sentences
- * that are definitely complete and whatever is left over, so the leftover can
- * wait for the rest of itself.
- *
- * A sentence is only complete when something follows the full stop — without
- * that rule "3." in "3.5" would be a sentence, and so would every half-typed
- * abbreviation. `min` keeps a stray "Oh." from becoming its own utterance with
- * all the gap that implies; the caller lowers it for the first sentence of a
- * reply, where that gap is the thing being avoided rather than the cost.
- */
-export function cutSentences(buffer: string, min = SENTENCE_MIN): [string[], string] {
-  const out: string[] = [];
-  let start = 0;
-  for (let i = 0; i < buffer.length - 1; i++) {
-    const c = buffer[i];
-    if (c !== '.' && c !== '!' && c !== '?' && c !== '\n') continue;
-    // Run past "?!" and "..." so they stay with the sentence they belong to.
-    let end = i;
-    while (end + 1 < buffer.length && '.!?'.includes(buffer[end + 1])) end++;
-    // Something has to follow it, and whitespace is the only thing that
-    // counts. A buffer that stops dead on the terminator has not finished the
-    // sentence — it has stopped mid-arrival, and "You have done 3." is the
-    // shape that proves it: cut there and the "5 hours" that was coming next
-    // becomes a sentence of its own.
-    const after = buffer[end + 1];
-    if (after === undefined || !/\s/.test(after)) continue;
-    const sentence = buffer.slice(start, end + 1).trim();
-    if (sentence.length < min) continue;
-    out.push(sentence);
-    start = end + 1;
-    i = end;
-  }
-  return [out, buffer.slice(start)];
-}
+export { SENTENCE_MIN, FIRST_MIN, cutSentences } from './speech-segments';
 
 /**
  * A fragment shorter than this lands as a clipped bark on its own, so it rides

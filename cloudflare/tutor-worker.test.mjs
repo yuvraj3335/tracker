@@ -69,3 +69,24 @@ test('cloud transcription accepts bounded base64 and never returns provider meta
   const response = await handle(make({ audio: 'Y'.repeat(100) }), env, hash);
   assert.equal(response.status, 200); assert.deepEqual(await response.json(), { text: 'Hey Miso, explain Java.' }); assert.equal(calls, 1);
 });
+
+test('PCM voice streams unchanged before synthesis completes; legacy MP3 stays supported', async () => {
+  const make = body => new Request('https://miso.test/api/miso/voice', { method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  let output;
+  const stream = new ReadableStream({ start(c) { output = c; c.enqueue(new Uint8Array([0, 32, 0, 64])); } });
+  let calls = 0;
+  const env = { AI: { run(model, input) {
+    calls++; assert.equal(model, '@cf/deepgram/aura-2-en');
+    assert.deepEqual(input, { text: 'Hello.', speaker: 'luna', encoding: 'linear16', container: 'none', sample_rate: 24000 });
+    return stream;
+  } } };
+  const response = await handle(make({ text: 'Hello.', voice: 'natural', format: 'pcm' }), env, hash);
+  assert.equal(response.headers.get('content-type'), 'audio/pcm;rate=24000;channels=1');
+  const reader = response.body.getReader();
+  assert.deepEqual((await reader.read()).value, new Uint8Array([0, 32, 0, 64]));
+  output.close(); assert.equal((await reader.read()).done, true);
+  for (const body of [{ text: 'Hello.', voice: 'natural', format: 'wav' }, { text: 'Hello.', voice: 'longer', format: 'pcm' }]) {
+    assert.equal((await handle(make(body), env, hash)).status, 400);
+  }
+  assert.equal(calls, 1);
+});

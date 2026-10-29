@@ -1,5 +1,8 @@
 'use client';
 
+import { cutSentences } from './speech-segments';
+import { cloudSpeechQueue } from './miso-playback';
+
 /** Only recording, level measurement and playback happen here. No local AI. */
 let playback: AudioContext | null = null;
 export async function unlockMisoAudio() {
@@ -18,55 +21,31 @@ export function forSpeech(text: string) {
 }
 
 export function speechQueue(voice: 'natural' | 'longer', signal: AbortSignal, onStart: () => void) {
-  const context = playback;
-  let chain = Promise.resolve();
-  let failure: Error | null = null;
-  let started = false;
-  const active = new Set<AudioBufferSourceNode>();
-  const stop = () => { for (const source of active) { try { source.stop(); } catch { /* Already ended. */ } } };
-  signal.addEventListener('abort', stop, { once: true });
-  return {
-    push(text: string) {
-      text = forSpeech(text);
-      if (!text || signal.aborted || failure) return;
-      // Prepare the following clip while the preceding one is playing.
-      const ready = (async () => {
-        if (!context || context.state !== 'running') throw new Error('Tap Talk to enable audio playback.');
-        const res = await fetch('/api/companion/voice', { method: 'POST', signal, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: text.slice(0, 1200), voice }) });
-        if (!res.ok) throw await responseError(res, 'Cloud voice is unavailable.');
-        return context.decodeAudioData(await res.arrayBuffer());
-      })();
-      // Handle rejection immediately, including while an earlier clip plays.
-      const handled = ready.then(buffer => ({ buffer, error: null }), error => ({ buffer: null, error: error as Error }));
-      chain = chain.then(async () => {
-        const { buffer, error } = await handled;
-        if (signal.aborted || failure) return;
-        if (error || !buffer || !context) { failure = error ?? new Error('No speech was returned.'); return; }
-        if (!started) { started = true; onStart(); }
-        await new Promise<void>(resolve => {
-          const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination); active.add(source);
-          source.onended = () => { active.delete(source); source.disconnect(); resolve(); };
-          if (signal.aborted) { active.delete(source); source.disconnect(); resolve(); return; }
-          source.start();
-        });
-      });
-    },
-    async end() { try { await chain; if (failure && !signal.aborted) throw failure; } finally { signal.removeEventListener('abort', stop); } },
-  };
+  const queue = cloudSpeechQueue(playback, voice, signal, onStart);
+  return { ...queue, push: (text: string) => queue.push(forSpeech(text)) };
 }
 
 export function speechPieces(buffer: string, final = false): [string[], string] {
+  const [sentences, rest] = cutSentences(buffer);
   const pieces: string[] = [];
-  // Keep a useful phrase together, without forcing canned two-word openers.
-  while (buffer.length > 100) {
-    const end = buffer.slice(50, 360).search(/[.!?](?:\s|$)/);
-    if (end < 0) break;
-    const cut = 51 + end;
-    pieces.push(buffer.slice(0, cut).trim()); buffer = buffer.slice(cut).trimStart();
-  }
+  // A complete short sentence can go to TTS while the next one is arriving.
+  // Bound long, unpunctuated answers too; never silently cut off spoken text.
+  const split = (text: string) => {
+    while (text.length > 300) {
+      const space = text.lastIndexOf(' ', 300);
+      const at = space > 0 ? space : 300;
+      pieces.push(text.slice(0, at).trim()); text = text.slice(at).trimStart();
+    }
+    return text;
+  };
+  for (const sentence of sentences) { const tail = split(sentence); if (tail) pieces.push(tail); }
+  buffer = split(rest.trimStart());
   if (final && buffer.trim()) { pieces.push(buffer.trim()); buffer = ''; }
   return [pieces, buffer];
 }
+
+// A brief pause ends a turn; a short hesitation while speaking does not.
+export const MISO_TURN_SILENCE_MS = 650;
 
 function base64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -151,7 +130,7 @@ export async function openCloudMicrophone(options: {
     const rms = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
     const now = Date.now();
     if (rms > 0.018) { lastLoud = now; voiced += 50; if (voiced === 200) options.onSpeech(); }
-    const endOfTurn = voiced >= 200 && now - lastLoud > 1200;
+    const endOfTurn = voiced >= 200 && now - lastLoud >= MISO_TURN_SILENCE_MS;
     const discardQuiet = voiced < 200 && now - begin > 4000;
     if (endOfTurn || discardQuiet || now - begin > 40000) { busy = true; recorder.stop(); }
   }, 50);

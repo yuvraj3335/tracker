@@ -151,14 +151,15 @@ export async function audioRequest(path, input, env) {
       if (typeof result?.text !== 'string') return json({ error: 'No transcript returned' }, 502);
       return json({ text: result.text.trim().slice(0, 4000) });
     }
-    if (!input || Object.keys(input).some(k => !['text', 'voice'].includes(k)) || typeof input.text !== 'string' || !input.text.trim() || input.text.length > 1200 || !['natural', 'longer'].includes(input.voice)) return json({ error: 'Invalid speech request' }, 400);
+    if (!input || Object.keys(input).some(k => !['text', 'voice', 'format'].includes(k)) || typeof input.text !== 'string' || !input.text.trim() || input.text.length > 1200 || !['natural', 'longer'].includes(input.voice) || (input.format !== undefined && (input.format !== 'pcm' || input.voice !== 'natural'))) return json({ error: 'Invalid speech request' }, 400);
+    const pcm = input.format === 'pcm';
     const result = input.voice === 'natural'
-      ? await env.AI.run('@cf/deepgram/aura-2-en', { text: input.text, speaker: 'luna', encoding: 'mp3' })
+      ? await env.AI.run('@cf/deepgram/aura-2-en', { text: input.text, speaker: 'luna', ...(pcm ? { encoding: 'linear16', container: 'none', sample_rate: 24000 } : { encoding: 'mp3' }) })
       : await env.AI.run('@cf/myshell-ai/melotts', { prompt: input.text, lang: 'en' });
     let body = result;
     if (typeof result?.audio === 'string') body = Uint8Array.from(atob(result.audio), c => c.charCodeAt(0));
     if (!(body instanceof Uint8Array) && !(body instanceof ArrayBuffer) && typeof body?.getReader !== 'function') return json({ error: 'No audio returned' }, 502);
-    return new Response(body, { headers: { 'content-type': 'audio/mpeg', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
+    return new Response(body, { headers: { 'content-type': pcm ? 'audio/pcm;rate=24000;channels=1' : 'audio/mpeg', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' } });
   } catch (e) {
     const limited = e?.status === 429 || /quota|rate.?limit|neurons|daily limit|3042|3036/i.test(String(e?.message));
     return json({ error: limited ? 'Free AI limit reached. Retry later; no paid fallback is enabled.' : 'Cloud audio is unavailable. Please retry.' }, limited ? 429 : 502);
