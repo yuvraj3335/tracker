@@ -1657,32 +1657,40 @@
     ]
   },
   "50": {
-    "problem": "Find the value that appears once when every other value appears exactly twice.",
-    "assumptions": "The input is nonempty and satisfies the stated multiplicities. Negative values are allowed.",
+    "problem": "Find the value that appears once when every other value appears twice.",
+    "assumptions": "The input is nonempty. Exactly one value appears once and every other value appears exactly twice. Negative int values are allowed. The same XOR proof also covers exactly one odd-frequency value with all others even.",
     "example": {
-      "input": "[4, 1, 2, 1, 2]",
-      "output": "4",
-      "explanation": "Both ones cancel under XOR, as do both twos. Only 4 remains."
+      "input": "nums = [8, -3, 8, 6, 6]",
+      "output": "-3",
+      "explanation": "Both 8s cancel and both 6s cancel. Only -3 remains."
     },
-    "baseline": "Count frequencies in a map and find the key with count one, using O(n) additional space.",
-    "approach": "XOR cancellation does not depend on order. Scanning once with a zero accumulator removes every duplicated pair.",
+    "baseline": "Count occurrences in a hash map and return the value with frequency 1. This takes expected O(n) time and O(n) extra space under the linked problem’s guarantee.",
+    "approach": "XOR has two cancellation rules: a XOR a = 0, and a XOR 0 = a. It also allows values to be regrouped, so matching values do not need to be adjacent. XOR every value into a result starting at zero. Every pair cancels; the unpaired value remains.\n\nFor the broader title, an even number of equal values cancels completely, while an odd number leaves one copy. The same reasoning works as long as exactly one value has odd frequency.",
     "steps": [
-      "Initialize the accumulator to zero.",
-      "XOR in every value.",
-      "Return the final accumulator."
+      "Start result at 0.",
+      "XOR each array value into it.",
+      "Return the remaining value."
     ],
-    "java": "static int single(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    int answer = 0;\n    for (int x : a) answer ^= x;\n    return answer;\n}",
+    "java": "static int singleNumber(int[] nums) {\n    int answer = 0;\n    for (int value : nums) answer ^= value;\n    return answer;\n}",
     "time": "O(n).",
     "space": "O(1).",
     "pitfalls": [
-      "This does not solve the variant where other values appear three times.",
-      "The technique assumes the multiplicity promise; it does not validate it."
+      "The frequency guarantee is necessary; otherwise the XOR result need not be an array element.",
+      "Negative values work too because XOR acts on the stored bit patterns."
     ],
     "tests": [
-      "assert single(new int[]{4,1,2,1,2})==4;",
-      "assert single(new int[]{-3,2,2})==-3;",
-      "assert single(new int[]{0})==0;"
-    ]
+      "assert singleNumber(new int[]{8,-3,8,6,6})==-3;assert singleNumber(new int[]{0})==0;assert singleNumber(new int[]{Integer.MIN_VALUE,7,7})==Integer.MIN_VALUE;assert singleNumber(new int[]{2,2,2,4,4})==2;",
+      "Random r=new Random(191);for(int t=0;t<500;t++){Set<Integer>used=new HashSet<>();int unique=r.nextInt();used.add(unique);List<Integer>a=new ArrayList<>();a.add(unique);for(int j=0;j<30;j++){int x;do{x=r.nextInt();}while(!used.add(x));a.add(x);a.add(x);}Collections.shuffle(a,r);assert singleNumber(a.stream().mapToInt(Integer::intValue).toArray())==unique;assert singleByCount(a.stream().mapToInt(Integer::intValue).toArray())==unique;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/single-number-i",
+      "title": "Single Number I",
+      "checkedOn": "2026-10-29",
+      "approach": "Frequency map baseline, followed by XOR cancellation.",
+      "adaptation": "Both public Java methods were checked. The final method follows the same XOR loop. The broader odd-frequency interpretation is explained separately from the linked once-versus-twice task."
+    },
+    "baselineJava": "static int singleByCount(int[] nums) {\n    Map<Integer, Integer> count = new HashMap<>();\n    for (int value : nums) count.merge(value, 1, Integer::sum);\n    for (Map.Entry<Integer, Integer> entry : count.entrySet()) {\n        if (entry.getValue() == 1) return entry.getKey();\n    }\n    throw new IllegalArgumentException(\"Expected one value appearing once\");\n}",
+    "baselineTime": "Expected O(n) time and O(n) extra space. This baseline uses the linked once-versus-twice contract."
   },
   "51": {
     "problem": "Find the length of the longest contiguous subarray whose sum equals k.",
@@ -18936,6 +18944,203 @@
           "2: b",
           "b",
           "6"
+        ]
+      ]
+    }
+  },
+  "444": {
+    "problem": "Review the bit operations needed for binary tries, then solve the pinned Single Number exercise using XOR cancellation.",
+    "assumptions": "The current sheet’s Bit PreRequisites heading has no linked article or practice task. The tracker’s preserved link is Single Number, so its checked solution is included here. In that exercise one value appears once and all others twice. The following maximum-XOR trie problems instead assume nonnegative ints.",
+    "example": {
+      "input": "nums = [8, -3, 8, 6, 6]",
+      "output": "-3",
+      "explanation": "Both 8s cancel and both 6s cancel. Only -3 remains."
+    },
+    "baseline": "Count occurrences in a hash map and return the value with frequency 1. This takes expected O(n) time and O(n) extra space under the linked problem’s guarantee.",
+    "approach": "A bit is either 0 or 1. AND (&) returns 1 only for 1 & 1. OR (|) returns 1 when either bit is 1. XOR (^) returns 1 when the two bits differ. For example, 6 ^ 3 is binary 110 ^ 011 = 101, which is 5.\n\nTo read bit b of a Java int, use (value >>> b) & 1. Bit 0 is the least significant bit. The unsigned shift >>> fills from the left with zeros; >> repeats the sign bit. To turn on bit b in a result, use result |= 1 << b. The following trie lessons process bits 30 down to 0 because their inputs are nonnegative signed ints. Higher bits matter first: one bit at position b outweighs all lower bits combined.\n\nXOR has two cancellation rules: a XOR a = 0, and a XOR 0 = a. It also allows values to be regrouped, so matching values do not need to be adjacent. XOR every value into a result starting at zero. Every pair cancels; the unpaired value remains.\n\nFor the broader title, an even number of equal values cancels completely, while an odd number leaves one copy. The same reasoning works as long as exactly one value has odd frequency.",
+    "steps": [
+      "Start result at 0.",
+      "XOR each array value into it.",
+      "Return the remaining value."
+    ],
+    "java": "static int singleNumber(int[] nums) {\n    int answer = 0;\n    for (int value : nums) answer ^= value;\n    return answer;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The frequency guarantee is necessary; otherwise the XOR result need not be an array element.",
+      "Negative values work too because XOR acts on the stored bit patterns.",
+      "Use ^ for bitwise XOR; it is not exponentiation in Java.",
+      "Java int shifts use only the low five bits of the shift distance, so keep bit positions within 0..31.",
+      "1 << 31 sets the sign bit and is negative as an int; the nonnegative XOR lessons use bits 30..0."
+    ],
+    "tests": [
+      "assert singleNumber(new int[]{8,-3,8,6,6})==-3;assert singleNumber(new int[]{0})==0;assert singleNumber(new int[]{Integer.MIN_VALUE,7,7})==Integer.MIN_VALUE;assert singleNumber(new int[]{2,2,2,4,4})==2;",
+      "Random r=new Random(191);for(int t=0;t<500;t++){Set<Integer>used=new HashSet<>();int unique=r.nextInt();used.add(unique);List<Integer>a=new ArrayList<>();a.add(unique);for(int j=0;j<30;j++){int x;do{x=r.nextInt();}while(!used.add(x));a.add(x);a.add(x);}Collections.shuffle(a,r);assert singleNumber(a.stream().mapToInt(Integer::intValue).toArray())==unique;assert singleByCount(a.stream().mapToInt(Integer::intValue).toArray())==unique;}",
+      "assert (6^3)==5;assert ((6>>>2)&1)==1;assert ((6>>>0)&1)==0;assert ((Integer.MIN_VALUE>>>31)&1)==1;assert (1<<30)==1073741824;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/single-number-i",
+      "title": "Single Number I",
+      "checkedOn": "2026-10-29",
+      "approach": "Frequency map baseline, followed by XOR cancellation.",
+      "adaptation": "Both public Java methods were checked. The final method follows the same XOR loop. The broader odd-frequency interpretation is explained separately from the linked once-versus-twice task. The Bit PreRequisites heading itself has no linked source, so the bit-operation primer is original explanatory material and the saved Single Number source supports the linked exercise."
+    },
+    "baselineJava": "static int singleByCount(int[] nums) {\n    Map<Integer, Integer> count = new HashMap<>();\n    for (int value : nums) count.merge(value, 1, Integer::sum);\n    for (Map.Entry<Integer, Integer> entry : count.entrySet()) {\n        if (entry.getValue() == 1) return entry.getKey();\n    }\n    throw new IllegalArgumentException(\"Expected one value appearing once\");\n}",
+    "baselineTime": "Expected O(n) time and O(n) extra space. This baseline uses the linked once-versus-twice contract.",
+    "trace": {
+      "columns": [
+        "Bit a",
+        "Bit b",
+        "a & b",
+        "a | b",
+        "a ^ b"
+      ],
+      "rows": [
+        [
+          "0",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "0",
+          "1",
+          "0",
+          "1",
+          "1"
+        ],
+        [
+          "1",
+          "0",
+          "0",
+          "1",
+          "1"
+        ],
+        [
+          "1",
+          "1",
+          "1",
+          "1",
+          "0"
+        ]
+      ]
+    }
+  },
+  "445": {
+    "problem": "Find the largest XOR value obtainable from two array entries.",
+    "assumptions": "The pinned LeetCode problem allows i = j and accepts nonnegative ints through 2³¹−1. A one-element array therefore returns zero. The source article describes different indices, but its implementation and the pinned judge both return zero for one element. Empty input also returns zero as a convenience. Negative values are outside this trie contract.",
+    "example": {
+      "input": "nums = [2,7,12]",
+      "output": "14",
+      "explanation": "2 is 0010 and 12 is 1100; their XOR is 1110, or 14. The numerically largest two values are not automatically the best XOR pair."
+    },
+    "baseline": "Try every pair and calculate its XOR. This gives a direct O(n²) solution and a useful test oracle.",
+    "approach": "XOR is 1 where two bits differ. To get the largest result, decide the most significant bit first. If bit b can be 1, that gain is 2ᵇ; even making every lower bit 1 gives only 2ᵇ−1. So an available opposite bit must be preferred.\n\nStore every number as a path of bits in a binary trie. At each node there are at most two children, for 0 and 1. For a query number, walk from bit 30 down to bit 0. Prefer the opposite child, setting that result bit to 1. If it does not exist, follow the same child.\n\nEach chosen path prefix still belongs to at least one complete stored number. That is why the greedy bit decisions stay compatible instead of accidentally combining bits from unrelated numbers. Query every input value and keep the greatest XOR.\n\nThe code processes all 31 nonnegative-int bits. This avoids floating-point logarithms when finding the highest used bit and also handles arrays containing only zero.",
+    "steps": [
+      "Insert every number’s bits from 30 down to 0.",
+      "For each number, start a fresh search at the root.",
+      "Prefer the opposite bit if that branch exists.",
+      "Set the result bit when the opposite branch is used.",
+      "Keep the largest result across all input values."
+    ],
+    "java": "static class BinaryTrie {\n    private static class Node {\n        Node[] child=new Node[2];\n    }\n    private final Node root=new Node();\n    private int size;\n    void insert(int value) {\n        Node node=root;\n        for(int bit=30;bit>=0;bit--) {\n            int digit=(value>>>bit)&1;\n            if(node.child[digit]==null) node.child[digit]=new Node();\n            node=node.child[digit];\n        }\n        size++;\n    }\n    int bestXor(int value) {\n        if(size==0) return -1;\n        Node node=root;\n        int answer=0;\n        for(int bit=30;bit>=0;bit--) {\n            int digit=(value>>>bit)&1;\n            if(node.child[digit^1]!=null) {\n                answer|=1<<bit;\n                node=node.child[digit^1];\n            } else node=node.child[digit];\n        }\n        return answer;\n    }\n}\n\nstatic int findMaximumXOR(int[] nums) {\n    BinaryTrie trie=new BinaryTrie();\n    for(int value:nums) trie.insert(value);\n    int best=0;\n    for(int value:nums) best=Math.max(best,trie.bestXor(value));\n    return best;\n}",
+    "time": "O(31n), which is O(n) for fixed-width Java ints.",
+    "space": "O(31n) nodes in the worst case, with two child references per node.",
+    "pitfalls": [
+      "Maximizing the two input values is not the same as maximizing their XOR.",
+      "Choose from high bits to low bits; low-bit gains cannot compensate for losing a higher 1.",
+      "All inserted values use the same bit width.",
+      "The query returns the XOR score, not the partner number.",
+      "This comparison relies on nonnegative inputs; signed-XOR maximization needs a different sign-bit rule."
+    ],
+    "tests": [
+      "assert findMaximumXOR(new int[]{2,7,12})==14;assert findMaximumXOR(new int[]{9})==0;assert findMaximumXOR(new int[]{0,0})==0;assert findMaximumXOR(new int[]{0,Integer.MAX_VALUE})==Integer.MAX_VALUE;",
+      "Random random=new Random(445);for(int trial=0;trial<1600;trial++){int n=random.nextInt(45);int[] nums=new int[n];for(int i=0;i<n;i++)nums[i]=trial%2==0?random.nextInt(64):random.nextInt()&Integer.MAX_VALUE;int expected=xorByPairs(nums);assert findMaximumXOR(nums)==expected;assert xorByPrefixes(nums)==expected;}",
+      "int[] zeros=new int[200000];assert findMaximumXOR(zeros)==0;int[] values=new int[32768];for(int i=0;i<values.length;i++)values[i]=i;assert findMaximumXOR(values)==32767;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/maximum-xor-of-two-numbers-in-an-array",
+      "title": "Maximum XOR of Two Numbers in an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Pair enumeration, high-bit prefix-set feasibility, and an opposite-bit binary trie.",
+      "adaptation": "All three complete public Java implementations were checked. The trie and prefix-set recurrences are retained, while a fixed 31-bit width replaces the article’s floating-point highest-bit calculation. The pinned judge’s nonnegative range and i <= j rule were verified separately."
+    },
+    "baselineJava": "static int xorByPairs(int[] nums) {\n    int best=0;\n    for(int i=0;i<nums.length;i++)\n        for(int j=i+1;j<nums.length;j++) best=Math.max(best,nums[i]^nums[j]);\n    return best;\n}",
+    "baselineTime": "O(n²) time and O(1) extra space.",
+    "better": {
+      "explanation": "The source also tests the answer one bit at a time with a set of masked prefixes. Pretend the next answer bit can be 1. A pair exists exactly when some prefix p has partner p XOR candidate in the set, since p XOR partner = candidate. Keep the candidate only when that lookup succeeds. Rebuild the set for each bit. This uses less structural memory than a trie but repeats hash-set work.",
+      "java": "static int xorByPrefixes(int[] nums) {\n    int mask=0,answer=0;\n    for(int bit=30;bit>=0;bit--) {\n        mask|=1<<bit;\n        Set<Integer> prefixes=new HashSet<>();\n        for(int value:nums) prefixes.add(value&mask);\n        int candidate=answer|(1<<bit);\n        for(int prefix:prefixes) {\n            if(prefixes.contains(prefix^candidate)) {\n                answer=candidate;\n                break;\n            }\n        }\n    }\n    return answer;\n}",
+      "time": "O(31n) expected time.",
+      "space": "O(n) for one prefix set at a time."
+    }
+  },
+  "446": {
+    "problem": "For each query [x,m], find the largest x XOR value among array values at most m. Return −1 if no value is eligible.",
+    "assumptions": "Array values, x, and m are nonnegative ints within the pinned problem’s bounds. The limit applies to the chosen array value, not to x and not to the XOR result. Queries can be processed in a different order internally, but answers must match the original order. The code preserves both input arrays.",
+    "example": {
+      "input": "nums = [2,4,8], queries = [[7,4],[7,1],[1,8]]",
+      "output": "[5,−1,9]",
+      "explanation": "The first query may use 2 or 4, giving max(7^2,7^4) = 5. The second has no eligible value. The third may use 8, giving 1^8 = 9."
+    },
+    "baseline": "For each query, scan the whole array. Ignore values above its limit, calculate XOR for the rest, and retain the maximum or −1. This costs O(nq).",
+    "approach": "The trie search from the previous lesson gives the best XOR among numbers already inserted. The remaining question is how to make the trie contain exactly the allowed numbers for each query.\n\nSort the numbers and process queries by increasing limit m. Before answering a query, insert every not-yet-inserted number that is <= m. A number allowed now stays allowed for every later query, so each number is inserted once and nothing needs to be removed.\n\nRemember each query’s original index before sorting. Write its result into that index, not into the sorted processing position. The trie chooses opposite bits from high to low as before. If it is still empty, return −1.\n\nThis is offline processing: all queries are available before answering. Sorting changes the order of work, while the saved indices preserve the required output order.",
+    "steps": [
+      "Sort a copy of nums.",
+      "Create query records containing limit, x, and original index.",
+      "Sort those records by limit.",
+      "Advance one number pointer, inserting every value allowed by the current limit.",
+      "Query the trie or use −1 when empty, and store the result at the original index."
+    ],
+    "java": "static class BinaryTrie {\n    private static class Node {\n        Node[] child=new Node[2];\n    }\n    private final Node root=new Node();\n    private int size;\n    void insert(int value) {\n        Node node=root;\n        for(int bit=30;bit>=0;bit--) {\n            int digit=(value>>>bit)&1;\n            if(node.child[digit]==null) node.child[digit]=new Node();\n            node=node.child[digit];\n        }\n        size++;\n    }\n    int bestXor(int value) {\n        if(size==0) return -1;\n        Node node=root;\n        int answer=0;\n        for(int bit=30;bit>=0;bit--) {\n            int digit=(value>>>bit)&1;\n            if(node.child[digit^1]!=null) {\n                answer|=1<<bit;\n                node=node.child[digit^1];\n            } else node=node.child[digit];\n        }\n        return answer;\n    }\n}\n\nstatic int[] maximizeXor(int[] nums,int[][] queries) {\n    int[] sorted=nums.clone();\n    Arrays.sort(sorted);\n    int[][] ordered=new int[queries.length][3];\n    for(int i=0;i<queries.length;i++) {\n        ordered[i][0]=queries[i][1];\n        ordered[i][1]=queries[i][0];\n        ordered[i][2]=i;\n    }\n    Arrays.sort(ordered,Comparator.comparingInt(query->query[0]));\n    int[] answer=new int[queries.length];\n    BinaryTrie trie=new BinaryTrie();\n    int next=0;\n    for(int[] query:ordered) {\n        while(next<sorted.length && sorted[next]<=query[0]) trie.insert(sorted[next++]);\n        answer[query[2]]=trie.bestXor(query[1]);\n    }\n    return answer;\n}",
+    "time": "O(n log n + q log q + 31(n+q)).",
+    "space": "O(31n + q) for trie nodes, copied values, query records, and output.",
+    "pitfalls": [
+      "Insert values equal to the limit too: the rule is <= m.",
+      "Sort by the limit, not by x.",
+      "Restore original query order through saved indices.",
+      "Zero is a valid XOR result; use −1 only when no candidate exists.",
+      "Do not build one unrestricted trie and then reject its best answer: another allowed value may be the correct choice."
+    ],
+    "tests": [
+      "assert Arrays.equals(maximizeXor(new int[]{2,4,8},new int[][]{{7,4},{7,1},{1,8}}),new int[]{5,-1,9});assert Arrays.equals(maximizeXor(new int[]{0},new int[][]{{0,0},{Integer.MAX_VALUE,0}}),new int[]{0,Integer.MAX_VALUE});assert Arrays.equals(maximizeXor(new int[]{},new int[][]{{4,5}}),new int[]{-1});",
+      "Random random=new Random(446);for(int trial=0;trial<1400;trial++){int[] nums=new int[random.nextInt(35)];for(int i=0;i<nums.length;i++)nums[i]=random.nextInt(64);int[][] queries=new int[random.nextInt(35)][2],savedQueries=new int[queries.length][];for(int i=0;i<queries.length;i++){queries[i][0]=random.nextInt(128);queries[i][1]=random.nextInt(64);savedQueries[i]=queries[i].clone();}int[] saved=nums.clone();assert Arrays.equals(maximizeXor(nums,queries),xorQueriesByScan(nums,queries));assert Arrays.equals(nums,saved);assert Arrays.deepEquals(queries,savedQueries);}",
+      "int n=100000;int[] nums=new int[n];int[][] queries=new int[n][2];for(int i=0;i<n;i++){nums[i]=i;queries[i][0]=0;queries[i][1]=n-1-i;}int[] answer=maximizeXor(nums,queries);for(int i=0;i<n;i++)assert answer[i]==n-1-i;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/maximum-xor-queries-trie",
+      "title": "Maximum XOR Queries with an Array Element Using a Trie",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort values and queries by limit, insert newly eligible values once, and answer through a binary trie while restoring original order.",
+      "adaptation": "Both complete public Java implementations were checked. The optimized code retains the article’s bits 30..0 and original-index records. Sorting a cloned nums array preserves input order, and the trie explicitly returns −1 when empty."
+    },
+    "baselineJava": "static int[] xorQueriesByScan(int[] nums,int[][] queries) {\n    int[] answer=new int[queries.length];\n    Arrays.fill(answer,-1);\n    for(int i=0;i<queries.length;i++)\n        for(int value:nums)\n            if(value<=queries[i][1]) answer[i]=Math.max(answer[i],queries[i][0]^value);\n    return answer;\n}",
+    "baselineTime": "O(nq) time; O(1) working space apart from the result.",
+    "trace": {
+      "columns": [
+        "Limit-ordered query",
+        "Numbers now in trie",
+        "Result",
+        "Original answer slot"
+      ],
+      "rows": [
+        [
+          "[7,1]",
+          "None",
+          "−1",
+          "1"
+        ],
+        [
+          "[7,4]",
+          "2,4",
+          "5",
+          "0"
+        ],
+        [
+          "[1,8]",
+          "2,4,8",
+          "9",
+          "2"
         ]
       ]
     }
