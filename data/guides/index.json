@@ -11621,5 +11621,168 @@
       "time": "O(n).",
       "space": "O(w), where w is the maximum level width."
     }
+  },
+  "300": {
+    "problem": "Find the path from the root to a chosen node. Also return all root-to-leaf paths for the current practice link attached to this sheet row.",
+    "assumptions": "The pinned title says “Root to Node Path”, but its link now asks for all root-to-leaf paths. These are different tasks, so both methods are included. A leaf has no children. rootToNode accepts a node reference, so duplicate values are unambiguous; it returns an empty list when the target is absent.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 7; target is node 4",
+      "output": "rootToNode = [8, 4]; rootToLeafPaths = [[8, 4, 7], [8, 9]]",
+      "explanation": "A target path may stop at an internal node. A leaf path must continue until neither child exists."
+    },
+    "baseline": "For all leaf paths, pass a separate path copy to every child. Each branch can then change its list safely, but repeated partial-path copying wastes work. The backtracking version keeps one working path instead.",
+    "approach": "When entering a node, append it to the current path. For all leaf paths, save a copy only when a leaf is reached. Visit the children, then remove the current node before returning to its parent. This final removal lets the next branch reuse the same list.\n\nFor one target path, stop when the exact target node is found. Return true up the successful chain without removing those nodes. If both child searches fail, remove the current node and return false. The remaining list is either the requested path or empty.\n\nAlways copy a completed leaf path. Saving the working list itself would make every result point to the same changing object.",
+    "steps": [
+      "Append the current node on entry.",
+      "For leaf paths, copy the list at a leaf; otherwise explore both children.",
+      "Remove the last item when leaving a completed branch.",
+      "For a target path, keep the successful branch and undo only failed branches."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic boolean findNodePath(TreeNode node, TreeNode target, List<TreeNode> path) {\n    if (node == null) return false;\n    path.add(node);\n    if (node == target) return true;\n    if (findNodePath(node.left, target, path) || findNodePath(node.right, target, path)) return true;\n    path.remove(path.size() - 1);\n    return false;\n}\n\nstatic List<Integer> rootToNode(TreeNode root, TreeNode target) {\n    List<TreeNode> nodes = new ArrayList<>();\n    findNodePath(root, target, nodes);\n    List<Integer> answer = new ArrayList<>();\n    for (TreeNode node : nodes) answer.add(node.val);\n    return answer;\n}\nstatic List<List<Integer>> rootToLeafPaths(TreeNode root) {\n    List<List<Integer>> answer = new ArrayList<>();\n    collectLeafPaths(root, new ArrayList<>(), answer);\n    return answer;\n}\nstatic void collectLeafPaths(TreeNode node, List<Integer> path, List<List<Integer>> answer) {\n    if (node == null) return;\n    path.add(node.val);\n    if (node.left == null && node.right == null) answer.add(new ArrayList<>(path));\n    else {\n        collectLeafPaths(node.left, path, answer);\n        collectLeafPaths(node.right, path, answer);\n    }\n    path.remove(path.size() - 1);\n}",
+    "time": "O(n) for one target path; O(n + k) for all leaf paths, where k is the total number of values returned across all paths.",
+    "space": "O(h) working path and recursive stack, plus O(k) output for all leaf paths. Deep trees can exceed Java’s call-stack limit.",
+    "pitfalls": [
+      "A missing left child does not make a node a leaf if its right child exists.",
+      "Use new ArrayList<>(path) when storing a leaf path.",
+      "Remove by index path.size() − 1, not by node value.",
+      "Do not treat a different node with the same value as the requested target."
+    ],
+    "tests": [
+      "assert rootToLeafPaths(null).isEmpty();assert rootToNode(null,new TreeNode(0)).isEmpty();TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(7);assert rootToNode(r,r.left).equals(List.of(8,4));assert rootToLeafPaths(r).equals(List.of(List.of(8,4,7),List.of(8,9)));assert rootToNode(r,new TreeNode(4)).isEmpty();List<List<Integer>>a=rootToLeafPaths(r);a.get(0).set(0,-1);assert a.get(1).get(0)==8;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<String,TreeNode> byPath=new HashMap<>();for(TreeNode x:paths.keySet())byPath.put(paths.get(x),x);List<String> leaves=new ArrayList<>();for(TreeNode x:paths.keySet())if(x.left==null&&x.right==null)leaves.add(paths.get(x));Collections.sort(leaves);List<List<Integer>>want=new ArrayList<>();for(String path:leaves){List<Integer> one=new ArrayList<>();for(int i=0;i<=path.length();i++)one.add(byPath.get(path.substring(0,i)).val);want.add(one);}assert rootToLeafPaths(root).equals(want);assert copiedLeafPaths(root).equals(want);for(TreeNode x:paths.keySet()){String path=paths.get(x);List<Integer> one=new ArrayList<>();for(int i=0;i<=path.length();i++)one.add(byPath.get(path.substring(0,i)).val);assert rootToNode(root,x).equals(one);}assert rootToNode(root,new TreeNode(root.val)).isEmpty();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/print-root-to-leaf-path-in-binary-tree",
+      "title": "Print root to leaf path in Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Copy partial paths, then improve to one backtracked path; use early success for a single target.",
+      "adaptation": "Both public root-to-leaf Java methods were checked. The original sheet’s root-to-node title is retained and covered with the target-path method checked in Striver’s LCA article. The current link’s all-leaf variant has a separate method."
+    },
+    "baselineJava": "static List<List<Integer>> copiedLeafPaths(TreeNode root) {\n    List<List<Integer>> answer = new ArrayList<>();\n    copyPaths(root, new ArrayList<>(), answer);\n    return answer;\n}\nstatic void copyPaths(TreeNode node, List<Integer> path, List<List<Integer>> answer) {\n    if (node == null) return;\n    path.add(node.val);\n    if (node.left == null && node.right == null) {\n        answer.add(new ArrayList<>(path));\n        return;\n    }\n    copyPaths(node.left, new ArrayList<>(path), answer);\n    copyPaths(node.right, new ArrayList<>(path), answer);\n}",
+    "baselineTime": "O(nh + k) time and O(h²) auxiliary space in the worst case, excluding O(k) output."
+  },
+  "301": {
+    "problem": "Find the lowest common ancestor of two nodes in a binary tree: the deepest node that is an ancestor of both.",
+    "assumptions": "This is an ordinary binary tree, not a binary search tree. Both target node references are present, as guaranteed by the linked problem. A node is its own ancestor. Comparisons use node identity, so the methods also work when values repeat.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.left = 2; 4.right = 6; targets 2 and 6",
+      "output": "node 4",
+      "explanation": "Both targets lie below 4 in different child branches. For targets 4 and 6, the answer is also 4 because a node can be its own ancestor."
+    },
+    "baseline": "Find the root-to-node path for each target. Compare the paths from the root and keep the last identical node. This directly follows the definition and takes O(n) time with O(h) saved-path space.",
+    "approach": "Ask each subtree to return the useful node it finds: a target, their common ancestor, or null. If the current node is either target, return it. Otherwise search both children.\n\nIf both child results are non-null, the targets split across the two sides, so the current node is their meeting point. If only one result is non-null, pass that result upward. It may already be the LCA, or it may be a target whose other target lies below it.\n\nThe guarantee that both targets exist matters. Without it, this compact method can return the one target it found even when the other is absent. The parent-map version below explicitly detects missing targets.",
+    "steps": [
+      "Return null for an empty subtree.",
+      "Return the current node if it is either target.",
+      "Search both child subtrees.",
+      "Return the current node for two non-null results; otherwise return the one non-null result."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {\n    if (root == null || root == p || root == q) return root;\n    TreeNode left = lowestCommonAncestor(root.left, p, q);\n    TreeNode right = lowestCommonAncestor(root.right, p, q);\n    if (left != null && right != null) return root;\n    return left != null ? left : right;\n}",
+    "time": "O(n).",
+    "space": "O(h) recursive stack. Use the iterative parent-map version for a very deep tree.",
+    "pitfalls": [
+      "Do not use BST value comparisons on an ordinary binary tree.",
+      "An ancestor target can itself be the answer.",
+      "Compare node references rather than values.",
+      "The compact recursive method relies on both targets being present."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.left=new TreeNode(2);r.left.right=new TreeNode(6);assert lowestCommonAncestor(r,r.left.left,r.left.right)==r.left;assert lowestCommonAncestor(r,r.left,r.left.right)==r.left;assert lowestCommonAncestor(r,r.left,r.right)==r;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<String,TreeNode>byPath=new HashMap<>();for(TreeNode x:paths.keySet())byPath.put(paths.get(x),x);List<TreeNode>nodes=new ArrayList<>(paths.keySet());for(int t=0;t<60;t++){TreeNode a=nodes.get(random.nextInt(nodes.size())),b=nodes.get(random.nextInt(nodes.size()));String x=paths.get(a),y=paths.get(b);int k=0;while(k<Math.min(x.length(),y.length())&&x.charAt(k)==y.charAt(k))k++;TreeNode want=byPath.get(x.substring(0,k));assert lowestCommonAncestor(root,a,b)==want;assert lcaByPaths(root,a,b)==want;assert lcaByParents(root,a,b)==want;}}",
+      "TreeNode r=new TreeNode(0),p=r,mid=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;if(i==50000)mid=p;}assert lcaByParents(r,mid,p)==mid;assert lcaByParents(r,p,new TreeNode(p.val))==null;assert lcaByParents(null,p,p)==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/lowest-common-ancestor-in-a-binary-tree",
+      "title": "Lowest Common Ancestor in a Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Compare root paths, walk parent links, or combine recursive subtree results.",
+      "adaptation": "All three public Java methods were checked. The main method follows the source’s recursive split test. The iterative version adds a queue-exhaustion guard and returns null when a target is absent; maps and sets explicitly use node identity."
+    },
+    "baselineJava": "static boolean findNodePath(TreeNode node, TreeNode target, List<TreeNode> path) {\n    if (node == null) return false;\n    path.add(node);\n    if (node == target) return true;\n    if (findNodePath(node.left, target, path) || findNodePath(node.right, target, path)) return true;\n    path.remove(path.size() - 1);\n    return false;\n}\n\nstatic TreeNode lcaByPaths(TreeNode root, TreeNode p, TreeNode q) {\n    List<TreeNode> first = new ArrayList<>(), second = new ArrayList<>();\n    if (!findNodePath(root, p, first) || !findNodePath(root, q, second)) return null;\n    TreeNode answer = null;\n    for (int i = 0; i < Math.min(first.size(), second.size()); i++) {\n        if (first.get(i) != second.get(i)) break;\n        answer = first.get(i);\n    }\n    return answer;\n}",
+    "better": {
+      "explanation": "Build parent links with BFS. Mark all ancestors of p, then walk upward from q until reaching a marked node. This uses O(n) storage but avoids recursive depth limits. The membership guard also handles a missing target.",
+      "java": "static TreeNode lcaByParents(TreeNode root, TreeNode p, TreeNode q) {\n    if (root == null || p == null || q == null) return null;\n    Map<TreeNode, TreeNode> parent = new IdentityHashMap<>();\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    parent.put(root, null);\n    queue.offer(root);\n    while (!queue.isEmpty() && (!parent.containsKey(p) || !parent.containsKey(q))) {\n        TreeNode node = queue.poll();\n        if (node.left != null) { parent.put(node.left, node); queue.offer(node.left); }\n        if (node.right != null) { parent.put(node.right, node); queue.offer(node.right); }\n    }\n    if (!parent.containsKey(p) || !parent.containsKey(q)) return null;\n    Set<TreeNode> ancestors = Collections.newSetFromMap(new IdentityHashMap<>());\n    for (TreeNode current = p; current != null; current = parent.get(current)) ancestors.add(current);\n    TreeNode current = q;\n    while (!ancestors.contains(current)) current = parent.get(current);\n    return current;\n}",
+      "time": "O(n).",
+      "space": "O(n)."
+    }
+  },
+  "302": {
+    "problem": "Return the greatest width among the levels of a binary tree. Count empty positions between the leftmost and rightmost existing nodes on a level.",
+    "assumptions": "This row links to LeetCode 662, which guarantees that the answer fits a signed 32-bit integer. Width includes internal gaps; it is not simply the number of nodes in the queue. Empty input returns 0 as a useful extension.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.left = 2; 9.right = 7",
+      "output": "4",
+      "explanation": "The last level has positions [2, empty, empty, 7]. Only two nodes exist there, but the width is four."
+    },
+    "baseline": "Lay out every possible position at each level, including gaps. The distance between the two outermost nodes gives the width. Materializing all those gaps can require exponential space, so keep position numbers instead.",
+    "approach": "Pretend the tree is stored in a complete-tree array: a node at index i has children at 2i + 1 and 2i + 2. Queue only real nodes, together with those indices. The width of a level is lastIndex − firstIndex + 1.\n\nRaw indices grow rapidly even for a narrow deep tree. Before processing each level, subtract its first index from every index on that level. Subtracting the same number preserves all gaps. Generate child indices from these smaller numbers.\n\nUse long for intermediate positions. Under the linked problem’s 32-bit width guarantee, normalized positions and their doubled children remain safely within long. Normalization does not make arbitrarily huge widths fit in an integer; the guarantee is still needed.",
+    "steps": [
+      "Queue the root with position 0.",
+      "At each level, save its node count and first position.",
+      "Normalize each removed position by subtracting that first position.",
+      "Enqueue real children with complete-tree positions, then update the answer from the level’s first and last normalized positions."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class IndexedNode {\n    final TreeNode node;\n    final long index;\n    IndexedNode(TreeNode node, long index) { this.node = node; this.index = index; }\n}\nstatic int widthOfBinaryTree(TreeNode root) {\n    if (root == null) return 0;\n    Queue<IndexedNode> queue = new ArrayDeque<>();\n    queue.offer(new IndexedNode(root, 0));\n    long widest = 0;\n    while (!queue.isEmpty()) {\n        int size = queue.size();\n        long base = queue.peek().index;\n        long last = 0;\n        for (int i = 0; i < size; i++) {\n            IndexedNode current = queue.poll();\n            long index = current.index - base;\n            last = index;\n            if (current.node.left != null)\n                queue.offer(new IndexedNode(current.node.left, 2 * index + 1));\n            if (current.node.right != null)\n                queue.offer(new IndexedNode(current.node.right, 2 * index + 2));\n        }\n        widest = Math.max(widest, last + 1);\n    }\n    return Math.toIntExact(widest);\n}",
+    "time": "O(n).",
+    "space": "O(w) queued real nodes, where w is the largest actual node count at a level. Gaps do not occupy queue entries.",
+    "pitfalls": [
+      "Count internal missing positions, but not gaps outside the outermost nodes.",
+      "Use long before multiplying positions by two.",
+      "Normalize once per level using the same base for all its nodes.",
+      "A long chain can have huge raw indices while its width remains only one."
+    ],
+    "tests": [
+      "assert widthOfBinaryTree(null)==0;TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.left=new TreeNode(2);r.right.right=new TreeNode(7);assert widthOfBinaryTree(r)==4;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<Integer,BigInteger[]> bounds=new HashMap<>();for(String path:paths.values()){BigInteger index=BigInteger.ZERO;for(char ch:path.toCharArray())index=index.shiftLeft(1).add(BigInteger.valueOf(ch=='L'?1:2));BigInteger[] range=bounds.get(path.length());if(range==null)bounds.put(path.length(),new BigInteger[]{index,index});else{range[0]=range[0].min(index);range[1]=range[1].max(index);}}BigInteger want=BigInteger.ZERO;for(BigInteger[]range:bounds.values())want=want.max(range[1].subtract(range[0]).add(BigInteger.ONE));if(want.compareTo(BigInteger.valueOf(Integer.MAX_VALUE))<=0)assert widthOfBinaryTree(root)==want.intValue();}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(0);p=p.right;}assert widthOfBinaryTree(r)==1;",
+      "TreeNode r=new TreeNode(0),a=r,b=r;for(int i=0;i<30;i++){a.left=new TreeNode(0);b.right=new TreeNode(0);a=a.left;b=b.right;}assert widthOfBinaryTree(r)==(1<<30);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/maximum-width-of-bt",
+      "title": "Maximum Width of BT",
+      "checkedOn": "2026-10-29",
+      "approach": "Use complete-tree positions in BFS, preserving gaps while normalizing each level.",
+      "adaptation": "The public problem and index-based hints were checked; no public Java editorial was available. This authored Java uses the pinned LeetCode 662 guarantee that the answer fits int. The TUF page’s C++ starter returns long long and does not state that guarantee, so the return contract is explicitly tied to the pinned link."
+    }
+  },
+  "303": {
+    "problem": "Check that every non-leaf node equals the sum of its immediate children’s values.",
+    "assumptions": "A missing child contributes 0. A leaf automatically passes, regardless of its value. Negative values are allowed by the current problem. This is a check: do not change the tree to make the property true. Empty input returns true.",
+    "example": {
+      "input": "root 12; left child 5 with children 2 and 3; right child 7",
+      "output": "true",
+      "explanation": "12 = 5 + 7 and 5 = 2 + 3. The leaves 2, 3, and 7 need no further sum check."
+    },
+    "baseline": "Recursively check the current node’s child sum and then check both subtrees. This is already O(n). A queue performs the same checks without risking a deep recursive call stack.",
+    "approach": "Visit every node. Skip leaves because the problem explicitly exempts them. For any other node, add its existing children’s values, treating a missing child as zero. If that sum differs from the parent value, return false immediately.\n\nPassing at the root is not enough. A node farther down can still break the rule, so continue until all nodes pass. Only immediate children contribute to a node’s check; adding the whole subtree would test a different property.",
+    "steps": [
+      "An empty tree passes. Otherwise queue the root.",
+      "Skip the sum comparison for a leaf.",
+      "Add the immediate child values and compare with the parent.",
+      "Reject a mismatch; otherwise enqueue the children and continue."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic boolean checkChildrenSum(TreeNode root) {\n    if (root == null) return true;\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    queue.offer(root);\n    while (!queue.isEmpty()) {\n        TreeNode node = queue.poll();\n        if (node.left == null && node.right == null) continue;\n        long sum = (node.left == null ? 0L : node.left.val)\n                 + (node.right == null ? 0L : node.right.val);\n        if (sum != node.val) return false;\n        if (node.left != null) queue.offer(node.left);\n        if (node.right != null) queue.offer(node.right);\n    }\n    return true;\n}",
+    "time": "O(n).",
+    "space": "O(w) queue space, where w is the maximum level width.",
+    "pitfalls": [
+      "Do not require leaves to equal zero.",
+      "Check the sum of immediate children, not all descendants.",
+      "Do not mutate values: this question asks whether the existing tree satisfies the property.",
+      "Use long for the sum so two int values cannot overflow before comparison."
+    ],
+    "tests": [
+      "assert checkChildrenSum(null);assert checkChildrenSum(new TreeNode(-8));TreeNode r=new TreeNode(12);r.left=new TreeNode(5);r.right=new TreeNode(7);r.left.left=new TreeNode(2);r.left.right=new TreeNode(3);assert checkChildrenSum(r);r.left.left.val=1;assert !checkChildrenSum(r);r.left.left.val=2;assert checkChildrenSum(r);TreeNode x=new TreeNode(-2);x.left=new TreeNode(Integer.MAX_VALUE);x.right=new TreeNode(Integer.MAX_VALUE);assert !checkChildrenSum(x);",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}boolean want=true;for(TreeNode x:paths.keySet())if(x.left!=null||x.right!=null){long sum=(x.left==null?0L:x.left.val)+(x.right==null?0L:x.right.val);if(sum!=x.val)want=false;}assert checkChildrenSum(root)==want;assert childrenSumRecursive(root)==want;List<TreeNode>order=new ArrayList<>(paths.keySet());order.sort(Comparator.<TreeNode>comparingInt(x->paths.get(x).length()).reversed());for(TreeNode x:order)if(x.left!=null||x.right!=null)x.val=(x.left==null?0:x.left.val)+(x.right==null?0:x.right.val);assert checkChildrenSum(root);assert childrenSumRecursive(root);}",
+      "TreeNode r=new TreeNode(-4),p=r;for(int i=1;i<100000;i++){p.left=new TreeNode(-4);p=p.left;}assert checkChildrenSum(r);p.val=-3;assert !checkChildrenSum(r);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/children-sum-property-in-binary-tree",
+      "title": "Children Sum Property in Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Check every internal node against its immediate child sum; leaves automatically pass.",
+      "adaptation": "The current public statement, examples, negative-value constraint, and checkChildrenSum starter were checked. No public Java editorial was available. This authored Java checks the property without modifying values; it does not implement the separate conversion variant."
+    },
+    "baselineJava": "static boolean childrenSumRecursive(TreeNode node) {\n    if (node == null || (node.left == null && node.right == null)) return true;\n    long sum = (node.left == null ? 0L : node.left.val)\n             + (node.right == null ? 0L : node.right.val);\n    return sum == node.val && childrenSumRecursive(node.left) && childrenSumRecursive(node.right);\n}",
+    "baselineTime": "O(n) time and O(h) recursive stack space."
   }
 }
