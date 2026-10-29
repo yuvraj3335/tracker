@@ -10721,5 +10721,119 @@
       "approach": "Represent a node as a value with left and right references, and build a tree by assigning those references.",
       "adaptation": "The current public foundation article was read. The pinned older foundation URLs return Page Not Found. The current article explains concepts without a Java code tab; these are authored Java examples of those concepts."
     }
+  },
+  "279": {
+    "problem": "Return the preorder traversal of a binary tree: Root → Left → Right.",
+    "assumptions": "The input is a valid tree, may be empty, and may contain repeated values. The linked traversal task has a small node bound. For very deep trees, use the explicit-stack version later in this section to avoid Java call-stack overflow.",
+    "example": {
+      "input": "root 8 has left child 4 and right child 9; 4 has right child 6",
+      "output": "[8,4,6,9]",
+      "explanation": "Follow Root → Left → Right at every node, not just at the root."
+    },
+    "baseline": "An explicit stack can remember unfinished nodes instead of the language call stack. Both approaches must visit every node, so both take O(n) time; recursion is the direct way to learn the order here.",
+    "approach": "Record a node before entering either subtree. Then finish the entire left subtree before starting the right subtree. The word “pre” refers to when the root is recorded: before its children.\n\nThe recursive helper follows exactly that order. null means there is no node to visit, so that call returns without adding anything. Keep one result list and append to it; making and joining new lists at every node can add unnecessary copying.",
+    "steps": [
+      "Return immediately for null.",
+      "Append the current value.",
+      "Traverse the left subtree.",
+      "Traverse the right subtree."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> preorderTraversal(TreeNode root) {\n    List<Integer> output = new ArrayList<>();\n    visitPre(root, output);\n    return output;\n}\nstatic void visitPre(TreeNode node, List<Integer> output) {\n    if (node == null) return;\n    output.add(node.val);\n    visitPre(node.left, output);\n    visitPre(node.right, output);\n}",
+    "time": "O(n), because each node is visited once.",
+    "space": "O(h) call-stack space for tree height h, plus O(n) output. A chain has h = n when height counts nodes.",
+    "pitfalls": [
+      "Return an empty list for a null root.",
+      "Keep repeated values; traversal visits nodes, not distinct numbers.",
+      "Do not carry a result list over from a previous call.",
+      "Changing the position of output.add changes the traversal order."
+    ],
+    "tests": [
+      "TreeNode root=new TreeNode(8);root.left=new TreeNode(4);root.right=new TreeNode(9);root.left.right=new TreeNode(6);assert preorderTraversal(root).equals(List.of(8,4,6,9));assert preorderTraversal(null).isEmpty();",
+      "Random r=new Random(279);for(int t=0;t<500;t++){int n=1+r.nextInt(75);TreeNode root=new TreeNode(r.nextInt(11)-5);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size()));TreeNode child=new TreeNode(r.nextInt(11)-5);boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+\"\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert preorderTraversal(root).equals(want);assert preorderTraversal(root).equals(want);}",
+      "TreeNode root=new TreeNode(2);root.left=new TreeNode(2);root.right=new TreeNode(2);assert preorderTraversal(root).equals(List.of(2,2,2));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/preorder-traversal",
+      "title": "Preorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Follow Root → Left → Right using recursive subtree calls.",
+      "adaptation": "The public practice contract and the current tree-foundation traversal definitions were checked. The solution tab requires sign-in and no public Java editorial was available. This authored Java follows the stated traversal order, uses val for the linked judge, and is tested against independently sorted node paths."
+    }
+  },
+  "280": {
+    "problem": "Return the inorder traversal of a binary tree: Left → Root → Right.",
+    "assumptions": "The input is a valid tree, may be empty, and may contain repeated values. The linked traversal task has a small node bound. For very deep trees, use the explicit-stack version later in this section to avoid Java call-stack overflow.",
+    "example": {
+      "input": "root 8 has left child 4 and right child 9; 4 has right child 6",
+      "output": "[4,6,8,9]",
+      "explanation": "Follow Left → Root → Right at every node, not just at the root."
+    },
+    "baseline": "An explicit stack can remember unfinished nodes instead of the language call stack. Both approaches must visit every node, so both take O(n) time; recursion is the direct way to learn the order here.",
+    "approach": "Finish the left subtree, record the current node, then finish the right subtree. The root is recorded “in between” its two subtrees.\n\nA recursive call finishes all of its own work before its caller continues. That is why the line adding the root runs only after every left-subtree value has been appended. Inorder gives sorted values for a binary search tree; an ordinary binary tree has no such guarantee.",
+    "steps": [
+      "Return immediately for null.",
+      "Traverse the left subtree.",
+      "Append the current value.",
+      "Traverse the right subtree."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> inorderTraversal(TreeNode root) {\n    List<Integer> output = new ArrayList<>();\n    visitIn(root, output);\n    return output;\n}\nstatic void visitIn(TreeNode node, List<Integer> output) {\n    if (node == null) return;\n    visitIn(node.left, output);\n    output.add(node.val);\n    visitIn(node.right, output);\n}",
+    "time": "O(n), because each node is visited once.",
+    "space": "O(h) call-stack space for tree height h, plus O(n) output. A chain has h = n when height counts nodes.",
+    "pitfalls": [
+      "Return an empty list for a null root.",
+      "Keep repeated values; traversal visits nodes, not distinct numbers.",
+      "Do not carry a result list over from a previous call.",
+      "Changing the position of output.add changes the traversal order."
+    ],
+    "tests": [
+      "TreeNode root=new TreeNode(8);root.left=new TreeNode(4);root.right=new TreeNode(9);root.left.right=new TreeNode(6);assert inorderTraversal(root).equals(List.of(4,6,8,9));assert inorderTraversal(null).isEmpty();",
+      "Random r=new Random(279);for(int t=0;t<500;t++){int n=1+r.nextInt(75);TreeNode root=new TreeNode(r.nextInt(11)-5);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size()));TreeNode child=new TreeNode(r.nextInt(11)-5);boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+\"M\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert inorderTraversal(root).equals(want);assert inorderTraversal(root).equals(want);}",
+      "TreeNode root=new TreeNode(2);root.left=new TreeNode(2);root.right=new TreeNode(2);assert inorderTraversal(root).equals(List.of(2,2,2));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/inorder-traversal",
+      "title": "Inorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Follow Left → Root → Right using recursive subtree calls.",
+      "adaptation": "The public practice contract and the current tree-foundation traversal definitions were checked. The solution tab requires sign-in and no public Java editorial was available. This authored Java follows the stated traversal order, uses val for the linked judge, and is tested against independently sorted node paths."
+    }
+  },
+  "281": {
+    "problem": "Return the postorder traversal of a binary tree: Left → Right → Root.",
+    "assumptions": "The input is a valid tree, may be empty, and may contain repeated values. The linked traversal task has a small node bound. For very deep trees, use the explicit-stack version later in this section to avoid Java call-stack overflow.",
+    "example": {
+      "input": "root 8 has left child 4 and right child 9; 4 has right child 6",
+      "output": "[6,4,9,8]",
+      "explanation": "Follow Left → Right → Root at every node, not just at the root."
+    },
+    "baseline": "An explicit stack can remember unfinished nodes instead of the language call stack. Both approaches must visit every node, so both take O(n) time; recursion is the direct way to learn the order here.",
+    "approach": "Finish both child subtrees before recording their parent. “Post” means the root is recorded after its children. This order is useful when a parent’s result depends on completed child results, such as subtree height.\n\nThe left call finishes first, then the right call, and only then is the current value appended. A leaf reaches two null calls and is then added. No sorting or comparison of node values is involved.",
+    "steps": [
+      "Return immediately for null.",
+      "Traverse the left subtree.",
+      "Traverse the right subtree.",
+      "Append the current value."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> postorderTraversal(TreeNode root) {\n    List<Integer> output = new ArrayList<>();\n    visitPost(root, output);\n    return output;\n}\nstatic void visitPost(TreeNode node, List<Integer> output) {\n    if (node == null) return;\n    visitPost(node.left, output);\n    visitPost(node.right, output);\n    output.add(node.val);\n}",
+    "time": "O(n), because each node is visited once.",
+    "space": "O(h) call-stack space for tree height h, plus O(n) output. A chain has h = n when height counts nodes.",
+    "pitfalls": [
+      "Return an empty list for a null root.",
+      "Keep repeated values; traversal visits nodes, not distinct numbers.",
+      "Do not carry a result list over from a previous call.",
+      "Changing the position of output.add changes the traversal order."
+    ],
+    "tests": [
+      "TreeNode root=new TreeNode(8);root.left=new TreeNode(4);root.right=new TreeNode(9);root.left.right=new TreeNode(6);assert postorderTraversal(root).equals(List.of(6,4,9,8));assert postorderTraversal(null).isEmpty();",
+      "Random r=new Random(279);for(int t=0;t<500;t++){int n=1+r.nextInt(75);TreeNode root=new TreeNode(r.nextInt(11)-5);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size()));TreeNode child=new TreeNode(r.nextInt(11)-5);boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+\"Z\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert postorderTraversal(root).equals(want);assert postorderTraversal(root).equals(want);}",
+      "TreeNode root=new TreeNode(2);root.left=new TreeNode(2);root.right=new TreeNode(2);assert postorderTraversal(root).equals(List.of(2,2,2));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/postorder-traversal",
+      "title": "Postorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Follow Left → Right → Root using recursive subtree calls.",
+      "adaptation": "The public practice contract and the current tree-foundation traversal definitions were checked. The solution tab requires sign-in and no public Java editorial was available. This authored Java follows the stated traversal order, uses val for the linked judge, and is tested against independently sorted node paths."
+    }
   }
 }
