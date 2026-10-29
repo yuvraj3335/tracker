@@ -16769,5 +16769,107 @@
     },
     "baselineJava": "static String supersequenceRecursive(String first, String second, int i, int j) {\n    if (i == 0) return second.substring(0,j);\n    if (j == 0) return first.substring(0,i);\n    if (first.charAt(i-1) == second.charAt(j-1)) {\n        return supersequenceRecursive(first,second,i-1,j-1)+first.charAt(i-1);\n    }\n    String fromFirst = supersequenceRecursive(first,second,i-1,j)+first.charAt(i-1);\n    String fromSecond = supersequenceRecursive(first,second,i,j-1)+second.charAt(j-1);\n    return fromFirst.length() <= fromSecond.length() ? fromFirst : fromSecond;\n}",
     "baselineTime": "O(2^(n + m) × (n + m)) time as an upper bound. Stack depth is O(n + m); retained and copied strings can use O((n + m)²) live space. Use only for short examples."
+  },
+  "415": {
+    "problem": "Count how many different selections of source-string positions spell the target string in order.",
+    "assumptions": "The linked LeetCode problem uses English letters and strings up to length 1000. It asks for an exact count that fits a signed int. The current TUF practice variant asks for the count modulo 1,000,000,007; a separately named helper below implements that convention. Matching is case-sensitive. Empty targets have one selection: choose no positions.",
+    "example": {
+      "input": "source = \"ababa\", target = \"aba\"",
+      "output": "4",
+      "explanation": "Using zero-based indices, choose (0,1,2), (0,1,4), (0,3,4), or (2,3,4). All four spell the same target, but use different source positions."
+    },
+    "baseline": "At a source position, count the ways that skip it. If it matches the needed target character, also count the ways that use it. Add those disjoint choices. When the target is empty, there is one completed selection; when only the source is empty, a nonempty target has zero selections.",
+    "approach": "Let dp[i][j] count ways to form the first j target characters using the first i source characters. The empty target has one way from every source prefix. A nonempty target has no way from an empty source.\n\nIf the ending source and target characters differ, the source character cannot be used, so keep dp[i − 1][j]. If they match, we have two choices: skip this source position, or use it to finish a way that formed the shorter target. Add dp[i − 1][j] and dp[i − 1][j − 1].\n\nA single row can hold these counts if target lengths are updated downward. That preserves the old dp[j − 1] while using the current source character. An upward scan would let one source position match several target positions in the same pass.\n\nBigInteger keeps intermediate prefix counts exact. They can be huge even when the final requested target has zero matches. The main wrapper converts only the final count to int, as guaranteed by the pinned judge.",
+    "steps": [
+      "Set ways[0] = 1 and all other target-prefix counts to zero.",
+      "Read source characters from left to right.",
+      "For each source character, scan target-prefix lengths downward.",
+      "When the characters match, add ways[j − 1] to ways[j].",
+      "Leave the skip count unchanged on a mismatch.",
+      "Return the count for the full target."
+    ],
+    "java": "static int numDistinct(String source, String target) {\n    return distinctExact(source,target).intValueExact();\n}\nstatic BigInteger distinctExact(String source, String target) {\n    if (target.length() > source.length()) return BigInteger.ZERO;\n    BigInteger[] ways = new BigInteger[target.length()+1];\n    Arrays.fill(ways,BigInteger.ZERO);\n    ways[0] = BigInteger.ONE;\n    for (int i = 0; i < source.length(); i++) {\n        for (int j = target.length(); j >= 1; j--) {\n            if (source.charAt(i) == target.charAt(j-1)) ways[j] = ways[j].add(ways[j-1]);\n        }\n    }\n    return ways[target.length()];\n}",
+    "time": "O(n × m) comparisons/additions. For counts with at most B bits, exact arithmetic costs O(n × m × B) bit operations.",
+    "space": "O(m + 1) count entries, or O((m + 1) × B) bits.",
+    "pitfalls": [
+      "Distinct means different selected source positions, even when they spell identical text.",
+      "Do not use max as in LCS; this task adds counts of valid choices.",
+      "Update target lengths downward so one source position is not reused.",
+      "There is one way to form an empty target, not zero.",
+      "The pinned judge uses an exact result; use the modular helper only for the TUF variant that explicitly requests it."
+    ],
+    "tests": [
+      "assert numDistinct(\"ababa\",\"aba\")==4;assert numDistinct(\"aaa\",\"aa\")==3;assert numDistinct(\"a\",\"aa\")==0;assert numDistinct(\"aAa\",\"Aa\")==1;assert numDistinct(\"abc\",\"\")==1;assert numDistinct(\"\",\"a\")==0;",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=6;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nfor(String source:words){Map<String,Integer> counts=new HashMap<>();for(int mask=0;mask<(1<<source.length());mask++){StringBuilder candidate=new StringBuilder();for(int i=0;i<source.length();i++)if((mask&(1<<i))!=0)candidate.append(source.charAt(i));counts.merge(candidate.toString(),1,Integer::sum);}\n for(String target:words){int expected=counts.getOrDefault(target,0);BigInteger exact=BigInteger.valueOf(expected);assert numDistinct(source,target)==expected;assert distinctTable(source,target).equals(exact);assert distinctRecursive(source,target,source.length(),target.length()).equals(exact);assert distinctSubsequences(source,target)==expected;}}",
+      "String source=\"a\".repeat(1000),prefix=\"a\".repeat(500);BigInteger expected=BigInteger.ONE;for(int i=1;i<=500;i++)expected=expected.multiply(BigInteger.valueOf(1001-i)).divide(BigInteger.valueOf(i));assert distinctExact(source,prefix).equals(expected);assert numDistinct(source,prefix+\"b\")==0;assert distinctSubsequences(source,prefix)==expected.mod(BigInteger.valueOf(1000000007)).intValue();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/distinct-subsequences",
+      "title": "Distinct subsequences",
+      "checkedOn": "2026-10-29",
+      "approach": "Count source-prefix selections: always skip, and additionally take a matching source character.",
+      "adaptation": "The public statement and both prefix-count hints were checked. The full solution requires sign-in, so its Java was not inspected. The pinned exact-count contract differs from TUF’s modulus. These original methods preserve the hinted recurrence, use BigInteger for exact intermediate counts, and expose the modular variant under a separate name."
+    },
+    "baselineJava": "static BigInteger distinctRecursive(String source, String target, int i, int j) {\n    if (j == 0) return BigInteger.ONE;\n    if (i == 0) return BigInteger.ZERO;\n    BigInteger skip = distinctRecursive(source,target,i-1,j);\n    if (source.charAt(i-1) != target.charAt(j-1)) return skip;\n    return skip.add(distinctRecursive(source,target,i-1,j-1));\n}",
+    "baselineTime": "O(2^n) recursive calls as an upper bound, plus exact arithmetic costs; O(n) stack depth. Use only for short examples.",
+    "better": {
+      "explanation": "The full table shows the prefix recurrence before reducing it to one row. The separate distinctSubsequences method implements the current TUF modular contract with the same descending update. It is not the exact-return method expected by the pinned LeetCode link. Import java.math.BigInteger for the exact versions.",
+      "java": "static BigInteger distinctTable(String source, String target) {\n    BigInteger[][] dp = new BigInteger[source.length()+1][target.length()+1];\n    for (BigInteger[] row : dp) { Arrays.fill(row,BigInteger.ZERO); row[0] = BigInteger.ONE; }\n    for (int i = 1; i <= source.length(); i++) for (int j = 1; j <= target.length(); j++) {\n        dp[i][j] = dp[i-1][j];\n        if (source.charAt(i-1) == target.charAt(j-1)) dp[i][j] = dp[i][j].add(dp[i-1][j-1]);\n    }\n    return dp[source.length()][target.length()];\n}\nstatic int distinctSubsequences(String source, String target) {\n    int[] ways = new int[target.length()+1];\n    ways[0] = 1;\n    for (int i = 0; i < source.length(); i++) for (int j = target.length(); j >= 1; j--) {\n        if (source.charAt(i) == target.charAt(j-1)) ways[j] = (ways[j]+ways[j-1])%1_000_000_007;\n    }\n    return ways[target.length()];\n}",
+      "time": "Full table: O(n × m) additions with exact bit costs. Modular helper: O(n × m).",
+      "space": "Full table: O((n + 1) × (m + 1)) count entries. Modular helper: O(m + 1)."
+    },
+    "trace": {
+      "columns": [
+        "Processed source",
+        "empty target",
+        "a",
+        "ab",
+        "aba"
+      ],
+      "rows": [
+        [
+          "empty",
+          "1",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "a",
+          "1",
+          "1",
+          "0",
+          "0"
+        ],
+        [
+          "ab",
+          "1",
+          "1",
+          "1",
+          "0"
+        ],
+        [
+          "aba",
+          "1",
+          "2",
+          "1",
+          "1"
+        ],
+        [
+          "abab",
+          "1",
+          "2",
+          "3",
+          "1"
+        ],
+        [
+          "ababa",
+          "1",
+          "3",
+          "3",
+          "4"
+        ]
+      ]
+    }
   }
 }
