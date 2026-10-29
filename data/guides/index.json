@@ -9567,5 +9567,138 @@
       "Random r=new Random(248);for(int n=0;n<80;n++)for(int k=0;k<=n+2;k++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(50)-25;Arrays.sort(a);int[]expected=a.clone();for(int start=0;start<n;start+=k+1){int end=Math.min(n,start+k+1);for(int i=end-1;i>start;i--){int j=start+r.nextInt(i-start+1);int tmp=a[i];a[i]=a[j];a[j]=tmp;}}assert Arrays.equals(sortKSorted(a,k),expected);}",
       "assert Arrays.equals(sortKSorted(new int[]{4,1,3,2},Integer.MAX_VALUE),new int[]{1,2,3,4});assert sortKSorted(new int[]{},0).length==0;"
     ]
+  },
+  "249": {
+    "problem": "Merge all nodes from k sorted singly linked lists into one sorted list and return its head.",
+    "assumptions": "Each input list is sorted in non-decreasing order. Lists may be empty, and the array itself may be empty. The lists are acyclic and do not share node objects. The heap and sequential methods reuse nodes, so their next links change.",
+    "example": {
+      "input": "lists = [[-2,4], [1,4,7], [], [0,3]]",
+      "output": "[-2,0,1,3,4,4,7]",
+      "explanation": "At each step, choose the smallest current head. After choosing 0, its next value 3 becomes that list’s candidate."
+    },
+    "baseline": "Collect all values, sort them, then build a new list. This takes O(N log N) time and O(N) storage for N total nodes. It ignores the sorted order already present in each list.",
+    "approach": "The next output node must be one of the current heads: every later node in a list is at least as large as that head. A min-heap finds the smallest current head without scanning all k lists.\n\nPut each non-null head in the heap. Poll the smallest node, attach it to the output, and offer its original next node as that list’s replacement candidate. Keep at most one candidate per active list. A dummy node avoids a special case for the first attachment. Set the final tail’s next to null so the result ends cleanly.",
+    "steps": [
+      "Offer every non-empty list head into a heap ordered by node value.",
+      "Poll the smallest node and remember its next node.",
+      "Attach the chosen node after the result tail.",
+      "Offer the remembered next node, if present.",
+      "Terminate the final tail and return dummy.next."
+    ],
+    "java": "static class ListNode {\n    int val;\n    ListNode next;\n    ListNode(int val) { this.val = val; }\n}\n\nstatic ListNode mergeKLists(ListNode[] lists) {\n    PriorityQueue<ListNode> heap = new PriorityQueue<>(Comparator.comparingInt(node -> node.val));\n    for (ListNode head : lists) if (head != null) heap.offer(head);\n    ListNode dummy = new ListNode(0), tail = dummy;\n    while (!heap.isEmpty()) {\n        ListNode smallest = heap.poll();\n        ListNode next = smallest.next;\n        tail.next = smallest;\n        tail = smallest;\n        if (next != null) heap.offer(next);\n    }\n    tail.next = null;\n    return dummy.next;\n}",
+    "time": "O(k + N log(k + 1)) for k head slots and N total nodes.",
+    "space": "O(k) working heap storage; output reuses the existing nodes.",
+    "pitfalls": [
+      "Offer only non-null nodes; PriorityQueue does not accept null.",
+      "Keep duplicates because every input node belongs in the output.",
+      "Use a safe value comparator, not subtraction that may overflow.",
+      "These relinking methods change the input lists; make copies if the originals must remain separate.",
+      "The algorithm assumes disjoint acyclic lists, not multiple heads into the same chain."
+    ],
+    "tests": [
+      "ListNode a=new ListNode(1),b=new ListNode(1),c=new ListNode(2);a.next=c;ListNode out=mergeKLists(new ListNode[]{a,null,b});assert out.val==1&&out.next.val==1&&out.next.next==c&&c.next==null;assert mergeKLists(new ListNode[0])==null;assert mergeKLists(new ListNode[]{null,null})==null;",
+      "Random r=new Random(249);for(int trial=0;trial<500;trial++){int k=r.nextInt(10);ListNode[][]inputs=new ListNode[3][k];List<Integer>expected=new ArrayList<>();Set<ListNode>originals=Collections.newSetFromMap(new IdentityHashMap<>());for(int list=0;list<k;list++){int[]values=new int[r.nextInt(12)];for(int i=0;i<values.length;i++)values[i]=r.nextInt(31)-15;Arrays.sort(values);for(int value:values)expected.add(value);for(int variant=0;variant<3;variant++){ListNode dummy=new ListNode(0),tail=dummy;for(int value:values){tail.next=new ListNode(value);tail=tail.next;if(variant==0)originals.add(tail);}inputs[variant][list]=dummy.next;}}Collections.sort(expected);ListNode[]outputs={mergeKLists(inputs[0]),mergeSequentially(inputs[1]),mergeBySorting(inputs[2])};for(int variant=0;variant<3;variant++){ListNode cur=outputs[variant];for(int value:expected){assert cur!=null&&cur.val==value;if(variant==0)assert originals.remove(cur);cur=cur.next;}assert cur==null;}assert originals.isEmpty();}",
+      "ListNode low=new ListNode(Integer.MIN_VALUE),high=new ListNode(Integer.MAX_VALUE);ListNode out=mergeKLists(new ListNode[]{high,low});assert out==low&&out.next==high&&high.next==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/merge-k-sorted-linked-lists",
+      "title": "Merge K Sorted Linked Lists",
+      "checkedOn": "2026-10-29",
+      "approach": "Collect and sort values, merge sequentially, then keep one active node per list in a min-heap.",
+      "adaptation": "All three public Java methods were checked. The optimal method preserves safe integer comparison, node reuse and final null termination. It saves the next candidate before relinking to make that dependency explicit."
+    },
+    "baselineJava": "static ListNode mergeBySorting(ListNode[] lists) {\n    List<Integer> values = new ArrayList<>();\n    for (ListNode head : lists) {\n        for (ListNode current = head; current != null; current = current.next) values.add(current.val);\n    }\n    Collections.sort(values);\n    ListNode dummy = new ListNode(0), tail = dummy;\n    for (int value : values) { tail.next = new ListNode(value); tail = tail.next; }\n    return dummy.next;\n}",
+    "baselineTime": "O(k + N log(N + 1)) time and O(N) storage for values and new nodes.",
+    "better": {
+      "explanation": "Merge the accumulated result with one list at a time using the usual two-list merge. This saves the copied values array, but early nodes may be scanned again for many later lists. It improves storage, not necessarily running time.",
+      "java": "static ListNode mergeSequentially(ListNode[] lists) {\n    ListNode result = null;\n    for (ListNode head : lists) result = mergeTwoLists(result, head);\n    return result;\n}\n\nstatic ListNode mergeTwoLists(ListNode first, ListNode second) {\n    ListNode dummy = new ListNode(0), tail = dummy;\n    while (first != null && second != null) {\n        if (first.val <= second.val) { tail.next = first; first = first.next; }\n        else { tail.next = second; second = second.next; }\n        tail = tail.next;\n    }\n    tail.next = first != null ? first : second;\n    return dummy.next;\n}",
+      "time": "O(k + N × k) worst case.",
+      "space": "O(1) working space at a time; existing result nodes are reused."
+    }
+  },
+  "250": {
+    "problem": "Replace each value by its 1-based position among the array’s sorted distinct values. Preserve the original order of positions.",
+    "assumptions": "Equal values receive the same rank. Ranks have no gaps: [10,10,30] becomes [1,1,2]. This differs from kth-element problems, where duplicate occurrences occupy separate positions. The input may contain negative values.",
+    "example": {
+      "input": "arr = [40, 10, 40, -5, 25]",
+      "output": "[4,2,4,1,3]",
+      "explanation": "The distinct sorted values are −5, 10, 25 and 40. Both copies of 40 receive rank 4."
+    },
+    "baseline": "For each value, collect all distinct smaller values in a set. Its rank is that set’s size plus one. Repeating the scan for every position takes O(n²).",
+    "approach": "Sort a copy so the input positions remain unchanged. Walk through the sorted values and assign a new rank only when a value has not been seen before. A map stores value → rank.\n\nThen walk through the original array and look up each rank. Sorting is useful for assigning ranks, but the output must follow the original positions. A min-heap could visit values in the same ascending order; it has the same O(n log n) bound and is not needed for this task.",
+    "steps": [
+      "Clone and sort the values.",
+      "Assign the next rank only to a new distinct value.",
+      "Look up each original value’s rank in order.",
+      "Return the new rank array."
+    ],
+    "java": "static int[] replaceWithRank(int[] arr) {\n    int[] sorted = arr.clone();\n    Arrays.sort(sorted);\n    Map<Integer, Integer> ranks = new HashMap<>();\n    for (int value : sorted) {\n        if (!ranks.containsKey(value)) ranks.put(value, ranks.size() + 1);\n    }\n    int[] answer = new int[arr.length];\n    for (int i = 0; i < arr.length; i++) answer[i] = ranks.get(arr[i]);\n    return answer;\n}",
+    "time": "O(n log n) time for sorting, followed by average O(n) map work.",
+    "space": "O(n) for the copy, rank map and result.",
+    "pitfalls": [
+      "Do not give duplicate occurrences different ranks.",
+      "Do not return ranks in sorted order; map them back to the original positions.",
+      "The next rank advances only for a new distinct value.",
+      "Start ranks at 1, not 0."
+    ],
+    "tests": [
+      "assert Arrays.equals(replaceWithRank(new int[]{40,10,40,-5,25}),new int[]{4,2,4,1,3});assert Arrays.equals(replaceWithRank(new int[]{10,10,30}),new int[]{1,1,2});assert replaceWithRank(new int[]{}).length==0;",
+      "Random r=new Random(250);for(int trial=0;trial<2000;trial++){int[]a=new int[r.nextInt(50)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(30)-15;int[]original=a.clone(),actual=replaceWithRank(a);for(int i=0;i<a.length;i++){Set<Integer>smaller=new HashSet<>();for(int v:a)if(v<a[i])smaller.add(v);assert actual[i]==smaller.size()+1;}assert Arrays.equals(a,original);}",
+      "assert Arrays.equals(replaceWithRank(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE,0,Integer.MAX_VALUE}),new int[]{3,1,2,3});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/replace-elements-by-their-rank",
+      "title": "Replace Elements by Their Rank",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort distinct values to assign dense ranks, then restore the original position order.",
+      "adaptation": "The current public practice definition, duplicate-rank rule and original-order requirement were checked. It exposes a starter method rather than a Java editorial; this is an authored sorting-and-map implementation."
+    }
+  },
+  "251": {
+    "problem": "Find the minimum number of time slots needed to execute all tasks when equal task labels must have at least n intervening slots. Idle slots count toward the answer.",
+    "assumptions": "Tasks are uppercase English letters and may be reordered. n is non-negative. Each task takes one slot. This returns only the minimum length, not an actual schedule. The linked task’s limits keep the result within int; an empty task list returns 0 here.",
+    "example": {
+      "input": "tasks = [A,A,A,B,B], n = 2",
+      "output": "7",
+      "explanation": "One shortest schedule is A, B, idle, A, B, idle, A. Every pair of A tasks has two slots between them."
+    },
+    "baseline": "Simulate time. At each slot, scan the 26 labels and choose the available label with the most copies left. If none is ready, spend an idle slot. A label used at time t becomes available at t + n + 1.",
+    "approach": "Let f be the largest task frequency, and let tied be the number of labels with that frequency. The first f − 1 appearances of a busiest label each need a block of n + 1 slots before the next appearance. Its last appearance needs no cooldown afterward.\n\nIf several labels tie for busiest, each needs a place in the final group. This gives a required length of (f − 1) × (n + 1) + tied. Other tasks fill the gaps. If there are more tasks than this frame has room for, the tasks themselves determine the length and no extra idle slots are needed. Therefore take the larger of the frame length and tasks.length.\n\nFor A×3 and B×2 with n = 2, f = 3 and tied = 1. The frame is 2 × 3 + 1 = 7 slots. For A×3 and B×3, tied becomes 2, so the answer is 8.",
+    "steps": [
+      "Count each of the 26 task labels.",
+      "Find the maximum frequency f and how many labels reach it.",
+      "Compute (f − 1) × (n + 1) + tied.",
+      "Return the larger of that length and the task count."
+    ],
+    "java": "static int leastInterval(char[] tasks, int n) {\n    if (tasks.length == 0) return 0;\n    int[] frequency = new int[26];\n    for (char task : tasks) frequency[task - 'A']++;\n    int maximum = 0, tied = 0;\n    for (int count : frequency) maximum = Math.max(maximum, count);\n    for (int count : frequency) if (count == maximum) tied++;\n    int frame = (maximum - 1) * (n + 1) + tied;\n    return Math.max(tasks.length, frame);\n}",
+    "time": "O(M + 26), where M is the number of tasks.",
+    "space": "O(1), using 26 counters.",
+    "pitfalls": [
+      "There are n intervening slots, so repeated task start times differ by at least n + 1.",
+      "Count every label tied at the maximum frequency.",
+      "Take max with tasks.length; enough other labels can fill every potential idle slot.",
+      "Do not add idle slots after the final task.",
+      "This frequency solution assumes tasks can be reordered and all have equal duration and the same cooldown."
+    ],
+    "tests": [
+      "assert leastInterval(\"AAABB\".toCharArray(),2)==7;assert leastInterval(\"AAABBB\".toCharArray(),2)==8;assert leastInterval(\"AAABBB\".toCharArray(),0)==6;assert leastInterval(new char[]{},2)==0;",
+      "class Search{Map<String,Integer>memo=new HashMap<>();int solve(int[]left,int[]wait,int cooldown){int total=0;for(int v:left)total+=v;if(total==0)return 0;String key=Arrays.toString(left)+Arrays.toString(wait);if(memo.containsKey(key))return memo.get(key);int best=1000000;for(int chosen=-1;chosen<left.length;chosen++){if(chosen>=0&&(left[chosen]==0||wait[chosen]>0))continue;if(chosen<0){boolean active=false;for(int v:wait)if(v>0)active=true;if(!active)continue;}int[]nextLeft=left.clone(),nextWait=wait.clone();for(int i=0;i<nextWait.length;i++)nextWait[i]=Math.max(0,nextWait[i]-1);if(chosen>=0){nextLeft[chosen]--;nextWait[chosen]=cooldown;}best=Math.min(best,1+solve(nextLeft,nextWait,cooldown));}memo.put(key,best);return best;}}for(int a=0;a<=3;a++)for(int b=0;b<=3;b++)for(int c=0;c<=3;c++)for(int cooldown=0;cooldown<=3;cooldown++){char[]tasks=(\"A\".repeat(a)+\"B\".repeat(b)+\"C\".repeat(c)).toCharArray();int expected=new Search().solve(new int[]{a,b,c},new int[3],cooldown);assert leastInterval(tasks,cooldown)==expected;assert scheduleByHeap(tasks,cooldown)==expected;assert scheduleByScanning(tasks,cooldown)==expected;}",
+      "assert leastInterval(\"AAAABBBBCCCCDDDD\".toCharArray(),2)==16;char[]a=new char[10000];Arrays.fill(a,'A');assert leastInterval(a,100)==1009900;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/task-scheduler",
+      "title": "Task Scheduler: Minimum Intervals with Cooldown",
+      "checkedOn": "2026-10-29",
+      "approach": "Ready-label simulation, max-heap cycles, then the maximum-frequency frame formula.",
+      "adaptation": "All three public Java methods were checked. This keeps the source’s tied-maximum formula and final-cycle handling. An empty-input guard is added to the formula because the source assumes at least one task."
+    },
+    "baselineJava": "static int scheduleByScanning(char[] tasks, int cooldown) {\n    int[] counts = new int[26], availableAt = new int[26];\n    for (char task : tasks) counts[task - 'A']++;\n    int time = 0, remaining = tasks.length;\n    while (remaining > 0) {\n        int chosen = -1;\n        for (int label = 0; label < 26; label++) {\n            if (counts[label] > 0 && availableAt[label] <= time\n                    && (chosen == -1 || counts[label] > counts[chosen])) chosen = label;\n        }\n        if (chosen != -1) {\n            counts[chosen]--;\n            remaining--;\n            availableAt[chosen] = time + cooldown + 1;\n        }\n        time++;\n    }\n    return time;\n}",
+    "baselineTime": "O(26 × A + M) time for A elapsed slots and M tasks; O(1) space.",
+    "better": {
+      "explanation": "Use a max-heap of remaining frequencies. Process up to n + 1 different entries in a cycle, keeping unfinished counts aside until the cycle ends. If work remains, add the full cycle length; for the last cycle add only the slots actually used. This computes the interval count without scanning every idle slot.",
+      "java": "static int scheduleByHeap(char[] tasks, int cooldown) {\n    int[] frequency = new int[26];\n    for (char task : tasks) frequency[task - 'A']++;\n    PriorityQueue<Integer> heap = new PriorityQueue<>(Comparator.reverseOrder());\n    for (int count : frequency) if (count > 0) heap.offer(count);\n    int time = 0;\n    while (!heap.isEmpty()) {\n        List<Integer> pending = new ArrayList<>();\n        int used = 0;\n        while (used < cooldown + 1 && !heap.isEmpty()) {\n            int remaining = heap.poll() - 1;\n            if (remaining > 0) pending.add(remaining);\n            used++;\n        }\n        heap.addAll(pending);\n        time += heap.isEmpty() ? used : cooldown + 1;\n    }\n    return time;\n}",
+      "time": "O(M log(D + 1)), with D ≤ 26 distinct labels.",
+      "space": "O(D + 26), effectively constant for this alphabet."
+    }
   }
 }
