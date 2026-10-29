@@ -11490,5 +11490,136 @@
       "time": "O(n log n).",
       "space": "O(n), including O(h) recursive stack space. A very deep tree can overflow Java’s call stack."
     }
+  },
+  "297": {
+    "problem": "Return the bottom view of a binary tree: keep the deepest node in each vertical column, then list the chosen values from left to right.",
+    "assumptions": "The root has column 0; left and right children move one column left and right. If two nodes have the same column and depth, the node visited later in left-to-right level order wins. An empty tree returns an empty list.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 7; 9.left = 2",
+      "output": "[4, 2, 9]",
+      "explanation": "At column 0, both 7 and 2 are deeper than 8. They have equal depth, so 2 wins because level order visits it later."
+    },
+    "baseline": "Record each node’s column, depth, and BFS visit order. Sort by these three fields and take the last record in each column. This directly follows the definition but requires O(n log n) sorting.",
+    "approach": "BFS visits shallower levels before deeper levels. Each time a node arrives, replace the saved value for its column. A later value is either deeper, or at the same depth and later in level order. In either case, it is the required replacement.\n\nQueue left children before right children so the tie rule is consistent. Keep the smallest and largest column reached, then read that range from a HashMap. The tree cannot skip a column on its way to a farther one.\n\nThis differs from top view in one key line: top view saves a column only once; bottom view overwrites it every time.",
+    "steps": [
+      "Queue the root at column 0.",
+      "Overwrite the saved value at each node’s column.",
+      "Enqueue left before right with adjusted columns.",
+      "Read the final values from the smallest column through the largest."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class Position {\n    final TreeNode node;\n    final int row, column;\n    Position(TreeNode node, int row, int column) {\n        this.node = node; this.row = row; this.column = column;\n    }\n}\n\nstatic List<Integer> bottomView(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    if (root == null) return answer;\n    Map<Integer, Integer> visible = new HashMap<>();\n    Queue<Position> queue = new ArrayDeque<>();\n    queue.offer(new Position(root, 0, 0));\n    int minimum = 0, maximum = 0;\n    while (!queue.isEmpty()) {\n        Position current = queue.poll();\n        visible.put(current.column, current.node.val);\n        minimum = Math.min(minimum, current.column);\n        maximum = Math.max(maximum, current.column);\n        if (current.node.left != null)\n            queue.offer(new Position(current.node.left, current.row + 1, current.column - 1));\n        if (current.node.right != null)\n            queue.offer(new Position(current.node.right, current.row + 1, current.column + 1));\n    }\n    for (int column = minimum; column <= maximum; column++) answer.add(visible.get(column));\n    return answer;\n}",
+    "time": "O(n) expected time with HashMap.",
+    "space": "O(n), including the queue, column map, and output.",
+    "pitfalls": [
+      "Use the later level-order node for equal-depth ties, not the smaller value.",
+      "If using DFS, compare depths; a late DFS node may be shallower.",
+      "DFS must replace on equal depth as well, with left-first traversal.",
+      "Bottom view is not just the list of leaves. An internal node may remain visible in its column."
+    ],
+    "tests": [
+      "assert bottomView(null).isEmpty();TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(7);r.right.left=new TreeNode(2);assert bottomView(r).equals(List.of(4,2,9));assert bottomBySorting(r).equals(bottomView(r));assert bottomByDfs(r).equals(bottomView(r));",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}TreeMap<Integer,List<TreeNode>> groups=new TreeMap<>();for(TreeNode x:paths.keySet()){int col=0;for(char ch:paths.get(x).toCharArray())col+=ch=='L'?-1:1;groups.computeIfAbsent(col,k->new ArrayList<>()).add(x);}List<Integer> want=new ArrayList<>();for(List<TreeNode> group:groups.values()){group.sort(Comparator.<TreeNode>comparingInt(x->paths.get(x).length()).thenComparing(x->paths.get(x)));want.add(group.get(group.size()-1).val);}assert bottomView(root).equals(want);assert bottomBySorting(root).equals(want);assert bottomByDfs(root).equals(want);}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}List<Integer>a=bottomView(r);assert a.size()==100000&&a.get(99999)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/bottom-view-of-binary-tree",
+      "title": "Bottom View of Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort position records, track maximum depth with DFS, or overwrite each column during BFS.",
+      "adaptation": "All three public Java methods were checked, including the equal-depth tie rule. The main version follows the source’s HashMap and BFS range approach, using ArrayDeque."
+    },
+    "baselineJava": "static List<Integer> bottomBySorting(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    if (root == null) return answer;\n    List<int[]> records = new ArrayList<>();\n    Queue<Position> queue = new ArrayDeque<>();\n    queue.offer(new Position(root, 0, 0));\n    int order = 0;\n    while (!queue.isEmpty()) {\n        Position current = queue.poll();\n        records.add(new int[]{current.column, current.row, order++, current.node.val});\n        if (current.node.left != null)\n            queue.offer(new Position(current.node.left, current.row + 1, current.column - 1));\n        if (current.node.right != null)\n            queue.offer(new Position(current.node.right, current.row + 1, current.column + 1));\n    }\n    records.sort(Comparator.comparingInt((int[] x) -> x[0])\n            .thenComparingInt(x -> x[1]).thenComparingInt(x -> x[2]));\nint i = 0;\n    while (i < records.size()) {\n        int last = i;\n        while (last + 1 < records.size() && records.get(last + 1)[0] == records.get(i)[0]) last++;\n        answer.add(records.get(last)[3]);\n        i = last + 1;\n    }\n    return answer;\n}",
+    "baselineTime": "O(n log n) time and O(n) space.",
+    "better": {
+      "explanation": "Track the deepest node seen at each column during left-first DFS. Replace when the new depth is greater than or equal to the saved depth. Equality lets a later node at the same level win. Read the TreeMap in column order.",
+      "java": "static List<Integer> bottomByDfs(TreeNode root) {\n    TreeMap<Integer, int[]> columns = new TreeMap<>();\n    bottomDfs(root, 0, 0, columns);\n    List<Integer> answer = new ArrayList<>();\n    for (int[] entry : columns.values()) answer.add(entry[1]);\n    return answer;\n}\nstatic void bottomDfs(TreeNode node, int row, int column, TreeMap<Integer, int[]> columns) {\n    if (node == null) return;\n    int[] saved = columns.get(column);\n    if (saved == null || row >= saved[0]) columns.put(column, new int[]{row, node.val});\n    bottomDfs(node.left, row + 1, column - 1, columns);\n    bottomDfs(node.right, row + 1, column + 1, columns);\n}",
+      "time": "O(n log n).",
+      "space": "O(n), including O(h) recursive stack space. Deep trees may exceed Java’s call-stack limit."
+    }
+  },
+  "298": {
+    "problem": "Return the right-side view of a binary tree. Also learn the matching left-side view: choose one extreme node at each depth and list the values from top to bottom.",
+    "assumptions": "The pinned practice link asks for the right-side view. Both variants are included because the sheet title covers both. A view can include a node from the opposite subtree if that subtree reaches farther down. Empty input gives an empty list.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 7; 7.left = 6",
+      "output": "right = [8, 9, 7, 6]; left = [8, 4, 7, 6]",
+      "explanation": "At the first child level, 9 is rightmost. At deeper levels only 7 and then 6 exist, even though both belong to the root’s left subtree."
+    },
+    "baseline": "Process one level at a time with BFS. Its first node belongs to the left view and its last node belongs to the right view. This is already O(n); DFS is an alternative that trades queue width for path depth.",
+    "approach": "For the right view, visit a node, then its right subtree, then its left subtree. The first node reached at each depth is the rightmost node at that depth. Add it only when depth equals the number of values already in the answer.\n\nWhy does that check work? If the answer contains d values, depths 0 through d − 1 already have an entry. Reaching depth d means we have discovered a new level. Later nodes at that depth are skipped.\n\nFor the left view, reverse the child order. Both child subtrees must still be visited; following only right or only left edges misses visible nodes below a shorter subtree.",
+    "steps": [
+      "Start at depth 0 with an empty result.",
+      "Return immediately for null.",
+      "Add the node if this is the first visit to its depth.",
+      "For right view, recurse right then left; for left view, recurse left then right."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> rightSideView(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    sideDfs(root, 0, true, answer);\n    return answer;\n}\nstatic List<Integer> leftSideView(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    sideDfs(root, 0, false, answer);\n    return answer;\n}\nstatic void sideDfs(TreeNode node, int depth, boolean rightFirst, List<Integer> answer) {\n    if (node == null) return;\n    if (depth == answer.size()) answer.add(node.val);\n    sideDfs(rightFirst ? node.right : node.left, depth + 1, rightFirst, answer);\n    sideDfs(rightFirst ? node.left : node.right, depth + 1, rightFirst, answer);\n}",
+    "time": "O(n) for each view.",
+    "space": "O(h) recursion stack and O(h) output, where h is the number of levels. Use the BFS version if recursion may be too deep.",
+    "pitfalls": [
+      "A right-view node does not have to be a right child.",
+      "Side views choose by depth; top and bottom views choose by column.",
+      "Do not change the BFS loop bound as children join the queue.",
+      "The first-visit DFS condition depends on exploring the required side first."
+    ],
+    "tests": [
+      "assert rightSideView(null).isEmpty();assert leftSideView(null).isEmpty();TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(7);r.left.right.left=new TreeNode(6);assert rightSideView(r).equals(List.of(8,9,7,6));assert leftSideView(r).equals(List.of(8,4,7,6));",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}TreeMap<Integer,List<TreeNode>> levels=new TreeMap<>();for(TreeNode x:paths.keySet())levels.computeIfAbsent(paths.get(x).length(),k->new ArrayList<>()).add(x);List<Integer>left=new ArrayList<>(),right=new ArrayList<>();for(List<TreeNode> level:levels.values()){level.sort(Comparator.comparing(paths::get));left.add(level.get(0).val);right.add(level.get(level.size()-1).val);}assert leftSideView(root).equals(left);assert rightSideView(root).equals(right);assert sideViewsBfs(root).equals(List.of(left,right));}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.left=new TreeNode(i);p=p.left;}List<List<Integer>> a=sideViewsBfs(r);assert a.get(0).size()==100000;assert a.get(0).equals(a.get(1));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/left-and-right-views-of-a-binary-tree",
+      "title": "Left and Right Views of a Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "BFS takes level extremes; ordered DFS records the first node at each depth.",
+      "adaptation": "The current public lesson was read in full. It contains detailed BFS/DFS algorithms but no Java code tab. These authored Java methods implement those algorithms; rightSideView matches the pinned LeetCode question, and leftSideView covers the other half of the sheet title."
+    },
+    "baselineJava": "static List<List<Integer>> sideViewsBfs(TreeNode root) {\n    List<Integer> left = new ArrayList<>(), right = new ArrayList<>();\n    if (root == null) return List.of(left, right);\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    queue.offer(root);\n    while (!queue.isEmpty()) {\n        int size = queue.size();\n        for (int i = 0; i < size; i++) {\n            TreeNode node = queue.poll();\n            if (i == 0) left.add(node.val);\n            if (i == size - 1) right.add(node.val);\n            if (node.left != null) queue.offer(node.left);\n            if (node.right != null) queue.offer(node.right);\n        }\n    }\n    return List.of(left, right);\n}",
+    "baselineTime": "O(n) time, O(w) queue space, and O(h) output space."
+  },
+  "299": {
+    "problem": "Check whether a binary tree is a mirror image of itself, including both node values and missing-child positions.",
+    "assumptions": "An empty tree and a single-node tree are symmetric. Equal values alone are not enough: each existing node must have a matching node at the reflected position.",
+    "example": {
+      "input": "root 8; children 4 and 4; left.left = 6; right.right = 6",
+      "output": "true",
+      "explanation": "The two 4s match, and their outside children both contain 6. If the second 6 were right.left instead, the tree would not be symmetric."
+    },
+    "baseline": "Compare the two child subtrees recursively. Match left.left with right.right, and left.right with right.left. Both missing means a match; exactly one missing means failure. This uses O(h) call-stack space.",
+    "approach": "Keep pairs of nodes that should be mirrors of each other. Start with the root’s left and right children. Pop one pair, compare existence and values, then push its outside and inside child pairs.\n\nCrossing the child directions is the whole idea: reflection swaps left and right. Comparing left with left would test whether the subtrees are identical, which is a different question.\n\nThe stack version performs the same comparisons as recursion but avoids Java call-stack limits. Each stack item is a non-null array that can contain null nodes, because ArrayDeque itself cannot store null elements.",
+    "steps": [
+      "An empty root is symmetric. Otherwise push its two children as a pair.",
+      "Skip a pair containing two nulls; reject a pair containing only one null.",
+      "Reject unequal values.",
+      "Push crossed child pairs and continue until no pairs remain."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic boolean isSymmetric(TreeNode root) {\n    if (root == null) return true;\n    Deque<TreeNode[]> stack = new ArrayDeque<>();\n    stack.push(new TreeNode[]{root.left, root.right});\n    while (!stack.isEmpty()) {\n        TreeNode[] pair = stack.pop();\n        TreeNode left = pair[0], right = pair[1];\n        if (left == null && right == null) continue;\n        if (left == null || right == null || left.val != right.val) return false;\n        stack.push(new TreeNode[]{left.right, right.left});\n        stack.push(new TreeNode[]{left.left, right.right});\n    }\n    return true;\n}",
+    "time": "O(n).",
+    "space": "O(h) explicit stack space, where h is tree height.",
+    "pitfalls": [
+      "Include null positions. Palindromic lists of values can hide a structural mismatch.",
+      "Compare crossed child directions.",
+      "After two nulls match, continue checking other pairs rather than returning true immediately.",
+      "Keep state local so a second call cannot inherit a previous failure."
+    ],
+    "tests": [
+      "assert isSymmetric(null);assert isSymmetric(new TreeNode(3));TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(4);r.left.left=new TreeNode(6);r.right.right=new TreeNode(6);assert isSymmetric(r);r.right.left=r.right.right;r.right.right=null;assert !isSymmetric(r);assert !symmetricRecursive(r);assert !symmetricQueue(r);",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<String,Integer> values=new HashMap<>();for(TreeNode x:paths.keySet())values.put(paths.get(x),x.val);boolean want=true;for(String path:values.keySet()){StringBuilder mirror=new StringBuilder();for(char ch:path.toCharArray())mirror.append(ch=='L'?'R':'L');if(!Objects.equals(values.get(path),values.get(mirror.toString())))want=false;}assert isSymmetric(root)==want;assert symmetricRecursive(root)==want;assert symmetricQueue(root)==want;TreeNode full=new TreeNode(0);full.left=root;Map<TreeNode,TreeNode> copies=new IdentityHashMap<>();for(TreeNode x:paths.keySet())copies.put(x,new TreeNode(x.val));for(TreeNode x:paths.keySet()){copies.get(x).left=copies.get(x.right);copies.get(x).right=copies.get(x.left);}full.right=copies.get(root);assert isSymmetric(full);assert symmetricRecursive(full);assert symmetricQueue(full);full.right.val++;assert !isSymmetric(full);}",
+      "TreeNode r=new TreeNode(0),a=r,b=r;for(int i=1;i<100000;i++){a.left=new TreeNode(i);b.right=new TreeNode(i);a=a.left;b=b.right;}assert isSymmetric(r);assert symmetricQueue(r);b.val=-1;assert !isSymmetric(r);assert !symmetricQueue(r);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/symmetric-binary-tree",
+      "title": "Check If a Binary Tree Is Symmetric",
+      "checkedOn": "2026-10-29",
+      "approach": "Compare mirrored pairs recursively, with a queue, or with an explicit stack.",
+      "adaptation": "All three public Java methods were checked. The code keeps crossed child comparisons, using ArrayDeque and two-element node arrays instead of the source’s NodePair class."
+    },
+    "baselineJava": "static boolean symmetricRecursive(TreeNode root) {\n    return root == null || mirrors(root.left, root.right);\n}\nstatic boolean mirrors(TreeNode left, TreeNode right) {\n    if (left == null || right == null) return left == right;\n    return left.val == right.val && mirrors(left.left, right.right)\n            && mirrors(left.right, right.left);\n}",
+    "better": {
+      "explanation": "Use a queue of mirrored pairs to check the tree level by level. The comparisons are identical to the stack version; only the order of pending work changes. This avoids recursion but may store a wide level.",
+      "java": "static boolean symmetricQueue(TreeNode root) {\n    if (root == null) return true;\n    Queue<TreeNode[]> queue = new ArrayDeque<>();\n    queue.offer(new TreeNode[]{root.left, root.right});\n    while (!queue.isEmpty()) {\n        TreeNode[] pair = queue.poll();\n        TreeNode left = pair[0], right = pair[1];\n        if (left == null && right == null) continue;\n        if (left == null || right == null || left.val != right.val) return false;\n        queue.offer(new TreeNode[]{left.left, right.right});\n        queue.offer(new TreeNode[]{left.right, right.left});\n    }\n    return true;\n}",
+      "time": "O(n).",
+      "space": "O(w), where w is the maximum level width."
+    }
   }
 }
