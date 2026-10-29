@@ -13688,5 +13688,165 @@
     },
     "baselineJava": "static int[] topologicalKahn(List<List<Integer>> graph) {\n    int n = graph.size();\n    int[] indegree = new int[n];\n    for (List<Integer> neighbors : graph) for (int next : neighbors) indegree[next]++;\n    Deque<Integer> ready = new ArrayDeque<>();\n    for (int vertex = 0; vertex < n; vertex++) if (indegree[vertex] == 0) ready.add(vertex);\n    int[] order = new int[n];\n    int count = 0;\n    while (!ready.isEmpty()) {\n        int vertex = ready.remove();\n        order[count++] = vertex;\n        for (int next : graph.get(vertex)) if (--indegree[next] == 0) ready.add(next);\n    }\n    return count == n ? order : new int[0];\n}",
     "baselineTime": "O(V + E) time and O(V) queue/indegree/output space."
+  },
+  "351": {
+    "problem": "Build a topological order with Kahn’s algorithm by repeatedly choosing vertices with no remaining prerequisites.",
+    "assumptions": "The input is a directed adjacency list. The source practice guarantees a DAG, but this code returns an empty array if a cycle prevents a complete order. Vertex labels are 0-based. A FIFO queue returns one valid order, not necessarily the smallest lexicographic order.",
+    "example": {
+      "input": "edges 0→2, 1→2, 2→3",
+      "output": "[0,1,2,3]",
+      "explanation": "Initially 0 and 1 have indegree zero. Processing both removes the two incoming edges of 2; only then can 2 be taken, followed by 3."
+    },
+    "baseline": "DFS can append each vertex after its outgoing neighbors and reverse the result. It has the same O(V + E) time, but uses a recursive stack rather than a queue of currently available vertices.",
+    "approach": "Indegree counts how many incoming edges remain. A zero-indegree vertex can appear next because no unfinished vertex must come before it. Put all such vertices into the queue.\n\nRemove one, append it to the order, and reduce the indegree of each outgoing neighbor. When a neighbor’s count becomes zero, all its incoming requirements have been removed, so enqueue it.\n\nIf the queue empties before every vertex is processed, a cycle remains: vertices on that cycle keep an incoming edge from one another. Return no order in that case, rather than returning only the removable prefix.",
+    "steps": [
+      "Count every incoming edge.",
+      "Queue all initial zero-indegree vertices.",
+      "Append each removed vertex and subtract its outgoing contributions.",
+      "Accept the order only if it contains every vertex."
+    ],
+    "java": "static int[] topologicalKahn(List<List<Integer>> graph) {\n    int n = graph.size();\n    int[] indegree = new int[n];\n    for (List<Integer> neighbors : graph) for (int next : neighbors) indegree[next]++;\n    Deque<Integer> ready = new ArrayDeque<>();\n    for (int vertex = 0; vertex < n; vertex++) if (indegree[vertex] == 0) ready.add(vertex);\n    int[] order = new int[n];\n    int count = 0;\n    while (!ready.isEmpty()) {\n        int vertex = ready.remove();\n        order[count++] = vertex;\n        for (int next : graph.get(vertex)) if (--indegree[next] == 0) ready.add(next);\n    }\n    return count == n ? order : new int[0];\n}",
+    "time": "O(V + E).",
+    "space": "O(V) indegrees, queue, and output beyond the supplied graph.",
+    "pitfalls": [
+      "Indegree belongs to the destination of u→v, not the source.",
+      "A vertex becomes ready only after its count reaches zero.",
+      "Disconnected and isolated vertices must appear too.",
+      "Nodes left unprocessed may include downstream nodes as well as actual cycle members."
+    ],
+    "tests": [
+      "for(int n=0;n<=4;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<List<Integer>>graph=new ArrayList<>();for(int i=0;i<n;i++)graph.add(new ArrayList<>());\n  boolean[][]reach=new boolean[n][n];List<int[]>requirements=new ArrayList<>();\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);graph.get(edge[0]).add(edge[1]);reach[edge[0]][edge[1]]=true;requirements.add(new int[]{edge[1],edge[0]});}\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n  boolean cyclic=false;for(int i=0;i<n;i++)cyclic|=reach[i][i];\n  int[][]prerequisites=requirements.toArray(new int[0][]);for(int[]order:new int[][]{topologicalKahn(graph),topologicalDfs(graph)}){if(cyclic)assert order.length==0;\nelse{assert order.length==n;int[]position=new int[n];Arrays.fill(position,-1);for(int i=0;i<n;i++){assert order[i]>=0&&order[i]<n&&position[order[i]]==-1;position[order[i]]=i;}for(int u=0;u<n;u++)for(int v:graph.get(u))assert position[u]<position[v];}}}}",
+      "List<List<Integer>>g=List.of(List.of(1,1),List.of(2),List.of());assert Arrays.equals(topologicalKahn(g),new int[]{0,1,2});assert topologicalKahn(List.of(List.of(0))).length==0;",
+      "int n=100000;List<List<Integer>>g=new ArrayList<>();for(int i=0;i<n;i++)g.add(i+1<n?List.of(i+1):List.of());int[]a=topologicalKahn(g);assert a.length==n&&a[0]==0&&a[n-1]==n-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/topological-sort-or-kahns-algorithm",
+      "title": "Topological sort or Kahn's algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeatedly remove zero-indegree vertices and update their outgoing neighbors.",
+      "adaptation": "The public DAG practice statement was checked. Kahn’s Java loop was checked in the public directed-cycle and Course Schedule II articles and adapted to an existing adjacency list."
+    },
+    "baselineJava": "static int[] topologicalDfs(List<List<Integer>> graph) {\n    int[] state = new int[graph.size()];\n    List<Integer> finished = new ArrayList<>();\n    for (int vertex = 0; vertex < graph.size(); vertex++) {\n        if (state[vertex] == 0 && !finishVertex(vertex,graph,state,finished)) return new int[0];\n    }\n    int[] order = new int[finished.size()];\n    for (int i = 0; i < order.length; i++) order[i] = finished.get(order.length-1-i);\n    return order;\n}\nstatic boolean finishVertex(int vertex, List<List<Integer>> graph, int[] state, List<Integer> finished) {\n    if (state[vertex] == 1) return false;\n    if (state[vertex] == 2) return true;\n    state[vertex] = 1;\n    for (int next : graph.get(vertex)) if (!finishVertex(next,graph,state,finished)) return false;\n    state[vertex] = 2;\n    finished.add(vertex);\n    return true;\n}",
+    "baselineTime": "O(V + E) time and O(V) recursive/state/output space."
+  },
+  "352": {
+    "problem": "Detect a directed cycle using the number of vertices Kahn’s algorithm can remove.",
+    "assumptions": "The graph is directed and may be disconnected. The result is true when any directed cycle exists, including a self-loop. An empty graph has no cycle.",
+    "example": {
+      "input": "edges 0→1, 1→2, 2→1, 2→3",
+      "output": "true",
+      "explanation": "Only 0 starts with indegree zero. Removing it cannot release the cycle between 1 and 2. Vertex 3 also stays blocked, although it is not itself on the cycle."
+    },
+    "baseline": "DFS can detect an edge back to an active vertex. This uses O(V + E) time and O(V) recursive state. Kahn’s method replaces active-path reasoning with remaining incoming-edge counts.",
+    "approach": "A finite DAG always has a vertex with indegree zero. If every vertex had an incoming edge, following incoming edges repeatedly would eventually revisit a vertex and reveal a cycle.\n\nRemove zero-indegree vertices one by one and reduce their neighbors’ counts. If the graph is acyclic, the same reasoning keeps finding a new source until all vertices are removed. If a cycle exists, its vertices never lose their last incoming cycle edge.\n\nCount removals. Fewer than V means at least one cycle exists somewhere; it does not mean every unremoved vertex lies on a cycle.",
+    "steps": [
+      "Count indegrees and queue all zeros.",
+      "Remove ready vertices while reducing outgoing neighbors’ indegrees.",
+      "Count each removed vertex once.",
+      "Return processed != V."
+    ],
+    "java": "static boolean hasCycleKahn(List<List<Integer>> graph) {\n    int n = graph.size(), processed = 0;\n    int[] indegree = new int[n];\n    for (List<Integer> neighbors : graph) for (int next : neighbors) indegree[next]++;\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int vertex = 0; vertex < n; vertex++) if (indegree[vertex] == 0) queue.add(vertex);\n    while (!queue.isEmpty()) {\n        int vertex = queue.remove();\n        processed++;\n        for (int next : graph.get(vertex)) if (--indegree[next] == 0) queue.add(next);\n    }\n    return processed != n;\n}",
+    "time": "O(V + E).",
+    "space": "O(V) extra space.",
+    "pitfalls": [
+      "Return true for incomplete processing, not complete processing.",
+      "Do not confuse a blocked downstream vertex with a cycle member.",
+      "Count every duplicate edge consistently if the supplied representation contains duplicates.",
+      "Undirected adjacency lists contain reverse edges and cannot be passed here as a directed-cycle model."
+    ],
+    "tests": [
+      "for(int n=0;n<=4;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<List<Integer>>graph=new ArrayList<>();for(int i=0;i<n;i++)graph.add(new ArrayList<>());\n  boolean[][]reach=new boolean[n][n];List<int[]>requirements=new ArrayList<>();\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);graph.get(edge[0]).add(edge[1]);reach[edge[0]][edge[1]]=true;requirements.add(new int[]{edge[1],edge[0]});}\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n  boolean cyclic=false;for(int i=0;i<n;i++)cyclic|=reach[i][i];\n  int[][]prerequisites=requirements.toArray(new int[0][]);assert hasCycleKahn(graph)==cyclic;assert directedCycle(graph)==cyclic;}}",
+      "assert hasCycleKahn(List.of(List.of(1),List.of(2),List.of(1,3),List.of()));assert hasCycleKahn(List.of(List.of(0)));assert !hasCycleKahn(List.of(List.of(1,1),List.of()));",
+      "int n=100000;List<List<Integer>>g=new ArrayList<>();for(int i=0;i<n;i++)g.add(i+1<n?List.of(i+1):List.of());assert !hasCycleKahn(g);g.set(n-1,List.of(0));assert hasCycleKahn(g);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/detect-a-cycle-in-a-directed-graph",
+      "title": "Detect a Cycle in a Directed Graph",
+      "checkedOn": "2026-10-29",
+      "approach": "A Kahn processed count below V proves a directed cycle.",
+      "adaptation": "Both public Java cycle methods were checked. This keeps the source’s indegree and processed-count method with ArrayDeque."
+    },
+    "baselineJava": "static boolean directedCycle(List<List<Integer>> graph) {\n    boolean[] visited = new boolean[graph.size()], active = new boolean[graph.size()];\n    for (int vertex = 0; vertex < graph.size(); vertex++)\n        if (!visited[vertex] && visitDirected(vertex,graph,visited,active)) return true;\n    return false;\n}\nstatic boolean visitDirected(int vertex, List<List<Integer>> graph, boolean[] visited, boolean[] active) {\n    visited[vertex] = true;\n    active[vertex] = true;\n    for (int next : graph.get(vertex)) {\n        if (!visited[next]) {\n            if (visitDirected(next,graph,visited,active)) return true;\n        } else if (active[next]) return true;\n    }\n    active[vertex] = false;\n    return false;\n}",
+    "baselineTime": "O(V + E) time and O(V) recursive/visited space."
+  },
+  "353": {
+    "problem": "Decide whether every course can be completed while respecting its prerequisites.",
+    "assumptions": "A pair [course, prerequisite] means the prerequisite must come first. Course labels range from 0 to numCourses−1. Courses with no listed relationships still exist and must be included. A zero-course input returns true as an extension.",
+    "example": {
+      "input": "4 courses; prerequisites = [[1,0], [2,0], [3,1], [3,2]]",
+      "output": "true",
+      "explanation": "Take 0, then 1 and 2 in either order, then 3. Requiring 0 after 3 as well would create a circular dependency."
+    },
+    "baseline": "DFS on prerequisite→course edges detects cycles using visited and active-path arrays. Any active-path edge makes completion impossible. This has the same linear time but uses recursion.",
+    "approach": "Convert each pair into an edge from the prerequisite to the course. A course’s indegree is the number of prerequisites still waiting to be completed.\n\nBegin with every zero-indegree course. Completing one releases one requirement from each dependent course. Enqueue a dependent only after all of its requirements are gone.\n\nIf this process completes every course, return true. Otherwise a circular dependency prevents some courses from ever becoming available. No scheduling choice can break such a cycle without violating a requirement.",
+    "steps": [
+      "Build prerequisite→course edges.",
+      "Count incoming requirements for each course.",
+      "Complete available courses and release their dependents.",
+      "Return whether the completed count equals the total."
+    ],
+    "java": "static List<List<Integer>> courseGraph(int courses, int[][] prerequisites) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int i = 0; i < courses; i++) graph.add(new ArrayList<>());\n    for (int[] pair : prerequisites) graph.get(pair[1]).add(pair[0]);\n    return graph;\n}\n\nstatic boolean canFinish(int courses, int[][] prerequisites) {\n    List<List<Integer>> graph = courseGraph(courses,prerequisites);\n    int[] indegree = new int[courses];\n    for (int[] pair : prerequisites) indegree[pair[0]]++;\n    Deque<Integer> ready = new ArrayDeque<>();\n    for (int course = 0; course < courses; course++) if (indegree[course] == 0) ready.add(course);\n    int completed = 0;\n    while (!ready.isEmpty()) {\n        int course = ready.remove();\n        completed++;\n        for (int next : graph.get(course)) if (--indegree[next] == 0) ready.add(next);\n    }\n    return completed == courses;\n}",
+    "time": "O(V + E), where V is courses and E is prerequisite pairs.",
+    "space": "O(V + E) including the dependency graph.",
+    "pitfalls": [
+      "Pair order is [course, prerequisite], so the edge goes from the second entry to the first.",
+      "All prerequisites must be satisfied, not just one.",
+      "No prerequisites means every course is feasible.",
+      "A cycle in any disconnected component makes the overall answer false."
+    ],
+    "tests": [
+      "for(int n=0;n<=4;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<List<Integer>>graph=new ArrayList<>();for(int i=0;i<n;i++)graph.add(new ArrayList<>());\n  boolean[][]reach=new boolean[n][n];List<int[]>requirements=new ArrayList<>();\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);graph.get(edge[0]).add(edge[1]);reach[edge[0]][edge[1]]=true;requirements.add(new int[]{edge[1],edge[0]});}\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n  boolean cyclic=false;for(int i=0;i<n;i++)cyclic|=reach[i][i];\n  int[][]prerequisites=requirements.toArray(new int[0][]);assert canFinish(n,prerequisites)==!cyclic;assert canFinishDfs(n,prerequisites)==!cyclic;}}",
+      "assert canFinish(5,new int[0][]);assert !canFinish(4,new int[][]{{1,0},{3,2},{2,3}});assert !canFinish(1,new int[][]{{0,0}});assert canFinish(2,new int[][]{{1,0},{1,0}});",
+      "int n=100000;int[][]p=new int[n-1][2];for(int i=1;i<n;i++)p[i-1]=new int[]{i,i-1};assert canFinish(n,p);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/course-schedule-i",
+      "title": "Course Schedule I",
+      "checkedOn": "2026-10-29",
+      "approach": "Model prerequisites as directed edges and check whether Kahn’s algorithm completes every course.",
+      "adaptation": "Both public Java approaches were checked. The prerequisite direction, completed-count check, and all-course initialization are retained. The DFS alternative uses local boolean arrays through the checked directed-cycle helper."
+    },
+    "baselineJava": "static boolean directedCycle(List<List<Integer>> graph) {\n    boolean[] visited = new boolean[graph.size()], active = new boolean[graph.size()];\n    for (int vertex = 0; vertex < graph.size(); vertex++)\n        if (!visited[vertex] && visitDirected(vertex,graph,visited,active)) return true;\n    return false;\n}\nstatic boolean visitDirected(int vertex, List<List<Integer>> graph, boolean[] visited, boolean[] active) {\n    visited[vertex] = true;\n    active[vertex] = true;\n    for (int next : graph.get(vertex)) {\n        if (!visited[next]) {\n            if (visitDirected(next,graph,visited,active)) return true;\n        } else if (active[next]) return true;\n    }\n    active[vertex] = false;\n    return false;\n}\n\nstatic boolean canFinishDfs(int courses, int[][] prerequisites) {\n    return !directedCycle(courseGraph(courses,prerequisites));\n}",
+    "baselineTime": "O(V + E) time and graph storage, plus O(V) recursive/visited space."
+  },
+  "354": {
+    "problem": "Return an order that completes all courses after their prerequisites, or an empty array if that is impossible.",
+    "assumptions": "Each pair is [course, prerequisite], so create prerequisite→course. Any valid complete order is accepted. Courses without dependencies still appear once. An empty array means failure for positive course counts; for zero courses it is the valid empty order.",
+    "example": {
+      "input": "5 courses; prerequisites = [[2,0], [2,1], [3,2]]",
+      "output": "one valid order: [0,1,4,2,3]",
+      "explanation": "Courses 0 and 1 come before 2, and 2 comes before 3. Course 4 is independent and may appear anywhere."
+    },
+    "baseline": "DFS detects cycles using three states, appends each course after exploring its outgoing neighbors, then reverses the finish list. It returns an empty array when a cycle is encountered.",
+    "approach": "Use the same availability rule as Course Schedule I, but save each completed course. Initially queue every course with zero indegree. Remove a course, append it to the order, and reduce each dependent’s indegree.\n\nA dependent enters the queue only when all prerequisites have been completed, so every appended course is safe to take at that point. Independent courses may be interleaved in several valid ways.\n\nCheck the final count before returning. A partial order is not a solution when a cycle blocks the remaining courses.",
+    "steps": [
+      "Build the dependency graph and indegree counts.",
+      "Queue all courses with no outstanding prerequisites.",
+      "Append courses as they leave the queue, releasing dependents.",
+      "Return the complete order, or an empty array if fewer than all courses were processed."
+    ],
+    "java": "static List<List<Integer>> courseGraph(int courses, int[][] prerequisites) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int i = 0; i < courses; i++) graph.add(new ArrayList<>());\n    for (int[] pair : prerequisites) graph.get(pair[1]).add(pair[0]);\n    return graph;\n}\n\nstatic int[] topologicalKahn(List<List<Integer>> graph) {\n    int n = graph.size();\n    int[] indegree = new int[n];\n    for (List<Integer> neighbors : graph) for (int next : neighbors) indegree[next]++;\n    Deque<Integer> ready = new ArrayDeque<>();\n    for (int vertex = 0; vertex < n; vertex++) if (indegree[vertex] == 0) ready.add(vertex);\n    int[] order = new int[n];\n    int count = 0;\n    while (!ready.isEmpty()) {\n        int vertex = ready.remove();\n        order[count++] = vertex;\n        for (int next : graph.get(vertex)) if (--indegree[next] == 0) ready.add(next);\n    }\n    return count == n ? order : new int[0];\n}\n\nstatic int[] findOrder(int courses, int[][] prerequisites) {\n    return topologicalKahn(courseGraph(courses,prerequisites));\n}",
+    "time": "O(V + E).",
+    "space": "O(V + E) including graph, queue, indegrees, and returned order.",
+    "pitfalls": [
+      "Do not compare against one exact example order when several orders are valid.",
+      "Return every course exactly once, including isolated courses.",
+      "A cycle requires an empty result rather than a partial prefix.",
+      "A FIFO queue does not guarantee lexicographically smallest order; use a priority queue only if that extra requirement is stated."
+    ],
+    "tests": [
+      "for(int n=0;n<=4;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<List<Integer>>graph=new ArrayList<>();for(int i=0;i<n;i++)graph.add(new ArrayList<>());\n  boolean[][]reach=new boolean[n][n];List<int[]>requirements=new ArrayList<>();\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);graph.get(edge[0]).add(edge[1]);reach[edge[0]][edge[1]]=true;requirements.add(new int[]{edge[1],edge[0]});}\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n  boolean cyclic=false;for(int i=0;i<n;i++)cyclic|=reach[i][i];\n  int[][]prerequisites=requirements.toArray(new int[0][]);for(int[]order:new int[][]{findOrder(n,prerequisites),findOrderDfs(n,prerequisites)}){if(cyclic)assert order.length==0;\nelse{assert order.length==n;int[]position=new int[n];Arrays.fill(position,-1);for(int i=0;i<n;i++){assert order[i]>=0&&order[i]<n&&position[order[i]]==-1;position[order[i]]=i;}for(int u=0;u<n;u++)for(int v:graph.get(u))assert position[u]<position[v];}}}}",
+      "assert Arrays.equals(findOrder(3,new int[][]{{1,0},{2,1}}),new int[]{0,1,2});assert findOrder(3,new int[][]{{1,0},{2,1},{0,2}}).length==0;",
+      "int n=100000;int[][]p=new int[n-1][2];for(int i=1;i<n;i++)p[i-1]=new int[]{i,i-1};int[]a=findOrder(n,p);assert a.length==n&&a[0]==0&&a[n-1]==n-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/course-schedule-ii",
+      "title": "Course Schedule II",
+      "checkedOn": "2026-10-29",
+      "approach": "Return the complete Kahn order, or reverse DFS finish order after cycle checks.",
+      "adaptation": "Both complete public Java methods were checked. The graph builder and generic ordering helper separate the prerequisite input conversion from the same algorithm."
+    },
+    "baselineJava": "static int[] topologicalDfs(List<List<Integer>> graph) {\n    int[] state = new int[graph.size()];\n    List<Integer> finished = new ArrayList<>();\n    for (int vertex = 0; vertex < graph.size(); vertex++) {\n        if (state[vertex] == 0 && !finishVertex(vertex,graph,state,finished)) return new int[0];\n    }\n    int[] order = new int[finished.size()];\n    for (int i = 0; i < order.length; i++) order[i] = finished.get(order.length-1-i);\n    return order;\n}\nstatic boolean finishVertex(int vertex, List<List<Integer>> graph, int[] state, List<Integer> finished) {\n    if (state[vertex] == 1) return false;\n    if (state[vertex] == 2) return true;\n    state[vertex] = 1;\n    for (int next : graph.get(vertex)) if (!finishVertex(next,graph,state,finished)) return false;\n    state[vertex] = 2;\n    finished.add(vertex);\n    return true;\n}\n\nstatic int[] findOrderDfs(int courses, int[][] prerequisites) {\n    return topologicalDfs(courseGraph(courses,prerequisites));\n}",
+    "baselineTime": "O(V + E) time and graph storage; O(V) recursion/state/output space."
   }
 }
