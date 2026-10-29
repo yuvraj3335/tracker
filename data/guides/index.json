@@ -13848,5 +13848,85 @@
     },
     "baselineJava": "static int[] topologicalDfs(List<List<Integer>> graph) {\n    int[] state = new int[graph.size()];\n    List<Integer> finished = new ArrayList<>();\n    for (int vertex = 0; vertex < graph.size(); vertex++) {\n        if (state[vertex] == 0 && !finishVertex(vertex,graph,state,finished)) return new int[0];\n    }\n    int[] order = new int[finished.size()];\n    for (int i = 0; i < order.length; i++) order[i] = finished.get(order.length-1-i);\n    return order;\n}\nstatic boolean finishVertex(int vertex, List<List<Integer>> graph, int[] state, List<Integer> finished) {\n    if (state[vertex] == 1) return false;\n    if (state[vertex] == 2) return true;\n    state[vertex] = 1;\n    for (int next : graph.get(vertex)) if (!finishVertex(next,graph,state,finished)) return false;\n    state[vertex] = 2;\n    finished.add(vertex);\n    return true;\n}\n\nstatic int[] findOrderDfs(int courses, int[][] prerequisites) {\n    return topologicalDfs(courseGraph(courses,prerequisites));\n}",
     "baselineTime": "O(V + E) time and graph storage; O(V) recursion/state/output space."
+  },
+  "355": {
+    "problem": "Return all vertices from which every possible directed path eventually reaches a terminal vertex.",
+    "assumptions": "A terminal vertex has no outgoing edges. One route to a terminal is not enough: if another route can enter a cycle, the starting vertex is unsafe. Return safe labels in ascending order.",
+    "example": {
+      "input": "graph = [[1,2], [1], [], [2]]",
+      "output": "[2,3]",
+      "explanation": "Vertex 2 is terminal and 3 leads only to 2. Vertex 1 loops forever. Vertex 0 is unsafe because it can choose the route to 1, even though it also has a route to 2."
+    },
+    "baseline": "DFS can classify vertices as unseen, active, safe, or unsafe. A vertex is safe only after every outgoing neighbor is proven safe. This uses O(V) extra space but can recurse deeply.",
+    "approach": "Begin with terminal vertices, whose safety is already certain. Reverse the edges so that a safe vertex can tell its predecessors that one of their outgoing choices is safe.\n\nKeep a count of each vertex’s outgoing edges that have not yet been proved safe. Whenever a safe neighbor is removed from the queue, reduce the corresponding predecessor’s count. A predecessor becomes safe only when that count reaches zero.\n\nVertices in a cycle never lose all their cycle edges. Vertices that can reach those cycles stay blocked too. Finally scan labels in increasing order to produce sorted output without a separate sort.",
+    "steps": [
+      "Build reverse edges and count original outgoing edges.",
+      "Queue all terminal vertices.",
+      "Remove proven-safe vertices and decrement their predecessors’ remaining counts.",
+      "Mark newly released predecessors safe and return safe labels in ascending order."
+    ],
+    "java": "static List<Integer> eventualSafeNodes(int[][] graph) {\n    int n = graph.length;\n    List<List<Integer>> reverse = new ArrayList<>();\n    for (int i = 0; i < n; i++) reverse.add(new ArrayList<>());\n    int[] remaining = new int[n];\n    for (int u = 0; u < n; u++) {\n        remaining[u] = graph[u].length;\n        for (int v : graph[u]) reverse.get(v).add(u);\n    }\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int u = 0; u < n; u++) if (remaining[u] == 0) queue.add(u);\n    boolean[] safe = new boolean[n];\n    while (!queue.isEmpty()) {\n        int vertex = queue.remove();\n        safe[vertex] = true;\n        for (int previous : reverse.get(vertex)) if (--remaining[previous] == 0) queue.add(previous);\n    }\n    List<Integer> answer = new ArrayList<>();\n    for (int u = 0; u < n; u++) if (safe[u]) answer.add(u);\n    return answer;\n}",
+    "time": "O(V + E).",
+    "space": "O(V + E) for reverse edges and traversal state.",
+    "pitfalls": [
+      "Safety requires every path to terminate, not just one path.",
+      "Start from outdegree zero in the original graph, not indegree zero.",
+      "A vertex that merely reaches a cycle is unsafe too.",
+      "A self-loop makes its vertex unsafe."
+    ],
+    "tests": [
+      "for(int n=0;n<=4;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<List<Integer>>graph=new ArrayList<>();for(int i=0;i<n;i++)graph.add(new ArrayList<>());\n  boolean[][]reach=new boolean[n][n];List<int[]>requirements=new ArrayList<>();\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);graph.get(edge[0]).add(edge[1]);reach[edge[0]][edge[1]]=true;requirements.add(new int[]{edge[1],edge[0]});}\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n  boolean cyclic=false;for(int i=0;i<n;i++)cyclic|=reach[i][i];\n  int[][]prerequisites=requirements.toArray(new int[0][]);int[][]a=new int[n][];for(int i=0;i<n;i++)a[i]=graph.get(i).stream().mapToInt(Integer::intValue).toArray();List<Integer>expected=new ArrayList<>();for(int i=0;i<n;i++){boolean unsafe=false;for(int j=0;j<n;j++)if(reach[j][j]&&(i==j||reach[i][j]))unsafe=true;if(!unsafe)expected.add(i);}assert eventualSafeNodes(a).equals(expected);assert safeByDfs(a).equals(expected);}}",
+      "int[][]a={{1,2},{1},{},{2}};assert eventualSafeNodes(a).equals(List.of(2,3));assert safeByDfs(a).equals(List.of(2,3));assert eventualSafeNodes(new int[][]{{1,1},{}}).equals(List.of(0,1));",
+      "int n=100000;int[][]a=new int[n][];for(int i=0;i<n;i++)a[i]=i+1<n?new int[]{i+1}:new int[0];assert eventualSafeNodes(a).size()==n;a[n-1]=new int[]{n-1};assert eventualSafeNodes(a).isEmpty();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-eventual-safe-states",
+      "title": "Find Eventual Safe States",
+      "checkedOn": "2026-10-29",
+      "approach": "Reverse Kahn propagation from terminals, or DFS classification of all outgoing paths.",
+      "adaptation": "Both public Java methods were checked. The BFS result uses a final ascending scan instead of the source Java’s sort, matching the article’s O(V + E) prose. The DFS alternative uses explicit unsafe state rather than leaving active flags set after failed calls."
+    },
+    "baselineJava": "static List<Integer> safeByDfs(int[][] graph) {\n    int[] state = new int[graph.length];\n    List<Integer> answer = new ArrayList<>();\n    for (int vertex = 0; vertex < graph.length; vertex++) if (proveSafe(vertex,graph,state)) answer.add(vertex);\n    return answer;\n}\nstatic boolean proveSafe(int vertex, int[][] graph, int[] state) {\n    if (state[vertex] != 0) return state[vertex] == 2;\n    state[vertex] = 1;\n    for (int next : graph[vertex]) {\n        if (!proveSafe(next,graph,state)) { state[vertex] = 3; return false; }\n    }\n    state[vertex] = 2;\n    return true;\n}",
+    "baselineTime": "O(V + E) time and O(V) state/recursive space. States: 0 unseen, 1 active, 2 safe, 3 unsafe."
+  },
+  "356": {
+    "problem": "Infer one valid character order from words already sorted in an unknown alphabet.",
+    "assumptions": "Return each character that appears in the words exactly once. Return an empty string if a longer word precedes its own prefix or if the ordering rules form a cycle. Several alphabets may be valid. This Java char implementation suits ordinary single-code-unit letters; it does not split Unicode supplementary characters correctly.",
+    "example": {
+      "input": "words = [\"za\", \"zb\", \"ca\", \"cb\"]",
+      "output": "one valid order: \"zacb\"",
+      "explanation": "The comparisons require a before b and z before c. The a→b rule appears twice but is still only one graph edge. Other orders satisfying both rules are valid too."
+    },
+    "baseline": "DFS can detect active-path cycles and reverse the characters’ finish order. It uses the same precedence graph and has the same linear expected complexity with hash-set neighbors.",
+    "approach": "Compare adjacent words from left to right. Only the first differing position tells us a letter order. Once that position decides which word comes first, later positions provide no additional rule.\n\nIf one word is a full prefix of the other, the shorter word must come first in every alphabet. A longer-first pair is invalid even when no graph cycle exists. Include every observed character in the graph, including characters that receive no edge.\n\nDeduplicate the edges, then apply Kahn’s algorithm. Start with letters of indegree zero and release their outgoing neighbors. If the result omits any observed character, the precedence rules contain a cycle.",
+    "steps": [
+      "Register every observed character.",
+      "For each adjacent word pair, add only its first mismatch as an edge.",
+      "Reject a longer word before its own prefix.",
+      "Topologically order all characters and reject incomplete output."
+    ],
+    "java": "static Map<Character,Set<Character>> alphabetGraph(String[] words) {\n    Map<Character,Set<Character>> graph = new LinkedHashMap<>();\n    for (String word : words) for (char letter : word.toCharArray()) graph.putIfAbsent(letter,new HashSet<>());\n    for (int i = 0; i+1 < words.length; i++) {\n        String first = words[i], second = words[i+1];\n        int position = 0, limit = Math.min(first.length(),second.length());\n        while (position < limit && first.charAt(position) == second.charAt(position)) position++;\n        if (position == limit) {\n            if (first.length() > second.length()) return null;\n        } else graph.get(first.charAt(position)).add(second.charAt(position));\n    }\n    return graph;\n}\n\nstatic String alienOrder(String[] words) {\n    Map<Character,Set<Character>> graph = alphabetGraph(words);\n    if (graph == null) return \"\";\n    Map<Character,Integer> indegree = new HashMap<>();\n    for (char letter : graph.keySet()) indegree.put(letter,0);\n    for (Set<Character> neighbors : graph.values()) for (char next : neighbors)\n        indegree.put(next,indegree.get(next)+1);\n    Deque<Character> queue = new ArrayDeque<>();\n    for (char letter : graph.keySet()) if (indegree.get(letter) == 0) queue.add(letter);\n    StringBuilder order = new StringBuilder();\n    while (!queue.isEmpty()) {\n        char letter = queue.remove();\n        order.append(letter);\n        for (char next : graph.get(letter)) {\n            int remaining = indegree.get(next)-1;\n            indegree.put(next,remaining);\n            if (remaining == 0) queue.add(next);\n        }\n    }\n    return order.length() == graph.size() ? order.toString() : \"\";\n}",
+    "time": "O(C + U + E) expected time for C input characters, U distinct letters, and E distinct precedence edges.",
+    "space": "O(U + E) for the graph and ordering state.",
+    "pitfalls": [
+      "Use only the first mismatch, not every differing position.",
+      "Detect invalid prefixes separately from cycles.",
+      "Duplicate rules must not inflate indegrees when the adjacency set stores one edge.",
+      "Do not invent absent alphabet letters when the contract asks only for observed characters.",
+      "A valid output is not necessarily unique or lexicographically smallest."
+    ],
+    "tests": [
+      "assert alienOrder(new String[]{\"abc\",\"ab\"}).isEmpty();assert alienOrder(new String[]{\"z\",\"x\",\"z\"}).isEmpty();String s=alienOrder(new String[]{\"za\",\"zb\",\"ca\",\"cb\"});assert s.length()==4&&s.indexOf('a')<s.indexOf('b')&&s.indexOf('z')<s.indexOf('c');assert alienOrder(new String[]{\"a\",\"a\"}).equals(\"a\");",
+      "List<String>pool=new ArrayList<>(List.of(\"\",\"a\",\"b\",\"c\"));for(char a='a';a<='c';a++)for(char b='a';b<='c';b++)pool.add(\"\"+a+b);\nString[]alphabets={\"abc\",\"acb\",\"bac\",\"bca\",\"cab\",\"cba\"};\nfor(String x:pool)for(String y:pool)for(String z:pool){\n String[]words={x,y,z};Set<Character>present=new HashSet<>();for(String word:words)for(char ch:word.toCharArray())present.add(ch);\n Set<String>valid=new HashSet<>();\n for(String alphabet:alphabets){int[]rank=new int[3];for(int i=0;i<3;i++)rank[alphabet.charAt(i)-'a']=i;\n  Comparator<String>compare=(a,b)->{for(int i=0;i<Math.min(a.length(),b.length());i++){int delta=rank[a.charAt(i)-'a']-rank[b.charAt(i)-'a'];if(delta!=0)return delta;}return Integer.compare(a.length(),b.length());};\n  if(compare.compare(x,y)<=0&&compare.compare(y,z)<=0){StringBuilder projected=new StringBuilder();for(char ch:alphabet.toCharArray())if(present.contains(ch))projected.append(ch);valid.add(projected.toString());}\n }\n for(String answer:new String[]{alienOrder(words),alienDfs(words)}){if(valid.isEmpty())assert answer.isEmpty();else assert valid.contains(answer):Arrays.toString(words)+\" -> \"+answer;}\n}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/alien-dictionary",
+      "title": "Alien Dictionary Using Topological Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Extract first-mismatch constraints, reject invalid prefixes, and topologically sort distinct characters.",
+      "adaptation": "Both public Java methods were checked. HashSet neighbors replace TreeSet, and indegrees are computed after deduplication. The prefix check uses one shared-prefix scan instead of allocating a substring. The pinned Premium editorial was not accessed."
+    },
+    "baselineJava": "static String alienDfs(String[] words) {\n    Map<Character,Set<Character>> graph = alphabetGraph(words);\n    if (graph == null) return \"\";\n    Map<Character,Integer> state = new HashMap<>();\n    StringBuilder finished = new StringBuilder();\n    for (char letter : graph.keySet()) if (!finishLetter(letter,graph,state,finished)) return \"\";\n    return finished.reverse().toString();\n}\nstatic boolean finishLetter(char letter, Map<Character,Set<Character>> graph,\n                            Map<Character,Integer> state, StringBuilder finished) {\n    int status = state.getOrDefault(letter,0);\n    if (status == 1) return false;\n    if (status == 2) return true;\n    state.put(letter,1);\n    for (char next : graph.get(letter)) if (!finishLetter(next,graph,state,finished)) return false;\n    state.put(letter,2);\n    finished.append(letter);\n    return true;\n}",
+    "baselineTime": "O(C + U + E) expected time and O(U + E) storage, including O(U) recursion."
   }
 }
