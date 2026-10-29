@@ -19144,5 +19144,80 @@
         ]
       ]
     }
+  },
+  "447": {
+    "problem": "Find the fewest bracket reversals needed for balance, and distinguish that task from the tracker’s linked minimum-insertions problem.",
+    "assumptions": "The sheet title and current TUF statement allow flipping an existing ( into ) or vice versa; odd length is impossible and returns −1. The pinned LeetCode link instead allows adding brackets and asks for the number added. Both inputs use only ( and ). The two methods below implement these distinct contracts.",
+    "example": {
+      "input": "s = \"((\"",
+      "output": "Reversals: 1; insertions: 2",
+      "explanation": "For reversals, flip the second bracket to obtain (). For insertions, neither original bracket may be changed, so two closing brackets must be added."
+    },
+    "baseline": "For reversals, enumerate balanced strings of the same length and count how many positions differ from the input. The smallest Hamming distance is the answer, but enumerating all candidates is exponential.",
+    "approach": "First cancel brackets that already match. Keep open as the number of unmatched openings. For a closing bracket, use an opening if one is available; otherwise increase close, the unmatched-closing count. The unmatched remainder has the form several closings followed by several openings.\n\nFor the reversal version, two unmatched closings can be fixed with one flip: )) becomes (). Two unmatched openings also need one flip: (( becomes (). If each count is odd, one )( remains; both characters must flip, costing two. These cases combine into ceil(open/2)+ceil(close/2). Reject odd total length first because every balanced sequence contains an even number of characters.\n\nFor the insertion version, existing brackets cannot change. Every unmatched closing needs an inserted opening, and every leftover opening needs an inserted closing. The answer is open+close, with no odd-length rejection.\n\nBoth scans recognize the same unmatched remainder. The allowed operation determines how much it costs to fix that remainder. That is why the title and linked judge must not share one unexplained formula.",
+    "steps": [
+      "For reversals, reject odd length.",
+      "Scan left to right, matching each closing bracket with an available opening.",
+      "Count closings that have no earlier opening and openings left at the end.",
+      "For reversals, return (open+1)/2 + (close+1)/2 using integer division.",
+      "For the linked insertion problem, return open+close instead."
+    ],
+    "java": "static int countRev(String s) {\n    if(s.length()%2!=0) return -1;\n    int open=0,close=0;\n    for(int i=0;i<s.length();i++) {\n        if(s.charAt(i)=='(') open++;\n        else if(open>0) open--;\n        else close++;\n    }\n    return (open+1)/2+(close+1)/2;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "The two ceil divisions are separate. (open+close)/2 fails when both counts are odd, as in )(.",
+      "Only reversals have the odd-length impossibility rule.",
+      "Keep the original order; counting total openings and closings alone loses nesting information.",
+      "Use countRev for the sheet’s reversal task and minAddToMakeValid for the preserved LeetCode link."
+    ],
+    "tests": [
+      "assert countRev(\"((\")==1;assert minAddToMakeValid(\"((\")==2;assert countRev(\")(\")==2;assert minAddToMakeValid(\")(\")==2;assert countRev(\"(\")==-1;assert minAddToMakeValid(\"(\")==1;assert countRev(\"\")==0;",
+      "for(int n=0;n<=10;n++){List<Integer> balanced=new ArrayList<>();for(int mask=0;mask<(1<<n);mask++){int balance=0;boolean valid=true;for(int i=0;i<n;i++){balance+=((mask&(1<<i))==0?1:-1);if(balance<0)valid=false;}if(valid&&balance==0)balanced.add(mask);}for(int bits=0;bits<(1<<n);bits++){StringBuilder s=new StringBuilder();for(int i=0;i<n;i++)s.append((bits&(1<<i))==0?'(':')');int expected=-1;for(int target:balanced){int flips=Integer.bitCount(bits^target);if(expected==-1||flips<expected)expected=flips;}assert countRev(s.toString())==expected;}}",
+      "List<String> balanced=new ArrayList<>();for(int n=0;n<=12;n+=2)for(int mask=0;mask<(1<<n);mask++){int balance=0;boolean valid=true;StringBuilder s=new StringBuilder();for(int i=0;i<n;i++){char ch=(mask&(1<<i))==0?'(':')';s.append(ch);balance+=ch=='('?1:-1;if(balance<0)valid=false;}if(valid&&balance==0)balanced.add(s.toString());}for(int n=0;n<=6;n++)for(int mask=0;mask<(1<<n);mask++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((mask&(1<<i))==0?'(':')');String s=b.toString();int expected=n;for(String target:balanced){int at=0;for(int i=0;i<target.length()&&at<n;i++)if(target.charAt(i)==s.charAt(at))at++;if(at==n)expected=Math.min(expected,target.length()-n);}assert minAddToMakeValid(s)==expected;}",
+      "assert countRev(\"(\".repeat(10000))==5000;assert minAddToMakeValid(\"(\".repeat(10000))==10000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-number-of-bracket-reversals-to-make-an-expression-balanced",
+      "title": "Minimum number of bracket reversals to make an expression balanced",
+      "checkedOn": "2026-10-29",
+      "approach": "Cancel matched pairs, then repair the remaining opening and closing counts according to the allowed operation.",
+      "adaptation": "The current TUF reversal statement and both public hints were checked. The Solution panel is gated, so no complete source Java was inspected. The reversal formula is derived in the explanation. The tracker’s different LeetCode insertion target is preserved and gets its separate minAddToMakeValid implementation."
+    },
+    "better": {
+      "explanation": "Separate linked problem — minimum additions. A closing bracket with no earlier opening needs one opening inserted before it. Any opening left at the end needs a closing inserted after it. No existing character is flipped, so the final count is the sum of the two unmatched counts.",
+      "java": "static int minAddToMakeValid(String s) {\n    int open=0,missingOpen=0;\n    for(int i=0;i<s.length();i++) {\n        if(s.charAt(i)=='(') open++;\n        else if(open>0) open--;\n        else missingOpen++;\n    }\n    return open+missingOpen;\n}",
+      "time": "O(n).",
+      "space": "O(1)."
+    },
+    "trace": {
+      "columns": [
+        "Unmatched remainder",
+        "Reversal cost",
+        "Insertion cost"
+      ],
+      "rows": [
+        [
+          "))",
+          "1",
+          "2"
+        ],
+        [
+          "((",
+          "1",
+          "2"
+        ],
+        [
+          ")(",
+          "2",
+          "2"
+        ],
+        [
+          "(",
+          "Impossible: odd length",
+          "1"
+        ]
+      ]
+    }
   }
 }
