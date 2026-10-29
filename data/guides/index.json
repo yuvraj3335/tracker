@@ -14615,5 +14615,131 @@
         ]
       ]
     }
+  },
+  "372": {
+    "problem": "Maintain disjoint groups of nodes. Merge two groups and quickly tell whether two nodes belong to the same group.",
+    "assumptions": "Nodes are 1 through n, matching Striver’s foundation lesson. Index 0 is unused. Groups only merge; this structure does not remove connections. The boolean union result is an addition: true means two previously separate groups were joined.",
+    "example": {
+      "input": "n = 6; merge(1,2), merge(3,4), merge(2,4); then ask connected(1,3), connected(1,6)",
+      "output": "true, false",
+      "explanation": "Nodes 1, 2, 3, and 4 are now one group. Nodes 5 and 6 remain separate. The exact representative chosen for the four-node group does not affect these answers."
+    },
+    "baseline": "Give every node a group label. To merge two groups, scan all nodes and replace one label with the other. Connectivity checks take O(1), but a merge takes O(n). The baseline below shows this simple method.",
+    "approach": "Represent each group as a parent tree. A root points to itself and stands for the whole group. findParent follows parent links to that root, then makes every visited node point directly to it. That shortcut is path compression.\n\nTo merge, find both roots first. If they match, nothing changes. Otherwise attach the lower-rank root below the higher-rank root. If their ranks tie, choose one root and increase its rank by one.\n\nRank is an upper bound used to keep trees shallow, not the number of nodes. After path compression, it need not equal the tree’s actual height. Do not decrease it or increment it after every merge.",
+    "steps": [
+      "Initialize each node as its own parent. Start ranks at 0.",
+      "Find roots with path compression.",
+      "Do nothing if the roots already match.",
+      "Attach the lower-rank root to the higher-rank root; increment only on a tie.",
+      "Answer connectivity by comparing representatives."
+    ],
+    "java": "static class RankDSU {\n    private final int[] parent, rank;\n    RankDSU(int n) {\n        parent = new int[n+1];\n        rank = new int[n+1];\n        for (int node = 1; node <= n; node++) parent[node] = node;\n    }\n    int findParent(int node) {\n        if (parent[node] != node) parent[node] = findParent(parent[node]);\n        return parent[node];\n    }\n    boolean unionByRank(int u, int v) {\n        int a = findParent(u), b = findParent(v);\n        if (a == b) return false;\n        if (rank[a] < rank[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        if (rank[a] == rank[b]) rank[a]++;\n        return true;\n    }\n    boolean find(int u, int v) { return findParent(u) == findParent(v); }\n}",
+    "time": "O(n) initialization; O(α(n)) amortized per union or find with path compression and balancing. α grows so slowly that this is effectively constant for practical inputs.",
+    "space": "O(n) for the two arrays, with at most O(log n) recursion depth before compression.",
+    "pitfalls": [
+      "Compare roots, not immediate parents.",
+      "Repeatedly merging the same group must do nothing.",
+      "Rank is not component size and is not recomputed after compression.",
+      "This 1-based class is separate from the 0-based DSU used in graph solutions.",
+      "Use one balancing policy consistently; the source’s rank and size Java examples are separate classes."
+    ],
+    "tests": [
+      "RankDSU d=new RankDSU(6);assert d.unionByRank(1,2);assert d.unionByRank(3,4);assert d.unionByRank(2,4);assert d.find(1,3);assert !d.find(1,6);assert !d.unionByRank(1,4);assert !d.unionByRank(5,5);",
+      "Random random=new Random(372);\nfor(int trial=0;trial<100;trial++){\n int n=1+random.nextInt(40);RankDSU d=new RankDSU(n);QuickFind oracle=new QuickFind(n);\n for(int step=0;step<300;step++){\n  int a=1+random.nextInt(n),b=1+random.nextInt(n);assert d.unionByRank(a,b)==oracle.unite(a,b);\n  for(int query=0;query<4;query++){int u=1+random.nextInt(n),v=1+random.nextInt(n);assert d.find(u,v)==oracle.connected(u,v);}\n }\n}",
+      "RankDSU d=new RankDSU(100000);for(int i=2;i<=100000;i++)assert d.unionByRank(i-1,i);for(int i=1;i<=100000;i++)assert d.find(1,i);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/disjoint-set-union",
+      "title": "Disjoint Set Union: Union by Rank, Size and Path Compression",
+      "checkedOn": "2026-10-29",
+      "approach": "Path compression with union by rank.",
+      "adaptation": "Both complete public Java examples were checked. This lesson uses the separate rank implementation and preserves its 1-based indexing. A boolean union result reports whether a merge occurred; the source’s union method is void. The label-array baseline is an authored comparison."
+    },
+    "baselineJava": "static class QuickFind {\n    private final int[] label;\n    QuickFind(int n) {\n        label = new int[n+1];\n        for (int i = 1; i <= n; i++) label[i] = i;\n    }\n    boolean unite(int u, int v) {\n        int old = label[v], replacement = label[u];\n        if (old == replacement) return false;\n        for (int i = 1; i < label.length; i++) if (label[i] == old) label[i] = replacement;\n        return true;\n    }\n    boolean connected(int u, int v) { return label[u] == label[v]; }\n    int sizeOf(int node) {\n        int count = 0;\n        for (int i = 1; i < label.length; i++) if (label[i] == label[node]) count++;\n        return count;\n    }\n}",
+    "baselineTime": "O(n) initialization and union, O(1) connectivity check, and O(n) for the optional size query. O(n) space."
+  },
+  "373": {
+    "problem": "Maintain disjoint groups of nodes. Merge two groups and quickly tell whether two nodes belong to the same group. Also report a group’s size.",
+    "assumptions": "Nodes are 1 through n, matching Striver’s foundation lesson. Index 0 is unused. Groups only merge; this structure does not remove connections. The boolean union result is an addition: true means two previously separate groups were joined.",
+    "example": {
+      "input": "n = 6; merge(1,2), merge(3,4), merge(2,4); then ask connected(1,3), connected(1,6)",
+      "output": "true, false",
+      "explanation": "Nodes 1, 2, 3, and 4 are now one group. Nodes 5 and 6 remain separate. The exact representative chosen for the four-node group does not affect these answers."
+    },
+    "baseline": "Give every node a group label. To merge two groups, scan all nodes and replace one label with the other. Connectivity checks take O(1), but a merge takes O(n). The baseline below shows this simple method.",
+    "approach": "Keep a parent tree for each group, with the node count stored at its root. findParent compresses the path to the root so later lookups are shorter.\n\nTo merge, compare the sizes of the two roots. Attach the smaller group’s root below the larger group’s root, then add their sizes at the surviving root. If both nodes already share a root, return without adding anything.\n\nA size entry on a non-root may be out of date. Always ask size[findParent(node)], not size[node]. Union by size and union by rank are alternative policies; this class uses size throughout.",
+    "steps": [
+      "Initialize each node as its own parent. Start sizes at 1.",
+      "Find roots with path compression.",
+      "Do nothing if the roots already match.",
+      "Attach the smaller group to the larger group and add the sizes.",
+      "Answer connectivity by comparing representatives."
+    ],
+    "java": "static class SizeDSU {\n    private final int[] parent, size;\n    SizeDSU(int n) {\n        parent = new int[n+1];\n        size = new int[n+1];\n        for (int node = 1; node <= n; node++) { parent[node] = node; size[node] = 1; }\n    }\n    int findParent(int node) {\n        if (parent[node] != node) parent[node] = findParent(parent[node]);\n        return parent[node];\n    }\n    boolean unionBySize(int u, int v) {\n        int a = findParent(u), b = findParent(v);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n    boolean find(int u, int v) { return findParent(u) == findParent(v); }\n    int componentSizeOf(int node) { return size[findParent(node)]; }\n}",
+    "time": "O(n) initialization; O(α(n)) amortized per union or find with path compression and balancing. α grows so slowly that this is effectively constant for practical inputs.",
+    "space": "O(n) for the two arrays, with at most O(log n) recursion depth before compression.",
+    "pitfalls": [
+      "Compare roots, not immediate parents.",
+      "Repeatedly merging the same group must do nothing.",
+      "Only the root’s size is authoritative; query through findParent.",
+      "This 1-based class is separate from the 0-based DSU used in graph solutions.",
+      "Use one balancing policy consistently; the source’s rank and size Java examples are separate classes."
+    ],
+    "tests": [
+      "SizeDSU d=new SizeDSU(6);assert d.unionBySize(1,2);assert d.unionBySize(3,4);assert d.unionBySize(2,4);assert d.find(1,3);assert !d.find(1,6);assert !d.unionBySize(1,4);assert !d.unionBySize(5,5);assert d.componentSizeOf(3)==4;assert d.componentSizeOf(5)==1;",
+      "Random random=new Random(373);\nfor(int trial=0;trial<100;trial++){\n int n=1+random.nextInt(40);SizeDSU d=new SizeDSU(n);QuickFind oracle=new QuickFind(n);\n for(int step=0;step<300;step++){\n  int a=1+random.nextInt(n),b=1+random.nextInt(n);assert d.unionBySize(a,b)==oracle.unite(a,b);\n  for(int query=0;query<4;query++){int u=1+random.nextInt(n),v=1+random.nextInt(n);assert d.find(u,v)==oracle.connected(u,v);assert d.componentSizeOf(u)==oracle.sizeOf(u);}\n }\n}",
+      "SizeDSU d=new SizeDSU(100000);for(int i=2;i<=100000;i++)assert d.unionBySize(i-1,i);for(int i=1;i<=100000;i++)assert d.find(1,i);assert d.componentSizeOf(99999)==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/disjoint-set-union",
+      "title": "Disjoint Set Union: Union by Rank, Size and Path Compression",
+      "checkedOn": "2026-10-29",
+      "approach": "Path compression with union by size.",
+      "adaptation": "Both complete public Java examples were checked. This lesson uses the separate size implementation and preserves its 1-based indexing. A boolean union result reports whether a merge occurred; the source’s union method is void. The label-array baseline is an authored comparison."
+    },
+    "baselineJava": "static class QuickFind {\n    private final int[] label;\n    QuickFind(int n) {\n        label = new int[n+1];\n        for (int i = 1; i <= n; i++) label[i] = i;\n    }\n    boolean unite(int u, int v) {\n        int old = label[v], replacement = label[u];\n        if (old == replacement) return false;\n        for (int i = 1; i < label.length; i++) if (label[i] == old) label[i] = replacement;\n        return true;\n    }\n    boolean connected(int u, int v) { return label[u] == label[v]; }\n    int sizeOf(int node) {\n        int count = 0;\n        for (int i = 1; i < label.length; i++) if (label[i] == label[node]) count++;\n        return count;\n    }\n}",
+    "baselineTime": "O(n) initialization and union, O(1) connectivity check, and O(n) for the optional size query. O(n) space."
+  },
+  "374": {
+    "problem": "Use Kruskal’s algorithm to find the minimum total weight needed to connect every vertex without cycles.",
+    "assumptions": "The pinned graph is connected, undirected, and 0-based. Its adjacency list stores each edge at both endpoints. The edge-list helper uses long totals and also handles negative weights; disconnected input is rejected explicitly.",
+    "example": {
+      "input": "V = 4, edges = [[0,1,1], [1,2,2], [0,2,3], [2,3,4], [0,3,9]]",
+      "output": "7",
+      "explanation": "Accept weights 1 and 2. Skip weight 3 because its endpoints are already connected. Accept weight 4 to attach vertex 3. The tree costs 1 + 2 + 4."
+    },
+    "baseline": "Enumerate subsets of V − 1 edges and test connectivity, as in the MST introduction. That works only for tiny graphs. The complete baseline below is useful for checking small examples.",
+    "approach": "Sort the edges from cheapest to most expensive. Start with each vertex in its own component. For each edge, ask the DSU whether its endpoints are already connected. If yes, adding it would create a cycle, so skip it. Otherwise join the components and add its weight.\n\nUnlike Prim, Kruskal may build several small trees before joining them. Every accepted edge joins two components, reducing their number by one. Starting from V components, exactly V − 1 successful joins produce one spanning tree.\n\nThe cheap-edge choice is safe by the cut property: for the current components, a cheapest edge that connects two different components can belong to some MST. Equal weights may lead to different trees with the same total.",
+    "steps": [
+      "Copy and sort the edge list by weight.",
+      "Create a DSU with one component per vertex.",
+      "Skip edges whose endpoint roots already match.",
+      "Union different components and add that edge’s weight.",
+      "Stop after V − 1 accepted edges."
+    ],
+    "java": "static class DSU {\n    final int[] parent, size;\n    DSU(int n) {\n        parent = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int root(int node) {\n        if (parent[node] != node) parent[node] = root(parent[node]);\n        return parent[node];\n    }\n    boolean unite(int a, int b) {\n        a = root(a); b = root(b);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n}\nstatic long kruskalWeight(int vertices, int[][] edges) {\n    int[][] sorted = edges.clone(); // Sort references without changing input order.\n    Arrays.sort(sorted,Comparator.comparingInt(edge -> edge[2]));\n    DSU dsu = new DSU(vertices);\n    int selected = 0;\n    long total = 0;\n    for (int[] edge : sorted) {\n        if (!dsu.unite(edge[0],edge[1])) continue;\n        total += edge[2];\n        if (++selected == vertices-1) break;\n    }\n    if (vertices > 0 && selected != vertices-1)\n        throw new IllegalArgumentException(\"Graph is disconnected\");\n    return total;\n}\nstatic int spanningTree(int vertices, List<List<List<Integer>>> adj) {\n    List<int[]> edges = new ArrayList<>();\n    for (int u = 0; u < vertices; u++) for (List<Integer> edge : adj.get(u))\n        if (u < edge.get(0)) edges.add(new int[]{u,edge.get(0),edge.get(1)});\n    return Math.toIntExact(kruskalWeight(vertices,edges.toArray(new int[0][])));\n}",
+    "time": "O(V + E log E + Eα(V)) time; sorting dominates for a connected graph.",
+    "space": "O(V + E) for DSU arrays and the copied edge references.",
+    "pitfalls": [
+      "Do not simply take the first V − 1 sorted edges: some may form a cycle.",
+      "An undirected adjacency list stores each edge twice; the wrapper keeps u < v once.",
+      "Use Integer.compare or comparingInt, not weight subtraction that may overflow.",
+      "The source sorts its edge array in place. This adaptation sorts a shallow copy and never changes the edge rows.",
+      "A disconnected graph cannot reach V − 1 successful joins."
+    ],
+    "tests": [
+      "int[][]e={{0,1,1},{1,2,2},{0,2,3},{2,3,4},{0,3,9}};assert kruskalWeight(4,e)==7;assert mstBySubsets(4,e)==7;List<List<List<Integer>>>adj=List.of(List.of(List.of(1,5),List.of(2,6)),List.of(List.of(0,5),List.of(2,2)),List.of(List.of(0,6),List.of(1,2)));assert spanningTree(3,adj)==7;",
+      "Random random=new Random(374);\nfor(int trial=0;trial<500;trial++){\n int n=1+random.nextInt(6);List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(j==i+1||random.nextBoolean())list.add(new int[]{i,j,random.nextInt(21)-5});int[][]edges=list.toArray(new int[0][]),before=edges.clone();assert kruskalWeight(n,edges)==mstBySubsets(n,edges);for(int i=0;i<edges.length;i++)assert edges[i]==before[i];\n}",
+      "assert kruskalWeight(3,new int[][]{{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}})==2L*Integer.MAX_VALUE;assert kruskalWeight(1,new int[0][])==0;assert kruskalWeight(3,new int[][]{{0,0,-99},{0,1,8},{0,1,2},{1,2,3}})==5;boolean rejected=false;try{kruskalWeight(3,new int[][]{{0,1,1}});}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-the-mst-weight",
+      "title": "Find the MST Weight — Kruskal’s Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort edges and join different DSU components using path compression and union by size.",
+      "adaptation": "The complete public Kruskal Java was checked, and the practice Java template was inspected. The adaptation preserves caller edge order, uses long totals, rejects disconnected input, and includes the practice adjacency-list wrapper."
+    },
+    "baselineJava": "static long mstBySubsets(int vertices, int[][] edges) {\n    if (vertices <= 1) return 0;\n    if (edges.length > 22) throw new IllegalArgumentException(\"Use this baseline only on small graphs\");\n    long best = Long.MAX_VALUE;\n    for (int mask = 0; mask < (1 << edges.length); mask++) {\n        if (Integer.bitCount(mask) != vertices-1) continue;\n        boolean[] reached = new boolean[vertices];\n        Queue<Integer> queue = new ArrayDeque<>();\n        reached[0] = true;\n        queue.offer(0);\n        int count = 0;\n        while (!queue.isEmpty()) {\n            int node = queue.poll();\n            count++;\n            for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) {\n                int next = edges[i][0] == node ? edges[i][1] : edges[i][1] == node ? edges[i][0] : -1;\n                if (next >= 0 && !reached[next]) { reached[next] = true; queue.offer(next); }\n            }\n        }\n        if (count != vertices) continue;\n        long total = 0;\n        for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) total += edges[i][2];\n        best = Math.min(best,total);\n    }\n    return best;\n}",
+    "baselineTime": "O(2^E × VE) time and O(V) extra space, restricted to at most 22 edges."
   }
 }
