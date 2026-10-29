@@ -9455,5 +9455,117 @@
       "approach": "Apply max-heap sift-down to every parent in bottom-up order.",
       "adaptation": "The public practice contract and current Introduction to Heap conversion algorithm were checked. The practice page exposes a starter method rather than Java; this authored implementation follows that bottom-up algorithm and states its in-place behaviour."
     }
+  },
+  "246": {
+    "problem": "Return the kth largest array occurrence. Duplicates occupy separate positions in the ranking.",
+    "assumptions": "1 ≤ k ≤ nums.length(). This tracker item explicitly asks for a priority-queue approach. The code leaves the input unchanged. The current Striver lesson also discusses Quickselect, which solves a different performance tradeoff and can modify the input.",
+    "example": {
+      "input": "nums = [8, 3, 8, 1, 6], k = 3",
+      "output": "6",
+      "explanation": "Descending order is [8,8,6,3,1]. Both copies of 8 count, so position 3 contains 6."
+    },
+    "baseline": "Copy and sort the array in ascending order. Return index n − k. This is a useful O(n log n) baseline, but orders every element when we only need the kth largest.",
+    "approach": "Keep the k largest values seen so far in a min-heap. Its root is the smallest of those retained values, so it is the first candidate to discard when a new value arrives.\n\nInsert every occurrence. If the heap grows to k + 1, remove its minimum. This leaves exactly the best k candidates from the scanned prefix. After the full scan, the root is the smallest of the overall top k, which is the kth largest.",
+    "steps": [
+      "Create a min-first PriorityQueue.",
+      "Offer each array value, including duplicates.",
+      "Whenever its size exceeds k, poll its minimum.",
+      "Return peek after all values have been processed."
+    ],
+    "java": "static int findKthLargest(int[] nums, int k) {\n    if (k < 1 || k > nums.length) throw new IllegalArgumentException(\"Invalid rank\");\n    PriorityQueue<Integer> top = new PriorityQueue<>();\n    for (int value : nums) {\n        top.offer(value);\n        if (top.size() > k) top.poll();\n    }\n    return top.peek();\n}",
+    "time": "O(n log(k + 1)); the +1 also makes the bound meaningful for k = 1.",
+    "space": "O(k) for retained candidates, temporarily k + 1 during insertion.",
+    "pitfalls": [
+      "Use a min-heap to retain the largest k; its minimum is the weakest retained candidate.",
+      "Do not deduplicate values before ranking them.",
+      "k is 1-based, while the sorted-array baseline uses index n − k.",
+      "The input is not changed by the heap method."
+    ],
+    "tests": [
+      "assert findKthLargest(new int[]{8,3,8,1,6},3)==6;assert findKthLargest(new int[]{5,5,4},2)==5;assert findKthLargest(new int[]{-7},1)==-7;",
+      "Random r=new Random(246);for(int n=1;n<=60;n++)for(int t=0;t<20;t++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(31)-15;int[]original=a.clone();for(int k=1;k<=n;k++)assert findKthLargest(a,k)==largestBySorting(a,k);assert Arrays.equals(a,original);}",
+      "assert findKthLargest(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE,0},1)==Integer.MAX_VALUE;assert findKthLargest(new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE,0},3)==Integer.MIN_VALUE;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/k-th-largest-element-in-an-array",
+      "title": "K-th Largest Element in an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort a copy as a baseline; keep the largest k occurrences in a size-k min-heap.",
+      "adaptation": "The public sorting and priority-queue Java methods were checked. The tracker explicitly requests the heap approach, so that method is used here. An invalid-rank guard is added; the source’s valid-input algorithm is otherwise retained."
+    },
+    "baselineJava": "static int largestBySorting(int[] nums, int k) {\n    int[] sorted = nums.clone();\n    Arrays.sort(sorted);\n    return sorted[sorted.length - k];\n}",
+    "baselineTime": "O(n log n) time and O(n) copied storage."
+  },
+  "247": {
+    "problem": "Return the kth smallest array occurrence using a priority queue. Count repeated values as separate ranked occurrences.",
+    "assumptions": "The pinned title says kth smallest, but its problem link opens kth largest. This guide follows the title and the correct current Kth Smallest problem linked below. 1 ≤ k ≤ nums.length().",
+    "example": {
+      "input": "nums = [8, 3, 8, 1, 6], k = 3",
+      "output": "6",
+      "explanation": "Ascending order is [1,3,6,8,8], so position 3 contains 6."
+    },
+    "baseline": "Copy and sort the array, then return sorted[k − 1]. This establishes the answer directly, but takes O(n log n) time and does not meet the practice prompt’s request to avoid sorting.",
+    "approach": "To retain the smallest k values, use a max-heap. The root is the largest value we are still keeping, so it is the one to remove when there are too many candidates.\n\nOffer each value. If the heap has k + 1 entries, remove the largest. After the scan, the heap contains the k smallest occurrences, and its root is the largest of those: the kth smallest. This reverses the comparison used for the neighbouring kth-largest lesson.",
+    "steps": [
+      "Create a max-first PriorityQueue using Comparator.reverseOrder().",
+      "Offer each occurrence.",
+      "When the heap size exceeds k, remove the maximum.",
+      "Return the remaining maximum after the scan."
+    ],
+    "java": "static int kthSmallest(int[] nums, int k) {\n    if (k < 1 || k > nums.length) throw new IllegalArgumentException(\"Invalid rank\");\n    PriorityQueue<Integer> smallest = new PriorityQueue<>(Comparator.reverseOrder());\n    for (int value : nums) {\n        smallest.offer(value);\n        if (smallest.size() > k) smallest.poll();\n    }\n    return smallest.peek();\n}",
+    "time": "O(n log(k + 1)).",
+    "space": "O(k).",
+    "pitfalls": [
+      "Use a max-heap for the smallest k candidates.",
+      "The saved kth-largest URL describes a different ranking direction.",
+      "Duplicates count; this is not kth distinct smallest.",
+      "Use reverseOrder() rather than a subtraction comparator that may overflow."
+    ],
+    "tests": [
+      "assert kthSmallest(new int[]{8,3,8,1,6},3)==6;assert kthSmallest(new int[]{2,2,3},2)==2;assert kthSmallest(new int[]{3,2,3,1,2,4,5,5,6},4)==3;",
+      "Random r=new Random(247);for(int n=1;n<=60;n++)for(int t=0;t<20;t++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(31)-15;int[]original=a.clone();for(int k=1;k<=n;k++)assert kthSmallest(a,k)==smallestBySorting(a,k);assert Arrays.equals(a,original);}",
+      "assert kthSmallest(new int[]{Integer.MIN_VALUE,0,Integer.MAX_VALUE},1)==Integer.MIN_VALUE;assert kthSmallest(new int[]{Integer.MIN_VALUE,0,Integer.MAX_VALUE},3)==Integer.MAX_VALUE;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/kth-smallest-element-in-an-array",
+      "title": "Kth Smallest Element in an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Retain the smallest k occurrences in a max-heap.",
+      "adaptation": "The correct public kth-smallest statement was checked; the pinned tracker URL points to kth largest. This page exposes a starter method rather than a Java editorial. The authored solution reverses the heap comparison from the source-checked neighbouring kth-largest Java method."
+    },
+    "baselineJava": "static int smallestBySorting(int[] nums, int k) {\n    int[] sorted = nums.clone();\n    Arrays.sort(sorted);\n    return sorted[k - 1];\n}",
+    "baselineTime": "O(n log n) time and O(n) copied storage."
+  },
+  "248": {
+    "problem": "Sort a k-sorted array: every occurrence is at most k positions away from its position in sorted order.",
+    "assumptions": "The pinned title is Sort K sorted array, but its link opens Merge K Sorted Lists, which is the next tracker topic. This guide covers the nearly-sorted single-array meaning of the title. k is non-negative, and the displacement guarantee is a precondition. No matching current public TUF Java editorial was found for this pinned item.",
+    "example": {
+      "input": "nums = [3, 1, 2, 6, 4, 5], k = 2",
+      "output": "[1,2,3,4,5,6]",
+      "explanation": "Each group of three values is displaced by at most two positions. A heap of at most three candidates is enough to choose the next value."
+    },
+    "baseline": "Use a full O(n log n) sort. It works even without the displacement guarantee, but does not use the extra information supplied by k.",
+    "approach": "The smallest value must appear among the first k + 1 entries: otherwise it would have to move more than k positions to reach index 0. Keep those candidates in a min-heap and remove the minimum into the next output slot.\n\nAfter choosing one value, bring the next unseen input value into the heap and choose again. The displacement guarantee ensures that the correct next value is always among the candidates already seen. The code below offers each value and polls when the heap size exceeds k, which gives exactly this k + 1-candidate choice. Finally drain what remains.",
+    "steps": [
+      "Create a min-heap and a write index at zero.",
+      "Offer each input value. When heap size > k, write its minimum to the next output position.",
+      "After reading every input, drain the heap into the remaining positions.",
+      "Return the rearranged input array."
+    ],
+    "java": "static int[] sortKSorted(int[] nums, int k) {\n    if (k < 0) throw new IllegalArgumentException(\"Negative displacement\");\n    PriorityQueue<Integer> candidates = new PriorityQueue<>();\n    int write = 0;\n    for (int read = 0; read < nums.length; read++) {\n        candidates.offer(nums[read]);\n        if (candidates.size() > k) nums[write++] = candidates.poll();\n    }\n    while (!candidates.isEmpty()) nums[write++] = candidates.poll();\n    return nums;\n}",
+    "time": "O(n log(min(n, k + 1) + 1)); usually written O(n log(k + 1)) for k ≥ 1. k = 0 takes O(n).",
+    "space": "O(min(n, k + 1)) heap storage; the input is updated in place.",
+    "pitfalls": [
+      "The displacement guarantee is essential; a small heap cannot generally sort an arbitrary array.",
+      "The next output needs k + 1 candidates, not k.",
+      "k = 0 means the array is already sorted.",
+      "Do not treat the mismatched Merge K Sorted Lists link as this array problem.",
+      "The write index never passes the read index, so unread input is not overwritten."
+    ],
+    "tests": [
+      "int[]a={3,1,2,6,4,5};assert sortKSorted(a,2)==a;assert Arrays.equals(a,new int[]{1,2,3,4,5,6});assert Arrays.equals(sortKSorted(new int[]{-2,0,3},0),new int[]{-2,0,3});",
+      "Random r=new Random(248);for(int n=0;n<80;n++)for(int k=0;k<=n+2;k++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(50)-25;Arrays.sort(a);int[]expected=a.clone();for(int start=0;start<n;start+=k+1){int end=Math.min(n,start+k+1);for(int i=end-1;i>start;i--){int j=start+r.nextInt(i-start+1);int tmp=a[i];a[i]=a[j];a[j]=tmp;}}assert Arrays.equals(sortKSorted(a,k),expected);}",
+      "assert Arrays.equals(sortKSorted(new int[]{4,1,3,2},Integer.MAX_VALUE),new int[]{1,2,3,4});assert sortKSorted(new int[]{},0).length==0;"
+    ]
   }
 }
