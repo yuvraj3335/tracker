@@ -11325,5 +11325,84 @@
       "time": "O(n + m) upper bound, with early termination on a mismatch.",
       "space": "O(w) queued pairs, where w is bounded by the larger level width."
     }
+  },
+  "293": {
+    "problem": "Return the nodes level by level, alternating the output direction: left to right at the root, right to left on the next level, then left to right again.",
+    "assumptions": "Only the output direction alternates. The underlying child links do not change. The result contains a separate list for each level. A null root returns an empty list.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has children 2 and 6; 9 has left child 7",
+      "output": "[[8],[9,4],[2,6,7]]",
+      "explanation": "The second level reverses direction. The third level returns to normal left-to-right order."
+    },
+    "baseline": "Run ordinary level-order traversal and reverse every second level list. The total reversal work is O(n), so this is already linear overall.",
+    "approach": "Keep normal BFS discovery order: add each left child before its right child. For a level of size s, put the ith removed node at position i when going left to right, or at s − 1 − i when going right to left.\n\nThis changes where values are written without changing which nodes the queue processes next. Save the level size before adding children, and flip the direction only after the whole level is complete.",
+    "steps": [
+      "Queue the root and start leftToRight as true.",
+      "Save the current level size and create that many output slots.",
+      "Poll each node and write it at i or size − 1 − i.",
+      "Always queue children left first, then right.",
+      "Append the level and flip direction."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<List<Integer>> zigzagLevelOrder(TreeNode root) {\n    List<List<Integer>> result = new ArrayList<>();\n    if (root == null) return result;\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    queue.offer(root);\n    boolean leftToRight = true;\n    while (!queue.isEmpty()) {\n        int size = queue.size();\n        List<Integer> level = new ArrayList<>(Collections.nCopies(size, 0));\n        for (int i = 0; i < size; i++) {\n            TreeNode node = queue.poll();\n            int index = leftToRight ? i : size - 1 - i;\n            level.set(index, node.val);\n            if (node.left != null) queue.offer(node.left);\n            if (node.right != null) queue.offer(node.right);\n        }\n        result.add(level);\n        leftToRight = !leftToRight;\n    }\n    return result;\n}",
+    "time": "O(n).",
+    "space": "O(w) queue and current-level space, plus O(n) returned output.",
+    "pitfalls": [
+      "Flip direction once per level, not once per node.",
+      "Keep queue insertion order consistent even on reversed output levels.",
+      "ArrayList.set requires existing slots; capacity alone does not create elements.",
+      "Reversing completed alternate levels is also O(n), not an asymptotically slower solution."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.left=new TreeNode(2);r.left.right=new TreeNode(6);r.right.left=new TreeNode(7);assert zigzagLevelOrder(r).equals(List.of(List.of(8),List.of(9,4),List.of(2,6,7)));assert zigzagLevelOrder(null).isEmpty();",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.<TreeNode>comparingInt(x->paths.get(x).length()).thenComparing(x->paths.get(x)));List<List<Integer>>want=new ArrayList<>();for(TreeNode node:ordered){int depth=paths.get(node).length();if(depth==want.size())want.add(new ArrayList<>());want.get(depth).add(node.val);}for(int i=1;i<want.size();i+=2)Collections.reverse(want.get(i));assert zigzagLevelOrder(root).equals(want);}",
+      "TreeNode r=new TreeNode(1),p=r;for(int i=0;i<20000;i++){p.right=new TreeNode(1);p=p.right;}List<List<Integer>>a=zigzagLevelOrder(r);assert a.size()==20001;for(List<Integer>level:a)assert level.equals(List.of(1));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/zig-zag-or-spiral-traversal",
+      "title": "Zig Zag or Spiral Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Use BFS levels and alternate the position where each value is written.",
+      "adaptation": "The public statement, examples and alternate-level reversal hint were checked. No public Java editorial was available. This authored implementation follows the same BFS level structure described in the current level-order foundation article."
+    }
+  },
+  "294": {
+    "problem": "Return the anti-clockwise boundary of a binary tree: root, left boundary, leaves from left to right, then right boundary from bottom to top.",
+    "assumptions": "Include each node once. Side boundaries exclude leaves. The left boundary begins at root.left and prefers left children, falling back to right; the right boundary begins at root.right and prefers right, falling back to left. A missing root-side subtree has no side boundary. Repeated values in different nodes remain repeated in the output.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has children 2 and 6; 9 has left child 7",
+      "output": "[8,4,2,6,7,9]",
+      "explanation": "4 is the non-leaf left boundary; 2,6,7 are leaves; 9 is added last as the reversed right boundary."
+    },
+    "baseline": "A single DFS can carry left-boundary and right-boundary flags. Record left-boundary nodes before their descendants and right-boundary nodes afterward; record leaves once. This also takes O(n). The explicit three-part method below makes each boundary rule easier to inspect.",
+    "approach": "Add the root unless it is a leaf. Walk the left side from root.left, preferring left and falling back to right, recording only non-leaves. Next, collect all leaves in left-to-right DFS order. Finally, walk the right side from root.right, preferring right and falling back to left; save non-leaves and append them in reverse.\n\nExcluding leaves from both side walks prevents duplication. A single-node tree is handled by the leaf pass, so its root appears exactly once. For a tree with only a right branch, there is no left boundary: the leaf is listed before the reversed right-boundary ancestors.\n\nThe leaf walk here uses an explicit stack, so the three-part version also works on deep trees without recursive calls.",
+    "steps": [
+      "Add a non-leaf root.",
+      "Walk and record the non-leaf left boundary.",
+      "Collect leaves with left-first DFS.",
+      "Collect the non-leaf right boundary and append it in reverse."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic boolean boundaryLeaf(TreeNode node) {\n    return node != null && node.left == null && node.right == null;\n}\nstatic List<Integer> boundaryTraversal(TreeNode root) {\n    List<Integer> result = new ArrayList<>();\n    if (root == null) return result;\n    if (!boundaryLeaf(root)) result.add(root.val);\n    for (TreeNode node = root.left; node != null; node = node.left != null ? node.left : node.right)\n        if (!boundaryLeaf(node)) result.add(node.val);\n\n    Deque<TreeNode> leaves = new ArrayDeque<>();\n    leaves.push(root);\n    while (!leaves.isEmpty()) {\n        TreeNode node = leaves.pop();\n        if (boundaryLeaf(node)) result.add(node.val);\n        else {\n            if (node.right != null) leaves.push(node.right);\n            if (node.left != null) leaves.push(node.left);\n        }\n    }\n\n    List<Integer> right = new ArrayList<>();\n    for (TreeNode node = root.right; node != null; node = node.right != null ? node.right : node.left)\n        if (!boundaryLeaf(node)) right.add(node.val);\n    for (int i = right.size() - 1; i >= 0; i--) result.add(right.get(i));\n    return result;\n}",
+    "time": "O(n).",
+    "space": "O(h) leaf-stack and right-boundary working space, plus O(n) possible output.",
+    "pitfalls": [
+      "Boundary traversal is not the same as left view plus right view.",
+      "Do not deduplicate by value: distinct boundary nodes can have equal values.",
+      "Exclude leaves from side boundaries and handle a single root once.",
+      "Reverse the right boundary only; leaves stay left to right."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.left=new TreeNode(2);r.left.right=new TreeNode(6);r.right.left=new TreeNode(7);assert boundaryTraversal(r).equals(List.of(8,4,2,6,7,9));assert boundaryTraversal(new TreeNode(5)).equals(List.of(5));assert boundaryTraversal(null).isEmpty();",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<String,TreeNode>at=new HashMap<>();List<String>leafPaths=new ArrayList<>();for(Map.Entry<TreeNode,String>e:paths.entrySet()){at.put(e.getValue(),e.getKey());if(e.getKey().left==null&&e.getKey().right==null)leafPaths.add(e.getValue());}Collections.sort(leafPaths);List<Integer>want=new ArrayList<>();if(n==1)want.add(root.val);else{want.add(root.val);String left=null,right=null;for(String path:leafPaths){if(path.startsWith(\"L\")&&left==null)left=path;if(path.startsWith(\"R\"))right=path;}if(left!=null)for(int length=1;length<left.length();length++)want.add(at.get(left.substring(0,length)).val);for(String path:leafPaths)want.add(at.get(path).val);if(right!=null)for(int length=right.length()-1;length>=1;length--)want.add(at.get(right.substring(0,length)).val);}assert boundaryTraversal(root).equals(want);assert boundaryByFlags(root).equals(want);}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}List<Integer>a=boundaryTraversal(r);assert a.size()==100000&&a.get(0)==0;for(int i=1;i<a.size();i++)assert a.get(i)==100000-i;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/boundary-traversal-of-a-binary-tree",
+      "title": "Boundary Traversal of a Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Separate the left boundary, leaves and reversed right boundary, or propagate boundary roles in one DFS.",
+      "adaptation": "Both complete public Java approaches were checked, including root setup and flag propagation. The three-part version replaces only its recursive leaf collection with an explicit stack. Node identity is preserved through traversal; no value-based deduplication is used."
+    },
+    "baselineJava": "static List<Integer> boundaryByFlags(TreeNode root) {\n    List<Integer> result = new ArrayList<>();\n    if (root == null) return result;\n    result.add(root.val);\n    if (!boundaryLeaf(root)) {\n        boundaryDFS(root.left, true, false, result);\n        boundaryDFS(root.right, false, true, result);\n    }\n    return result;\n}\nstatic void boundaryDFS(TreeNode node, boolean left, boolean right, List<Integer> result) {\n    if (node == null) return;\n    if (boundaryLeaf(node)) {\n        result.add(node.val);\n        return;\n    }\n    if (left) result.add(node.val);\n    boundaryDFS(node.left, left, right && node.right == null, result);\n    boundaryDFS(node.right, left && node.left == null, right, result);\n    if (right) result.add(node.val);\n}",
+    "baselineTime": "O(n) time and O(h) recursive stack space; deep chains can exhaust the Java call stack."
   }
 }
