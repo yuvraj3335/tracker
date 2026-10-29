@@ -12856,5 +12856,315 @@
     },
     "baselineJava": "static int largestByRepeatedChecks(TreeNode root) {\n    if (root == null) return 0;\n    if (withinBounds(root, Long.MIN_VALUE, Long.MAX_VALUE)) return countSubtree(root);\n    return Math.max(largestByRepeatedChecks(root.left), largestByRepeatedChecks(root.right));\n}\nstatic boolean withinBounds(TreeNode node, long low, long high) {\n    return node == null || (low < node.val && node.val < high\n        && withinBounds(node.left, low, node.val)\n        && withinBounds(node.right, node.val, high));\n}\nstatic int countSubtree(TreeNode node) {\n    return node == null ? 0 : 1 + countSubtree(node.left) + countSubtree(node.right);\n}",
     "baselineTime": "O(n²) worst-case upper bound; O(h) recursion space."
+  },
+  "330": {
+    "problem": "Describe a graph using vertices and edges, and distinguish direction from edge weights.",
+    "assumptions": "Vertices are numbered 0 through V−1. An undirected edge allows movement both ways; a directed edge allows only its stated direction. A weight is a separate property and can appear in either graph type. This example accepts valid vertex numbers.",
+    "example": {
+      "input": "3 vertices; weighted edges (0,1,7), (1,2,4)",
+      "output": "directed: 0→1→2; undirected: both connections work both ways",
+      "explanation": "The weights 7 and 4 might represent distances. They do not decide whether travel is one-way or two-way."
+    },
+    "baseline": "An edge list simply stores each connection as a pair, or a triple when a weight is present. To find every neighbor of one vertex, scanning the whole edge list takes O(E).",
+    "approach": "Think of vertices as places and edges as permitted moves. In a directed graph, storing 0 → 1 does not imply 1 → 0. In an undirected graph, store both directions so either endpoint can find the other.\n\nAn adjacency list keeps each vertex’s outgoing connections together. The Arc class stores the destination and weight. An isolated vertex still gets an empty list: it exists even though it has no edges.\n\nA path follows a sequence of allowed edges. A cycle returns to its start. A connected undirected graph has a path between every pair; otherwise it has several components. Direction changes reachability, so undirected component logic should not be applied unchanged to directed graphs.",
+    "steps": [
+      "Create one adjacency list for every vertex.",
+      "Store each directed edge at its starting vertex.",
+      "For an undirected graph, also store the reverse connection.",
+      "Keep the weight alongside the destination."
+    ],
+    "java": "static class Arc {\n    final int to, weight;\n    Arc(int to, int weight) { this.to = to; this.weight = weight; }\n}\nstatic List<List<Arc>> weightedGraph(int vertices, int[][] edges, boolean directed) {\n    List<List<Arc>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(new Arc(edge[1], edge[2]));\n        if (!directed) graph.get(edge[1]).add(new Arc(edge[0], edge[2]));\n    }\n    return graph;\n}",
+    "time": "O(V + E) to build.",
+    "space": "O(V + E); an undirected edge creates two stored arcs.",
+    "pitfalls": [
+      "Direction and weight are independent choices.",
+      "An isolated vertex must not disappear from the representation.",
+      "For an undirected graph, the sum of degrees is 2E; a self-loop contributes two.",
+      "For a directed graph, list size is outdegree. Indegree counts arcs arriving from other lists."
+    ],
+    "tests": [
+      "int[][]e={{0,1,7},{1,2,4}};List<List<Arc>>d=weightedGraph(4,e,true),u=weightedGraph(4,e,false);assert d.size()==4&&d.get(3).isEmpty();assert d.get(0).get(0).to==1&&d.get(0).get(0).weight==7;assert d.get(2).isEmpty();assert u.get(1).size()==2&&u.get(2).get(0).to==1;",
+      "for(boolean directed:new boolean[]{false,true}){List<List<Arc>>g=weightedGraph(1,new int[][]{{0,0,9}},directed);assert g.get(0).size()==(directed?1:2);assert g.get(0).get(0).weight==9;}assert weightedGraph(0,new int[0][],true).isEmpty();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/introduction-to-graph",
+      "title": "Introduction to Graph",
+      "checkedOn": "2026-10-29",
+      "approach": "Vertices, edges, direction, weights, adjacency, and degree.",
+      "adaptation": "The current public introduction was read. It has no Java solution. This is an authored Java example of its graph types; the pinned legacy introduction URL currently returns Page Not Found."
+    }
+  },
+  "331": {
+    "problem": "Represent an undirected graph as an adjacency matrix and compare it with an adjacency list.",
+    "assumptions": "The pinned row says C++, but this tracker guide uses Java as requested. Vertices are 0-based. The matrix records whether an edge exists; repeated edges do not create multiple true entries. Use edge counts instead if multiplicity matters.",
+    "example": {
+      "input": "V = 3; edges = [[0,2], [1,2]]",
+      "output": "[[false,false,true], [false,false,true], [true,true,false]]",
+      "explanation": "Row 0 has true at column 2. Because the connection is undirected, row 2 also has true at column 0."
+    },
+    "baseline": "Keep the input edge list. Checking whether a particular pair is connected may require scanning all E edges. A matrix pays more storage to make this check immediate.",
+    "approach": "Allocate a V by V boolean array. matrix[u][v] tells us whether u and v share an edge. For each undirected edge, set both matrix[u][v] and matrix[v][u]. Java initializes every other entry to false.\n\nThis is convenient when the graph is dense or pair checks are frequent. It uses O(V²) storage even when there are few edges. Listing the neighbors of one vertex requires scanning its entire row.\n\nAn adjacency list instead stores only actual neighbors. It uses O(V + E) storage and visits only the existing edges during traversal. Neither representation is always best: choose based on the operations and graph size.",
+    "steps": [
+      "Allocate a square boolean array.",
+      "Set both symmetric entries for each undirected edge.",
+      "Check an edge with matrix[u][v].",
+      "Use adjacency lists for sparse graphs when scanning neighbors is the main operation."
+    ],
+    "java": "static boolean[][] adjacencyMatrix(int vertices, int[][] edges) {\n    boolean[][] matrix = new boolean[vertices][vertices];\n    for (int[] edge : edges) {\n        matrix[edge[0]][edge[1]] = true;\n        matrix[edge[1]][edge[0]] = true;\n    }\n    return matrix;\n}",
+    "time": "O(V² + E) to allocate and fill; O(1) per edge-existence check.",
+    "space": "O(V²).",
+    "pitfalls": [
+      "One-way edges need only matrix[u][v], not its symmetric entry.",
+      "A boolean matrix loses duplicate-edge counts and cannot store weights.",
+      "For weighted graphs, zero may be a real weight, so it is not always a safe no-edge marker.",
+      "Large sparse graphs can make a matrix prohibitively large."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}boolean[][]m=adjacencyMatrix(n,edges);List<List<Integer>>a=adjacency(n,edges);for(int i=0;i<n;i++)for(int j=0;j<n;j++){boolean expected=false;for(int[]e:edges)if((e[0]==i&&e[1]==j)||(e[1]==i&&e[0]==j))expected=true;assert m[i][j]==expected;assert a.get(i).contains(j)==expected;}}}",
+      "boolean[][]m=adjacencyMatrix(2,new int[][]{{0,1},{0,1},{1,1}});assert m[0][1]&&m[1][0]&&m[1][1]&&!m[0][0];"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/introduction-to-graph",
+      "title": "Introduction to Graph",
+      "checkedOn": "2026-10-29",
+      "approach": "Store undirected edges in a matrix or adjacency lists.",
+      "adaptation": "The current graph introduction and public traversal contract were checked. Both legacy graph-representation article URLs currently return Page Not Found. This is an authored Java implementation, not a verified copy of their unavailable code."
+    },
+    "better": {
+      "explanation": "Store a separate list of neighbors for each vertex. Add both directions of each undirected edge. This avoids the V² matrix for sparse graphs, while preserving duplicate entries if the input has them.",
+      "java": "static List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}",
+      "time": "O(V + E) to build.",
+      "space": "O(V + E)."
+    }
+  },
+  "332": {
+    "problem": "Build a Java adjacency list for an undirected graph and read the neighbors of each vertex.",
+    "assumptions": "Vertices are 0-based and edge endpoints are valid. Each row of the returned list contains neighbors, not the vertex itself. Neighbor order follows edge insertion order. Repeated edges remain repeated entries; an undirected self-loop adds two entries.",
+    "example": {
+      "input": "V = 4; edges = [[0,2], [0,1], [2,3]]",
+      "output": "[[2,1], [0], [0,3], [2]]",
+      "explanation": "Edge 0–2 adds 2 to list 0 and 0 to list 2. List 0 keeps 2 before 1 because those edges were inserted in that order."
+    },
+    "baseline": "A V by V boolean matrix also represents the graph. It gives constant-time pair checks, but uses O(V²) storage and scans V columns to list one vertex’s neighbors.",
+    "approach": "Create the outer list, then create a separate inner list for every vertex. Do this even for isolated vertices. For each input edge [u,v], append v to u’s list and u to v’s list.\n\nThe separate inner lists matter. Reusing the same ArrayList object for every vertex would make every vertex appear to share the same neighbors.\n\nTo traverse neighbors, use for (int next : graph.get(vertex)). This scans only that vertex’s stored connections. Over the whole undirected graph, the loops inspect 2E entries, so the total is O(E).",
+    "steps": [
+      "Allocate V independent ArrayList objects.",
+      "Add each edge to both endpoint lists.",
+      "Keep insertion order unless a problem explicitly asks for sorted neighbors.",
+      "Read graph.get(v) to access v’s neighbors."
+    ],
+    "java": "static List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}",
+    "time": "O(V + E) to build; O(degree(v)) to scan one vertex’s neighbors.",
+    "space": "O(V + E).",
+    "pitfalls": [
+      "Creating only the outer list leaves no inner lists to append to.",
+      "Do not use one shared inner list for all vertices.",
+      "This guide uses 0-based vertices; a 1-based judge requires conversion or V + 1 lists.",
+      "If a judge wants each output row to start with the vertex label, prepend it only when formatting output."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}List<List<Integer>>a=adjacency(n,edges);for(int i=0;i<n;i++){List<Integer>expected=new ArrayList<>();for(int[]e:edges){if(e[0]==i)expected.add(e[1]);if(e[1]==i)expected.add(e[0]);}assert a.get(i).equals(expected);for(int j=i+1;j<n;j++)assert a.get(i)!=a.get(j);}}}",
+      "List<List<Integer>>a=adjacency(3,new int[][]{{0,2},{0,1},{0,0},{0,1}});assert a.get(0).equals(List.of(2,1,0,0,1));assert a.get(1).equals(List.of(0,0));assert a.get(2).equals(List.of(0));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/introduction-to-graph",
+      "title": "Introduction to Graph",
+      "checkedOn": "2026-10-29",
+      "approach": "Store undirected edges in a matrix or adjacency lists.",
+      "adaptation": "The current graph introduction and public traversal contract were checked. Both legacy graph-representation article URLs currently return Page Not Found. This is an authored Java implementation, not a verified copy of their unavailable code."
+    },
+    "baselineJava": "static boolean[][] adjacencyMatrix(int vertices, int[][] edges) {\n    boolean[][] matrix = new boolean[vertices][vertices];\n    for (int[] edge : edges) {\n        matrix[edge[0]][edge[1]] = true;\n        matrix[edge[1]][edge[0]] = true;\n    }\n    return matrix;\n}",
+    "baselineTime": "O(V² + E) time and O(V²) space."
+  },
+  "333": {
+    "problem": "Count the connected components of an undirected graph, including isolated vertices.",
+    "assumptions": "An edge list describes V vertices numbered 0 through V−1. Two vertices belong to the same component if a path connects them. The empty graph returns 0 as an extension. The method does not change the edges.",
+    "example": {
+      "input": "V = 6; edges = [[0,1], [1,2], [3,4]]",
+      "output": "3",
+      "explanation": "The groups are {0,1,2}, {3,4}, and {5}. The last vertex counts even though it has no edge."
+    },
+    "baseline": "For each unassigned vertex, repeatedly scan the whole edge list to discover more reachable vertices. This works, but repeated full scans waste time compared with storing neighbors once.",
+    "approach": "Start a traversal at the first unvisited vertex. It reaches exactly one connected component: every discovered vertex has a path from the start, and every vertex with such a path is eventually discovered. Mark all of them.\n\nContinue scanning vertex labels. An already visited vertex belongs to a component we counted. An unvisited vertex starts a different component, so increment the count and traverse again.\n\nThe outer loop is essential. A traversal started only at 0 cannot count disconnected groups or isolated vertices elsewhere.",
+    "steps": [
+      "Build both directions of every edge.",
+      "Scan all vertex labels.",
+      "For each unvisited label, add one to the count and mark its whole reachable group.",
+      "Return the number of traversal starts."
+    ],
+    "java": "static List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}\n\nstatic int countComponents(int vertices, int[][] edges) {\n    List<List<Integer>> graph = adjacency(vertices, edges);\n    boolean[] seen = new boolean[vertices];\n    int components = 0;\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int start = 0; start < vertices; start++) {\n        if (seen[start]) continue;\n        components++;\n        seen[start] = true;\n        queue.add(start);\n        while (!queue.isEmpty()) {\n            int vertex = queue.remove();\n            for (int next : graph.get(vertex)) {\n                if (!seen[next]) { seen[next] = true; queue.add(next); }\n            }\n        }\n    }\n    return components;\n}",
+    "time": "O(V + E).",
+    "space": "O(V + E) including adjacency lists; O(V) traversal state.",
+    "pitfalls": [
+      "Count traversal starts, not individual visited vertices.",
+      "An isolated vertex is a component of size one.",
+      "Mark a vertex when adding it to the queue to avoid duplicate work.",
+      "This is undirected connectivity; strongly connected directed components are a different problem."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}assert countComponents(n,edges)==components;}}",
+      "assert countComponents(4,new int[][]{{0,1},{0,1},{1,1}})==3;",
+      "int n=100000;int[][]e=new int[n-1][2];for(int i=0;i<n-1;i++)e[i]=new int[]{i,i+1};assert countComponents(n,e)==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/connected-components",
+      "title": "Connected Components",
+      "checkedOn": "2026-10-29",
+      "approach": "Start a traversal from every still-unvisited vertex.",
+      "adaptation": "The public edge-list statement was checked. Its solution is not public without sign-in; this Java follows the connected-component traversal also verified in the public province article."
+    }
+  },
+  "334": {
+    "problem": "Return the breadth-first traversal of a graph, starting at vertex 0.",
+    "assumptions": "The source guarantees a connected undirected graph. This method also handles disconnected inputs by returning only the component reachable from 0. It preserves edge insertion order within adjacency lists; other neighbor orders can produce different valid BFS sequences.",
+    "example": {
+      "input": "V = 5; edges = [[0,2], [0,1], [2,3], [1,4]]",
+      "output": "[0, 2, 1, 3, 4]",
+      "explanation": "Visit 0, then its neighbors 2 and 1, then the next layer 3 and 4. A queue makes the earlier discoveries leave first."
+    },
+    "baseline": "With an adjacency matrix, the same queue traversal must scan all V possible neighbors for each processed vertex, costing O(V²). Adjacency lists avoid scanning missing edges.",
+    "approach": "BFS explores in layers. Put vertex 0 into a queue. Remove its front vertex, record it, and add any unvisited neighbors at the back. Mark a neighbor as visited immediately when it enters the queue.\n\nAll vertices one edge from 0 are discovered before vertices two edges away are processed. This is why BFS can find shortest paths by edge count in an unweighted graph. Within one layer, the exact order depends on the neighbor lists.\n\nThe visited array stops cycles from sending us around forever and prevents two parents from queuing the same vertex twice.",
+    "steps": [
+      "Mark 0 and enqueue it.",
+      "Remove the front vertex and append it to the traversal.",
+      "Mark and enqueue each new neighbor.",
+      "Repeat until the queue is empty."
+    ],
+    "java": "static List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}\n\nstatic List<Integer> bfsOfGraph(int vertices, int[][] edges) {\n    List<List<Integer>> graph = adjacency(vertices, edges);\n    List<Integer> order = new ArrayList<>();\n    if (vertices == 0) return order;\n    boolean[] seen = new boolean[vertices];\n    Deque<Integer> queue = new ArrayDeque<>();\n    seen[0] = true;\n    queue.add(0);\n    while (!queue.isEmpty()) {\n        int vertex = queue.remove();\n        order.add(vertex);\n        for (int next : graph.get(vertex)) {\n            if (!seen[next]) { seen[next] = true; queue.add(next); }\n        }\n    }\n    return order;\n}",
+    "time": "O(V + E), including building adjacency lists.",
+    "space": "O(V + E) including the graph; O(V) queue, visited array, and output.",
+    "pitfalls": [
+      "Using a stack changes the traversal to depth-first behavior.",
+      "Do not delay marking until removal from the queue.",
+      "BFS minimizes edge count, not arbitrary weighted cost.",
+      "Do not claim one unique traversal without specifying neighbor order."
+    ],
+    "tests": [
+      "assert bfsOfGraph(5,new int[][]{{0,2},{0,1},{2,3},{1,4}}).equals(List.of(0,2,1,3,4));",
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}List<Integer>order=bfsOfGraph(n,edges);Set<Integer>unique=new HashSet<>(order);assert unique.size()==order.size();int last=-1;for(int v:order){assert reach[0][v];assert distance[0][v]>=last;last=distance[0][v];}for(int v=0;v<n;v++)assert unique.contains(v)==reach[0][v];}}",
+      "assert bfsOfGraph(3,new int[][]{{0,0},{0,1},{0,1}}).equals(List.of(0,1));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/traversal-techniques",
+      "title": "Traversal Techniques",
+      "checkedOn": "2026-10-29",
+      "approach": "BFS uses a queue; DFS finishes one branch before trying another.",
+      "adaptation": "The public problem and edge-list input were checked. No public Java editorial was available. Its first example uses a neighbor order different from the listed edge insertion order; these implementations consistently preserve insertion order and show matching examples."
+    }
+  },
+  "335": {
+    "problem": "Return the depth-first traversal of a graph, starting at vertex 0.",
+    "assumptions": "The source supplies a connected undirected graph. Neighbor order follows edge insertion order. On a disconnected input, the method visits only 0’s component. The explicit stack simulates recursive DFS without using Java’s call stack.",
+    "example": {
+      "input": "V = 5; edges = [[0,2], [0,1], [2,3], [1,4]]",
+      "output": "[0, 2, 3, 1, 4]",
+      "explanation": "After reaching 2, finish its branch through 3 before returning to 0 and exploring 1 and 4."
+    },
+    "baseline": "Recursive DFS marks and records the current vertex, then recursively visits each unvisited neighbor. It is concise, but a long chain can exhaust Java’s call stack.",
+    "approach": "DFS pauses a vertex while it explores one of its neighbors. A stack frame therefore needs both the vertex and the index of the next neighbor to inspect.\n\nLook at the top frame. If all its neighbors are finished, remove it and resume the parent. Otherwise advance its neighbor index. When that neighbor is unvisited, mark it, record it, and push a new frame.\n\nThis reproduces recursive DFS exactly for the same neighbor order. Simply pushing all neighbors and marking them immediately can choose a different DFS tree, so this version makes the paused work explicit.",
+    "steps": [
+      "Mark and record 0; push its frame with next-neighbor index zero.",
+      "Inspect the next neighbor in the top frame.",
+      "Push an unvisited neighbor and explore it before resuming the parent.",
+      "Pop frames whose neighbor lists are exhausted."
+    ],
+    "java": "static List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}\n\nstatic List<Integer> dfsOfGraph(int vertices, int[][] edges) {\n    List<List<Integer>> graph = adjacency(vertices, edges);\n    List<Integer> order = new ArrayList<>();\n    if (vertices == 0) return order;\n    boolean[] seen = new boolean[vertices];\n    Deque<int[]> stack = new ArrayDeque<>();\n    seen[0] = true;\n    order.add(0);\n    stack.push(new int[]{0, 0});\n    while (!stack.isEmpty()) {\n        int[] frame = stack.peek();\n        List<Integer> neighbors = graph.get(frame[0]);\n        if (frame[1] == neighbors.size()) { stack.pop(); continue; }\n        int next = neighbors.get(frame[1]++);\n        if (!seen[next]) {\n            seen[next] = true;\n            order.add(next);\n            stack.push(new int[]{next, 0});\n        }\n    }\n    return order;\n}",
+    "time": "O(V + E).",
+    "space": "O(V + E) including adjacency lists; O(V) explicit stack and other traversal state.",
+    "pitfalls": [
+      "Mark a vertex before exploring its neighbors so cycles terminate.",
+      "DFS order depends on neighbor order.",
+      "A DFS path is not necessarily a shortest path.",
+      "An outer loop over unvisited starts is needed to visit every disconnected component."
+    ],
+    "tests": [
+      "assert dfsOfGraph(5,new int[][]{{0,2},{0,1},{2,3},{1,4}}).equals(List.of(0,2,3,1,4));",
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}List<Integer>order=dfsOfGraph(n,edges);assert order.equals(dfsRecursive(n,edges));Set<Integer>unique=new HashSet<>(order);assert unique.size()==order.size();for(int v=0;v<n;v++)assert unique.contains(v)==reach[0][v];}}",
+      "int n=100000;int[][]e=new int[n-1][2];for(int i=0;i<n-1;i++)e[i]=new int[]{i,i+1};List<Integer>a=dfsOfGraph(n,e);assert a.size()==n&&a.get(n-1)==n-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/traversal-techniques",
+      "title": "Traversal Techniques",
+      "checkedOn": "2026-10-29",
+      "approach": "BFS uses a queue; DFS finishes one branch before trying another.",
+      "adaptation": "The public problem and edge-list input were checked. No public Java editorial was available. Its first example uses a neighbor order different from the listed edge insertion order; these implementations consistently preserve insertion order and show matching examples."
+    },
+    "baselineJava": "static List<Integer> dfsRecursive(int vertices, int[][] edges) {\n    List<List<Integer>> graph = adjacency(vertices, edges);\n    List<Integer> order = new ArrayList<>();\n    if (vertices > 0) visitDepth(0, graph, new boolean[vertices], order);\n    return order;\n}\nstatic void visitDepth(int vertex, List<List<Integer>> graph, boolean[] seen, List<Integer> order) {\n    seen[vertex] = true;\n    order.add(vertex);\n    for (int next : graph.get(vertex)) if (!seen[next]) visitDepth(next, graph, seen, order);\n}",
+    "baselineTime": "O(V + E) time and graph storage; O(V) recursive stack in the worst case."
+  },
+  "336": {
+    "problem": "Count provinces: groups of cities connected directly or through other cities.",
+    "assumptions": "The input is a symmetric N by N adjacency matrix with ones on its diagonal. Matrix indices are cities, not spatial grid coordinates. A 1 at [u][v] means a road-like connection between city u and city v.",
+    "example": {
+      "input": "[[1,0,1,0], [0,1,0,0], [1,0,1,0], [0,0,0,1]]",
+      "output": "3",
+      "explanation": "Cities 0 and 2 form one province. Cities 1 and 3 each form their own. Their positions in the matrix do not need to touch."
+    },
+    "baseline": "Recursive DFS from each unvisited city marks its province by scanning matrix rows. This already takes optimal O(N²) time for inspecting a general adjacency matrix, but may build a deep call stack.",
+    "approach": "Treat one city as a starting point. Scan its row to find directly connected cities, then scan those cities’ rows to find indirect connections. A queue keeps this search iterative.\n\nWhen the queue empties, the whole province has been marked. Continue through the city labels. Each still-unvisited city begins another province.\n\nThere are N rows of N entries. Even if very few connections exist, every processed row is scanned, so time is O(N²), not O(N + E) for this representation. The input already stores the graph; no extra adjacency list is required.",
+    "steps": [
+      "Keep one visited flag per city.",
+      "Start a BFS at each unvisited city and increment the province count.",
+      "Scan a city’s matrix row for unvisited connected cities.",
+      "Return the count after all city labels have been considered."
+    ],
+    "java": "static int findCircleNum(int[][] connected) {\n    int n = connected.length, provinces = 0;\n    boolean[] seen = new boolean[n];\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int start = 0; start < n; start++) {\n        if (seen[start]) continue;\n        provinces++;\n        seen[start] = true;\n        queue.add(start);\n        while (!queue.isEmpty()) {\n            int city = queue.remove();\n            for (int next = 0; next < n; next++) {\n                if (connected[city][next] == 1 && !seen[next]) {\n                    seen[next] = true;\n                    queue.add(next);\n                }\n            }\n        }\n    }\n    return provinces;\n}",
+    "time": "O(N²).",
+    "space": "O(N) extra space; the input matrix is not copied.",
+    "pitfalls": [
+      "Do not use four-direction grid movement; rows and columns are city labels.",
+      "A symmetric matrix represents undirected connections.",
+      "The diagonal ones should not cause repeat visits.",
+      "Count isolated cities as provinces."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}int[][]m=new int[n][n];for(int i=0;i<n;i++)m[i][i]=1;for(int[]e:edges)m[e[0]][e[1]]=m[e[1]][e[0]]=1;assert findCircleNum(m)==components;assert provincesRecursive(m)==components;}}",
+      "assert findCircleNum(new int[][]{{1,0,1},{0,1,0},{1,0,1}})==2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/number-of-provinces",
+      "title": "Number of Provinces: Count Connected Components",
+      "checkedOn": "2026-10-29",
+      "approach": "Scan adjacency-matrix rows with DFS or BFS; DSU is another option.",
+      "adaptation": "All three public Java approaches were checked. The main BFS and recursive alternative retain the article’s row-scan method. ArrayDeque and boolean visited flags replace LinkedList and integer flags."
+    },
+    "baselineJava": "static int provincesRecursive(int[][] connected) {\n    boolean[] seen = new boolean[connected.length];\n    int count = 0;\n    for (int city = 0; city < seen.length; city++) {\n        if (!seen[city]) { count++; visitCity(city, connected, seen); }\n    }\n    return count;\n}\nstatic void visitCity(int city, int[][] connected, boolean[] seen) {\n    seen[city] = true;\n    for (int next = 0; next < seen.length; next++) {\n        if (connected[city][next] == 1 && !seen[next]) visitCity(next, connected, seen);\n    }\n}",
+    "baselineTime": "O(N²) time and O(N) recursive/visited space."
+  },
+  "337": {
+    "problem": "Count graph components when connections are given in a matrix, and convert the linked edge-list variant when needed.",
+    "assumptions": "The pinned title says “Problem in Matrix”, but its link is an edge-list Connected Components task. Both interfaces are included. Here matrix[u][v] describes a connection between vertices u and v; this is not an island grid whose adjacent cells are connected.",
+    "example": {
+      "input": "4 vertices; edges [[0,3], [1,2]]; or the equivalent symmetric adjacency matrix",
+      "output": "2",
+      "explanation": "The groups are {0,3} and {1,2}. A matrix cell’s physical neighbors have no role in this graph."
+    },
+    "baseline": "Convert the matrix into adjacency lists and run a component traversal. This works but adds storage; scanning the existing matrix directly is simpler when it is already the input.",
+    "approach": "The component-counting idea stays the same across representations: find an unvisited vertex, count one new group, then visit everything reachable from it. Only the way we find neighbors changes.\n\nFor the matrix form, scan the current vertex’s row. For the linked edge-list form, first build adjacency lists and scan only stored neighbors. The code includes findCircleNum for a symmetric matrix and countComponents for the linked edge-list contract.\n\nDo not reinterpret this row as counting islands in a picture. An island grid uses cells as vertices and defines movement by directions; an adjacency matrix uses row and column numbers as vertex labels.",
+    "steps": [
+      "Choose the interface that matches the actual input.",
+      "For a matrix, scan complete rows; for edges, build neighbor lists.",
+      "Start one traversal per unvisited vertex.",
+      "Include vertices with no outgoing connections."
+    ],
+    "java": "static int findCircleNum(int[][] connected) {\n    int n = connected.length, provinces = 0;\n    boolean[] seen = new boolean[n];\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int start = 0; start < n; start++) {\n        if (seen[start]) continue;\n        provinces++;\n        seen[start] = true;\n        queue.add(start);\n        while (!queue.isEmpty()) {\n            int city = queue.remove();\n            for (int next = 0; next < n; next++) {\n                if (connected[city][next] == 1 && !seen[next]) {\n                    seen[next] = true;\n                    queue.add(next);\n                }\n            }\n        }\n    }\n    return provinces;\n}\n\nstatic List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}\n\nstatic int countComponents(int vertices, int[][] edges) {\n    List<List<Integer>> graph = adjacency(vertices, edges);\n    boolean[] seen = new boolean[vertices];\n    int components = 0;\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int start = 0; start < vertices; start++) {\n        if (seen[start]) continue;\n        components++;\n        seen[start] = true;\n        queue.add(start);\n        while (!queue.isEmpty()) {\n            int vertex = queue.remove();\n            for (int next : graph.get(vertex)) {\n                if (!seen[next]) { seen[next] = true; queue.add(next); }\n            }\n        }\n    }\n    return components;\n}",
+    "time": "O(V²) for a matrix; O(V + E) for an edge list.",
+    "space": "O(V) extra for matrix BFS; O(V + E) including adjacency lists for edge input.",
+    "pitfalls": [
+      "The pinned title and linked task use different input representations.",
+      "An adjacency matrix is not a four-direction land/water grid.",
+      "Do not forget isolated vertices when building from edges.",
+      "These methods assume undirected connections."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}int[][]m=new int[n][n];for(int i=0;i<n;i++)m[i][i]=1;for(int[]e:edges)m[e[0]][e[1]]=m[e[1]][e[0]]=1;assert findCircleNum(m)==components;assert countComponents(n,edges)==components;}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/connected-components",
+      "title": "Connected Components",
+      "checkedOn": "2026-10-29",
+      "approach": "Count traversal starts, using the neighbor representation supplied by the problem.",
+      "adaptation": "The linked public task takes an edge list despite the pinned matrix title. Both contracts are covered; the matrix method was checked against the public Number of Provinces Java article."
+    }
   }
 }
