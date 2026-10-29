@@ -18828,5 +18828,116 @@
         ]
       ]
     }
+  },
+  "442": {
+    "problem": "Return the longest listed word whose every nonempty prefix is also listed as a complete word. Break length ties lexicographically.",
+    "assumptions": "Words contain lowercase English letters. The word itself counts as its final prefix. Return the literal string \"None\" when no complete word exists. The pinned practice page limits the sum of word lengths to 100,000. Duplicates do not change the answer.",
+    "example": {
+      "input": "words = [\"b\", \"bo\", \"boa\", \"boat\", \"boar\", \"bold\"]",
+      "output": "\"boar\"",
+      "explanation": "Both boat and boar have all their prefixes in the list. They have equal length, and boar comes first lexicographically. bold is invalid because bol is missing."
+    },
+    "baseline": "Store the words in a set. For each candidate, construct every prefix and check membership. Java copies and hashes those prefix strings, so a word of length L can require O(L²) character work.",
+    "approach": "Insert all words into a trie before checking candidates. This makes the result independent of input order: a needed prefix may appear later in the list. Only mark the final node of each inserted word as an ending.\n\nNow follow a candidate word one character at a time. Every node you reach represents one of its prefixes. Require every one of those nodes to be marked as a complete word. A path alone is insufficient, because inserting boat creates the path for boa even when boa was never listed.\n\nAmong valid candidates, prefer greater length. Only when lengths tie, use String.compareTo to choose the smaller word. No sorting is required. Return None if no nonempty candidate passes.\n\nThe whole check visits each input character a constant number of times. Shared trie paths avoid repeatedly constructing separate prefix strings.",
+    "steps": [
+      "Insert every listed word and mark its final node.",
+      "Check each candidate by walking its trie path.",
+      "Reject it immediately if a visited node is not a complete word.",
+      "Choose the longest valid candidate, then the lexicographically smallest on a tie.",
+      "Return \"None\" if there is no valid word."
+    ],
+    "java": "static class PrefixNode {\n    PrefixNode[] children=new PrefixNode[26];\n    boolean complete;\n}\nstatic String completeString(String[] words) {\n    PrefixNode root=new PrefixNode();\n    for(String word:words) {\n        PrefixNode node=root;\n        for(int i=0;i<word.length();i++) {\n            int letter=word.charAt(i)-'a';\n            if(node.children[letter]==null) node.children[letter]=new PrefixNode();\n            node=node.children[letter];\n        }\n        node.complete=true;\n    }\n    String best=\"\";\n    for(String word:words) {\n        PrefixNode node=root;\n        boolean valid=true;\n        for(int i=0;i<word.length();i++) {\n            node=node.children[word.charAt(i)-'a'];\n            if(node==null || !node.complete) { valid=false; break; }\n        }\n        if(valid && (word.length()>best.length()\n            || (word.length()==best.length() && word.compareTo(best)<0))) best=word;\n    }\n    return best.isEmpty()?\"None\":best;\n}\nstatic String longestWordWithAllPrefixes(String[] words) { return completeString(words); }",
+    "time": "O(S), where S is the sum of input word lengths, including tie comparisons.",
+    "space": "O(26S) child-reference capacity in the worst case; no copied prefix strings.",
+    "pitfalls": [
+      "A prefix path and a complete stored prefix are different things.",
+      "Build the entire trie before validation; do not depend on input order.",
+      "Compare length first and lexicographic order second.",
+      "Return \"None\" with the stated capitalization, not null or an empty string."
+    ],
+    "tests": [
+      "assert completeString(new String[]{\"b\",\"bo\",\"boa\",\"boat\",\"boar\",\"bold\"}).equals(\"boar\");assert completeString(new String[]{\"boat\",\"boa\",\"bo\",\"b\"}).equals(\"boat\");assert completeString(new String[]{\"boat\"}).equals(\"None\");assert completeString(new String[]{}).equals(\"None\");",
+      "Random random=new Random(442);for(int trial=0;trial<1200;trial++){int n=random.nextInt(25);String[] words=new String[n];Set<String> dictionary=new HashSet<>();for(int i=0;i<n;i++){StringBuilder b=new StringBuilder();for(int j=0,len=1+random.nextInt(6);j<len;j++)b.append((char)('a'+random.nextInt(3)));words[i]=b.toString();dictionary.add(words[i]);}String expected=\"\";for(String word:dictionary){boolean valid=true;for(int length=1;length<=word.length();length++)if(!dictionary.contains(word.substring(0,length)))valid=false;if(valid&&(word.length()>expected.length()||(word.length()==expected.length()&&word.compareTo(expected)<0)))expected=word;}if(expected.isEmpty())expected=\"None\";assert completeString(words).equals(expected);}",
+      "String[] chain=new String[400];for(int i=0;i<chain.length;i++)chain[i]=\"a\".repeat(chain.length-i);assert completeString(chain).equals(\"a\".repeat(400));assert completeString(new String[]{\"a\".repeat(100000)}).equals(\"None\");"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/longest-word-with-all-prefixes",
+      "title": "Longest Word with All Prefixes",
+      "checkedOn": "2026-10-29",
+      "approach": "Insert all words, require a word-ending marker at every prefix node, then apply length and lexicographic selection.",
+      "adaptation": "The complete public Java and the pinned practice statement were checked, including its None return value and total-character bound. The method name completeString matches the pinned stub; the article-name alias is also supplied. Traversal uses charAt to avoid temporary char arrays."
+    }
+  },
+  "443": {
+    "problem": "Count the distinct contiguous substrings of a lowercase string, including the empty substring once.",
+    "assumptions": "The pinned source includes the empty string and limits input length to 1,000. Repeated occurrences of the same text count only once. The trie method is quadratic in time and worst-case memory; the advanced automaton below is provided for larger inputs. Empty input returns one.",
+    "example": {
+      "input": "s = \"aab\"",
+      "output": "6",
+      "explanation": "The distinct texts are \"\", \"a\", \"b\", \"aa\", \"ab\", and \"aab\". The two occurrences of \"a\" count as one distinct substring."
+    },
+    "baseline": "Generate all substrings with two endpoints and store them in a set. This is a useful reference method, but copying and hashing all those strings takes O(n³) character work in the worst case.",
+    "approach": "Every substring is a prefix of some suffix. For example, starting at index 1 of aab gives the suffix ab, whose prefixes are a and ab. Start a trie walk from every input index and extend it through the remaining characters.\n\nEach non-root node represents exactly one text: the characters on its path from the root. Creating a new child means that text has not been seen before, so increase the count. If the child already exists, that substring text has appeared at another position and should not be counted again.\n\nReset the current node to the root for each starting index. We do not need word-ending markers here: every reached node already represents a substring, not only the end of a full suffix. Start the count at one for the empty substring.\n\nThis avoids constructing all substring objects, but can still create O(n²) nodes. The source’s advanced suffix-automaton method merges groups of substrings and uses only O(n) states; it is included below as a separate step after understanding the trie count.",
+    "steps": [
+      "Create a root and start the count at one for the empty substring.",
+      "For each start index, reset the current node to the root.",
+      "Extend through each later character.",
+      "Create and count only missing child nodes.",
+      "Return the total number of new nodes plus the empty substring."
+    ],
+    "java": "static class SubstringNode {\n    SubstringNode[] children=new SubstringNode[26];\n}\nstatic int countDistinctSubstring(String s) {\n    SubstringNode root=new SubstringNode();\n    int count=1;\n    for(int start=0;start<s.length();start++) {\n        SubstringNode node=root;\n        for(int end=start;end<s.length();end++) {\n            int letter=s.charAt(end)-'a';\n            if(node.children[letter]==null) {\n                node.children[letter]=new SubstringNode();\n                count++;\n            }\n            node=node.children[letter];\n        }\n    }\n    return count;\n}\nstatic int countDistinctSubstrings(String s) { return countDistinctSubstring(s); }",
+    "time": "O(n²).",
+    "space": "O(26n²) child-reference capacity in the worst case; this can be substantial despite the fixed alphabet.",
+    "pitfalls": [
+      "The empty substring counts once under this source’s contract.",
+      "A substring must be contiguous; this is not counting subsequences.",
+      "Reset to the root for each suffix.",
+      "Count new nodes, not every visit to an existing node.",
+      "A trie may use much more memory than the string itself; use the automaton for large inputs."
+    ],
+    "tests": [
+      "assert countDistinctSubstring(\"aab\")==6;assert countDistinctSubstring(\"aaaa\")==5;assert countDistinctSubstring(\"\")==1;assert distinctByAutomaton(\"\")==1;",
+      "for(int n=0;n<=8;n++){int patterns=1;for(int i=0;i<n;i++)patterns*=3;for(int pattern=0;pattern<patterns;pattern++){StringBuilder b=new StringBuilder();int digits=pattern;for(int i=0;i<n;i++){b.append((char)('a'+digits%3));digits/=3;}String s=b.toString();int expected=distinctBySet(s);assert countDistinctSubstring(s)==expected;assert distinctByAutomaton(s)==expected;}}",
+      "assert countDistinctSubstring(\"a\".repeat(1000))==1001;assert distinctByAutomaton(\"a\".repeat(100000))==100001;assert distinctByAutomaton(\"ab\".repeat(50000))==200000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/number-of-distinct-substrings-in-a-string",
+      "title": "Number of Distinct Substrings in a String",
+      "checkedOn": "2026-10-29",
+      "approach": "Set enumeration, suffix-trie new-node counting, and suffix-automaton length-minus-link counting.",
+      "adaptation": "All three complete public Java implementations were checked; the automaton was read with the article’s Copy code control. The pinned empty-substring convention and length limit were verified. The main trie keeps the source method; the automaton uses a fresh local state list, explicit transition defaults, and a long count instead of narrowing the total to int."
+    },
+    "baselineJava": "static int distinctBySet(String s) {\n    Set<String> values=new HashSet<>();\n    values.add(\"\");\n    for(int start=0;start<s.length();start++)\n        for(int end=start+1;end<=s.length();end++) values.add(s.substring(start,end));\n    return values.size();\n}",
+    "baselineTime": "O(n³) character work and up to O(n³) stored characters in the worst case.",
+    "better": {
+      "explanation": "Advanced alternative from the current article: a suffix automaton groups substrings that have the same set of ending positions. In each state, represented substring lengths form a consecutive range from length[link]+1 to length[state], so the state contributes their difference. A suffix link points to the next shorter group. When a new character is appended, add missing transitions along suffix links. If an existing destination represents too broad a length range, copy its transitions into a shorter clone and redirect the affected links. The clone splits a group; it does not add an arbitrary extra substring. Sum the length differences for every non-root state, then add one for the empty string. This is more involved than the trie but keeps at most a linear number of states.",
+      "java": "static class SuffixState {\n    int length;\n    int link=-1;\n    Map<Character,Integer> next=new HashMap<>();\n}\nstatic long distinctByAutomaton(String s) {\n    List<SuffixState> states=new ArrayList<>();\n    states.add(new SuffixState());\n    int last=0;\n    for(int index=0;index<s.length();index++) {\n        char ch=s.charAt(index);\n        int current=states.size();\n        SuffixState added=new SuffixState();\n        added.length=states.get(last).length+1;\n        states.add(added);\n        int previous=last;\n        while(previous!=-1 && !states.get(previous).next.containsKey(ch)) {\n            states.get(previous).next.put(ch,current);\n            previous=states.get(previous).link;\n        }\n        if(previous==-1) added.link=0;\n        else {\n            int target=states.get(previous).next.get(ch);\n            if(states.get(previous).length+1==states.get(target).length) added.link=target;\n            else {\n                int clone=states.size();\n                SuffixState copied=new SuffixState();\n                copied.length=states.get(previous).length+1;\n                copied.link=states.get(target).link;\n                copied.next.putAll(states.get(target).next);\n                states.add(copied);\n                while(previous!=-1 && states.get(previous).next.getOrDefault(ch,-1)==target) {\n                    states.get(previous).next.put(ch,clone);\n                    previous=states.get(previous).link;\n                }\n                states.get(target).link=clone;\n                added.link=clone;\n            }\n        }\n        last=current;\n    }\n    long count=1;\n    for(int state=1;state<states.size();state++) {\n        SuffixState node=states.get(state);\n        count+=node.length-states.get(node.link).length;\n    }\n    return count;\n}",
+      "time": "O(n) expected time for the fixed lowercase alphabet with hash-map transitions.",
+      "space": "O(n) states and transitions for a fixed alphabet."
+    },
+    "trace": {
+      "columns": [
+        "Suffix start",
+        "New substring texts",
+        "Running total including empty"
+      ],
+      "rows": [
+        [
+          "0: aab",
+          "a, aa, aab",
+          "4"
+        ],
+        [
+          "1: ab",
+          "ab (a already exists)",
+          "5"
+        ],
+        [
+          "2: b",
+          "b",
+          "6"
+        ]
+      ]
+    }
   }
 }
