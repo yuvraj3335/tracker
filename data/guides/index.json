@@ -11101,5 +11101,90 @@
       "approach": "Collect values at three stages of the same depth-first walk.",
       "adaptation": "The public statement, examples, 100000-node bound and output list order were checked, together with the current foundation definitions. No public Java editorial was available. This authored frame-stack implementation avoids recursion depth limits."
     }
+  },
+  "288": {
+    "problem": "Return the maximum depth of a binary tree: the number of nodes on its longest root-to-leaf path.",
+    "assumptions": "This problem counts nodes, so an empty tree has depth 0 and a single node has depth 1. That differs from the edge-based height used on the introduction page. Values do not affect depth.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "3",
+      "explanation": "The longest path is 8 → 4 → 6 and contains three nodes."
+    },
+    "baseline": "Recursively return 1 + max(leftDepth, rightDepth), with 0 for null. This is already O(n), but a deep chain may exceed Java’s call-stack limit.",
+    "approach": "Count the number of levels with breadth-first search. Start with the root in a queue. For each level, remove exactly the nodes already in the queue and add their children for the next level. Increase depth once per completed level.\n\nThe last non-empty level contains a deepest node. The number of levels, including the root’s level, is therefore the maximum number of nodes on a root-to-leaf path. This has the same linear time as recursion and avoids call-stack depth limits.",
+    "steps": [
+      "For null, return 0.",
+      "Put the root in a queue.",
+      "Save the current level size and process exactly that many nodes.",
+      "Increase depth once per level and return it when the queue empties."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int maxDepth(TreeNode root) {\n    if (root == null) return 0;\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    queue.offer(root);\n    int depth = 0;\n    while (!queue.isEmpty()) {\n        int size = queue.size();\n        for (int i = 0; i < size; i++) {\n            TreeNode node = queue.poll();\n            if (node.left != null) queue.offer(node.left);\n            if (node.right != null) queue.offer(node.right);\n        }\n        depth++;\n    }\n    return depth;\n}",
+    "time": "O(n).",
+    "space": "O(w) queue space for maximum level width w. Recursive depth uses O(h) call-stack space instead.",
+    "pitfalls": [
+      "Return 1 for a leaf, not 0.",
+      "Depth uses the larger child path, not the sum of both paths.",
+      "A node missing just one child is not a leaf.",
+      "Freeze queue size before adding the next level’s children."
+    ],
+    "tests": [
+      "assert maxDepth(null)==0;assert maxDepth(new TreeNode(9))==1;TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert maxDepth(r)==3;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}int want=0;for(String path:paths.values())want=Math.max(want,path.length()+1);assert maxDepth(root)==want;assert recursiveDepth(root)==want;}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.left=new TreeNode(0);p=p.left;}assert maxDepth(r)==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/maximum-depth-in-bt",
+      "title": "Maximum Depth in BT",
+      "checkedOn": "2026-10-29",
+      "approach": "Count nodes on the deepest path, using recursive heights or queue levels.",
+      "adaptation": "The public statement explicitly counts nodes, and its BFS and recursive-height hints were checked with the foundation lesson. No public Java editorial was available; these are authored implementations of those two approaches."
+    },
+    "baselineJava": "static int recursiveDepth(TreeNode root) {\n    if (root == null) return 0;\n    return 1 + Math.max(recursiveDepth(root.left), recursiveDepth(root.right));\n}",
+    "baselineTime": "O(n) time and O(h) recursion space. Prefer the iterative version for a very deep tree."
+  },
+  "289": {
+    "problem": "Decide whether every node has left and right subtree heights differing by at most one.",
+    "assumptions": "An empty tree is balanced. The condition applies at every node, not just the root. Heights here count nodes: null has height 0. Tree shape matters; node values do not.",
+    "example": {
+      "input": "root has a left chain of three nodes and a right chain of three nodes",
+      "output": "false",
+      "explanation": "The root’s two heights are equal, but each chain contains a node whose child heights differ by two. A balanced root alone is not enough."
+    },
+    "baseline": "For each node, separately calculate both subtree heights and then check the two subtrees. Repeated height scans cost at most O(nh) time; early failure can reduce the work, so a skewed tree rejected at its root does not actually require all those repeated scans.",
+    "approach": "Calculate heights only after the children are finished. At that point, compare the two child heights. If their difference exceeds one, the whole tree is unbalanced. Otherwise, save 1 + max(leftHeight, rightHeight) for the parent to use.\n\nThe recursive improvement returns −1 as an early failure signal. The iterative version below uses the same postorder dependency but stores heights in a map. A frame with ready = false schedules its children; the same node returns with ready = true after those children have heights. This avoids Java call-stack limits, at the cost of O(n) stored heights.",
+    "steps": [
+      "Push the root in an unfinished frame.",
+      "On first seeing a node, schedule its finished frame and then its children.",
+      "On the finished frame, read child heights, using zero for missing children.",
+      "Reject a difference greater than one; otherwise store this node’s height."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class BalanceFrame {\n    final TreeNode node;\n    final boolean ready;\n    BalanceFrame(TreeNode node, boolean ready) { this.node = node; this.ready = ready; }\n}\nstatic boolean isBalanced(TreeNode root) {\n    if (root == null) return true;\n    Deque<BalanceFrame> stack = new ArrayDeque<>();\n    Map<TreeNode, Integer> heights = new IdentityHashMap<>();\n    stack.push(new BalanceFrame(root, false));\n    while (!stack.isEmpty()) {\n        BalanceFrame frame = stack.pop();\n        TreeNode node = frame.node;\n        if (!frame.ready) {\n            stack.push(new BalanceFrame(node, true));\n            if (node.right != null) stack.push(new BalanceFrame(node.right, false));\n            if (node.left != null) stack.push(new BalanceFrame(node.left, false));\n        } else {\n            int left = node.left == null ? 0 : heights.get(node.left);\n            int right = node.right == null ? 0 : heights.get(node.right);\n            if (Math.abs(left - right) > 1) return false;\n            heights.put(node, 1 + Math.max(left, right));\n        }\n    }\n    return true;\n}",
+    "time": "O(n).",
+    "space": "O(n) stored heights plus O(h) stack frames. The recursive improvement uses O(h) space but can hit call-stack limits.",
+    "pitfalls": [
+      "Check every node, including nodes deep inside an otherwise balanced-looking tree.",
+      "The recursive −1 sentinel must propagate before calculating a parent’s height.",
+      "Compare child heights, not child node counts.",
+      "Map nodes by identity, not by their possibly repeated values."
+    ],
+    "tests": [
+      "assert isBalanced(null);assert isBalanced(new TreeNode(1));TreeNode r=new TreeNode(1);r.left=new TreeNode(2);r.left.left=new TreeNode(3);r.left.left.left=new TreeNode(4);r.right=new TreeNode(2);r.right.right=new TreeNode(3);r.right.right.right=new TreeNode(4);assert !isBalanced(r);assert !isBalancedRecursive(r);assert !balanceByRepeatedHeights(r);",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}boolean want=true;for(String path:paths.values()){int left=0,right=0;for(String other:paths.values()){if(other.startsWith(path+\"L\"))left=Math.max(left,other.length()-path.length());if(other.startsWith(path+\"R\"))right=Math.max(right,other.length()-path.length());}if(Math.abs(left-right)>1)want=false;}assert isBalanced(root)==want;assert isBalancedRecursive(root)==want;assert balanceByRepeatedHeights(root)==want;}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(0);p=p.right;}assert !isBalanced(r);assert isBalanced(new TreeNode(0));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/check-if-a-binary-tree-is-height-balanced",
+      "title": "Check If a Binary Tree Is Height-Balanced",
+      "checkedOn": "2026-10-29",
+      "approach": "Check every node, then avoid repeated height calculations with recursive or iterative postorder.",
+      "adaptation": "All three public Java approaches were checked. The final version follows the article’s explicit stack and height map, using ArrayDeque and identity keys. The repeated-height complexity is stated as an upper bound; the source’s claim of quadratic work on a chain overlooks its immediate root-level rejection."
+    },
+    "baselineJava": "static int balanceHeight(TreeNode node) {\n    if (node == null) return 0;\n    return 1 + Math.max(balanceHeight(node.left), balanceHeight(node.right));\n}\nstatic boolean balanceByRepeatedHeights(TreeNode node) {\n    if (node == null) return true;\n    if (Math.abs(balanceHeight(node.left) - balanceHeight(node.right)) > 1) return false;\n    return balanceByRepeatedHeights(node.left) && balanceByRepeatedHeights(node.right);\n}",
+    "better": {
+      "explanation": "Return a subtree height when it is balanced, or −1 when any imbalance has been found. This combines height calculation and validation in one recursive postorder traversal. It is concise and uses only the call stack, but very deep trees need the iterative version.",
+      "java": "static boolean isBalancedRecursive(TreeNode root) { return checkedHeight(root) != -1; }\nstatic int checkedHeight(TreeNode node) {\n    if (node == null) return 0;\n    int left = checkedHeight(node.left);\n    if (left == -1) return -1;\n    int right = checkedHeight(node.right);\n    if (right == -1 || Math.abs(left - right) > 1) return -1;\n    return 1 + Math.max(left, right);\n}",
+      "time": "O(n).",
+      "space": "O(h) recursion stack."
+    }
   }
 }
