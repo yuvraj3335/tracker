@@ -16919,5 +16919,54 @@
       "time": "O(n × m).",
       "space": "O((n + 1) × (m + 1)), plus O(n + m) stack depth for memoization."
     }
+  },
+  "417": {
+    "problem": "Decide whether a wildcard pattern matches the entire text. A question mark matches exactly one character; a star matches any number of characters, including zero.",
+    "assumptions": "The pinned problem allows text and pattern lengths from zero to 2000. Text contains lowercase English letters; the pattern also permits ? and *. These are wildcard rules, not regular-expression rules: * does not repeat the preceding token.",
+    "example": {
+      "input": "text = \"coder\", pattern = \"c?*r\"",
+      "output": "true",
+      "explanation": "c and r match themselves, ? matches o, and * matches de. The pattern consumes the whole text."
+    },
+    "baseline": "Recursively compare the text and pattern prefixes. A matching literal or ? consumes one character from each. A star can disappear without consuming text, or consume one text character while remaining available. Try both choices. Repeated stars cause many repeated prefix questions.",
+    "approach": "Let dp[i][j] say whether the first i text characters match the first j pattern characters completely. Two empty prefixes match. An empty pattern cannot cover nonempty text. Empty text matches a pattern prefix only when every character in that prefix is a star.\n\nFor a literal match or ?, use the diagonal result: one character is consumed on both sides. For *, use two possibilities. dp[i][j − 1] treats the star as empty. dp[i − 1][j] lets it consume the last text character and remain available to consume more. Use OR because either is enough.\n\nFill the text rows and pattern columns in increasing order. The star’s empty choice reads the current row to the left; its consuming choice reads the previous row above. A fresh row begins with false in column zero because a nonempty text cannot match an empty pattern.\n\nReturn the full-prefix result, not whether some intermediate cell matched. Otherwise a matching beginning could incorrectly ignore extra text at the end.",
+    "steps": [
+      "Initialize the empty-text row: true only through a prefix of stars.",
+      "For each text character, create a fresh false row.",
+      "For *, combine current-row left with previous-row above.",
+      "For ? or the same literal, copy the diagonal.",
+      "Leave other mismatches false.",
+      "Return the full text/full pattern entry."
+    ],
+    "java": "static boolean isMatch(String text, String pattern) {\n    boolean[] previous = new boolean[pattern.length()+1];\n    previous[0] = true;\n    for (int j = 1; j <= pattern.length(); j++) {\n        previous[j] = previous[j-1] && pattern.charAt(j-1) == '*';\n    }\n    for (int i = 1; i <= text.length(); i++) {\n        boolean[] current = new boolean[pattern.length()+1];\n        for (int j = 1; j <= pattern.length(); j++) {\n            char token = pattern.charAt(j-1);\n            if (token == '*') current[j] = current[j-1] || previous[j];\n            else if (token == '?' || token == text.charAt(i-1)) current[j] = previous[j-1];\n        }\n        previous = current;\n    }\n    return previous[pattern.length()];\n}\nstatic boolean wildCard(String text, String pattern) {\n    return isMatch(text,pattern);\n}",
+    "time": "O(n × m), plus O(m) empty-text initialization.",
+    "space": "O(m + 1), where m is the pattern length.",
+    "pitfalls": [
+      "A star may match zero characters; do not force it to consume one.",
+      "A question mark cannot match an empty string.",
+      "Every character of both full inputs must be accounted for.",
+      "Consecutive stars are allowed and behave like one star.",
+      "Do not interpret * as a regex quantifier on the preceding character."
+    ],
+    "tests": [
+      "assert isMatch(\"coder\",\"c?*r\");assert isMatch(\"\",\"***\");assert !isMatch(\"\",\"?\");assert !isMatch(\"abc\",\"ab\");assert !isMatch(\"abc\",\"\");assert isMatch(\"\",\"\");assert wildCard(\"abc\",\"a**?*\");",
+      "List<String> texts=new ArrayList<>();texts.add(\"\");for(int length=1;length<=5;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');texts.add(word.toString());}\nList<String> patterns=new ArrayList<>();patterns.add(\"\");char[] tokens={'a','b','?','*'};for(int length=1;length<=5;length++){int count=1<<(2*length);for(int code=0;code<count;code++){int digits=code;StringBuilder pattern=new StringBuilder();for(int i=0;i<length;i++){pattern.append(tokens[digits%4]);digits/=4;}patterns.add(pattern.toString());}}\nfor(String pattern:patterns){StringBuilder expression=new StringBuilder();for(char token:pattern.toCharArray())expression.append(token=='*'?\".*\":token=='?'?\".\":Character.toString(token));java.util.regex.Pattern oracle=java.util.regex.Pattern.compile(expression.toString());for(String text:texts){boolean expected=oracle.matcher(text).matches();assert isMatch(text,pattern)==expected;assert wildcardTable(text,pattern)==expected;assert wildcardRecursive(text,pattern,text.length(),pattern.length())==expected;}}",
+      "assert isMatch(\"a\".repeat(2000),\"?\".repeat(2000));assert isMatch(\"a\".repeat(2000),\"*\".repeat(2000));assert !isMatch(\"a\".repeat(2000),\"?\".repeat(1999));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/wildcard-matching",
+      "title": "Wildcard matching",
+      "checkedOn": "2026-10-29",
+      "approach": "Whole-prefix boolean DP: a star either consumes nothing or consumes one more text character.",
+      "adaptation": "The public matching rules and both DP hints were checked. The full solution requires sign-in, so its Java was not inspected. This original implementation follows the two star transitions and explicitly initializes empty-text cases. The pinned LeetCode limit is larger than the TUF page’s stated limit; the iterative method is checked at length 2000."
+    },
+    "baselineJava": "static boolean wildcardRecursive(String text, String pattern, int i, int j) {\n    if (j == 0) return i == 0;\n    if (i == 0) {\n        for (int k = 0; k < j; k++) if (pattern.charAt(k) != '*') return false;\n        return true;\n    }\n    char token = pattern.charAt(j-1);\n    if (token == '*') return wildcardRecursive(text,pattern,i,j-1)\n                         || wildcardRecursive(text,pattern,i-1,j);\n    if (token == '?' || token == text.charAt(i-1)) return wildcardRecursive(text,pattern,i-1,j-1);\n    return false;\n}",
+    "baselineTime": "Exponential without memoization: O((m + 1) × 2^(n + m)) is a loose upper bound including empty-prefix scans. Stack depth is O(n + m).",
+    "better": {
+      "explanation": "The full table uses the same prefix meaning. Its first row records which pattern prefixes match empty text. Later rows distinguish the star’s left and upper choices from the single-character diagonal choice.",
+      "java": "static boolean wildcardTable(String text, String pattern) {\n    boolean[][] dp = new boolean[text.length()+1][pattern.length()+1];\n    dp[0][0] = true;\n    for (int j = 1; j <= pattern.length(); j++) dp[0][j] = dp[0][j-1] && pattern.charAt(j-1) == '*';\n    for (int i = 1; i <= text.length(); i++) for (int j = 1; j <= pattern.length(); j++) {\n        char token = pattern.charAt(j-1);\n        if (token == '*') dp[i][j] = dp[i][j-1] || dp[i-1][j];\n        else if (token == '?' || token == text.charAt(i-1)) dp[i][j] = dp[i-1][j-1];\n    }\n    return dp[text.length()][pattern.length()];\n}",
+      "time": "O(n × m + m).",
+      "space": "O((n + 1) × (m + 1))."
+    }
   }
 }
