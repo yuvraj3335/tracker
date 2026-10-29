@@ -3,8 +3,9 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ArrowUp, Mic, Square, Volume2, VolumeX, X } from 'lucide-react';
 import type { Turn } from '@/lib/conversation';
-import { openCloudMicrophone, speechPieces, speechQueue, unlockMisoAudio } from '@/lib/miso-audio';
-import { wakeCommand } from '@/lib/miso-context';
+import { speechPieces, speechQueue, unlockMisoAudio } from '@/lib/miso-audio';
+import { openMisoLive, type LiveConnection } from '@/lib/miso-live';
+import { bindVisibleMicrophone } from '@/lib/miso-visibility';
 import { useActiveCharacter } from './character-provider';
 import { CharacterThumb } from './character-figure';
 import type { ChatMessage } from '@/lib/companion-prompt';
@@ -23,6 +24,9 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
   const [error, setError] = useState('');
   const [mode, setMode] = useState<Mode>('off');
   const [micReady, setMicReady] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [transcript, setTranscript] = useState('');
   const [wake, setWake] = useState(false);
   const [voice, setVoice] = useState<'natural' | 'longer'>('natural');
   const [muted, setMuted] = useState(false);
@@ -36,25 +40,33 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
   const mutedRef = useRef(muted);
   const selected = useRef(questionId);
   const mic = useRef<AbortController | null>(null);
+  const live = useRef<LiveConnection | null>(null);
+  const desired = useRef(false);
+  const openingRef = useRef(false);
+  const needsGesture = useRef(false);
+  const answer = useRef('');
+  const restart = useRef<(mode: Mode) => Promise<void>>(async () => {});
   const request = useRef<AbortController | null>(null);
   const lastAsked = useRef<ChatMessage[] | null>(null);
   const log = useRef<HTMLDivElement>(null);
-  useEffect(() => { selected.current = questionId; }, [questionId]);
+  useEffect(() => { selected.current = questionId; live.current?.updateQuestion(questionId); }, [questionId]);
   useEffect(() => { voiceRef.current = voice; }, [voice]);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [messages, open]);
 
   const changeMode = useCallback((next: Mode) => { modeRef.current = next; setMode(next); }, []);
-  const stop = useCallback((message = 'Paused. Tap Talk to continue.') => {
-    mic.current?.abort(); request.current?.abort(); mic.current = null; request.current = null;
-    modeRef.current = 'off'; wakeRef.current = false; setMode('off'); setMicReady(false); setWake(false); setBusy(false); setStatus(message); onTurn('resting');
+  const pause = useCallback((message: string) => {
+    if (answer.current) { history.current = [...history.current, { role: 'assistant' as const, content: answer.current + ' [Interrupted.]' }].slice(-12); answer.current = ''; setMessages([...history.current]); }
+    mic.current?.abort(); request.current?.abort(); live.current?.close();
+    mic.current = null; request.current = null; live.current = null;
+    openingRef.current = false; setOpening(false); setMicReady(false); setBusy(false); setTranscript('');
+    modeRef.current = 'off'; setMode('off'); setStatus(message); onTurn('resting');
   }, [onTurn]);
-
-  useEffect(() => {
-    const pause = () => { if (document.hidden && modeRef.current !== 'off') stop('Microphone paused while the tracker is hidden. Tap Talk or enable Hey Miso again.'); };
-    document.addEventListener('visibilitychange', pause);
-    return () => { document.removeEventListener('visibilitychange', pause); mic.current?.abort(); request.current?.abort(); };
-  }, [stop]);
+  const stop = useCallback((message = 'Microphone off. Tap Enable microphone to resume.') => {
+    desired.current = false; needsGesture.current = false; setEnabled(false); wakeRef.current = false; setWake(false);
+    try { localStorage.setItem('miso-live-enabled', 'off'); } catch { /* Session state still applies. */ }
+    pause(message);
+  }, [pause]);
 
   const ask = useCallback(async (text: string, retryHistory?: ChatMessage[]) => {
     request.current?.abort();
@@ -109,59 +121,108 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
   }, [changeMode, onTurn]);
 
   const startListening = useCallback(async (next: Mode) => {
+    if (document.hidden || openingRef.current) return;
+    if (live.current) { changeMode(next); return; }
+    desired.current = true; setEnabled(true); openingRef.current = true; setOpening(true); needsGesture.current = false;
+    try { localStorage.setItem('miso-live-enabled', 'on'); } catch { /* Session state still applies. */ }
     mic.current?.abort(); request.current?.abort(); setBusy(false);
     const controller = new AbortController(); mic.current = controller;
-    changeMode(next); setMicReady(false); setError(''); setStatus('Allow microphone access in your browser to begin.');
+    changeMode(next); setMicReady(false); setError(''); setStatus('Allow microphone access to talk hands-free in this tab.');
+    const commit = (interrupted = false) => {
+      if (!answer.current) return;
+      history.current = [...history.current, { role: 'assistant' as const, content: answer.current + (interrupted ? ' [Interrupted.]' : '') }].slice(-12);
+      answer.current = ''; setMessages([...history.current]);
+    };
     try {
-      await unlockMisoAudio();
-      await openCloudMicrophone({
-        signal: controller.signal,
-        onReady: () => { if (!controller.signal.aborted) { setMicReady(true); setStatus(modeRef.current === 'wake' ? 'Listening for “Hey Miso”…' : 'Listening. Speak naturally.'); onTurn('listening'); } },
-        onSpeech: () => setStatus('Hearing you…'),
-        onTranscribing: () => setStatus('Understanding what you said…'),
-        onText: async (text) => {
+      const connection = await openMisoLive({
+        signal: controller.signal, questionId: selected.current, messages: history.current,
+        voice: voiceRef.current, muted: mutedRef.current, wake: wakeRef.current,
+        onReady: () => { if (!controller.signal.aborted) { setMicReady(true); setStatus(wakeRef.current ? 'Listening for “Hey Miso”…' : 'Listening. Speak whenever you like.'); onTurn('listening'); } },
+        onSpeech: () => { if (!controller.signal.aborted) { request.current?.abort(); setBusy(false); setStatus('Hearing you…'); onTurn('listening'); } },
+        onSpeaking: () => { if (!controller.signal.aborted) { setStatus('Miso is speaking. You can speak to interrupt.'); onTurn('speaking'); } },
+        onIdle: () => { if (!controller.signal.aborted) { setBusy(false); setStatus('Listening. Your turn.'); onTurn('listening'); } },
+        onSources: (references, warning) => { if (!controller.signal.aborted) { setSources(references); setSourceWarning(warning ?? ''); } },
+        onError: error => {
           if (controller.signal.aborted) return;
-          if (modeRef.current === 'wake') {
-            const command = wakeCommand(text); if (command === null) return;
-            changeMode('talk'); onOpen();
-            if (command) await ask(command);
-            else {
-              setStatus('I’m here. What are you working on?');
-              if (!mutedRef.current) { const q = speechQueue(voiceRef.current, controller.signal, () => onTurn('speaking')); q.push('I’m here. What are you working on?'); await q.end(); }
-            }
-            return;
-          }
-          if (/^(?:stop listening|go to sleep(?: miso)?|thanks? miso[, ]*(?:that is|that’s|that's) all)[.!?]*$/i.test(text)) {
-            if (wakeRef.current) changeMode('wake'); else stop('Microphone off.');
-            return;
-          }
-          await ask(text);
+          desired.current = false; setEnabled(false); needsGesture.current = /audio playback/i.test(error.message);
+          pause('Voice paused. Tap Enable microphone to resume.');
+          setError(error.name === 'NotAllowedError' ? 'Allow microphone access in your browser, then tap Enable microphone.' : error.message);
         },
-        onError: e => { if (!controller.signal.aborted) { stop('Microphone paused.'); setError(e.name === 'NotAllowedError' ? 'Microphone access was denied. Allow it in your browser, then tap Talk.' : e.message); } },
+        onEvent: event => {
+          if (controller.signal.aborted) return;
+          if (event.type === 'clear') { commit(true); setBusy(false); }
+          if (event.type === 'transcript') setTranscript(event.text ?? '');
+          if (event.type === 'no_speech') setStatus('Listening. Please try that again.');
+          if (event.type === 'transcribing') setStatus('Understanding your question…');
+          if (event.type === 'hearing') { setStatus('Hearing you…'); onTurn('listening'); }
+          if (event.type === 'user') {
+            commit(true); history.current = [...history.current, { role: 'user' as const, content: event.text ?? '' }].slice(-12);
+            setTranscript(''); setSources([]); setSourceWarning(''); setError(''); lastAsked.current = history.current;
+            setMessages([...history.current, { role: 'assistant', content: '' }]);
+          }
+          if (event.type === 'answer_start') { answer.current = ''; setBusy(true); setStatus('Miso is replying…'); onTurn('thinking'); }
+          if (event.type === 'delta') { answer.current += event.text ?? ''; setMessages([...history.current, { role: 'assistant' as const, content: answer.current }]); }
+          if (event.type === 'answer_done') commit();
+          if (event.type === 'waiting') { changeMode('wake'); setStatus('Listening for “Hey Miso”…'); }
+          if (event.type === 'disabled') stop('Microphone off.');
+          if (event.type === 'renew') {
+            live.current = null;
+            queueMicrotask(() => { if (desired.current && !document.hidden) void restart.current(wakeRef.current ? 'wake' : 'talk'); });
+          }
+        },
       });
-    } catch (e) {
-      if (!controller.signal.aborted) { stop('Microphone paused.'); setError((e as Error).name === 'NotAllowedError' ? 'Allow microphone access in your browser, then tap Talk.' : (e as Error).message); }
-    }
-  }, [ask, changeMode, onOpen, onTurn, stop]);
+      if (controller.signal.aborted) { connection.close(); return; }
+      live.current = connection; connection.updateQuestion(selected.current); connection.preferences({ voice: voiceRef.current, muted: mutedRef.current, wake: wakeRef.current });
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        desired.current = false; setEnabled(false); needsGesture.current = /audio playback/i.test((error as Error).message);
+        pause('Tap Enable microphone to talk hands-free.');
+        setError((error as Error).name === 'NotAllowedError' ? 'Allow microphone access in your browser, then tap Enable microphone.' : (error as Error).message);
+      }
+    } finally { if (mic.current === controller) { openingRef.current = false; setOpening(false); } }
+  }, [changeMode, onTurn, pause, stop]);
+  useEffect(() => { restart.current = startListening; }, [startListening]);
+  useEffect(() => {
+    live.current?.preferences({ voice, muted, wake });
+  }, [voice, muted, wake]);
+
+  useEffect(() => {
+    // Permission is requested on the first visible visit. A manual Off choice persists.
+    let wanted = true;
+    try { wanted = localStorage.getItem('miso-live-enabled') !== 'off'; } catch { /* Default to the visible-tab permission request. */ }
+    desired.current = wanted; setEnabled(wanted);
+    const detach = bindVisibleMicrophone(document, () => desired.current,
+      () => { void startListening(wakeRef.current ? 'wake' : 'talk'); },
+      () => pause('Microphone paused while this tab is inactive. It resumes when you return.'));
+    const gesture = () => {
+      if (needsGesture.current && !document.hidden) { needsGesture.current = false; void unlockMisoAudio().then(() => startListening(wakeRef.current ? 'wake' : 'talk')).catch(error => setError(error.message)); }
+    };
+    const stored = (event: StorageEvent) => {
+      if (event.key !== 'miso-live-enabled') return;
+      const wanted = event.newValue !== 'off'; desired.current = wanted; setEnabled(wanted);
+      if (!wanted) { needsGesture.current = false; pause('Microphone off.'); }
+      else if (!document.hidden) void startListening(wakeRef.current ? 'wake' : 'talk');
+    };
+    window.addEventListener('storage', stored); document.addEventListener('pointerdown', gesture);
+    return () => { detach(); window.removeEventListener('storage', stored); document.removeEventListener('pointerdown', gesture); mic.current?.abort(); live.current?.close(); request.current?.abort(); openingRef.current = false; };
+  }, [pause, startListening]);
 
   useImperativeHandle(ref, () => ({ talk: () => { onOpen(); void startListening('talk'); }, show: onOpen }), [onOpen, startListening]);
 
-  function close() {
-    if (wakeRef.current) void startListening('wake'); else stop('Ready when you are.');
-    onClose();
-  }
+  function close() { onClose(); }
   function toggleWake() {
-    if (wakeRef.current) { stop('Hey Miso is off.'); return; }
-    wakeRef.current = true; setWake(true); void startListening('wake');
+    const next = !wakeRef.current; wakeRef.current = next; setWake(next);
+    if (!live.current) void startListening(next ? 'wake' : 'talk');
+    else changeMode(next ? 'wake' : 'talk');
   }
   async function send() {
     if (!draft.trim()) return;
     const text = draft.trim(); setDraft('');
-    mic.current?.abort(); changeMode('off'); wakeRef.current = false; setWake(false);
-    try { if (!mutedRef.current) await unlockMisoAudio(); await ask(text); } catch (e) { setError((e as Error).message); }
+    if (live.current) { live.current.send(text); return; }
+    try { if (!mutedRef.current) await unlockMisoAudio(); await ask(text); } catch (error) { setError((error as Error).message); }
   }
 
-  if (!open) return wake ? <button type="button" onClick={onOpen} className="fixed right-4 bottom-24 z-40 rounded-full border border-accent bg-plane px-4 py-2 text-xs text-accent sm:bottom-6">● Hey Miso is listening · Manage</button> : null;
+  if (!open) return <button type="button" onClick={onOpen} className="fixed left-3 bottom-24 z-40 max-w-[75vw] rounded-full border border-hairline bg-plane px-4 py-2 text-xs text-ink shadow-lg sm:bottom-6">{micReady ? '● Miso is listening · Open' : opening ? 'Miso · Allow microphone access' : enabled ? 'Miso · Microphone paused' : 'Miso · Enable microphone'}</button>;
   return <section role="dialog" aria-label="Talk with Miso" className="fixed right-3 bottom-24 z-50 flex max-h-[78dvh] w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-hairline bg-plane shadow-2xl sm:right-6 sm:bottom-6">
     <header className="flex items-center gap-3 border-b border-hairline px-4 py-3">
       {character ? <CharacterThumb character={character} size={40} /> : null}
@@ -175,22 +236,23 @@ export const CompanionPanel = forwardRef<MisoControls, Props>(function Companion
     </div>
     <div className="space-y-3 border-t border-hairline p-4">
       <p role="status" className="text-xs text-accent">{status}</p>
+      {transcript ? <p className="text-xs text-ink-muted" aria-live="polite">You: {transcript}</p> : null}
       {error ? <div role="alert" className="rounded-lg border border-hairline p-2 text-xs leading-5">{error}{lastAsked.current ? <button className="ml-2 underline" onClick={() => { void unlockMisoAudio().then(() => ask('', lastAsked.current ?? undefined)); }}>Retry reply</button> : null}</div> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink" onClick={() => void startListening('talk')}><Mic size={16} />{busy ? 'Interrupt & talk' : 'Talk'}</button>
+        <button type="button" className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink" onClick={() => { if (micReady) stop(); else { void unlockMisoAudio().catch(error => setError(error.message)); void startListening('talk'); } }}><Mic size={16} />{micReady ? 'Microphone on' : opening ? 'Connecting…' : 'Enable microphone'}</button>
         <button type="button" onClick={() => stop()} className="rounded-full border border-hairline p-2" aria-label="Stop Miso and microphone"><Square size={16} /></button>
-        <button type="button" onClick={() => { setMuted(v => !v); if (!muted) { request.current?.abort(); setBusy(false); setStatus('Voice muted. Tap Talk to continue.'); } }} aria-label={muted ? 'Unmute Miso' : 'Mute Miso'} className="rounded-full border border-hairline p-2">{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button>
+        <button type="button" onClick={() => { setMuted(v => !v); if (!muted) { request.current?.abort(); setBusy(false); } }} aria-label={muted ? 'Unmute Miso' : 'Mute Miso'} className="rounded-full border border-hairline p-2">{muted ? <VolumeX size={16} /> : <Volume2 size={16} />}</button>
         <span className="text-xs text-ink-muted">{mode === 'off' ? 'Mic off' : micReady ? '● Mic on' : 'Awaiting microphone'}</span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <label className="flex items-center gap-2"><input type="checkbox" checked={wake} onChange={toggleWake} />Enable “Hey Miso”</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={wake} onChange={toggleWake} />Only answer after “Hey Miso”</label>
         <select aria-label="Miso cloud voice" value={voice} onChange={e => setVoice(e.target.value as 'natural' | 'longer')} className="max-w-44 rounded-lg border border-hairline bg-plane px-2 py-1.5"><option value="natural">Natural · shorter allowance</option><option value="longer">Simple · longer allowance</option></select>
       </div>
-      <p className="text-[11px] leading-4 text-ink-muted">Wake mode sends speech to the cloud to detect “Hey Miso”. Keep this page visible. Mic pauses when hidden. Both voices use your free daily allowance.</p>
+      <p className="text-[11px] leading-4 text-ink-muted">Speak to interrupt Miso at any time. The microphone pauses when you leave this tab and resumes when you return. Cloud speech uses your free daily allowance.</p>
       <p className="text-[11px] leading-4 text-ink-muted">Say “search the web for…” to look up Wikipedia and Stack Overflow references.</p>
       <form onSubmit={e => { e.preventDefault(); void send(); }} className="flex items-end gap-2">
         <textarea aria-label="Message Miso" rows={2} maxLength={1200} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Or type to Miso…" className="min-w-0 flex-1 resize-none rounded-xl border border-hairline bg-surface-2 p-2.5 text-sm" />
-        <button aria-label="Send message to Miso" disabled={!draft.trim() || busy} className="rounded-xl bg-accent p-3 text-accent-ink disabled:opacity-40"><ArrowUp size={17} /></button>
+        <button aria-label="Send message to Miso" disabled={!draft.trim() || opening || (busy && !live.current)} className="rounded-xl bg-accent p-3 text-accent-ink disabled:opacity-40"><ArrowUp size={17} /></button>
       </form>
     </div>
   </section>;

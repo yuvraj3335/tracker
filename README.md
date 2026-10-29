@@ -211,18 +211,21 @@ spot saved on a wide window cannot strand it off-screen. Arrow keys nudge it,
 Shift+arrow moves it further and Home sends it back to the corner — dragging is
 never the only way in.
 
-**Talk uses the cloud.** Miso listens through Whisper, responds with GLM-4.7-Flash,
-and speaks through Deepgram Aura-2. No speech or language model is downloaded
-or run on the device. Browser work is limited to microphone recording, simple
-audio-level measurement, and playback. The optional Simple voice uses MeloTTS
-for longer sessions within the same free allowance; there is no paid fallback.
+**Talk uses the cloud.** Miso transcribes live speech with Deepgram Nova-3, responds
+with Llama 3.1 8B FP8, and speaks through Deepgram Aura-2 over one live connection.
+Whisper verifies uncertain final words; Nova-3 supplies live text and turn detection.
+The HTTP conversation fallback retains GLM-4.7-Flash.
+No speech or language model runs on the device. The browser only captures and
+resamples audio, measures its level, and plays streamed speech. The optional
+Simple voice uses MeloTTS; all processing shares the free daily allowance.
 
-**Hey Miso is opt-in for each session.** Enable it inside Talk, allow the
-microphone, and keep the tracker visible. Spoken segments go to Cloudflare to
-recognize the wake phrase. After “Hey Miso”, conversation continues turn by
-turn. Stop disables the microphone and wake mode. Hiding the page pauses it;
-it cannot wake from a locked phone or a closed browser. Use **Interrupt & talk**
-to cut a reply short. Speech capture pauses during Miso’s answer to avoid echo.
+**The selected tab listens hands-free.** The first visible visit asks for mic
+permission; some browsers also need an initial click to enable audio. The mic
+then remains active while Miso replies, and speaking interrupts her. Leaving the
+tab releases the microphone and returning resumes it. Stop persists a manual Off
+choice. “Only answer after Hey Miso” is optional; normal conversation needs no
+wake phrase. Silent periods do not keep a cloud transcription stream running.
+A closed browser or locked phone cannot keep the conversation active.
 
 **It knows your sheet.** The server loads the signed-in user’s question catalog,
 relevant notes, progress, and the selected question. A question page’s written

@@ -90,3 +90,8 @@ test('PCM voice streams unchanged before synthesis completes; legacy MP3 stays s
   }
   assert.equal(calls, 1);
 });
+
+
+test('native Workers AI response deltas stream alongside OpenAI-compatible choices', async () => {
+  assert.deepEqual(await frames(answerStream(sse(['data: {"response":"Compare the middle value."}\n\n', 'data: [DONE]\n\n']))), [{ type: 'delta', text: 'Compare the middle value.' }, { type: 'done' }]);
+});
