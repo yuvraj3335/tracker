@@ -19381,5 +19381,76 @@
       "approach": "Roll a polynomial window hash by removing, shifting, and adding; verify actual characters on each hash match.",
       "adaptation": "The current statement, both public rolling-hash hints, zero-based examples, and pattern-first stub were checked. Its Solution panel is gated, so no full Java was inspected there. The companion public String Hashing Java was checked separately. This implements the stated rolling update and explicitly adapts matching to the tracker’s repeated-string LeetCode link."
     }
+  },
+  "451": {
+    "problem": "Build the Z-array, then use it to find the first occurrence of a pattern in text.",
+    "assumptions": "z[i] is the length of the longest match between the string’s prefix and the substring starting at i. The source convention is z[0] = 0. The tracker’s linked judge asks for a first match index or −1; an empty pattern returns 0. The search wrapper uses an integer separator outside Java char values, so it does not reserve a text character.",
+    "example": {
+      "input": "s = \"abacaba\"",
+      "output": "z = [0,0,1,0,3,0,1]",
+      "explanation": "At index 4, aba matches the first three characters. At index 2, only a matches before c differs from b."
+    },
+    "baseline": "At each index, compare the suffix with the prefix from the beginning until a mismatch. This defines Z directly but repeats work on strings such as aaaaa and takes O(n²) time.",
+    "approach": "Keep the rightmost interval [left,right] already known to match a prefix. If a new index i lies inside it, the characters from i onward correspond to characters beginning at i−left near the start of the string. That earlier Z value can help.\n\nReuse only min(z[i−left], right−i+1). We have proved matches inside the current interval, but not beyond its right edge. Then compare characters directly to see whether the match extends farther. If it does, update the remembered interval.\n\nThe right edge only moves forward. Each successful new comparison beyond the known interval advances that edge, and each position has at most one final failed comparison. This gives linear total work.\n\nFor pattern matching, build pattern + separator + text. A Z value equal to the pattern length in the text part means the full pattern matches there. Convert that position back to a text index. The separator prevents a match from leaking across the pattern boundary. The code uses −1 in an int array, which cannot equal any UTF-16 character.",
+    "steps": [
+      "Initialize the Z-array to zero and keep inclusive box boundaries.",
+      "Inside the box, copy the earlier Z value clipped to the box edge.",
+      "Extend with direct comparisons from the first unconfirmed position.",
+      "Update the box when the new match reaches farther right.",
+      "For the linked search, scan Z values in the combined text region and return the first complete pattern match."
+    ],
+    "java": "static int[] zArray(int[] values) {\n    int[] z=new int[values.length];\n    int left=0,right=0;\n    for(int i=1;i<values.length;i++) {\n        if(i<=right) z[i]=Math.min(z[i-left],right-i+1);\n        while(i+z[i]<values.length && values[z[i]]==values[i+z[i]]) z[i]++;\n        if(i+z[i]-1>right) {\n            left=i;\n            right=i+z[i]-1;\n        }\n    }\n    return z;\n}\nstatic int[] zFunction(String s) { return zArray(s.chars().toArray()); }\nstatic int strStr(String text,String pattern) {\n    if(pattern.isEmpty()) return 0;\n    if(pattern.length()>text.length()) return -1;\n    int m=pattern.length();\n    int[] joined=new int[m+1+text.length()];\n    for(int i=0;i<m;i++) joined[i]=pattern.charAt(i);\n    joined[m]=-1;\n    for(int i=0;i<text.length();i++) joined[m+1+i]=text.charAt(i);\n    int[] z=zArray(joined);\n    for(int i=m+1;i<joined.length;i++) if(z[i]>=m) return i-m-1;\n    return -1;\n}",
+    "time": "Z construction: O(n). Pattern search: O(text length + pattern length).",
+    "space": "O(n) for Z and the character-value array; the search wrapper uses O(text length + pattern length).",
+    "pitfalls": [
+      "Clip reused values to the known right edge; copying an entire earlier value can invent unverified matches.",
+      "This implementation uses inclusive right boundaries, so its remaining box length is right−i+1.",
+      "Z describes prefix matches starting at i; LPS describes prefix/suffix matches ending at i. They are different arrays.",
+      "Subtract pattern length plus one when converting a combined-array position to a text index."
+    ],
+    "tests": [
+      "assert Arrays.equals(zFunction(\"abacaba\"),new int[]{0,0,1,0,3,0,1});assert Arrays.equals(zFunction(\"aaaa\"),new int[]{0,3,2,1});assert zFunction(\"\").length==0;assert strStr(\"##a#\",\"#a\")==1;assert strStr(\"abc\",\"\")==0;",
+      "for(int n=0;n<=10;n++)for(int mask=0;mask<(1<<n);mask++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((mask&(1<<i))==0?'a':'b');String s=b.toString();assert Arrays.equals(zFunction(s),zByComparisons(s));}",
+      "Random random=new Random(451);char[] alphabet={'a','b','#',0};for(int trial=0;trial<2000;trial++){StringBuilder a=new StringBuilder(),b=new StringBuilder();for(int i=0,n=random.nextInt(70);i<n;i++)a.append(alphabet[random.nextInt(alphabet.length)]);for(int i=0,n=random.nextInt(14);i<n;i++)b.append(alphabet[random.nextInt(alphabet.length)]);assert strStr(a.toString(),b.toString())==a.toString().indexOf(b.toString());}",
+      "int n=100000;int[] z=zFunction(\"a\".repeat(n));for(int i=1;i<n;i++)assert z[i]==n-i;assert strStr(\"a\".repeat(50000)+\"b\",\"a\".repeat(25000)+\"b\")==25000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/z-function",
+      "title": "Z Function",
+      "checkedOn": "2026-10-29",
+      "approach": "Reuse prefix matches inside the rightmost inclusive Z-box, clip at its edge, then extend and update the box.",
+      "adaptation": "Both complete public Java implementations were checked. The same box convention and transitions are retained. The core accepts int character values so the pinned first-occurrence wrapper can use a collision-free −1 separator; zFunction(String) supplies the ordinary string interface."
+    },
+    "baselineJava": "static int[] zByComparisons(String s) {\n    int[] z=new int[s.length()];\n    for(int i=1;i<s.length();i++)\n        while(i+z[i]<s.length() && s.charAt(z[i])==s.charAt(i+z[i])) z[i]++;\n    return z;\n}",
+    "baselineTime": "O(n²) time and O(n) output space.",
+    "trace": {
+      "columns": [
+        "Position in abacaba",
+        "How the match is found",
+        "Z value"
+      ],
+      "rows": [
+        [
+          "2",
+          "Compare a, then stop at c versus b",
+          "1"
+        ],
+        [
+          "4",
+          "Compare aba; end reached, box becomes [4,6]",
+          "3"
+        ],
+        [
+          "5",
+          "Reuse prefix position 1 inside the box",
+          "0"
+        ],
+        [
+          "6",
+          "Reuse position 2, clipped to one remaining character",
+          "1"
+        ]
+      ]
+    }
   }
 }
