@@ -13445,5 +13445,83 @@
     },
     "baselineJava": "static int enclavesRecursive(int[][] grid) {\n    if (grid.length == 0 || grid[0].length == 0) return 0;\n    int rows = grid.length, cols = grid[0].length;\n    for (int r = 0; r < rows; r++) { eraseLand(grid,r,0); eraseLand(grid,r,cols-1); }\n    for (int c = 0; c < cols; c++) { eraseLand(grid,0,c); eraseLand(grid,rows-1,c); }\n    int answer = 0;\n    for (int[] row : grid) for (int cell : row) answer += cell;\n    return answer;\n}\nstatic void eraseLand(int[][] grid, int row, int col) {\n    if (row < 0 || row >= grid.length || col < 0 || col >= grid[0].length || grid[row][col] == 0) return;\n    grid[row][col] = 0;\n    eraseLand(grid,row-1,col); eraseLand(grid,row+1,col);\n    eraseLand(grid,row,col-1); eraseLand(grid,row,col+1);\n}",
     "baselineTime": "O(R × C) time and up to O(R × C) recursive stack."
+  },
+  "345": {
+    "problem": "Find the length of the shortest word sequence from beginWord to endWord, changing one letter at a time.",
+    "assumptions": "Words contain lowercase English letters and have equal length. Every word after beginWord must appear in the dictionary, including endWord. The answer counts words, not changes. The source uses distinct endpoints; this implementation returns 1 when they are equal as an explicit extension.",
+    "example": {
+      "input": "begin = \"cat\"; end = \"dog\"; dictionary = [\"cot\",\"cog\",\"dog\",\"dat\",\"dot\"]",
+      "output": "4",
+      "explanation": "One shortest sequence is cat → cot → cog → dog. It makes three changes but contains four words."
+    },
+    "baseline": "Explicitly connect every pair of words that differs at one position, then run BFS. Pairwise comparisons cost O(N²L) before traversal. This is useful as a simple reference implementation, but we can generate neighbors without building all edges.",
+    "approach": "A word is a graph vertex. Changing one character to make another dictionary word is an edge of cost one. BFS therefore finds the fewest changes. Start the sequence length at 1 because beginWord is already one word.\n\nFor each removed word, try all letters a through z at each position. Look up each candidate in a set of unused dictionary words. Remove a candidate as soon as it is discovered and add it to the queue. Its first discovery already has the shortest distance, so later visits cannot improve the answer.\n\nRestore the original character before moving to the next position. Otherwise later candidates could accidentally differ in two positions.",
+    "steps": [
+      "Return 0 if the target is absent; handle equal endpoints separately.",
+      "Enqueue the beginning word at sequence length 1.",
+      "Generate one-letter candidates and remove discovered dictionary words immediately.",
+      "Return the current length when the target is removed from the queue."
+    ],
+    "java": "static int ladderLength(String begin, String end, List<String> words) {\n    if (begin.equals(end)) return 1;\n    Set<String> unused = new HashSet<>(words);\n    if (!unused.contains(end)) return 0;\n    Deque<String> queue = new ArrayDeque<>();\n    queue.add(begin);\n    unused.remove(begin);\n    int length = 1;\n    while (!queue.isEmpty()) {\n        int layerSize = queue.size();\n        for (int i = 0; i < layerSize; i++) {\n            String word = queue.remove();\n            if (word.equals(end)) return length;\n            char[] letters = word.toCharArray();\n            for (int position = 0; position < letters.length; position++) {\n                char original = letters[position];\n                for (char letter = 'a'; letter <= 'z'; letter++) {\n                    if (letter == original) continue;\n                    letters[position] = letter;\n                    String candidate = new String(letters);\n                    if (unused.remove(candidate)) queue.add(candidate);\n                }\n                letters[position] = original;\n            }\n        }\n        length++;\n    }\n    return 0;\n}",
+    "time": "O(26 × N × L²): each of N words tries 26L candidates, with O(L) string construction and hashing.",
+    "space": "O(NL) stored word content, plus queue/set references.",
+    "pitfalls": [
+      "The target must be in the dictionary, but the starting word need not be.",
+      "Count words: one direct change has answer 2.",
+      "Restore the changed character between positions.",
+      "Immediate removal works for shortest length; it needs adjustment when collecting every shortest sequence."
+    ],
+    "tests": [
+      "assert ladderLength(\"cat\",\"dog\",List.of(\"cot\",\"cog\",\"dog\",\"dat\",\"dot\"))==4;assert ladderLength(\"cat\",\"dog\",List.of(\"cot\",\"cog\"))==0;assert ladderLength(\"a\",\"c\",List.of(\"c\"))==2;assert ladderLength(\"same\",\"same\",List.of())==1;",
+      "List<String>universe=new ArrayList<>();for(int bits=0;bits<8;bits++){StringBuilder s=new StringBuilder();for(int i=0;i<3;i++)s.append((bits&(1<<i))==0?'a':'b');universe.add(s.toString());}\nfor(int mask=0;mask<256;mask++){\n List<String>dictionary=new ArrayList<>();for(int i=0;i<8;i++)if((mask&(1<<i))!=0)dictionary.add(universe.get(i));for(String end:universe){int expected=ladderByGraph(\"aaa\",end,dictionary);assert ladderLength(\"aaa\",end,dictionary)==expected;}assert ladderLength(\"aaa\",\"ccc\",dictionary)==0;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/word-ladder",
+      "title": "Word Ladder I: Shortest Transformation Length",
+      "checkedOn": "2026-10-29",
+      "approach": "Generate one-character neighbors and run BFS with immediate dictionary removal.",
+      "adaptation": "The public Java solution was checked. This version uses fixed queue layers instead of parallel word/level queues, skips unchanged characters, and explicitly handles equal endpoints outside the source’s distinct-word contract. The pairwise-graph baseline is an authored comparison."
+    },
+    "baselineJava": "static boolean oneChange(String first, String second) {\n    if (first.length() != second.length()) return false;\n    int differences = 0;\n    for (int i = 0; i < first.length(); i++) if (first.charAt(i) != second.charAt(i)) differences++;\n    return differences == 1;\n}\n\nstatic int ladderByGraph(String begin, String end, List<String> words) {\n    if (begin.equals(end)) return 1;\n    Set<String> unique = new HashSet<>(words);\n    if (!unique.contains(end)) return 0;\n    unique.add(begin);\n    List<String> vertices = new ArrayList<>(unique);\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int i = 0; i < vertices.size(); i++) graph.add(new ArrayList<>());\n    for (int i = 0; i < vertices.size(); i++) for (int j = i+1; j < vertices.size(); j++) {\n        if (oneChange(vertices.get(i), vertices.get(j))) { graph.get(i).add(j); graph.get(j).add(i); }\n    }\n    int[] distance = new int[vertices.size()];\n    int start = vertices.indexOf(begin), target = vertices.indexOf(end);\n    Deque<Integer> queue = new ArrayDeque<>();\n    distance[start] = 1; queue.add(start);\n    while (!queue.isEmpty()) {\n        int current = queue.remove();\n        if (current == target) return distance[current];\n        for (int next : graph.get(current)) if (distance[next] == 0) {\n            distance[next] = distance[current] + 1; queue.add(next);\n        }\n    }\n    return 0;\n}",
+    "baselineTime": "O(N²L) pair comparisons plus O(N + E) BFS; O(NL + E) space."
+  },
+  "346": {
+    "problem": "Return every shortest valid word-transformation sequence from beginWord to endWord.",
+    "assumptions": "Words have equal length and contain lowercase letters. Every word after the beginning must be in the dictionary, including the target. Return an empty list when unreachable. Sequence order is unrestricted. Equal endpoints return [[beginWord]] as an extension.",
+    "example": {
+      "input": "begin = \"cat\"; end = \"dog\"; dictionary = [\"cot\",\"cog\",\"dog\",\"dat\",\"dot\"]",
+      "output": "[cat,cot,cog,dog], [cat,cot,dot,dog], [cat,dat,dot,dog]",
+      "explanation": "All three sequences have four words. The word dot can be reached through cot or dat at the same level; keeping only one parent would lose a valid answer."
+    },
+    "baseline": "Keep whole partial sequences in a BFS queue. Allow a word to be reached again at the same shortest depth, but reject longer revisits. This works, yet copies the same prefixes repeatedly and can consume much more memory than saving parent links.",
+    "approach": "First use BFS to find the shortest routes, saving parent links instead of full paths. Before expanding a level, remove all words in that level from the unused dictionary. Keep newly discovered next-level words available until the current level finishes. This lets two current words both become parents of the same child.\n\nWhen the target is found, finish the entire current level. Stopping inside the loop would miss other equally short ways to reach it. Do not expand a further level.\n\nThen backtrack from the target through its saved parents. Reaching the beginning completes one sequence; copy and reverse it before saving. Each parent link moves back one BFS level, so this reconstruction cannot cycle.",
+    "steps": [
+      "Keep sets for the current and next BFS levels.",
+      "Remove current-level words together before generating neighbors.",
+      "Record every parent reaching a next-level word, including the target.",
+      "After the target’s first level is complete, backtrack through the parent map to build all answers."
+    ],
+    "java": "static List<List<String>> findLadders(String begin, String end, List<String> words) {\n    List<List<String>> answer = new ArrayList<>();\n    if (begin.equals(end)) { answer.add(new ArrayList<>(List.of(begin))); return answer; }\n    Set<String> unused = new HashSet<>(words);\n    if (!unused.contains(end)) return answer;\n    Map<String,List<String>> parents = new HashMap<>();\n    Set<String> current = new HashSet<>(List.of(begin));\n    boolean found = false;\n    while (!current.isEmpty() && !found) {\n        unused.removeAll(current);\n        Set<String> nextLevel = new HashSet<>();\n        for (String word : current) {\n            char[] letters = word.toCharArray();\n            for (int position = 0; position < letters.length; position++) {\n                char original = letters[position];\n                for (char letter = 'a'; letter <= 'z'; letter++) {\n                    if (letter == original) continue;\n                    letters[position] = letter;\n                    String candidate = new String(letters);\n                    if (unused.contains(candidate)) {\n                        nextLevel.add(candidate);\n                        parents.computeIfAbsent(candidate, key -> new ArrayList<>()).add(word);\n                        if (candidate.equals(end)) found = true;\n                    }\n                }\n                letters[position] = original;\n            }\n        }\n        current = nextLevel;\n    }\n    if (found) collectLadders(end, begin, parents, new ArrayList<>(List.of(end)), answer);\n    return answer;\n}\nstatic void collectLadders(String word, String begin, Map<String,List<String>> parents,\n                          List<String> reversed, List<List<String>> answer) {\n    if (word.equals(begin)) {\n        List<String> sequence = new ArrayList<>(reversed);\n        Collections.reverse(sequence);\n        answer.add(sequence);\n        return;\n    }\n    for (String parent : parents.getOrDefault(word, Collections.emptyList())) {\n        reversed.add(parent);\n        collectLadders(parent, begin, parents, reversed, answer);\n        reversed.remove(reversed.size()-1);\n    }\n}",
+    "time": "O(26NL² + P) with Java string references in output, where P counts all word occurrences across returned paths. Writing the word characters takes O(PL).",
+    "space": "O(NL + M + P), allowing stored strings, M parent references, and output references; generated string keys can add content storage. Output may be exponential.",
+    "pitfalls": [
+      "Removing a newly found word immediately can lose other shortest parents.",
+      "Finish the current level after finding the target.",
+      "Copy each finished path before saving; the working path is reused during backtracking.",
+      "Returning all shortest paths can require exponential output even though BFS itself is efficient."
+    ],
+    "tests": [
+      "List<List<String>>a=findLadders(\"cat\",\"dog\",List.of(\"cot\",\"cog\",\"dog\",\"dat\",\"dot\"));Set<List<String>>expected=Set.of(List.of(\"cat\",\"cot\",\"cog\",\"dog\"),List.of(\"cat\",\"cot\",\"dot\",\"dog\"),List.of(\"cat\",\"dat\",\"dot\",\"dog\"));assert a.size()==3&&new HashSet<>(a).equals(expected);assert findLadders(\"same\",\"same\",List.of()).equals(List.of(List.of(\"same\")));assert findLadders(\"a\",\"z\",List.of(\"b\")).isEmpty();",
+      "List<String>universe=new ArrayList<>();for(int bits=0;bits<8;bits++){StringBuilder s=new StringBuilder();for(int i=0;i<3;i++)s.append((bits&(1<<i))==0?'a':'b');universe.add(s.toString());}\nfor(int mask=0;mask<256;mask++){\n List<String>dictionary=new ArrayList<>();for(int i=0;i<8;i++)if((mask&(1<<i))!=0)dictionary.add(universe.get(i));List<List<String>>actual=findLadders(\"aaa\",\"bbb\",dictionary),expected=laddersByPaths(\"aaa\",\"bbb\",dictionary);assert new HashSet<>(actual).size()==actual.size();assert new HashSet<>(actual).equals(new HashSet<>(expected));for(List<String>path:actual){assert path.get(0).equals(\"aaa\")&&path.get(path.size()-1).equals(\"bbb\");for(int i=1;i<path.size();i++)assert dictionary.contains(path.get(i))&&oneChange(path.get(i-1),path.get(i));}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/word-ladder-ii",
+      "title": "Word Ladder II: Find All Shortest Transformation Sequences",
+      "checkedOn": "2026-10-29",
+      "approach": "BFS levels retain all shortest parents; reverse backtracking builds each sequence.",
+      "adaptation": "The complete public Java method was checked. Level-delayed removal and full-level completion are retained. The whole-path BFS is an authored comparison, and equal endpoints are handled explicitly."
+    },
+    "baselineJava": "static boolean oneChange(String first, String second) {\n    if (first.length() != second.length()) return false;\n    int differences = 0;\n    for (int i = 0; i < first.length(); i++) if (first.charAt(i) != second.charAt(i)) differences++;\n    return differences == 1;\n}\n\nstatic List<List<String>> laddersByPaths(String begin, String end, List<String> words) {\n    List<List<String>> answer = new ArrayList<>();\n    if (begin.equals(end)) { answer.add(new ArrayList<>(List.of(begin))); return answer; }\n    Set<String> dictionary = new HashSet<>(words);\n    if (!dictionary.contains(end)) return answer;\n    Map<String,Integer> depth = new HashMap<>();\n    Deque<List<String>> queue = new ArrayDeque<>();\n    queue.add(new ArrayList<>(List.of(begin)));\n    depth.put(begin, 1);\n    int shortest = Integer.MAX_VALUE;\n    while (!queue.isEmpty()) {\n        List<String> path = queue.remove();\n        if (path.size() > shortest) break;\n        String last = path.get(path.size()-1);\n        if (last.equals(end)) { shortest = path.size(); answer.add(path); continue; }\n        for (String next : dictionary) {\n            int nextDepth = path.size()+1;\n            if (oneChange(last,next) && nextDepth <= depth.getOrDefault(next,Integer.MAX_VALUE)) {\n                depth.put(next,nextDepth);\n                List<String> extended = new ArrayList<>(path);\n                extended.add(next); queue.add(extended);\n            }\n        }\n    }\n    return answer;\n}",
+    "baselineTime": "For Q queued partial paths of length at most D, O(Q × (NL + ND)) upper-bound work and O(QD + NL) storage. Q can be exponential."
   }
 }
