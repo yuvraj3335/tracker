@@ -9135,5 +9135,86 @@
       "time": "O(k + 1).",
       "space": "O(k + 1)."
     }
+  },
+  "238": {
+    "problem": "Return the length of the longest contiguous substring containing at most k different characters.",
+    "assumptions": "Repeated occurrences of a character use only one distinct-character slot. k = 0 gives length 0. As in the source Java, the map counts Java char units rather than user-perceived Unicode graphemes.",
+    "example": {
+      "input": "s = \"abaccc\", k = 2",
+      "output": "4",
+      "explanation": "\"accc\" contains only a and c. Repeated c characters do not use extra distinct-character slots."
+    },
+    "baseline": "For each start, grow a set of characters while moving the end. Stop as soon as more than k types appear. This takes O(n²); rebuilding the set from scratch for every range would take O(n³).",
+    "approach": "Keep counts for the characters in one window. When the right edge adds a character, increment its count. If too many different characters are present, remove characters from the left until the map has at most k entries.\n\nA type leaves the window only when its final occurrence leaves. For example, removing one a from \"aabc\" still leaves another a, so the number of distinct types has not fallen yet. This is why a frequency map is needed instead of just a set. Measure the window only after the while loop has restored the limit.",
+    "steps": [
+      "Return 0 when k ≤ 0.",
+      "Add the right character to its count.",
+      "While more than k types remain, decrement the left character and delete zero-count entries.",
+      "Update the largest valid length."
+    ],
+    "java": "static int lengthOfLongestSubstringKDistinct(String s, int k) {\n    if (k <= 0) return 0;\n    Map<Character, Integer> frequency = new HashMap<>();\n    int left = 0, best = 0;\n    for (int right = 0; right < s.length(); right++) {\n        frequency.merge(s.charAt(right), 1, Integer::sum);\n        while (frequency.size() > k) {\n            char outgoing = s.charAt(left++);\n            int remaining = frequency.get(outgoing) - 1;\n            if (remaining == 0) frequency.remove(outgoing);\n            else frequency.put(outgoing, remaining);\n        }\n        best = Math.max(best, right - left + 1);\n    }\n    return best;\n}",
+    "time": "Average O(n), since both boundaries only move forward.",
+    "space": "O(min(n, k + 1, alphabet size)) map entries, including the temporary incoming type.",
+    "pitfalls": [
+      "At most k does not require exactly k types.",
+      "A type disappears only when its count reaches zero.",
+      "Use while to restore validity in this version; one removal may not be enough.",
+      "A large k can make the whole string valid."
+    ],
+    "tests": [
+      "assert lengthOfLongestSubstringKDistinct(\"abaccc\",2)==4;assert lengthOfLongestSubstringKDistinct(\"eceba\",2)==3;assert lengthOfLongestSubstringKDistinct(\"aa\",1)==2;assert lengthOfLongestSubstringKDistinct(\"abc\",0)==0;",
+      "Random r=new Random(238);String alphabet=\"abC !\";for(int t=0;t<2500;t++){StringBuilder s=new StringBuilder();for(int i=r.nextInt(30);i>0;i--)s.append(alphabet.charAt(r.nextInt(alphabet.length())));for(int k=0;k<=6;k++)assert lengthOfLongestSubstringKDistinct(s.toString(),k)==distinctLengthByExpansion(s.toString(),k);}",
+      "assert lengthOfLongestSubstringKDistinct(\"\",4)==0;assert lengthOfLongestSubstringKDistinct(\"aabc\",2)==3;assert lengthOfLongestSubstringKDistinct(\"abc\",10)==3;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/longest-substring-with-at-most-k-distinct-characters",
+      "title": "Longest Substring With At Most K Distinct Characters",
+      "checkedOn": "2026-10-29",
+      "approach": "Incremental range counting, then a frequency-map window that shrinks fully to restore the distinct limit.",
+      "adaptation": "All three public Java variants were checked. This preserves the optimal while-shrink logic and zero-count removal, using the linked LeetCode-style method name. The space bound is stated more tightly in terms of k."
+    },
+    "baselineJava": "static int distinctLengthByExpansion(String s, int k) {\n    if (k <= 0) return 0;\n    int best = 0;\n    for (int start = 0; start < s.length(); start++) {\n        Set<Character> types = new HashSet<>();\n        for (int end = start; end < s.length(); end++) {\n            types.add(s.charAt(end));\n            if (types.size() > k) break;\n            best = Math.max(best, end - start + 1);\n        }\n    }\n    return best;\n}",
+    "baselineTime": "O(n²) time and O(min(n, k + 1, alphabet size)) space."
+  },
+  "239": {
+    "problem": "Count non-empty contiguous subarrays containing exactly k different integer values.",
+    "assumptions": "Different index ranges count separately. Repeated copies of one value still count as one distinct value. The linked task’s length limit keeps the count within int. A map also allows negative values without changing the method.",
+    "example": {
+      "input": "nums = [4, 7, 4, 9], k = 2",
+      "output": "4",
+      "explanation": "The ranges are [4,7], [4,7,4], [7,4] and [4,9]."
+    },
+    "baseline": "For each start, keep a set while extending the end. Count whenever the set has exactly k values. Stop when it has more than k, because adding elements cannot remove a distinct value.",
+    "approach": "Count subarrays with at most k types, then subtract those with at most k − 1. The first count includes every exact-k range plus all ranges with fewer types; the second removes precisely those extras.\n\nThe at-most helper keeps a frequency map. Shrink until at most the allowed number of types remains, deleting a map entry only when its last copy leaves. Every start from left to right is then valid for this right endpoint, so add right − left + 1. Starting later cannot introduce a new type, which is the fact that makes this count work.",
+    "steps": [
+      "Return 0 for k ≤ 0.",
+      "In the at-most helper, add the incoming value to its frequency.",
+      "Shrink while map.size() exceeds the limit and remove zero-count entries.",
+      "Add the current window length for this right endpoint.",
+      "Subtract the two at-most counts."
+    ],
+    "java": "static int subarraysWithKDistinct(int[] nums, int k) {\n    if (k <= 0) return 0;\n    return distinctAtMost(nums, k) - distinctAtMost(nums, k - 1);\n}\n\nstatic int distinctAtMost(int[] nums, int limit) {\n    if (limit <= 0) return 0;\n    Map<Integer, Integer> frequency = new HashMap<>();\n    int left = 0, count = 0;\n    for (int right = 0; right < nums.length; right++) {\n        frequency.merge(nums[right], 1, Integer::sum);\n        while (frequency.size() > limit) {\n            int outgoing = nums[left++];\n            int remaining = frequency.get(outgoing) - 1;\n            if (remaining == 0) frequency.remove(outgoing);\n            else frequency.put(outgoing, remaining);\n        }\n        count += right - left + 1;\n    }\n    return count;\n}",
+    "time": "Average O(n), using two linear scans.",
+    "space": "O(min(n, k + 1)) working space for the frequency map.",
+    "pitfalls": [
+      "A set alone cannot tell whether another copy of an outgoing value remains.",
+      "The at-most helper counts all valid starts, not just its longest window.",
+      "For k = 1, the second at-most count is zero.",
+      "Do not confuse the number of distinct values with the sum or the window length."
+    ],
+    "tests": [
+      "assert subarraysWithKDistinct(new int[]{4,7,4,9},2)==4;assert subarraysWithKDistinct(new int[]{1,2,1,2,3},2)==7;assert subarraysWithKDistinct(new int[]{1,2,1,3,4},3)==3;",
+      "for(int n=0;n<=8;n++){int limit=1;for(int i=0;i<n;i++)limit*=3;for(int encoded=0;encoded<limit;encoded++){int x=encoded;int[]a=new int[n];for(int i=0;i<n;i++){a[i]=x%3-1;x/=3;}for(int k=0;k<=4;k++)assert subarraysWithKDistinct(a,k)==exactDistinctByExpansion(a,k);}}",
+      "int[]a=new int[20000];Arrays.fill(a,7);assert subarraysWithKDistinct(a,1)==200010000;assert subarraysWithKDistinct(a,2)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/subarrays-with-k-different-integers",
+      "title": "Count Subarrays with Exactly K Different Integers",
+      "checkedOn": "2026-10-29",
+      "approach": "Subtract at-most distinct-count windows, tracking frequencies as elements leave.",
+      "adaptation": "All three public Java approaches were checked. The final method retains the source’s k ≤ 0 guard, frequency-map removal and two-window-count subtraction."
+    },
+    "baselineJava": "static int exactDistinctByExpansion(int[] nums, int k) {\n    if (k <= 0) return 0;\n    int count = 0;\n    for (int start = 0; start < nums.length; start++) {\n        Set<Integer> types = new HashSet<>();\n        for (int end = start; end < nums.length; end++) {\n            types.add(nums[end]);\n            if (types.size() == k) count++;\n            if (types.size() > k) break;\n        }\n    }\n    return count;\n}",
+    "baselineTime": "O(n²) time and O(min(n, k + 1)) space."
   }
 }
