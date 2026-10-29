@@ -18709,5 +18709,124 @@
         ]
       ]
     }
+  },
+  "440": {
+    "problem": "Build a trie with insert, exact-word search, and prefix search.",
+    "assumptions": "Words use lowercase English letters a–z. A path can exist without being a complete stored word. Duplicate insertion does not change membership. The nested static Trie class is suitable inside the guide’s test wrapper; for LeetCode’s top-level Trie class, remove only the outer static keyword. Empty-string insertion is supported, and the empty prefix always follows the root path.",
+    "example": {
+      "input": "insert(\"stone\"), search(\"sto\"), startsWith(\"sto\"), insert(\"sto\"), search(\"sto\")",
+      "output": "false, true, true",
+      "explanation": "The path s→t→o exists after inserting stone, but o is not a word ending until sto is inserted separately."
+    },
+    "baseline": "Keep stored words in a set for exact lookup. For each prefix query, scan the stored words and check startsWith. That is simple, but repeated prefix queries may inspect many unrelated words.",
+    "approach": "A trie shares the beginnings of words. Each edge chooses one character; each node describes the prefix along the path from the root. With a fixed lowercase alphabet, an array of 26 child references makes the next step direct.\n\nInsertion follows the word’s characters and creates a child only when the needed edge is missing. Mark the final node as a word ending. Inserting a longer word must not clear an earlier word-ending marker: both sto and stone can be stored.\n\nExact search and prefix search follow the same path. Exact search also checks the final marker. Prefix search only needs the path to exist. This small difference prevents every prefix of a stored word from being mistaken for a complete word.\n\nThe trie does not compare your query with every stored word. Each operation follows only the query’s own characters. The tradeoff is memory: every node reserves 26 child slots, even if most are unused.",
+    "steps": [
+      "Create one empty root node.",
+      "For insertion, follow or create one child per character.",
+      "Mark the final node as a complete word.",
+      "For exact search, require both a complete path and a word-ending marker.",
+      "For prefix search, require only the complete path."
+    ],
+    "java": "static class Trie {\n    private static class Node {\n        Node[] children=new Node[26];\n        boolean endsWord;\n    }\n    private final Node root=new Node();\n    public Trie() {}\n    public void insert(String word) {\n        Node node=root;\n        for(int i=0;i<word.length();i++) {\n            int letter=word.charAt(i)-'a';\n            if(node.children[letter]==null) node.children[letter]=new Node();\n            node=node.children[letter];\n        }\n        node.endsWord=true;\n    }\n    private Node follow(String text) {\n        Node node=root;\n        for(int i=0;i<text.length();i++) {\n            node=node.children[text.charAt(i)-'a'];\n            if(node==null) return null;\n        }\n        return node;\n    }\n    public boolean search(String word) {\n        Node node=follow(word);\n        return node!=null && node.endsWord;\n    }\n    public boolean startsWith(String prefix) {\n        return follow(prefix)!=null;\n    }\n}",
+    "time": "O(L) per operation, where L is the input word or prefix length.",
+    "space": "O(26S) child-reference capacity for S trie nodes; at most one new node per newly needed prefix. One operation uses O(1) traversal space.",
+    "pitfalls": [
+      "An existing path does not prove that the full word was inserted.",
+      "Do not reset a word-ending marker when inserting another word through the same node.",
+      "The 26-child indexing assumes lowercase English letters; uppercase or arbitrary Unicode needs a different representation.",
+      "A basic trie stores membership, not duplicate counts; that is the next lesson."
+    ],
+    "tests": [
+      "Trie trie=new Trie();trie.insert(\"stone\");assert !trie.search(\"sto\");assert trie.startsWith(\"sto\");trie.insert(\"sto\");assert trie.search(\"sto\")&&trie.search(\"stone\");trie.insert(\"stone\");assert !trie.search(\"stony\");assert !trie.startsWith(\"sa\");",
+      "Trie trie=new Trie();Set<String> words=new HashSet<>();Random random=new Random(440);for(int step=0;step<3500;step++){StringBuilder b=new StringBuilder();for(int j=0,n=1+random.nextInt(8);j<n;j++)b.append((char)('a'+random.nextInt(3)));String word=b.toString();if(random.nextInt(3)==0){trie.insert(word);words.add(word);}assert trie.search(word)==words.contains(word);String prefix=word.substring(0,1+random.nextInt(word.length()));boolean expected=false;for(String stored:words)if(stored.startsWith(prefix)){expected=true;break;}assert trie.startsWith(prefix)==expected;}",
+      "Trie trie=new Trie();assert trie.startsWith(\"\");assert !trie.search(\"\");trie.insert(\"\");assert trie.search(\"\");String longWord=\"a\".repeat(3000);trie.insert(longWord);assert trie.search(longWord);assert !trie.search(longWord+\"a\");"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/trie-implementation",
+      "title": "Implement a Trie: Insert, Search and Prefix Matching",
+      "checkedOn": "2026-10-29",
+      "approach": "Use 26 child links and a separate end-of-word marker; insertion and both lookup methods follow characters.",
+      "adaptation": "The complete public Java implementation was checked. This adaptation uses the pinned judge’s Trie class name, factors the shared traversal into follow, and avoids allocating a char array on each operation. The root behavior also supports empty strings as an extension."
+    }
+  },
+  "441": {
+    "problem": "Extend a trie to count exact words and prefixes, and erase one occurrence of a stored word.",
+    "assumptions": "Words use lowercase English letters. Duplicates count separately. Erasing a word that is absent does nothing, matching the current article. Nodes are retained after their counts reach zero. This version also counts all stored occurrences at the root so the empty prefix returns the total count. For a top-level judge class, remove the outer static keyword from Trie.",
+    "example": {
+      "input": "insert(\"car\"), insert(\"cart\"), insert(\"car\"), countWordsEqualTo(\"car\"), countWordsStartingWith(\"car\"), erase(\"car\")",
+      "output": "Exact count 2, prefix count 3; after erase: exact count 1, prefix count 2",
+      "explanation": "Two copies end at car, and another word continues through it. Erasing one car removes one occurrence, leaving the other car and cart."
+    },
+    "baseline": "Keep a word-to-frequency map. Exact counts and deletion are direct, but a prefix count needs a scan of all distinct stored words. A counted trie records those prefix totals during insertion instead.",
+    "approach": "Two counters answer two different questions. ends counts word occurrences that stop at a node. passes counts occurrences whose path includes that node. A word that ends here contributes to both: it is an exact word and it also starts with this prefix.\n\nOn insertion, increase passes at every visited node, then increase ends at the final node. Exact-word lookup returns ends; prefix lookup returns passes. Duplicate insertions walk existing edges but still increase the counters.\n\nDeletion reverses one insertion. First check that the exact word exists. A path alone is not enough: it may only be a prefix of a longer word. If the word exists, decrease passes along its path and decrease its final ends once. Other words sharing the path keep their counts.\n\nThis is logical deletion. The links stay allocated even when their counts become zero, so future insertions can reuse them. Queries read counters rather than treating an allocated path as proof of a currently stored word.",
+    "steps": [
+      "Store child links, a pass count, and an exact-ending count per node.",
+      "Increment pass counts along an insertion and the ending count at its final node.",
+      "Follow the query path and return the appropriate count.",
+      "Before erasing, confirm that an exact occurrence exists.",
+      "Decrement one occurrence along the path without removing shared nodes."
+    ],
+    "java": "static class Trie {\n    private static class Node {\n        Node[] children=new Node[26];\n        int passes,ends;\n    }\n    private final Node root=new Node();\n    public Trie() {}\n    public void insert(String word) {\n        Node node=root;\n        node.passes++;\n        for(int i=0;i<word.length();i++) {\n            int letter=word.charAt(i)-'a';\n            if(node.children[letter]==null) node.children[letter]=new Node();\n            node=node.children[letter];\n            node.passes++;\n        }\n        node.ends++;\n    }\n    private Node follow(String text) {\n        Node node=root;\n        for(int i=0;i<text.length();i++) {\n            node=node.children[text.charAt(i)-'a'];\n            if(node==null) return null;\n        }\n        return node;\n    }\n    public int countWordsEqualTo(String word) {\n        Node node=follow(word);\n        return node==null?0:node.ends;\n    }\n    public int countWordsStartingWith(String prefix) {\n        Node node=follow(prefix);\n        return node==null?0:node.passes;\n    }\n    public void erase(String word) {\n        if(countWordsEqualTo(word)==0) return;\n        Node node=root;\n        node.passes--;\n        for(int i=0;i<word.length();i++) {\n            node=node.children[word.charAt(i)-'a'];\n            node.passes--;\n        }\n        node.ends--;\n    }\n}",
+    "time": "O(L) for each operation. Erase walks the word twice, which is still O(L).",
+    "space": "O(26S) reference capacity for all trie nodes created so far. Erase does not reclaim nodes; traversal uses O(1) extra space.",
+    "pitfalls": [
+      "Check the exact ending count before erasing; an existing prefix path may not represent a stored word.",
+      "Erase one duplicate at a time, not all copies.",
+      "Do not physically delete a shared edge while other words still use it.",
+      "An allocated path with count zero should return zero after deletion.",
+      "Prefix counts include words that end exactly at the prefix."
+    ],
+    "tests": [
+      "Trie trie=new Trie();trie.insert(\"car\");trie.insert(\"cart\");trie.insert(\"car\");assert trie.countWordsEqualTo(\"car\")==2;assert trie.countWordsStartingWith(\"car\")==3;trie.erase(\"ca\");assert trie.countWordsStartingWith(\"car\")==3;trie.erase(\"car\");assert trie.countWordsEqualTo(\"car\")==1;assert trie.countWordsStartingWith(\"car\")==2;trie.erase(\"car\");trie.erase(\"car\");assert trie.countWordsEqualTo(\"cart\")==1;assert trie.countWordsStartingWith(\"car\")==1;",
+      "Trie trie=new Trie();Map<String,Integer> counts=new HashMap<>();Random random=new Random(441);for(int step=0;step<6000;step++){StringBuilder b=new StringBuilder();for(int j=0,n=1+random.nextInt(6);j<n;j++)b.append((char)('a'+random.nextInt(3)));String word=b.toString();int op=random.nextInt(3);if(op==0){trie.insert(word);counts.merge(word,1,Integer::sum);}else if(op==1){trie.erase(word);counts.computeIfPresent(word,(key,value)->value==1?null:value-1);}assert trie.countWordsEqualTo(word)==counts.getOrDefault(word,0);String prefix=word.substring(0,random.nextInt(word.length()+1));int expected=0;for(Map.Entry<String,Integer> entry:counts.entrySet())if(entry.getKey().startsWith(prefix))expected+=entry.getValue();assert trie.countWordsStartingWith(prefix)==expected;}",
+      "Trie trie=new Trie();trie.insert(\"\");trie.insert(\"a\");assert trie.countWordsStartingWith(\"\")==2;assert trie.countWordsEqualTo(\"\")==1;trie.erase(\"\");assert trie.countWordsStartingWith(\"\")==1;trie.erase(\"a\");assert trie.countWordsStartingWith(\"a\")==0;trie.insert(\"a\");assert trie.countWordsEqualTo(\"a\")==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/trie-ii-count-words-erase",
+      "title": "Implement Trie II: Count Words, Prefixes and Erase",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep separate prefix-pass and exact-ending counts; erase safely reverses one insertion and retains nodes.",
+      "adaptation": "The full public Java example was read through its Copy code control, including the absent-word erase guard. The same child counters and logical deletion are retained. Counting passes at the root is an explicit extension for empty-prefix queries, and shared traversal is factored into a helper."
+    },
+    "trace": {
+      "columns": [
+        "Operation",
+        "Exact car",
+        "Prefix car",
+        "Exact cart"
+      ],
+      "rows": [
+        [
+          "insert car",
+          "1",
+          "1",
+          "0"
+        ],
+        [
+          "insert cart",
+          "1",
+          "2",
+          "1"
+        ],
+        [
+          "insert car",
+          "2",
+          "3",
+          "1"
+        ],
+        [
+          "erase car",
+          "1",
+          "2",
+          "1"
+        ],
+        [
+          "erase ca (absent)",
+          "1",
+          "2",
+          "1"
+        ]
+      ]
+    }
   }
 }
