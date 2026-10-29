@@ -15166,5 +15166,140 @@
         ]
       ]
     }
+  },
+  "384": {
+    "problem": "Learn what a DP state, transition, base case, and evaluation order mean by counting climbs made of one-step and two-step moves.",
+    "assumptions": "This is a foundation lesson, not a separate judge problem. The worked staircase uses 0 ≤ n ≤ 45 so the exact count fits int. At n = 0, doing nothing is one valid empty sequence.",
+    "example": {
+      "input": "n = 5",
+      "output": "8",
+      "explanation": "Counts for steps 0 through 5 are [1, 1, 2, 3, 5, 8]. To finish at step 5, arrive from step 4 with a one-step move or from step 3 with a two-step move: 5 + 3."
+    },
+    "baseline": "Write the choices as recursion first. To reach step s, count routes to s − 1 and s − 2. The same smaller step is reached through many branches, so plain recursion solves it repeatedly.",
+    "approach": "A DP state is one small question with a precise answer. Here, dp[s] means “how many move sequences land exactly on step s?” It does not mean the number of moves or the fewest moves.\n\nThe transition comes from the last move: it is either one step from s − 1 or two steps from s − 2. Those groups do not overlap, so add their counts. The base cases are dp[0] = 1 and dp[1] = 1. Fill larger s values in increasing order so both dependencies are ready.\n\nMemoization keeps the recursive code and saves each answer when first calculated. Tabulation starts at the base cases and fills a table in a loop. Both avoid repeated work. Once the table version is clear, notice that only its previous two entries are needed; two variables can replace the table.\n\nFor other problems, first write the state’s meaning and choices. The combining operation may be a minimum, maximum, sum, or OR. DP is useful when the same states recur and the number of distinct states is manageable.",
+    "steps": [
+      "Write the exact meaning of one state.",
+      "Derive the transition by separating the final choices.",
+      "Set the smallest answers directly.",
+      "Choose memoization or a dependency-respecting table order.",
+      "Count states × work per state, and include recursion space.",
+      "Reduce storage only after identifying which old states are still needed."
+    ],
+    "java": "static int stairsTabulated(int n) {\n    int[] dp = new int[n+1];\n    dp[0] = 1;\n    if (n >= 1) dp[1] = 1;\n    for (int step = 2; step <= n; step++) dp[step] = dp[step-1] + dp[step-2];\n    return dp[n];\n}",
+    "time": "O(n) time: n + 1 states and constant work per state.",
+    "space": "O(n) for this table. Memoization also needs O(n) recursion space; the two-variable version uses O(1).",
+    "pitfalls": [
+      "Do not write a recurrence before deciding what its state means.",
+      "dp[0] = 1 counts an empty sequence; setting it to 0 loses valid climbs.",
+      "Memoization needs a distinct “not calculated” marker.",
+      "Tabulation must fill dependencies before using them.",
+      "The int code is limited to n ≤ 45. Use a wider or arbitrary-precision representation for larger exact counts."
+    ],
+    "tests": [
+      "assert climbStairs(5)==8;assert stairsTabulated(5)==8;assert stairsMemoized(5)==8;assert stairsRecursive(5)==8;assert climbStairs(0)==1;assert stairsTabulated(0)==1;assert stairsMemoized(0)==1;",
+      "for(int n=0;n<=45;n++){\n // Choose positions for the two-step moves among n-k total moves.\n BigInteger expected=BigInteger.ZERO;\n for(int k=0;k<=n/2;k++){BigInteger choose=BigInteger.ONE;for(int j=1;j<=k;j++)choose=choose.multiply(BigInteger.valueOf(n-k-j+1)).divide(BigInteger.valueOf(j));expected=expected.add(choose);}\n int answer=expected.intValueExact();assert climbStairs(n)==answer;assert stairsTabulated(n)==answer;assert stairsMemoized(n)==answer;if(n<=20)assert stairsRecursive(n)==answer;\n}",
+      "assert climbStairs(45)==1836311903;assert stairsMemoized(45)==1836311903;assert stairsTabulated(45)==1836311903;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/dynamic-programming-memoization-tabulation",
+      "title": "Dynamic Programming: Memoization and Tabulation Explained",
+      "checkedOn": "2026-10-29",
+      "approach": "State, transition, base cases, memoization, tabulation, and storage reduction using the staircase example.",
+      "adaptation": "The complete public foundation article was read; it contains explanations rather than a Java solution. All four Java versions in its linked Climbing Stairs lesson were checked and adapted here as the concrete worked example."
+    },
+    "baselineJava": "static int stairsRecursive(int step) {\n    if (step == 0) return 1;\n    if (step < 0) return 0;\n    return stairsRecursive(step-1) + stairsRecursive(step-2);\n}",
+    "baselineTime": "O(2^n) time as a simple upper bound and O(n) recursion space. Use only small n for this teaching version.",
+    "better": {
+      "explanation": "Two implementations of the same state: stairsMemoized saves recursive answers in an array; climbStairs keeps only the two preceding counts. Memoization is useful while learning to remove repeated work. The two-variable loop is the final storage reduction for this particular recurrence.",
+      "java": "static int stairsMemoized(int n) {\n    int[] memo = new int[n+1];\n    Arrays.fill(memo,-1);\n    return countStairs(n,memo);\n}\nstatic int countStairs(int step, int[] memo) {\n    if (step == 0) return 1;\n    if (step < 0) return 0;\n    if (memo[step] != -1) return memo[step];\n    memo[step] = countStairs(step-1,memo) + countStairs(step-2,memo);\n    return memo[step];\n}\n\nstatic int climbStairs(int n) {\n    if (n <= 1) return 1;\n    int twoBack = 1, oneBack = 1;\n    for (int step = 2; step <= n; step++) {\n        int current = oneBack + twoBack;\n        twoBack = oneBack;\n        oneBack = current;\n    }\n    return oneBack;\n}",
+      "time": "O(n) for either implementation.",
+      "space": "O(n) for memoization including its stack; O(1) for the iterative two-variable version."
+    },
+    "trace": {
+      "columns": [
+        "State",
+        "Meaning",
+        "Value"
+      ],
+      "rows": [
+        [
+          "dp[0]",
+          "One empty sequence",
+          "1"
+        ],
+        [
+          "dp[1]",
+          "One one-step move",
+          "1"
+        ],
+        [
+          "dp[2]",
+          "dp[1] + dp[0]",
+          "2"
+        ],
+        [
+          "dp[3]",
+          "dp[2] + dp[1]",
+          "3"
+        ],
+        [
+          "dp[4]",
+          "dp[3] + dp[2]",
+          "5"
+        ],
+        [
+          "dp[5]",
+          "dp[4] + dp[3]",
+          "8"
+        ]
+      ]
+    }
+  },
+  "385": {
+    "problem": "Count the distinct sequences of one-step and two-step moves that land exactly on stair n.",
+    "assumptions": "The pinned LeetCode problem uses 1 ≤ n ≤ 45, so the result fits int. The helper versions also define n = 0 as one empty sequence. Move order matters: [1,2] and [2,1] are different climbs.",
+    "example": {
+      "input": "n = 3",
+      "output": "3",
+      "explanation": "The sequences are [1,1,1], [1,2], and [2,1]. This counts sequences, not just combinations of move sizes."
+    },
+    "baseline": "Let ways(s) count climbs ending at step s. Recursively add ways(s − 1) and ways(s − 2), with ways(0) = 1 and ways(negative) = 0. It repeats the same states many times.",
+    "approach": "Look at the final move. Every climb ends with either a one-step move from n − 1 or a two-step move from n − 2. A sequence cannot end both ways, so add the two counts.\n\nMemoization stores each smaller count when first requested. Tabulation fills the same counts from step 0 upward. The final version needs only two values: oneBack for the previous step and twoBack for the step before that.\n\nCalculate current before shifting either value. Then move oneBack into twoBack and current into oneBack. This keeps the meaning of both variables correct for the next step.",
+    "steps": [
+      "Start with one way to stand at step 0 and one way to reach step 1.",
+      "For steps 2 through n, add the previous two counts.",
+      "Save the sum before moving the previous values forward.",
+      "Return the count for the final step."
+    ],
+    "java": "static int climbStairs(int n) {\n    if (n <= 1) return 1;\n    int twoBack = 1, oneBack = 1;\n    for (int step = 2; step <= n; step++) {\n        int current = oneBack + twoBack;\n        twoBack = oneBack;\n        oneBack = current;\n    }\n    return oneBack;\n}",
+    "time": "O(n) time.",
+    "space": "O(1) extra space.",
+    "pitfalls": [
+      "Do not divide by repeated move orders; different orders are distinct sequences.",
+      "The count for zero steps is 1, not 0.",
+      "Update twoBack using the old oneBack before replacing oneBack.",
+      "Plain recursion is only a teaching baseline and is too slow near the judge’s upper bound.",
+      "For n > 45 the answer may overflow int; the pinned contract avoids that."
+    ],
+    "tests": [
+      "assert climbStairs(5)==8;assert stairsTabulated(5)==8;assert stairsMemoized(5)==8;assert stairsRecursive(5)==8;assert climbStairs(0)==1;assert stairsTabulated(0)==1;assert stairsMemoized(0)==1;",
+      "for(int n=0;n<=45;n++){\n // Choose positions for the two-step moves among n-k total moves.\n BigInteger expected=BigInteger.ZERO;\n for(int k=0;k<=n/2;k++){BigInteger choose=BigInteger.ONE;for(int j=1;j<=k;j++)choose=choose.multiply(BigInteger.valueOf(n-k-j+1)).divide(BigInteger.valueOf(j));expected=expected.add(choose);}\n int answer=expected.intValueExact();assert climbStairs(n)==answer;assert stairsTabulated(n)==answer;assert stairsMemoized(n)==answer;if(n<=20)assert stairsRecursive(n)==answer;\n}",
+      "assert climbStairs(45)==1836311903;assert stairsMemoized(45)==1836311903;assert stairsTabulated(45)==1836311903;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/climbing-stairs",
+      "title": "Climbing Stairs Using Dynamic Programming",
+      "checkedOn": "2026-10-29",
+      "approach": "Recursion → memoization → tabulation → two-variable space optimization.",
+      "adaptation": "All four complete public Java methods were checked. The saved guide includes all four forms with distinct method names and explains the update order. Exact int counts are limited to the pinned judge’s range."
+    },
+    "baselineJava": "static int stairsRecursive(int step) {\n    if (step == 0) return 1;\n    if (step < 0) return 0;\n    return stairsRecursive(step-1) + stairsRecursive(step-2);\n}",
+    "baselineTime": "O(2^n) time as an upper bound and O(n) recursion space.",
+    "better": {
+      "explanation": "Memoization keeps the recursive choice and stores one answer per step. Tabulation removes recursion and fills the same states from small to large. Both keep the full array, which makes the state easy to inspect before reducing it to the two variables in the primary solution.",
+      "java": "static int stairsMemoized(int n) {\n    int[] memo = new int[n+1];\n    Arrays.fill(memo,-1);\n    return countStairs(n,memo);\n}\nstatic int countStairs(int step, int[] memo) {\n    if (step == 0) return 1;\n    if (step < 0) return 0;\n    if (memo[step] != -1) return memo[step];\n    memo[step] = countStairs(step-1,memo) + countStairs(step-2,memo);\n    return memo[step];\n}\n\nstatic int stairsTabulated(int n) {\n    int[] dp = new int[n+1];\n    dp[0] = 1;\n    if (n >= 1) dp[1] = 1;\n    for (int step = 2; step <= n; step++) dp[step] = dp[step-1] + dp[step-2];\n    return dp[n];\n}",
+      "time": "O(n) for both versions.",
+      "space": "O(n) for the table; memoization also has O(n) recursion depth."
+    }
   }
 }
