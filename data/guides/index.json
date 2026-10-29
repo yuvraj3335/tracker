@@ -19247,7 +19247,7 @@
       "The inner loop must test the end boundary before reading the next character."
     ],
     "tests": [
-      "String[] expected={\"1\",\"11\",\"21\",\"1211\",\"111221\",\"312211\",\"13112221\",\"1113213211\"};for(int i=0;i<expected.length;i++){assert countAndSay(i+1).equals(expected[i]);assert countAndSayIterative(i+1).equals(expected[i]);}assert describeRuns(\"111111111111222\").equals(\"1232\");assert describeRuns(\"\").isEmpty();",
+      "String[] expected={\"1\",\"11\",\"21\",\"1211\",\"111221\",\"312211\",\"13112221\",\"1113213211\"};for(int i=0;i<expected.length;i++){assert countAndSay(i+1).equals(expected[i]);assert countAndSayIterative(i+1).equals(expected[i]);}assert describeRuns(\"111111111111222\").equals(\"12132\");assert describeRuns(\"\").isEmpty();",
       "String expected=\"1\";java.util.regex.Pattern runs=java.util.regex.Pattern.compile(\"(.)\\\\1*\");for(int n=1;n<=30;n++){assert countAndSay(n).equals(expected);assert countAndSayIterative(n).equals(expected);java.util.regex.Matcher matcher=runs.matcher(expected);StringBuilder next=new StringBuilder();while(matcher.find())next.append(matcher.group().length()).append(matcher.group().charAt(0));expected=next.toString();}"
     ],
     "reference": {
