@@ -16343,5 +16343,56 @@
       "time": "O(n × (capacity + 1)).",
       "space": "O(n × (capacity + 1)), plus recursion depth for memoization."
     }
+  },
+  "407": {
+    "problem": "For the Rod Cutting lesson, split a rod of length n into integer-length pieces and maximize the total selling price. price[length − 1] gives the price of one piece of that length.",
+    "assumptions": "The saved Codolio title is Rod Cutting, but its problem link opens Minimum Cost to Connect Sticks. They are different tasks. The main code follows Striver’s rod-cutting lesson; the separate connectSticks method below solves the saved link. Rod prices are nonnegative, a price is provided for every length 1 through n, and the full rod must be sold. No cut is also a valid choice.",
+    "example": {
+      "input": "price = [2,6,7,9], n = 4",
+      "output": "12",
+      "explanation": "Cut the rod into lengths 2 and 2. Each sells for 6, so revenue is 12. Selling it whole would earn 9, and four length-1 pieces would earn 8."
+    },
+    "baseline": "For a permitted piece length, either skip it or take one piece and keep that length available. Once only length 1 remains, fill the entire remaining rod with length-1 pieces. Taking may repeat a length, so this is unbounded rather than 0/1 selection.",
+    "approach": "The connection to knapsack is concrete: a piece’s weight is its length, its value is its selling price, and the capacity is the original rod length. But here the pieces must use the full length exactly.\n\nStart by filling every possible rod length with length-1 pieces. That gives a valid exact-length answer for every state. Then introduce lengths 2, 3, and so on. For a piece of length L, compare the current revenue for length r with price[L − 1] plus the best revenue for the remaining length r − L.\n\nScan r upward. That smaller entry may already use L, so another copy is allowed. The initial length-1 construction ensures the remainder is always an exact fill, not an abandoned part of the rod. After all lengths are considered, read the answer for n.\n\nThe saved sticks link asks something else: join separate sticks while minimizing accumulated merge costs. Its solution uses a min-heap and has no price-by-piece-length array. Use the distinctly named heap method below only for that linked task.",
+    "steps": [
+      "Fill dp[r] with r copies of the length-1 price.",
+      "Introduce each longer piece length L.",
+      "For every rod length r ≥ L in ascending order, compare skipping L with taking it.",
+      "Taking earns price[L − 1] and leaves an exact rod of length r − L.",
+      "Return dp[n]."
+    ],
+    "java": "static long rodRevenue(int[] price, int n) {\n    if (n == 0) return 0;\n    long[] dp = new long[n+1];\n    for (int length = 0; length <= n; length++) dp[length] = (long)length*price[0];\n    for (int piece = 2; piece <= n; piece++) {\n        for (int length = piece; length <= n; length++) {\n            dp[length] = Math.max(dp[length],price[piece-1]+dp[length-piece]);\n        }\n    }\n    return dp[n];\n}\nstatic int cutRod(int[] price, int n) {\n    return Math.toIntExact(rodRevenue(price,n));\n}",
+    "time": "O(n²) for rod cutting.",
+    "space": "O(n) for rod cutting.",
+    "pitfalls": [
+      "Array index i represents piece length i + 1.",
+      "The same length may be used repeatedly.",
+      "Do not force a cut: the whole rod may be the best sale.",
+      "Rod cutting maximizes sale revenue; connecting sticks minimizes merge cost. Their similarly named operations do not share the same algorithm.",
+      "The long core prevents overflow for larger prices. The int wrapper requires the result to fit the judge’s return type."
+    ],
+    "tests": [
+      "assert cutRod(new int[]{2,6,7,9},4)==12;assert rodRevenue(new int[]{1,2,3,100},4)==100;assert rodRevenue(new int[]{},0)==0;assert rodRevenue(new int[]{0,0,0},3)==0;",
+      "Random random=new Random(407);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(10);int[] price=new int[n];for(int i=0;i<n;i++)price[i]=random.nextInt(31);int[] copy=price.clone();long expected=0;\n for(int cuts=0;cuts<(1<<(n-1));cuts++){int start=0;long revenue=0;for(int end=1;end<=n;end++)if(end==n||(cuts&(1<<(end-1)))!=0){revenue+=price[end-start-1];start=end;}expected=Math.max(expected,revenue);}\n assert rodRevenue(price,n)==expected;assert rodMemoized(price,n)==expected;assert rodTable(price,n)==expected;assert rodRecursive(price,n-1,n)==expected;assert Arrays.equals(price,copy);\n}",
+      "assert rodRevenue(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE},3)==6442450941L;int[] price=new int[1000];Arrays.fill(price,5);assert rodRevenue(price,1000)==5000;",
+      "assert connectSticks(new int[]{3,5,7,9})==47;assert connectSticks(new int[]{2,4,3})==14;assert connectSticks(new int[]{8})==0;assert connectSticks(new int[]{})==0;",
+      "class Search{Map<String,Long>memo=new HashMap<>();long solve(List<Long>a){if(a.size()<2)return 0;Collections.sort(a);String key=a.toString();if(memo.containsKey(key))return memo.get(key);long best=Long.MAX_VALUE;for(int i=0;i<a.size();i++)for(int j=i+1;j<a.size();j++){long sum=a.get(i)+a.get(j);List<Long>b=new ArrayList<>();for(int x=0;x<a.size();x++)if(x!=i&&x!=j)b.add(a.get(x));b.add(sum);best=Math.min(best,sum+solve(b));}memo.put(key,best);return best;}}Random r=new Random(254);for(int trial=0;trial<120;trial++){int[]a=new int[r.nextInt(7)];List<Long>values=new ArrayList<>();for(int i=0;i<a.length;i++){a[i]=1+r.nextInt(8);values.add((long)a[i]);}assert connectSticks(a)==new Search().solve(values);}",
+      "assert connectSticks(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE})==10737418235L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/rod-cutting-problem",
+      "title": "Rod Cutting Problem: Maximize Revenue with DP",
+      "checkedOn": "2026-10-29",
+      "approach": "Unbounded piece-length choices, exact-fill length-1 base states, and ascending rod-length updates.",
+      "adaptation": "All four complete public Java rod-cutting methods were checked. Their recurrence and exact-length initialization are preserved, with long revenue and an int wrapper. The Codolio link mismatch is retained and explained: its Minimum Cost to Connect Sticks task is solved separately with the previously checked public min-heap cost rule, whose full Java editorial is not public."
+    },
+    "baselineJava": "static long rodRecursive(int[] price, int index, int remaining) {\n    if (remaining == 0) return 0;\n    if (index == 0) return (long)remaining*price[0];\n    long best = rodRecursive(price,index-1,remaining);\n    int piece = index+1;\n    if (piece <= remaining) best = Math.max(best,price[index]+rodRecursive(price,index,remaining-piece));\n    return best;\n}",
+    "baselineTime": "O(4^n) calls as a loose upper bound, and O(n) stack depth.",
+    "better": {
+      "explanation": "Memoization and the full table below preserve the same rod-cutting state before storage is reduced to one row.\n\nThe final method, connectSticks, belongs to the saved external link instead. Repeatedly merge the two shortest current lengths, add their sum to the running cost, and put the joined length back. Small pieces should take part in the more frequently charged early merges. This is the same separate heap problem explained in the tracker’s ropes lesson.",
+      "java": "static long rodMemoized(int[] price, int n) {\n    if (n == 0) return 0;\n    long[][] memo = new long[n][n+1];\n    for (long[] row : memo) Arrays.fill(row,-1);\n    return rodMemo(price,n-1,n,memo);\n}\nstatic long rodMemo(int[] price, int index, int remaining, long[][] memo) {\n    if (remaining == 0) return 0;\n    if (index == 0) return (long)remaining*price[0];\n    if (memo[index][remaining] != -1) return memo[index][remaining];\n    long best = rodMemo(price,index-1,remaining,memo);\n    int piece = index+1;\n    if (piece <= remaining) best = Math.max(best,price[index]+rodMemo(price,index,remaining-piece,memo));\n    return memo[index][remaining] = best;\n}\nstatic long rodTable(int[] price, int n) {\n    if (n == 0) return 0;\n    long[][] dp = new long[n][n+1];\n    for (int length = 0; length <= n; length++) dp[0][length] = (long)length*price[0];\n    for (int index = 1; index < n; index++) {\n        int piece = index+1;\n        for (int length = 0; length <= n; length++) {\n            dp[index][length] = dp[index-1][length];\n            if (piece <= length) dp[index][length] = Math.max(dp[index][length],price[index]+dp[index][length-piece]);\n        }\n    }\n    return dp[n-1][n];\n}\n\n// Separate problem: the saved Minimum Cost to Connect Sticks link.\nstatic long connectSticks(int[] lengths) {\n    PriorityQueue<Long> heap = new PriorityQueue<>();\n    for (int length : lengths) heap.offer((long) length);\n    long cost = 0;\n    while (heap.size() > 1) {\n        long merged = heap.poll() + heap.poll();\n        cost += merged;\n        heap.offer(merged);\n    }\n    return cost;\n}",
+      "time": "Rod memo/table: O(n²). Separate sticks method: O(m log(m + 1)) for m sticks.",
+      "space": "Rod memo/table: O(n²), plus O(n) recursion depth for memoization. Sticks: O(m)."
+    }
   }
 }
