@@ -1206,13 +1206,13 @@
       "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
     },
     "baseline": "An all-pairs swapping scheme is harder to reason about; separate finding the minimum from performing one final swap.",
-    "approach": "The prefix before i is already sorted and contains the globally smallest i values. Choose the minimum from the remaining suffix to extend that invariant.",
+    "approach": "Put the smallest remaining value at the next empty position. In [4,1,3,1], the first scan finds a 1 and swaps it into position 0. The prefix [1] is now finished. Scan only the remaining suffix to find what belongs at position 1.\n\nRemember the minimum’s index while scanning, then swap once at the end of the pass. Even a sorted array needs those scans: selection sort does not know that a smaller value is absent until it checks. Distant swaps can reorder equal values, so this version is not stable.",
     "steps": [
       "For each destination i, scan i through n−1 for the smallest value.",
       "Swap that value into i.",
       "Advance i; the completed prefix never needs to move again."
     ],
-    "java": "static void sort(int[] a) {\n    for (int i = 0; i < a.length - 1; i++) {\n        int min = i;\n        for (int j = i + 1; j < a.length; j++) if (a[j] < a[min]) min = j;\n        int t = a[i]; a[i] = a[min]; a[min] = t;\n    }\n}",
+    "java": "static void sort(int[] a) {\n    for (int i = 0; i < a.length - 1; i++) {\n        int min = i;\n        for (int j = i + 1; j < a.length; j++) if (a[j] < a[min]) min = j;\n        int t = a[i]; a[i] = a[min]; a[min] = t;\n    }\n}\nstatic int[] selectionSort(int[] nums) { sort(nums); return nums; }\n",
     "time": "Θ(n²) comparisons for every input order.",
     "space": "O(1).",
     "pitfalls": [
@@ -1222,8 +1222,16 @@
     "tests": [
       "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
       "int[] b={}; sort(b); assert b.length==0;",
-      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
-    ]
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}",
+      "for(int mode=0;mode<3;mode++){int[] a=new int[500];for(int j=0;j<a.length;j++)a[j]=mode==0?j:mode==1?a.length-j:7;int[] expected=a.clone();Arrays.sort(expected);sort(a);assert Arrays.equals(a,expected);}int[] limits={Integer.MAX_VALUE,0,Integer.MIN_VALUE,-1};sort(limits);assert Arrays.equals(limits,new int[]{Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/selection-sort-algorithm",
+      "title": "Selection Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Select the minimum of the unfinished suffix.",
+      "adaptation": "Public Java checked; the helper mutates the input and the named wrapper returns it."
+    }
   },
   "33": {
     "problem": "Bubble sort moves the largest unfinished value to the right through adjacent swaps.",
@@ -1234,13 +1242,13 @@
       "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
     },
     "baseline": "Repeatedly scan all n elements n times. This works but wastes comparisons after the suffix is already sorted.",
-    "approach": "After a left-to-right pass over the unfinished prefix, its maximum is at the right boundary. Shrink that boundary, and stop early when a pass makes no swaps.",
+    "approach": "Compare neighbors from left to right. Whenever the left value is larger, swap the pair. The larger value then meets the next neighbor, so the largest unfinished value reaches the right edge by the end of the pass.\n\nThat edge is finished and can be excluded from the next pass. Reset changed to false before each pass and set it when a swap happens. If the whole pass makes no swaps, every neighboring pair is in order, so the entire array is sorted. Compare with > rather than >= to leave equal values in their original order.",
     "steps": [
       "Compare adjacent pairs in the unfinished prefix.",
       "Swap only if the left value is larger.",
       "Shrink the right boundary; stop if the whole pass was unchanged."
     ],
-    "java": "static void sort(int[] a) {\n    for (int end = a.length - 1; end > 0; end--) {\n        boolean changed = false;\n        for (int j = 0; j < end; j++) if (a[j] > a[j+1]) {\n            int t = a[j]; a[j] = a[j+1]; a[j+1] = t; changed = true;\n        }\n        if (!changed) break;\n    }\n}",
+    "java": "static void sort(int[] a) {\n    for (int end = a.length - 1; end > 0; end--) {\n        boolean changed = false;\n        for (int j = 0; j < end; j++) if (a[j] > a[j+1]) {\n            int t = a[j]; a[j] = a[j+1]; a[j+1] = t; changed = true;\n        }\n        if (!changed) break;\n    }\n}\nstatic int[] bubbleSort(int[] nums) { sort(nums); return nums; }\n",
     "time": "O(n²) worst case; O(n) when already sorted with this early exit.",
     "space": "O(1).",
     "pitfalls": [
@@ -1250,27 +1258,35 @@
     "tests": [
       "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
       "int[] b={}; sort(b); assert b.length==0;",
-      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
-    ]
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}",
+      "for(int mode=0;mode<3;mode++){int[] a=new int[500];for(int j=0;j<a.length;j++)a[j]=mode==0?j:mode==1?a.length-j:7;int[] expected=a.clone();Arrays.sort(expected);sort(a);assert Arrays.equals(a,expected);}int[] limits={Integer.MAX_VALUE,0,Integer.MIN_VALUE,-1};sort(limits);assert Arrays.equals(limits,new int[]{Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/bubble-sort-algorithm",
+      "title": "Bubble Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Adjacent swaps, a shrinking right boundary, and early exit after a pass without swaps.",
+      "adaptation": "Both public Java methods checked. This follows the early-exit version."
+    }
   },
   "34": {
     "problem": "Insertion sort extends a sorted prefix by inserting the next element into its correct position.",
-    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported.",
+    "assumptions": "Sort ascending in place; empty arrays, negative values, and duplicates are supported. The title’s sort method is iterative. Use insertionSort for the pinned link, which requires recursion without loops.",
     "example": {
       "input": "[4, 1, 3, 1]",
       "output": "[1, 1, 3, 4]",
       "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
     },
     "baseline": "A separate sorted list can accept each element at the correct position, but requires extra storage.",
-    "approach": "Save the next value, shift all larger prefix elements one place right, then put the saved value in the gap. The shift preserves the relative order of equal values.",
+    "approach": "Treat the first value as a sorted prefix. Save the next value before shifting anything. Move every larger prefix value one place right, then put the saved value into the gap.\n\nFor [1,4,3], save 3, shift 4 right, and place 3 between 1 and 4. The prefix has grown by one. Equal values are not shifted past each other, which keeps the sort stable. The pinned practice link asks for recursion; insertionSort below sorts the smaller prefix recursively and uses a recursive helper for the shifts.",
     "steps": [
       "Start with the one-element prefix.",
       "Save a[i] before shifting.",
       "Move larger predecessors right and write the saved value into the final gap."
     ],
-    "java": "static void sort(int[] a) {\n    for (int i = 1; i < a.length; i++) {\n        int value = a[i], j = i - 1;\n        while (j >= 0 && a[j] > value) { a[j+1] = a[j]; j--; }\n        a[j+1] = value;\n    }\n}",
+    "java": "static void sort(int[] a) {\n    for (int i = 1; i < a.length; i++) {\n        int value = a[i], j = i - 1;\n        while (j >= 0 && a[j] > value) { a[j+1] = a[j]; j--; }\n        a[j+1] = value;\n    }\n}\n\nstatic void insertion(int[] a, int n) {\n    if (n <= 1) return;\n    insertion(a, n-1);\n    insertValue(a, n-2, a[n-1]);\n}\nstatic void insertValue(int[] a, int j, int value) {\n    if (j < 0 || a[j] <= value) { a[j+1] = value; return; }\n    a[j+1] = a[j];\n    insertValue(a, j-1, value);\n}\nstatic int[] insertionSort(int[] nums) { insertion(nums, nums.length); return nums; }",
     "time": "O(n²) worst case; O(n) for already sorted input.",
-    "space": "O(1).",
+    "space": "O(1) for the iterative sort; O(n) call stack for the linked recursive insertionSort.",
     "pitfalls": [
       "Do not overwrite the insertion value while shifting.",
       "Test j>=0 before indexing a[j]."
@@ -1278,8 +1294,17 @@
     "tests": [
       "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
       "int[] b={}; sort(b); assert b.length==0;",
-      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
-    ]
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}",
+      "for(int mode=0;mode<3;mode++){int[] a=new int[500];for(int j=0;j<a.length;j++)a[j]=mode==0?j:mode==1?a.length-j:7;int[] expected=a.clone();Arrays.sort(expected);sort(a);assert Arrays.equals(a,expected);}int[] limits={Integer.MAX_VALUE,0,Integer.MIN_VALUE,-1};sort(limits);assert Arrays.equals(limits,new int[]{Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE});",
+      "Random r=new Random(34);for(int t=0;t<200;t++){int[] a=new int[r.nextInt(100)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(51)-25;int[] expected=a.clone();Arrays.sort(expected);assert insertionSort(a)==a;assert Arrays.equals(a,expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/insertion-sort-algorithm",
+      "title": "Insertion Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Shift larger prefix values right, then insert the saved next value.",
+      "adaptation": "Public iterative Java checked. Codolio’s Insertion Sort link actually points to Recursive Insertion Sort; insertionSort provides that no-loops variant alongside the title’s iterative sort."
+    }
   },
   "35": {
     "problem": "Merge sort divides an array into smaller halves and merges sorted halves back together.",
@@ -1290,13 +1315,13 @@
       "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
     },
     "baseline": "Quadratic sorts are simple, but their comparison count grows too quickly on large inputs.",
-    "approach": "Once both halves are sorted, repeatedly choosing the smaller front element produces the entire merged range in linear time. There are logarithmically many division levels.",
+    "approach": "A one-element range is already sorted. Split larger ranges in half and sort each half. Then compare the first unused value from each half: the smaller one must be the next value in the merged result.\n\nFor sorted halves [1,4] and [1,3], take the left 1, then the right 1, then 3, then 4. Taking the left value on a tie keeps equal items in their original order. This implementation uses [lo,hi), so hi is excluded. Copy the finished merged range back before returning to the parent call.",
     "steps": [
       "Recursively sort the half-open ranges [lo,mid) and [mid,hi).",
       "Merge into a reusable temporary array.",
       "Copy the merged range back; choose the left element on ties for stability."
     ],
-    "java": "static void sort(int[] a) { mergeSort(a, new int[a.length], 0, a.length); }\nstatic void mergeSort(int[] a, int[] temp, int lo, int hi) {\n    if (hi - lo <= 1) return;\n    int mid = lo + (hi - lo) / 2;\n    mergeSort(a, temp, lo, mid); mergeSort(a, temp, mid, hi);\n    int i = lo, j = mid, k = lo;\n    while (i < mid || j < hi) {\n        if (j == hi || (i < mid && a[i] <= a[j])) temp[k++] = a[i++];\n        else temp[k++] = a[j++];\n    }\n    System.arraycopy(temp, lo, a, lo, hi - lo);\n}",
+    "java": "static void sort(int[] a) { mergeSort(a, new int[a.length], 0, a.length); }\nstatic void mergeSort(int[] a, int[] temp, int lo, int hi) {\n    if (hi - lo <= 1) return;\n    int mid = lo + (hi - lo) / 2;\n    mergeSort(a, temp, lo, mid); mergeSort(a, temp, mid, hi);\n    int i = lo, j = mid, k = lo;\n    while (i < mid || j < hi) {\n        if (j == hi || (i < mid && a[i] <= a[j])) temp[k++] = a[i++];\n        else temp[k++] = a[j++];\n    }\n    System.arraycopy(temp, lo, a, lo, hi - lo);\n}\nstatic int[] mergeSort(int[] nums) { sort(nums); return nums; }\n",
     "time": "Θ(n log n).",
     "space": "O(n) temporary storage plus O(log n) stack.",
     "pitfalls": [
@@ -1306,8 +1331,16 @@
     "tests": [
       "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
       "int[] b={}; sort(b); assert b.length==0;",
-      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
-    ]
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}",
+      "for(int mode=0;mode<3;mode++){int[] a=new int[500];for(int j=0;j<a.length;j++)a[j]=mode==0?j:mode==1?a.length-j:7;int[] expected=a.clone();Arrays.sort(expected);sort(a);assert Arrays.equals(a,expected);}int[] limits={Integer.MAX_VALUE,0,Integer.MIN_VALUE,-1};sort(limits);assert Arrays.equals(limits,new int[]{Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/merge-sort-algorithm",
+      "title": "Merge Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort each half, then merge the two ordered ranges with left-first ties.",
+      "adaptation": "Public Java checked. This uses half-open ranges and one reusable primitive buffer instead of inclusive ranges and two per-merge lists; the split-and-merge algorithm is unchanged."
+    }
   },
   "36": {
     "problem": "Express bubble sort recursively by sorting one fewer position after each pass.",
@@ -1318,13 +1351,13 @@
       "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
     },
     "baseline": "The iterative bubble-sort loop performs the same passes without recursive frames.",
-    "approach": "One pass settles the largest unfinished value at the end. The recursive subproblem therefore excludes that final position. The array itself is shared; it does not need to be copied.",
+    "approach": "One bubble pass compares neighboring values and leaves the largest unfinished value at the right edge. Recursively sort the shorter prefix after that pass.\n\nThe current exercise asks for recursion only, so bubblePass also recurses from one adjacent pair to the next instead of using a loop. It returns whether any pair changed. The recursive call must run even if an earlier pair changed; calculate its result before combining booleans, because short-circuit OR could otherwise skip the rest of the pass.",
     "steps": [
       "Stop when the unfinished length is at most one.",
       "Perform one adjacent-swap pass.",
       "If something changed, recursively sort the prefix of length n−1."
     ],
-    "java": "static void sort(int[] a) { bubble(a, a.length); }\nstatic void bubble(int[] a, int n) {\n    if (n <= 1) return;\n    boolean changed = false;\n    for (int i = 1; i < n; i++) if (a[i-1] > a[i]) {\n        int t = a[i-1]; a[i-1] = a[i]; a[i] = t; changed = true;\n    }\n    if (changed) bubble(a, n - 1);\n}",
+    "java": "static void sort(int[] a) { bubble(a, a.length); }\nstatic void bubble(int[] a, int n) {\n    if (n <= 1) return;\n    if (bubblePass(a, 0, n)) bubble(a, n-1);\n}\nstatic boolean bubblePass(int[] a, int i, int n) {\n    if (i + 1 >= n) return false;\n    boolean changed = false;\n    if (a[i] > a[i+1]) {\n        int value = a[i]; a[i] = a[i+1]; a[i+1] = value;\n        changed = true;\n    }\n    boolean laterChanged = bubblePass(a, i+1, n);\n    return changed || laterChanged;\n}\nstatic int[] bubbleSort(int[] nums) { sort(nums); return nums; }",
     "time": "O(n²) worst case, O(n) for an already sorted input.",
     "space": "O(n) recursion stack in the worst case.",
     "pitfalls": [
@@ -1334,8 +1367,17 @@
     "tests": [
       "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
       "int[] b={}; sort(b); assert b.length==0;",
-      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
-    ]
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}",
+      "for(int mode=0;mode<3;mode++){int[] a=new int[500];for(int j=0;j<a.length;j++)a[j]=mode==0?j:mode==1?a.length-j:7;int[] expected=a.clone();Arrays.sort(expected);sort(a);assert Arrays.equals(a,expected);}int[] limits={Integer.MAX_VALUE,0,Integer.MIN_VALUE,-1};sort(limits);assert Arrays.equals(limits,new int[]{Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE});",
+      "int[] a=new int[1000];for(int i=0;i<a.length;i++)a[i]=1000-i;bubbleSort(a);for(int i=0;i<a.length;i++)assert a[i]==i+1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/recursive-bubble-sort",
+      "title": "Recursive Bubble Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Use recursion for both the passes and the work inside each pass.",
+      "adaptation": "The public statement requires recursion only; insertion sort explicitly forbids loops. This independently authored Java meets those rules. Full solution Java was not inspected."
+    }
   },
   "37": {
     "problem": "Express insertion sort recursively by sorting a prefix before inserting its last element.",
@@ -1346,13 +1388,13 @@
       "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
     },
     "baseline": "Iterative insertion sort avoids stack overhead while making the same comparisons and shifts.",
-    "approach": "First solve the smaller problem: sort the first n−1 elements. Only the final element can then be out of place, so insert it into that sorted prefix.",
+    "approach": "Sort the first n-1 items recursively. Once that call returns, only the last item remains to be inserted. Save it and move larger prefix values right until its slot is open.\n\nThe current statement forbids loops, including a shifting loop. insertValue therefore shifts one item and calls itself at the next position to the left. At j<0, or when a[j] is no larger than the saved value, write the saved value at j+1. Equal values stay in order because only strictly larger items move.",
     "steps": [
       "Stop at an unfinished length of zero or one.",
       "Recursively sort the first n−1 elements.",
       "Shift larger predecessors right and place the saved last value in the gap."
     ],
-    "java": "static void sort(int[] a) { insertion(a, a.length); }\nstatic void insertion(int[] a, int n) {\n    if (n <= 1) return;\n    insertion(a, n - 1);\n    int value = a[n - 1], j = n - 2;\n    while (j >= 0 && a[j] > value) { a[j+1] = a[j]; j--; }\n    a[j+1] = value;\n}",
+    "java": "static void sort(int[] a) { insertion(a, a.length); }\nstatic void insertion(int[] a, int n) {\n    if (n <= 1) return;\n    insertion(a, n-1);\n    insertValue(a, n-2, a[n-1]);\n}\nstatic void insertValue(int[] a, int j, int value) {\n    if (j < 0 || a[j] <= value) { a[j+1] = value; return; }\n    a[j+1] = a[j];\n    insertValue(a, j-1, value);\n}\nstatic int[] insertionSort(int[] nums) { sort(nums); return nums; }",
     "time": "O(n²) worst case; O(n) comparisons on sorted input.",
     "space": "O(n) recursion stack.",
     "pitfalls": [
@@ -1362,8 +1404,17 @@
     "tests": [
       "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
       "int[] b={}; sort(b); assert b.length==0;",
-      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
-    ]
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}",
+      "for(int mode=0;mode<3;mode++){int[] a=new int[500];for(int j=0;j<a.length;j++)a[j]=mode==0?j:mode==1?a.length-j:7;int[] expected=a.clone();Arrays.sort(expected);sort(a);assert Arrays.equals(a,expected);}int[] limits={Integer.MAX_VALUE,0,Integer.MIN_VALUE,-1};sort(limits);assert Arrays.equals(limits,new int[]{Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE});",
+      "int[] a=new int[1000];for(int i=0;i<a.length;i++)a[i]=1000-i;insertionSort(a);for(int i=0;i<a.length;i++)assert a[i]==i+1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/recursive-insertion-sort",
+      "title": "Recursive Insertion Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Use recursion for both the passes and the work inside each pass.",
+      "adaptation": "The public statement requires recursion only; insertion sort explicitly forbids loops. This independently authored Java meets those rules. Full solution Java was not inspected."
+    }
   },
   "38": {
     "problem": "Quicksort partitions values around a pivot and recursively sorts the remaining ranges.",
@@ -1374,25 +1425,34 @@
       "explanation": "The sorted output contains the same multiset of values; the two equal ones remain represented separately."
     },
     "baseline": "Repeatedly finding the next minimum takes O(n²) comparisons. Quicksort aims to partition many values at once.",
-    "approach": "This three-way partition maintains values less than the pivot, equal to it, and greater than it. All equal values are finished together, which avoids repeated work on duplicate-heavy inputs. Choosing the middle value is simple but does not guarantee balanced partitions.",
+    "approach": "Keep the last value aside as the pivot. During the scan, the region before boundary contains values no greater than that pivot. Whenever you find another such value, swap it into boundary and advance boundary.\n\nAfter the scan, swap the pivot into boundary. Every value to its left is <= pivot and every value to its right is > pivot, so the pivot is in a valid final position. Recursively sort the two remaining sides without including the pivot again. A fixed last pivot can give very uneven splits, especially on sorted or equal-valued input.",
     "steps": [
-      "Save the pivot value before swaps can move it.",
-      "Partition with lt, i, and gt; after a swap from the right, inspect the new a[i] again.",
-      "Recursively sort the less-than and greater-than ranges."
+      "Use the last value as pivot.",
+      "Move each value <= pivot to the next slot in the left region.",
+      "Place the pivot after that region.",
+      "Recurse strictly before and after its final index."
     ],
-    "java": "static void sort(int[] a) { quick(a, 0, a.length - 1); }\nstatic void quick(int[] a, int lo, int hi) {\n    if (lo >= hi) return;\n    int pivot = a[lo + (hi - lo) / 2], lt = lo, i = lo, gt = hi;\n    while (i <= gt) {\n        if (a[i] < pivot) { swap(a, lt++, i++); }\n        else if (a[i] > pivot) { swap(a, i, gt--); }\n        else i++;\n    }\n    quick(a, lo, lt - 1); quick(a, gt + 1, hi);\n}\nstatic void swap(int[] a, int i, int j) { int t = a[i]; a[i] = a[j]; a[j] = t; }",
+    "java": "static void sort(int[] a) { quick(a, 0, a.length-1); }\nstatic void quick(int[] a, int lo, int hi) {\n    if (lo >= hi) return;\n    int pivotIndex = partition(a, lo, hi);\n    quick(a, lo, pivotIndex-1);\n    quick(a, pivotIndex+1, hi);\n}\nstatic int partition(int[] a, int lo, int hi) {\n    int pivot = a[hi], boundary = lo;\n    for (int scan = lo; scan < hi; scan++) {\n        if (a[scan] <= pivot) swap(a, boundary++, scan);\n    }\n    swap(a, boundary, hi);\n    return boundary;\n}\nstatic void swap(int[] a, int i, int j) { int value=a[i]; a[i]=a[j]; a[j]=value; }\nstatic int[] quickSort(int[] nums) { sort(nums); return nums; }",
     "time": "O(n log n) with balanced partitions; O(n²) worst case. Random pivot selection can provide expected O(n log n).",
     "space": "O(log n) stack when balanced, O(n) in the worst case.",
     "pitfalls": [
-      "This implementation is not stable.",
-      "Do not advance i after swapping a greater value with gt; the incoming value remains unclassified.",
-      "A middle-position pivot is not necessarily the median value."
+      "Exclude the pivot from both recursive ranges or the recursion may not shrink.",
+      "Sorted, reverse-sorted or all-equal values can cause O(n²) work and O(n) recursive depth with this fixed pivot.",
+      "This sort is not stable. A randomized or three-way partition is a different variant, not the code shown on the current source page."
     ],
     "tests": [
       "int[] a={4,1,3,1}; sort(a); assert Arrays.equals(a,new int[]{1,1,3,4});",
       "int[] b={}; sort(b); assert b.length==0;",
-      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}"
-    ]
+      "Random rng=new Random(7); for(int t=0;t<100;t++){int[] x=new int[rng.nextInt(40)]; for(int i=0;i<x.length;i++)x[i]=rng.nextInt(21)-10; int[] expected=x.clone(); Arrays.sort(expected); sort(x); assert Arrays.equals(x,expected);}",
+      "for(int mode=0;mode<3;mode++){int[] a=new int[500];for(int j=0;j<a.length;j++)a[j]=mode==0?j:mode==1?a.length-j:7;int[] expected=a.clone();Arrays.sort(expected);sort(a);assert Arrays.equals(a,expected);}int[] limits={Integer.MAX_VALUE,0,Integer.MIN_VALUE,-1};sort(limits);assert Arrays.equals(limits,new int[]{Integer.MIN_VALUE,-1,0,Integer.MAX_VALUE});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/quick-sort-algorithm",
+      "title": "Quick Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "Use the final value as pivot and move all values <= pivot before it.",
+      "adaptation": "Public Java checked. This follows the current article’s last-element Lomuto partition, replacing the earlier three-way variant. The source also notes quadratic worst-case behavior."
+    }
   },
   "39": {
     "problem": "Return the largest value in an array.",
@@ -1403,13 +1463,13 @@
       "explanation": "Start with -4. Seeing -1 raises the maximum; -7 leaves it unchanged."
     },
     "baseline": "Sorting places the largest value at the end but takes more work and may alter the input.",
-    "approach": "After processing each prefix, keep its maximum. Comparing one new value is sufficient to extend that invariant.",
+    "approach": "Start with a value that actually occurs in the array: the first one. Compare each remaining value with the best seen so far and replace the best only when the new value is larger.\n\nFor [-4,-1,-7], the candidate starts at -4, becomes -1, then stays -1. Starting at zero would give a value that was never in the array. Every element must be checked because the last unread element could be the largest.",
     "steps": [
       "Initialize from the first element.",
       "Scan the remaining elements.",
       "Replace the maximum only when the new value is larger."
     ],
-    "java": "static int largest(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    int best = a[0];\n    for (int value : a) best = Math.max(best, value);\n    return best;\n}",
+    "java": "static int largest(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    int best = a[0];\n    for (int value : a) best = Math.max(best, value);\n    return best;\n}\nstatic int largestElement(int[] nums) { return largest(nums); }\n",
     "time": "Θ(n), since every element may contain the maximum.",
     "space": "O(1).",
     "pitfalls": [
@@ -1418,8 +1478,16 @@
     ],
     "tests": [
       "assert largest(new int[]{-4,-1,-7})==-1;",
-      "assert largest(new int[]{5})==5;"
-    ]
+      "assert largest(new int[]{5})==5;",
+      "Random r=new Random(39);for(int t=0;t<400;t++){int[] a=new int[1+r.nextInt(100)];for(int i=0;i<a.length;i++)a[i]=r.nextInt();int[] before=a.clone(),ordered=a.clone();Arrays.sort(ordered);assert largest(a)==ordered[ordered.length-1];assert Arrays.equals(a,before);}assert largest(new int[]{Integer.MIN_VALUE})==Integer.MIN_VALUE;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-the-largest-element-in-an-array",
+      "title": "Largest Element in an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep the largest value seen during one scan.",
+      "adaptation": "The public optimal Java and both approach explanations were checked. This rejects empty input explicitly; the source requires nonempty input."
+    }
   },
   "40": {
     "problem": "Find the second-largest distinct number in the array. Return -1 if it does not exist.",
