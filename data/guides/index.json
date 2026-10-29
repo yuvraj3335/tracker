@@ -16198,5 +16198,54 @@
       "time": "O(n × (amount + 1)).",
       "space": "Memoization: O(amount + 1) plus recursion depth. Full table: O(n × (amount + 1))."
     }
+  },
+  "404": {
+    "problem": "Put either + or − before every array value. Count the sign assignments whose resulting expression equals the target.",
+    "assumptions": "The pinned LeetCode problem has at most 20 nonnegative values, total sum at most 1000, and target between −1000 and 1000. It asks for the exact count, which is at most 2^20 and fits int. The current TUF practice variant allows larger arrays and asks for a modulus; the primary method here follows the pinned exact-count contract.",
+    "example": {
+      "input": "values = [0,1,2], target = 1",
+      "output": "2",
+      "explanation": "Use +0 −1 +2 or −0 −1 +2. The zero contributes the same numeric value with either sign, but those are different sign assignments."
+    },
+    "baseline": "Recursively give each value a plus sign or a minus sign. Only after assigning every position, compare the resulting sum with the target. Add the counts from both branches. This is direct but tries up to 2^n expressions.",
+    "approach": "Call the sum of values given a plus sign P and the sum of values given a minus sign N. Then P + N = total and P − N = target. Adding these equations gives 2P = total + target.\n\nEvery subset of positions summing to (total + target)/2 gives exactly one sign assignment: use plus for selected positions and minus for the rest. If the target lies outside [−total, total], or total + target is odd, no assignment is possible. A negative target is otherwise perfectly valid.\n\nCount the required subsets using one array. Begin with one way to choose sum zero. For each value x, update sums downward, adding the earlier count for sum − x. The downward scan uses x at most once.\n\nWhen x is zero, an entry adds itself to itself. This correctly doubles the count for choosing +0 or −0. Keep processing every position even after a partial expression reaches the target; the remaining positions still need signs.",
+    "steps": [
+      "Add the values and reject a target outside the achievable signed range.",
+      "Reject an odd total + target.",
+      "Set wanted to (total + target)/2.",
+      "Initialize ways[0] = 1.",
+      "For each value, scan sums downward and add ways[sum − value].",
+      "Return ways[wanted] as an exact integer under the linked bounds."
+    ],
+    "java": "static int findTargetSumWays(int[] values, int target) {\n    int total = 0;\n    for (int value : values) total += value;\n    if (Math.abs((long)target) > total || ((total+target)&1) != 0) return 0;\n    int wanted = (total+target)/2;\n    int[] ways = new int[wanted+1];\n    ways[0] = 1;\n    for (int value : values) {\n        for (int sum = wanted; sum >= value; sum--) {\n            ways[sum] += ways[sum-value];\n        }\n    }\n    return ways[wanted];\n}",
+    "time": "O(n × (total + 1)).",
+    "space": "O(total + 1).",
+    "pitfalls": [
+      "A negative target is allowed; only its magnitude exceeding the total makes it impossible immediately.",
+      "The linked judge asks for exact counts. Do not add a modulus to this contract without a reason.",
+      "Zero has two sign choices, so do not discard it.",
+      "Each position must receive a sign. Reaching the target before the end is not a finished expression.",
+      "The subset loop goes downward because a position receives one sign exactly once."
+    ],
+    "tests": [
+      "assert findTargetSumWays(new int[]{0,1,2},1)==2;assert findTargetSumWays(new int[]{0,1,2},-1)==2;assert findTargetSumWays(new int[]{1,2},0)==0;assert findTargetSumWays(new int[]{1},Integer.MIN_VALUE)==0;",
+      "Random random=new Random(404);\nfor(int trial=0;trial<500;trial++){\n int n=1+random.nextInt(12),total=0;int[] values=new int[n];for(int i=0;i<n;i++){values[i]=random.nextInt(7);total+=values[i];}Map<Integer,Integer> expected=new HashMap<>();\n for(int mask=0;mask<(1<<n);mask++){int sum=0;for(int i=0;i<n;i++)sum+=((mask&(1<<i))!=0?1:-1)*values[i];expected.merge(sum,1,Integer::sum);}\n for(int target=-total-2;target<=total+2;target++){int count=expected.getOrDefault(target,0);assert findTargetSumWays(values,target)==count;assert targetBySignedStates(values,target)==count;if(n<=7)assert targetRecursive(values,0,0,target)==count;}\n}",
+      "int[] zeros=new int[20];assert findTargetSumWays(zeros,0)==1048576;assert targetBySignedStates(zeros,0)==1048576;assert findTargetSumWays(zeros,1)==0;assert findTargetSumWays(new int[]{1000},-1000)==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/target-sum",
+      "title": "Target sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Reduce plus/minus assignments to a subset count, then update a one-dimensional count array.",
+      "adaptation": "The public statement and both hints were checked. Its full Java solution requires sign-in and was not inspected. This implementation follows the hinted reduction and the zero-aware counting pattern checked in the partition-count article. It returns exact counts for the pinned LeetCode limit of 20 positions, rather than the modulus used by the larger TUF variant."
+    },
+    "baselineJava": "static int targetRecursive(int[] values, int index, int sum, int target) {\n    if (index == values.length) return sum == target ? 1 : 0;\n    return targetRecursive(values,index+1,sum+values[index],target)\n         + targetRecursive(values,index+1,sum-values[index],target);\n}",
+    "baselineTime": "O(2^n) time and O(n) stack space.",
+    "better": {
+      "explanation": "You can also keep counts of signed sums directly. For each old sum, add the current value and subtract it, accumulating both counts into a fresh map. This avoids the algebraic reduction and gives a second way to check the answer. A zero writes to the same new key twice, which is correct.",
+      "java": "static int targetBySignedStates(int[] values, int target) {\n    Map<Integer,Integer> ways = new HashMap<>();\n    ways.put(0,1);\n    for (int value : values) {\n        Map<Integer,Integer> next = new HashMap<>();\n        for (Map.Entry<Integer,Integer> entry : ways.entrySet()) {\n            next.merge(entry.getKey()+value,entry.getValue(),Integer::sum);\n            next.merge(entry.getKey()-value,entry.getValue(),Integer::sum);\n        }\n        ways = next;\n    }\n    return ways.getOrDefault(target,0);\n}",
+      "time": "O(n × (total + 1)) expected time with hash maps; sums stay between −total and total.",
+      "space": "O(total + 1)."
+    }
   }
 }
