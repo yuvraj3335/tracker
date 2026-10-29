@@ -14123,5 +14123,51 @@
     },
     "baselineJava": "static long[] dijkstraByScan(int vertices, int[][] edges, int source) {\n    List<List<int[]>> graph = weightedUndirected(vertices,edges);\n    long[] distance = new long[vertices];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    if (vertices == 0) return distance;\n    boolean[] settled = new boolean[vertices];\n    distance[source] = 0;\n    for (int pass = 0; pass < vertices; pass++) {\n        int vertex = -1;\n        for (int v = 0; v < vertices; v++)\n            if (!settled[v] && (vertex == -1 || distance[v] < distance[vertex])) vertex = v;\n        if (vertex == -1 || distance[vertex] == Long.MAX_VALUE) break;\n        settled[vertex] = true;\n        for (int[] edge : graph.get(vertex)) {\n            if (!settled[edge[0]]) distance[edge[0]] = Math.min(distance[edge[0]],distance[vertex]+edge[1]);\n        }\n    }\n    return distance;\n}",
     "baselineTime": "O(V² + E) time and O(V + E) storage. This is the same greedy selection rule without a heap."
+  },
+  "361": {
+    "problem": "Find the shortest clear path from the top-left to the bottom-right cell of the linked binary-matrix problem.",
+    "assumptions": "The pinned LeetCode problem uses 0 as open, permits eight directions including diagonals, and counts visited cells. Striver’s current maze article uses 1 as open, four directions, arbitrary endpoints, and counts moves. Both contracts are included explicitly; the primary method follows the pinned link and leaves the input unchanged.",
+    "example": {
+      "input": "grid = [[0,1], [1,0]]",
+      "output": "2",
+      "explanation": "The two open cells touch at a corner, so the linked problem allows one diagonal move. The path contains two cells. Under four-direction movement, that diagonal alone would not be a route."
+    },
+    "baseline": "Repeatedly scan reachable open cells and improve their neighbors’ distances until no distance changes. At most N²−1 rounds suffice for simple paths, but this can take O(N⁴). BFS processes cells in distance order and avoids those repeated scans.",
+    "approach": "Every allowed move costs one, so use BFS. Mark the starting distance as zero moves and enqueue it. For each removed cell, inspect its allowed neighbors, skipping blocked cells and cells already assigned a distance.\n\nThe first time the destination is reached gives the minimum number of moves. The pinned problem asks for cells in the path, so add one to that move count. This makes a single open cell return 1.\n\nThe shared helper makes the variant choices explicit. shortestPathBinaryMatrix uses open value 0 and eight directions. mazeDistance uses open value 1 and four directions, returning moves directly. Mixing any of these choices changes the problem.",
+    "steps": [
+      "Reject blocked endpoints before starting.",
+      "Run BFS with the required open value and movement directions.",
+      "Assign each neighbor’s distance before enqueuing it.",
+      "For the pinned matrix task, convert moves to visited cells by adding one."
+    ],
+    "java": "static int shortestPathBinaryMatrix(int[][] grid) {\n    if (grid.length == 0 || grid[0].length == 0) return -1;\n    int moves = gridDistance(grid,0,0,grid.length-1,grid[0].length-1,0,true);\n    return moves < 0 ? -1 : moves+1;\n}\nstatic int gridDistance(int[][] grid, int sr, int sc, int tr, int tc, int open, boolean diagonal) {\n    int rows = grid.length, cols = grid[0].length;\n    if (grid[sr][sc] != open || grid[tr][tc] != open) return -1;\n    int[][] distance = new int[rows][cols];\n    for (int[] row : distance) Arrays.fill(row,-1);\n    Deque<int[]> queue = new ArrayDeque<>();\n    distance[sr][sc] = 0;\n    queue.add(new int[]{sr,sc});\n    while (!queue.isEmpty()) {\n        int[] cell = queue.remove();\n        if (cell[0] == tr && cell[1] == tc) return distance[tr][tc];\n        for (int dr = -1; dr <= 1; dr++) for (int dc = -1; dc <= 1; dc++) {\n            if (dr == 0 && dc == 0) continue;\n            if (!diagonal && Math.abs(dr)+Math.abs(dc) != 1) continue;\n            int r = cell[0]+dr, c = cell[1]+dc;\n            if (r >= 0 && r < rows && c >= 0 && c < cols && grid[r][c] == open && distance[r][c] == -1) {\n                distance[r][c] = distance[cell[0]][cell[1]]+1;\n                queue.add(new int[]{r,c});\n            }\n        }\n    }\n    return -1;\n}",
+    "time": "O(N²) for the square pinned matrix; O(R × C) for the rectangular maze variant.",
+    "space": "O(R × C) for distances and the queue.",
+    "pitfalls": [
+      "The article and pinned problem disagree on open value, directions, endpoints, and what the length counts.",
+      "A single open matrix cell returns 1; equal walkable maze endpoints return 0 moves.",
+      "Diagonal movement is allowed even when both neighboring side cells are blocked in the pinned problem.",
+      "Do not modify the input if it is needed for another query."
+    ],
+    "tests": [
+      "assert shortestPathBinaryMatrix(new int[][]{{0,1},{1,0}})==2;assert shortestPathBinaryMatrix(new int[][]{{0}})==1;assert shortestPathBinaryMatrix(new int[][]{{1}})==-1;assert mazeDistance(new int[][]{{1}},new int[]{0,0},new int[]{0,0})==0;assert mazeDistance(new int[][]{{0}},new int[]{0,0},new int[]{0,0})==-1;",
+      "for(int n=1;n<=3;n++)for(int mask=0;mask<(1<<(n*n));mask++){\n int cells=n*n;int[][]grid=new int[n][n];for(int i=0;i<cells;i++)grid[i/n][i%n]=(mask>>i)&1;\n for(int open=0;open<=1;open++){\n  int[][]distance=new int[cells][cells];for(int i=0;i<cells;i++){Arrays.fill(distance[i],1000);if(grid[i/n][i%n]==open)distance[i][i]=0;for(int j=0;j<cells;j++){int dr=Math.abs(i/n-j/n),dc=Math.abs(i%n-j%n);boolean adjacent=open==0?Math.max(dr,dc)==1:dr+dc==1;if(adjacent&&grid[i/n][i%n]==open&&grid[j/n][j%n]==open)distance[i][j]=1;}}\n  for(int k=0;k<cells;k++)for(int i=0;i<cells;i++)for(int j=0;j<cells;j++)distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);\n  if(open==0){int expected=distance[0][cells-1]>=1000?-1:distance[0][cells-1]+1;assert shortestPathBinaryMatrix(grid)==expected;assert matrixByRounds(grid)==expected;}\n  else for(int i=0;i<cells;i++)for(int j=0;j<cells;j++){int expected=distance[i][j]>=1000?-1:distance[i][j];assert mazeDistance(grid,new int[]{i/n,i%n},new int[]{j/n,j%n})==expected;}\n }\n for(int i=0;i<cells;i++)assert grid[i/n][i%n]==((mask>>i)&1);\n}",
+      "assert shortestPathBinaryMatrix(new int[100][100])==100;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/shortest-distance-binary-maze",
+      "title": "Shortest Distance in a Binary Maze Using BFS",
+      "checkedOn": "2026-10-29",
+      "approach": "Use BFS for unit-cost grid movement, with explicit endpoint and movement rules.",
+      "adaptation": "The complete public maze Java and the pinned LeetCode 1091 statement were checked. The primary wrapper adapts the article’s BFS to zero-open, eight-direction, cell-count semantics. The separate maze wrapper retains one-open, four-direction, move-count semantics. The repeated-relaxation baseline is an authored comparison."
+    },
+    "baselineJava": "static int matrixByRounds(int[][] grid) {\n    int n = grid.length;\n    if (n == 0 || grid[0][0] != 0 || grid[n-1][n-1] != 0) return -1;\n    int limit = n*n;\n    int[][] distance = new int[n][n];\n    for (int[] row : distance) Arrays.fill(row,limit);\n    distance[0][0] = 0;\n    for (int round = 1; round < limit; round++) {\n        boolean changed = false;\n        for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) {\n            if (distance[r][c] == limit) continue;\n            for (int dr = -1; dr <= 1; dr++) for (int dc = -1; dc <= 1; dc++) {\n                int nr = r+dr, nc = c+dc;\n                if (nr >= 0 && nr < n && nc >= 0 && nc < n && grid[nr][nc] == 0\n                        && distance[r][c]+1 < distance[nr][nc]) {\n                    distance[nr][nc] = distance[r][c]+1; changed = true;\n                }\n            }\n        }\n        if (!changed) break;\n    }\n    return distance[n-1][n-1] == limit ? -1 : distance[n-1][n-1]+1;\n}",
+    "baselineTime": "O(N⁴) worst-case time and O(N²) distance storage.",
+    "better": {
+      "explanation": "Different contract: the current Striver maze article takes arbitrary valid source and destination coordinates, treats 1 as walkable, allows only four directions, and counts moves. The shared BFS helper implements these choices directly. This is a variant wrapper, not an optimization of the eight-direction problem.",
+      "java": "static int mazeDistance(int[][] grid, int[] source, int[] destination) {\n    if (grid.length == 0 || grid[0].length == 0) return -1;\n    return gridDistance(grid,source[0],source[1],destination[0],destination[1],1,false);\n}",
+      "time": "O(R × C).",
+      "space": "O(R × C)."
+    }
   }
 }
