@@ -16247,5 +16247,53 @@
       "time": "O(n × (total + 1)) expected time with hash maps; sums stay between −total and total.",
       "space": "O(total + 1)."
     }
+  },
+  "405": {
+    "problem": "Count the ways to make an exact amount with unlimited copies of distinct coin denominations. Count combinations of coins, not different orders of the same coins.",
+    "assumptions": "The linked problem uses distinct positive denominations, at most 300 types, and amount from 0 to 5000. The final answer fits a signed int. BigInteger storage keeps intermediate counts exact as well; a bound on the final answer does not bound every smaller-amount entry in a full table. The input is unchanged.",
+    "example": {
+      "input": "coins = [2,3,5], amount = 8",
+      "output": "3",
+      "explanation": "The combinations are four 2s, two 3s with one 2, and one 5 with one 3. Reordering any of these does not make another combination."
+    },
+    "baseline": "At a coin index, either skip that denomination and move to the previous index, or take one copy and keep the same index. Keeping the index permits reuse. Amount zero contributes one completed combination. With no coin types left, a positive amount contributes zero.",
+    "approach": "Let ways[s] count combinations that make s using only the coin types processed so far. Before processing coins, ways[0] is one because choosing nothing makes zero; every other amount has zero combinations.\n\nProcess one denomination at a time. For coin x, visit amounts x, x + 1, and so on. The old ways[s] counts combinations without x. The already-updated ways[s − x] counts combinations that may use x; adding one more x gives every combination that uses it at least once. These two groups do not overlap.\n\nCoins stay in a fixed processing order, so each denomination-count combination is built once. If amounts were outside and coins inside, the transitions could count different orders of the same coins. A downward amount loop would solve a different problem where each denomination can be taken only once.\n\nThe source Java uses long counts. Here BigInteger keeps every table entry exact, including entries that are larger than the final requested answer. intValueExact converts only the final answer, using the linked judge’s guarantee.",
+    "steps": [
+      "Create one zero count per amount and set ways[0] = 1.",
+      "Process each distinct coin type once.",
+      "Scan amounts upward from that coin’s value.",
+      "Add ways[amount − coin] to the current amount’s count.",
+      "Convert the final count to int for the pinned judge."
+    ],
+    "java": "static int change(int amount, int[] coins) {\n    return coinCombinationsExact(amount,coins).intValueExact();\n}\nstatic BigInteger coinCombinationsExact(int amount, int[] coins) {\n    BigInteger[] ways = new BigInteger[amount+1];\n    Arrays.fill(ways,BigInteger.ZERO);\n    ways[0] = BigInteger.ONE;\n    for (int coin : coins) {\n        for (int sum = coin; sum <= amount; sum++) {\n            ways[sum] = ways[sum].add(ways[sum-coin]);\n        }\n    }\n    return ways[amount];\n}",
+    "time": "O(n × (amount + 1)) additions. With exact counts of at most B bits, the bit cost is O(n × (amount + 1) × B).",
+    "space": "O(amount + 1) count entries, or O((amount + 1) × B) bits for the stored values.",
+    "pitfalls": [
+      "Amount zero has one combination: choose no coins.",
+      "The input denominations must be distinct; repeating a type would count its allocations separately.",
+      "Taking keeps the same index in recursion because supply is unlimited.",
+      "Do not confuse this combination count with the minimum number of coins or with an ordered-sequence count.",
+      "Recursive variants are for understanding and small tests; use iteration for the full amount bound."
+    ],
+    "tests": [
+      "assert change(8,new int[]{2,3,5})==3;assert change(3,new int[]{1,2})==2;assert change(0,new int[]{2,7})==1;assert change(7,new int[]{2,4})==0;assert change(0,new int[]{})==1;",
+      "class QuantityOracle { long count(int[] coins,int index,int remaining){if(index==coins.length)return remaining==0?1:0;long ways=0;for(int used=0;used<=remaining/coins[index];used++)ways+=count(coins,index+1,remaining-used*coins[index]);return ways;} }\nQuantityOracle oracle=new QuantityOracle();Random random=new Random(405);\nfor(int trial=0;trial<1000;trial++){\n List<Integer> candidates=new ArrayList<>(List.of(1,2,3,4,5,6,7,8));Collections.shuffle(candidates,random);int n=1+random.nextInt(5);int[] coins=new int[n];for(int i=0;i<n;i++)coins[i]=candidates.get(i);int amount=random.nextInt(26);long expected=oracle.count(coins,0,amount);int[] saved=coins.clone();BigInteger answer=BigInteger.valueOf(expected);\n assert change(amount,coins)==expected;assert coinCombinationsExact(amount,coins).equals(answer);assert combinationsMemoized(amount,coins).equals(answer);assert combinationsTable(amount,coins).equals(answer);if(amount<=12)assert combinationsRecursive(coins,n-1,amount).equals(answer);assert Arrays.equals(saved,coins);\n}",
+      "int[] coins=new int[300];for(int i=0;i<299;i++)coins[i]=2*(i+1);coins[299]=4999;assert change(4999,coins)==1;assert coinCombinationsExact(4998,coins).compareTo(BigInteger.valueOf(Long.MAX_VALUE))>0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/coin-change-ii-combinations",
+      "title": "Coin Change II: Count Combinations for a Given Amount",
+      "checkedOn": "2026-10-29",
+      "approach": "Skip moves to an earlier coin; take keeps the same coin. Tabulation reads the current row for reuse, then compresses to one ascending array.",
+      "adaptation": "All four complete public Java methods were checked. The recurrence and coin-first ascending order are preserved. This version starts from an empty coin prefix and uses BigInteger instead of long so every intermediate count remains exact; the judge wrapper returns int under the pinned final-answer guarantee."
+    },
+    "baselineJava": "static BigInteger combinationsRecursive(int[] coins, int index, int remaining) {\n    if (remaining == 0) return BigInteger.ONE;\n    if (index < 0) return BigInteger.ZERO;\n    BigInteger skip = combinationsRecursive(coins,index-1,remaining);\n    BigInteger take = coins[index] <= remaining\n        ? combinationsRecursive(coins,index,remaining-coins[index]) : BigInteger.ZERO;\n    return skip.add(take);\n}",
+    "baselineTime": "O(2^(n + amount/minCoin)) calls as an upper bound and O(n + amount/minCoin) stack depth, plus the cost of exact-count arithmetic.",
+    "better": {
+      "explanation": "Memoization saves coin-prefix and remaining-amount counts. In the full table, the skip term comes from the previous row while the take term comes from the current row. That current-row dependency is why amounts must increase. BigInteger needs import java.math.BigInteger in all snippets.",
+      "java": "static BigInteger combinationsMemoized(int amount, int[] coins) {\n    return combinationsMemo(coins,coins.length-1,amount,new BigInteger[coins.length][amount+1]);\n}\nstatic BigInteger combinationsMemo(int[] coins, int index, int remaining, BigInteger[][] memo) {\n    if (remaining == 0) return BigInteger.ONE;\n    if (index < 0) return BigInteger.ZERO;\n    if (memo[index][remaining] != null) return memo[index][remaining];\n    BigInteger skip = combinationsMemo(coins,index-1,remaining,memo);\n    BigInteger take = coins[index] <= remaining\n        ? combinationsMemo(coins,index,remaining-coins[index],memo) : BigInteger.ZERO;\n    return memo[index][remaining] = skip.add(take);\n}\nstatic BigInteger combinationsTable(int amount, int[] coins) {\n    BigInteger[][] dp = new BigInteger[coins.length+1][amount+1];\n    for (BigInteger[] row : dp) { Arrays.fill(row,BigInteger.ZERO); row[0] = BigInteger.ONE; }\n    for (int used = 1; used <= coins.length; used++) {\n        int coin = coins[used-1];\n        for (int sum = 1; sum <= amount; sum++) {\n            BigInteger take = coin <= sum ? dp[used][sum-coin] : BigInteger.ZERO;\n            dp[used][sum] = dp[used-1][sum].add(take);\n        }\n    }\n    return dp[coins.length][amount];\n}",
+      "time": "O(n × (amount + 1)) additions; multiply by B for bit complexity.",
+      "space": "O(n × (amount + 1)) count entries, plus recursion depth for memoization."
+    }
   }
 }
