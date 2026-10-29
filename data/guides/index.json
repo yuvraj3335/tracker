@@ -15968,5 +15968,54 @@
       "time": "O(n × (S + 1)).",
       "space": "O(n × (S + 1))."
     }
+  },
+  "399": {
+    "problem": "For the tracker’s linked problem, split 2n values into two groups of exactly n values each and minimize the absolute difference between their sums.",
+    "assumptions": "The pinned link is LeetCode 2035: n ≤ 15 and values may be negative, between −10,000,000 and 10,000,000. Striver’s current sheet instead links to the nonnegative, unrestricted-group-size variant. Both versions are explained here. The primary minimumDifference method solves the pinned equal-size problem; minDifferenceNonnegative below solves the current sheet’s variant.",
+    "example": {
+      "input": "values = [1,2,3,8]",
+      "output": "4 for equal-size groups; 2 without the size restriction",
+      "explanation": "With two values per group, choose [1,8] and [2,3], giving sums 9 and 5. Without the size rule, [8] and [1,2,3] give sums 8 and 6. These are different answers to different contracts."
+    },
+    "baseline": "Enumerate which n of the 2n positions go into the first group. For each complete choice, compare its sum with the sum of all remaining positions. This is correct with negative values, but inspecting all choices is too slow at 30 positions.",
+    "approach": "If one group sums to selected and the total is S, the other group sums to S − selected. Their difference is |S − 2 × selected|. We want selected as close to S/2 as possible, while selecting exactly n positions.\n\nSplit the input into two halves of n positions. Enumerate every subset in each half and group its sum by how many positions it used. A left subset using k positions can only pair with a right subset using n − k positions. This count is what the ordinary subset-sum boolean table would lose.\n\nSort each right-hand group of sums. For every left sum, binary-search the matching right group for the point where twice their combined sum reaches the total. Check that position and the previous one: one is the closest sum on or above the target, the other is the closest below. Compare using long arithmetic, so negative totals need no tricky rounded division.\n\nFor the current Striver variant, all values are nonnegative and group sizes are unrestricted. The simpler solution shown under another approach marks reachable sums up to S/2, then uses the largest reachable one. That variant must not be submitted to the tracker’s equal-size judge.",
+    "steps": [
+      "Split the 2n positions into two halves.",
+      "Enumerate each half’s subsets and bucket sums by subset size.",
+      "Sort the right-half buckets.",
+      "For each left sum using k positions, search the right bucket using n − k positions.",
+      "Check the two neighboring sums around half the total and minimize the absolute difference."
+    ],
+    "java": "static List<List<Long>> sumsByCount(int[] values, int offset, int count) {\n    List<List<Long>> buckets = new ArrayList<>();\n    for (int used = 0; used <= count; used++) buckets.add(new ArrayList<>());\n    for (int mask = 0; mask < (1 << count); mask++) {\n        long sum = 0;\n        for (int bit = 0; bit < count; bit++) {\n            if ((mask & (1 << bit)) != 0) sum += values[offset+bit];\n        }\n        buckets.get(Integer.bitCount(mask)).add(sum);\n    }\n    return buckets;\n}\nstatic int minimumDifference(int[] values) {\n    int half = values.length/2;\n    long total = 0;\n    for (int value : values) total += value;\n    List<List<Long>> left = sumsByCount(values,0,half);\n    List<List<Long>> right = sumsByCount(values,half,half);\n    for (List<Long> bucket : right) Collections.sort(bucket);\n    long answer = Long.MAX_VALUE;\n    for (int picked = 0; picked <= half; picked++) {\n        List<Long> choices = right.get(half-picked);\n        for (long leftSum : left.get(picked)) {\n            int low = 0, high = choices.size();\n            while (low < high) {\n                int mid = low + (high-low)/2;\n                if (2 * (leftSum + choices.get(mid)) < total) low = mid+1;\n                else high = mid;\n            }\n            if (low < choices.size()) {\n                answer = Math.min(answer,Math.abs(total-2*(leftSum+choices.get(low))));\n            }\n            if (low > 0) {\n                answer = Math.min(answer,Math.abs(total-2*(leftSum+choices.get(low-1))));\n            }\n        }\n    }\n    return Math.toIntExact(answer);\n}",
+    "time": "O(n × 2^n), where the input has 2n values: enumerate, sort buckets, and binary-search matching buckets.",
+    "space": "O(2^n) for both collections of subset sums.",
+    "pitfalls": [
+      "Check the linked contract before choosing a DP: equal-size groups and negative values change this problem.",
+      "Pair bucket k only with bucket n − k; otherwise the chosen group may have the wrong size.",
+      "Test both neighbors of the binary-search boundary.",
+      "A sum-indexed array from 0 to S does not represent negative subset sums.",
+      "For equal-size groups, adding the same constant to every value leaves the difference unchanged because both groups receive n copies of that constant."
+    ],
+    "tests": [
+      "assert minimumDifference(new int[]{1,2,3,8})==4;assert minDifferenceNonnegative(new int[]{1,2,3,8})==2;assert minimumDifference(new int[]{-36,36})==72;assert minimumDifference(new int[]{-10000000,10000000})==20000000;",
+      "Random random=new Random(399);\nfor(int trial=0;trial<500;trial++){\n int half=1+random.nextInt(7),n=2*half;int[] values=new int[n];long total=0;for(int i=0;i<n;i++){values[i]=random.nextInt(61)-30;total+=values[i];}int[] copy=values.clone();long expected=Long.MAX_VALUE;\n for(int mask=0;mask<(1<<n);mask++)if(Integer.bitCount(mask)==half){long first=0,second=0;for(int i=0;i<n;i++){if((mask&(1<<i))!=0)first+=values[i];else second+=values[i];}expected=Math.min(expected,Math.abs(first-second));}\n assert minimumDifference(values)==expected;assert minimumDifferenceBrute(values)==expected;assert Arrays.equals(values,copy);\n for(int i=0;i<n;i++)values[i]+=12345;assert minimumDifference(values)==expected;\n}",
+      "Random random=new Random(1399);\nfor(int trial=0;trial<500;trial++){\n int n=1+random.nextInt(12);int[] values=new int[n];int total=0;for(int i=0;i<n;i++){values[i]=random.nextInt(20);total+=values[i];}int expected=Integer.MAX_VALUE;\n for(int mask=0;mask<(1<<n);mask++){int selected=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)selected+=values[i];expected=Math.min(expected,Math.abs(total-2*selected));}\n assert minDifferenceNonnegative(values)==expected;\n}",
+      "int[] values=new int[30];Arrays.fill(values,10000000);assert minimumDifference(values)==0;for(int i=15;i<30;i++)values[i]=-1;for(int i=0;i<15;i++)values[i]=1;assert minimumDifference(values)==2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/partition-a-set-into-two-subsets-with-minimum-absolute-sum-difference",
+      "title": "Partition a set into two subsets with minimum absolute sum difference",
+      "checkedOn": "2026-10-29",
+      "approach": "Source variant: reachable nonnegative subset sums nearest half the total. Pinned variant: meet in the middle with subset-size buckets.",
+      "adaptation": "The current public statement and both DP hints were read; the full solution requires sign-in, so its Java was not inspected. The current sheet links to Last Stone Weight II, whereas this tracker links to LeetCode 2035 with equal group sizes and negative values. The main code is an original solution for the pinned contract. The separately named nonnegative helper implements the source hint and the preceding checked subset-sum Java pattern."
+    },
+    "baselineJava": "static int minimumDifferenceBrute(int[] values) {\n    long total = 0;\n    for (int value : values) total += value;\n    return Math.toIntExact(chooseHalf(values,0,values.length/2,0,total));\n}\nstatic long chooseHalf(int[] values, int index, int needed, long selected, long total) {\n    if (needed == 0) return Math.abs(total-2*selected);\n    if (values.length-index < needed) return Long.MAX_VALUE;\n    return Math.min(chooseHalf(values,index+1,needed-1,selected+values[index],total),\n                    chooseHalf(values,index+1,needed,selected,total));\n}",
+    "baselineTime": "O(2^(2n)) time as an upper bound and O(n) stack space; only suitable for small input.",
+    "better": {
+      "explanation": "This is the current Striver sheet’s different variant: nonnegative values, any group sizes. Once sum s ≤ S/2 is reachable, its complement has sum S − s and the difference is S − 2s. Descending sum updates prevent reuse of a position. Scan backward for the closest reachable sum to half. Do not use this method for the pinned equal-size problem.",
+      "java": "static int minDifferenceNonnegative(int[] values) {\n    int total = 0;\n    for (int value : values) total += value;\n    int half = total/2;\n    boolean[] possible = new boolean[half+1];\n    possible[0] = true;\n    for (int value : values) {\n        for (int sum = half; sum >= value; sum--) {\n            possible[sum] |= possible[sum-value];\n        }\n    }\n    for (int sum = half; sum >= 0; sum--) {\n        if (possible[sum]) return total-2*sum;\n    }\n    throw new AssertionError(\"The empty subset must remain reachable\");\n}",
+      "time": "O(length × (S + 1)) under the source’s bounded total S.",
+      "space": "O(S + 1)."
+    }
   }
 }
