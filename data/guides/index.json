@@ -15639,5 +15639,119 @@
       "time": "O(rows × cols).",
       "space": "O(rows × cols); memoization additionally uses O(rows + cols) recursion space."
     }
+  },
+  "393": {
+    "problem": "Find the cheapest path from the top-left cell to the bottom-right cell when each move goes right or down. Include both endpoint values in the sum.",
+    "assumptions": "This is the tracker’s linked LeetCode 64 problem: a nonempty rectangular grid, at most 200 rows and columns, with values from 0 to 200. Its path sums fit in int. The input is left unchanged. Do not confuse this with a falling path, which may use diagonal moves.",
+    "example": {
+      "input": "grid = [[3,1,9], [6,2,1]]",
+      "output": "7",
+      "explanation": "Move right, down, right. The visited values are 3, 1, 2 and 1. Their sum is 7. Taking the smallest immediate neighbor alone does not prove that the rest of the route is cheap."
+    },
+    "baseline": "Ask for the cheapest cost to reach the destination. Its last move came from above or from the left. Recursively solve both smaller problems and add the destination value to the cheaper result. Repeated cells make plain recursion slow.",
+    "approach": "Let dp[r][c] mean the cheapest total needed to reach cell (r,c). Every path to that cell must finish with one of the two allowed moves. After paying grid[r][c], the only choice is whether the cheaper earlier path ends above or to the left.\n\nStart with the top-left value. Along the top row there is only a left predecessor; along the first column there is only an upper predecessor. Interior cells take the smaller of the two totals. We compare complete earlier path costs, not just the neighboring cell values.\n\nVisit rows from top to bottom and columns from left to right. A one-row array is enough: before updating dp[c], it holds the upper total. dp[c - 1] has already become the left total for the current row. Handle the grid edges explicitly so a missing predecessor never looks like a free path.",
+    "steps": [
+      "Put the starting cell’s value into dp[0].",
+      "On the top row, extend the path from the left.",
+      "In the first column of a later row, extend the path from above.",
+      "For other cells, add the cell value to min(above, left).",
+      "Return the last column after processing the final row."
+    ],
+    "java": "static int minPathSum(int[][] grid) {\n    int[] dp = new int[grid[0].length];\n    for (int r = 0; r < grid.length; r++) {\n        for (int col = 0; col < dp.length; col++) {\n            if (r == 0 && col == 0) dp[col] = grid[r][col];\n            else if (r == 0) dp[col] = grid[r][col] + dp[col-1];\n            else if (col == 0) dp[col] += grid[r][col];\n            else dp[col] = grid[r][col] + Math.min(dp[col], dp[col-1]);\n        }\n    }\n    return dp[dp.length-1];\n}",
+    "time": "O(rows × cols).",
+    "space": "O(cols).",
+    "pitfalls": [
+      "The starting cell costs grid[0][0], not zero.",
+      "Only right and down are legal. The minimum-falling-path recurrence solves a different problem.",
+      "Compare accumulated costs rather than choosing the smallest next cell greedily.",
+      "These int sums rely on the linked constraints; wider values need long."
+    ],
+    "tests": [
+      "assert minPathSum(new int[][]{{3,1,9},{6,2,1}})==7;assert minPathSum(new int[][]{{8}})==8;assert minPathSum(new int[][]{{0,0},{0,0}})==0;",
+      "Random random=new Random(393);\nfor(int trial=0;trial<1200;trial++){\n int rows=1+random.nextInt(5),cols=1+random.nextInt(5);int[][] grid=new int[rows][cols],saved=new int[rows][cols];for(int r=0;r<rows;r++)for(int col=0;col<cols;col++)saved[r][col]=grid[r][col]=random.nextInt(201);\n int moves=rows+cols-2,expected=Integer.MAX_VALUE;\n for(int mask=0;mask<(1<<moves);mask++)if(Integer.bitCount(mask)==rows-1){int r=0,col=0,sum=grid[0][0];for(int k=0;k<moves;k++){if((mask&(1<<k))!=0)r++;else col++;sum+=grid[r][col];}expected=Math.min(expected,sum);}\n assert minPathSum(grid)==expected;assert minPathSumTabulated(grid)==expected;assert minPathSumMemoized(grid)==expected;assert gridCostRecursive(grid,rows-1,cols-1)==expected;assert Arrays.deepEquals(grid,saved);\n}",
+      "int[][] grid=new int[200][200];for(int[] row:grid)Arrays.fill(row,200);assert minPathSum(grid)==79800;"
+    ],
+    "reference": {
+      "url": "https://leetcode.com/problems/minimum-path-sum/",
+      "title": "Minimum Path Sum — tracker problem and source difference",
+      "checkedOn": "2026-10-29",
+      "approach": "Right/down grid DP: recursion, saved cell answers, a full table, then one rolling row.",
+      "adaptation": "The pinned LeetCode statement and constraints were checked. Striver’s old DP-10 grid URL returned Page Not Found; the current blog titled Minimum Path Sum instead describes falling paths. No matching public Striver Java was available to inspect for this entry. This original Java uses the right/down dependencies taught in the preceding grid lessons and solves the tracker’s actual problem."
+    },
+    "baselineJava": "static int gridCostRecursive(int[][] grid, int r, int col) {\n    if (r == 0 && col == 0) return grid[0][0];\n    if (r == 0) return grid[r][col] + gridCostRecursive(grid,r,col-1);\n    if (col == 0) return grid[r][col] + gridCostRecursive(grid,r-1,col);\n    return grid[r][col] + Math.min(gridCostRecursive(grid,r-1,col),\n                                  gridCostRecursive(grid,r,col-1));\n}",
+    "baselineTime": "O(2^(rows + cols)) time as an upper bound; O(rows + cols) stack space.",
+    "better": {
+      "explanation": "Memoization saves the cheapest arrival cost for each cell. Tabulation uses exactly the same meaning, filling the upper and left neighbors first. The primary method then keeps just one row of this table.",
+      "java": "static int minPathSumMemoized(int[][] grid) {\n    int[][] memo = new int[grid.length][grid[0].length];\n    for (int[] row : memo) Arrays.fill(row,-1);\n    return gridCostMemo(grid,grid.length-1,grid[0].length-1,memo);\n}\nstatic int gridCostMemo(int[][] grid, int r, int col, int[][] memo) {\n    if (r == 0 && col == 0) return grid[0][0];\n    if (memo[r][col] != -1) return memo[r][col];\n    int earlier;\n    if (r == 0) earlier = gridCostMemo(grid,r,col-1,memo);\n    else if (col == 0) earlier = gridCostMemo(grid,r-1,col,memo);\n    else earlier = Math.min(gridCostMemo(grid,r-1,col,memo),\n                            gridCostMemo(grid,r,col-1,memo));\n    return memo[r][col] = grid[r][col] + earlier;\n}\nstatic int minPathSumTabulated(int[][] grid) {\n    int[][] dp = new int[grid.length][grid[0].length];\n    for (int r = 0; r < grid.length; r++) for (int col = 0; col < grid[0].length; col++) {\n        if (r == 0 && col == 0) dp[r][col] = grid[r][col];\n        else if (r == 0) dp[r][col] = grid[r][col] + dp[r][col-1];\n        else if (col == 0) dp[r][col] = grid[r][col] + dp[r-1][col];\n        else dp[r][col] = grid[r][col] + Math.min(dp[r-1][col],dp[r][col-1]);\n    }\n    return dp[grid.length-1][grid[0].length-1];\n}",
+      "time": "O(rows × cols).",
+      "space": "O(rows × cols); memoization also needs O(rows + cols) stack space."
+    }
+  },
+  "394": {
+    "problem": "Start at the top of a triangle and find the smallest sum on a path to its last row. From column c, the next row may use column c or c + 1.",
+    "assumptions": "The nonempty triangle has r + 1 entries in row r. Values may be negative. The linked judge has at most 200 rows and values from −10,000 to 10,000, so int is sufficient. The source uses int[][]; a List<List<Integer>> overload below fits the linked LeetCode input. Neither changes the input.",
+    "example": {
+      "input": "triangle = [[4], [2,7], [8,1,3]]",
+      "output": "7",
+      "explanation": "Take 4 → 2 → 1. From the 2 in column 0, both 8 in column 0 and 1 in column 1 are allowed. The smaller complete route costs 7."
+    },
+    "baseline": "From each position, recursively try both children and return the smaller remaining sum plus the current value. A last-row cell has no more moves, so its own value is the answer. This explores every route but repeats shared positions.",
+    "approach": "Think of a cell’s answer as: what is the cheapest total from here to the bottom, including this cell? Once the two children’s answers are known, add the current value to the smaller one. You are choosing the cheaper whole continuation, not the smaller child value alone.\n\nBegin with the last row, whose answers are already known. Work upward. Each parent reads columns c and c + 1 in the row below. The row is one cell shorter each time, so both children always exist.\n\nKeep the completed lower row in below and write the current row into a fresh array. Replace below only after that row is finished. After reaching the top, below[0] is the only possible starting answer. Negative values need no special path rule: every route still moves downward and finishes.",
+    "steps": [
+      "Copy the last row into below.",
+      "For each earlier row, allocate one answer per position in that row.",
+      "Set current[c] to the cell value plus min(below[c], below[c + 1]).",
+      "Replace below with the completed current row.",
+      "Return below[0] at the top."
+    ],
+    "java": "static int minimumTotal(int[][] triangle) {\n    int[] below = triangle[triangle.length-1].clone();\n    for (int r = triangle.length-2; r >= 0; r--) {\n        int[] current = new int[r+1];\n        for (int col = 0; col <= r; col++) {\n            current[col] = triangle[r][col] + Math.min(below[col],below[col+1]);\n        }\n        below = current;\n    }\n    return below[0];\n}\n\nstatic int minimumTotal(List<List<Integer>> triangle) {\n    int n = triangle.size();\n    int[] below = new int[n];\n    for (int col = 0; col < n; col++) below[col] = triangle.get(n-1).get(col);\n    for (int r = n-2; r >= 0; r--) {\n        int[] current = new int[r+1];\n        for (int col = 0; col <= r; col++) {\n            current[col] = triangle.get(r).get(col) + Math.min(below[col],below[col+1]);\n        }\n        below = current;\n    }\n    return below[0];\n}",
+    "time": "O(n²), where n is the number of rows. The List overload assumes the judge’s usual constant-time indexed lists.",
+    "space": "O(n) for two rows.",
+    "pitfalls": [
+      "Choose the smaller remaining total, not the smaller next number. For [[0],[1,2],[100,100,0]], going through 2 gives the cheaper path.",
+      "The last row supplies actual values, not zeroes.",
+      "A valid sum can be −1. Memoization therefore uses separate completion markers.",
+      "The answer may end anywhere in the final row; it is not forced to the bottom-right cell."
+    ],
+    "tests": [
+      "assert minimumTotal(new int[][]{{4},{2,7},{8,1,3}})==7;assert minimumTotal(new int[][]{{0},{1,2},{100,100,0}})==2;assert minimumTotal(new int[][]{{-1}})==-1;",
+      "Random random=new Random(394);\nfor(int trial=0;trial<1200;trial++){\n int n=1+random.nextInt(9);int[][] triangle=new int[n][];List<List<Integer>> lists=new ArrayList<>();for(int r=0;r<n;r++){triangle[r]=new int[r+1];List<Integer> row=new ArrayList<>();for(int col=0;col<=r;col++){triangle[r][col]=random.nextInt(41)-20;row.add(triangle[r][col]);}lists.add(row);}\n int expected=Integer.MAX_VALUE;for(int mask=0;mask<(1<<(n-1));mask++){int col=0,sum=triangle[0][0];for(int r=1;r<n;r++){if((mask&(1<<(r-1)))!=0)col++;sum+=triangle[r][col];}expected=Math.min(expected,sum);}\n assert minimumTotal(triangle)==expected;assert minimumTotal(lists)==expected;assert triangleMemoized(triangle)==expected;assert triangleTabulated(triangle)==expected;assert triangleRecursive(triangle,0,0)==expected;\n for(int r=0;r<n;r++)for(int col=0;col<=r;col++)assert triangle[r][col]==lists.get(r).get(col);\n}",
+      "int[][] t=new int[200][];for(int r=0;r<200;r++){t[r]=new int[r+1];Arrays.fill(t[r],-10000);}assert minimumTotal(t)==-2000000;assert triangleMemoized(t)==-2000000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/triangle-minimum-path-sum",
+      "title": "Triangle Minimum Path Sum Using Dynamic Programming",
+      "checkedOn": "2026-10-29",
+      "approach": "Recursion, memoization with completion markers, bottom-up tabulation, and two rolling rows.",
+      "adaptation": "All four complete public Java methods were checked. The same downward state and upward table order are used here with original examples. The additional List overload adapts the source’s array input to LeetCode without copying the whole triangle."
+    },
+    "baselineJava": "static int triangleRecursive(int[][] triangle, int r, int col) {\n    if (r == triangle.length-1) return triangle[r][col];\n    return triangle[r][col] + Math.min(triangleRecursive(triangle,r+1,col),\n                                      triangleRecursive(triangle,r+1,col+1));\n}",
+    "baselineTime": "O(2^n) time and O(n) stack space.",
+    "better": {
+      "explanation": "Memoization keeps the same from-here-to-bottom question and marks completed states separately from their values. Tabulation starts with the bottom row and builds the entire table upward. Both explain which values the rolling-row method can discard.",
+      "java": "static int triangleMemoized(int[][] triangle) {\n    int n = triangle.length;\n    return triangleMemo(triangle,0,0,new int[n][n],new boolean[n][n]);\n}\nstatic int triangleMemo(int[][] t, int r, int col, int[][] memo, boolean[][] done) {\n    if (r == t.length-1) return t[r][col];\n    if (done[r][col]) return memo[r][col];\n    memo[r][col] = t[r][col] + Math.min(triangleMemo(t,r+1,col,memo,done),\n                                      triangleMemo(t,r+1,col+1,memo,done));\n    done[r][col] = true;\n    return memo[r][col];\n}\nstatic int triangleTabulated(int[][] t) {\n    int n = t.length;\n    int[][] dp = new int[n][n];\n    dp[n-1] = t[n-1].clone();\n    for (int r = n-2; r >= 0; r--) for (int col = 0; col <= r; col++) {\n        dp[r][col] = t[r][col] + Math.min(dp[r+1][col],dp[r+1][col+1]);\n    }\n    return dp[0][0];\n}",
+      "time": "O(n²).",
+      "space": "O(n²); memoization also uses O(n) stack space."
+    },
+    "trace": {
+      "columns": [
+        "Row being solved",
+        "Completed answers from that row to the bottom"
+      ],
+      "rows": [
+        [
+          "Last row",
+          "[8, 1, 3]"
+        ],
+        [
+          "Middle row",
+          "[2 + min(8,1), 7 + min(1,3)] = [3, 8]"
+        ],
+        [
+          "Top row",
+          "[4 + min(3,8)] = [7]"
+        ]
+      ]
+    }
   }
 }
