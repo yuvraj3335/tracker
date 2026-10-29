@@ -14511,5 +14511,109 @@
       "time": "O(V(V + E) log V) for a simple graph; threshold pruning can reduce actual work.",
       "space": "O(V + E) for adjacency and one source’s heap and distances."
     }
+  },
+  "370": {
+    "problem": "Connect every vertex of an undirected weighted graph using a tree with the smallest possible total edge weight.",
+    "assumptions": "The pinned graph is connected, has positive weights, and uses 0-based vertices. A spanning tree contains every vertex and exactly V − 1 edges. The code also handles zero or negative weights, and explicitly rejects disconnected input as an extension.",
+    "example": {
+      "input": "V = 3, edges = [[0,1,5], [0,2,6], [1,2,2]]",
+      "output": "7",
+      "explanation": "Keep 0–1 and 1–2, costing 5 + 2. All vertices remain connected. Keeping all three edges would create a cycle and cost more."
+    },
+    "baseline": "Choose every possible subset of V − 1 edges, test whether it connects all vertices, and take the smallest total. Connectivity plus V − 1 edges guarantees a tree. This direct definition is useful for tiny examples but has exponentially many subsets.",
+    "approach": "A spanning tree is a set of connections, not a route from a source. It must reach every vertex, contain no cycle, and have V − 1 edges. An MST is the cheapest such set; more than one set may have the same minimum cost.\n\nPrim starts with any vertex and grows one tree. Split the vertices into those already included and those outside. Choose the cheapest edge crossing that split. This choice is safe: if an MST did not use it, adding it creates a cycle; another crossing edge on that cycle can be removed without increasing the cost.\n\nThe heap stores candidate connection costs. When a vertex is accepted, add just the edge that brought it into the tree. Do not add its entire distance from the starting vertex; that would solve a different problem.",
+    "steps": [
+      "Start vertex 0 with a dummy connection of cost 0.",
+      "Remove the cheapest candidate edge; ignore it if its destination is already in the tree.",
+      "Accept the new vertex and add that edge’s weight to the total.",
+      "Offer its edges to vertices still outside the tree.",
+      "Finish after accepting all vertices."
+    ],
+    "java": "static long primWeight(List<List<int[]>> graph) {\n    int vertices = graph.size();\n    if (vertices == 0) return 0;\n    boolean[] included = new boolean[vertices];\n    PriorityQueue<int[]> heap = new PriorityQueue<>(Comparator.comparingInt(a -> a[0]));\n    heap.offer(new int[]{0,0}); // edge cost, destination\n    long total = 0;\n    int count = 0;\n    while (!heap.isEmpty() && count < vertices) {\n        int[] entry = heap.poll();\n        int node = entry[1];\n        if (included[node]) continue;\n        included[node] = true;\n        total += entry[0];\n        count++;\n        for (int[] edge : graph.get(node))\n            if (!included[edge[0]]) heap.offer(new int[]{edge[1],edge[0]});\n    }\n    if (count != vertices) throw new IllegalArgumentException(\"Graph is disconnected\");\n    return total;\n}\nstatic long mstWeight(int vertices, int[][] edges) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int i = 0; i < vertices; i++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(new int[]{edge[1],edge[2]});\n        graph.get(edge[1]).add(new int[]{edge[0],edge[2]});\n    }\n    return primWeight(graph);\n}\n// Entry point used by the linked practice question.\nstatic int spanningTree(int vertices, List<List<List<Integer>>> adj) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int u = 0; u < vertices; u++) {\n        graph.add(new ArrayList<>());\n        for (List<Integer> edge : adj.get(u))\n            graph.get(u).add(new int[]{edge.get(0),edge.get(1)});\n    }\n    return Math.toIntExact(primWeight(graph));\n}",
+    "time": "O(V + E log(E + 2)) with the lazy edge heap; O(E log V) for a connected simple graph.",
+    "space": "O(V + E) for adjacency, the heap, and inclusion flags.",
+    "pitfalls": [
+      "An MST minimizes total chosen edge weight, not all source-to-vertex distances.",
+      "Accept a vertex when its cheapest valid entry is removed, not when first inserted.",
+      "The starting vertex can change which tied MST is chosen, but not its weight.",
+      "A disconnected graph has a spanning forest, not one spanning tree.",
+      "The initial zero-cost heap entry is not a real tree edge."
+    ],
+    "tests": [
+      "int[][]e={{0,1,5},{0,2,6},{1,2,2}};assert mstWeight(3,e)==7;assert mstBySubsets(3,e)==7;List<List<List<Integer>>>adj=List.of(List.of(List.of(1,5),List.of(2,6)),List.of(List.of(0,5),List.of(2,2)),List.of(List.of(0,6),List.of(1,2)));assert spanningTree(3,adj)==7;",
+      "Random random=new Random(370);\nfor(int trial=0;trial<500;trial++){\n int n=1+random.nextInt(6);List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(j==i+1||random.nextBoolean())list.add(new int[]{i,j,random.nextInt(21)-5});int[][]edges=list.toArray(new int[0][]);assert mstWeight(n,edges)==mstBySubsets(n,edges);\n}",
+      "assert mstWeight(3,new int[][]{{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}})==2L*Integer.MAX_VALUE;assert mstWeight(1,new int[0][])==0;boolean rejected=false;try{mstWeight(3,new int[][]{{0,1,1}});}catch(IllegalArgumentException e){rejected=true;}assert rejected;assert mstWeight(3,new int[][]{{0,0,-99},{0,1,8},{0,1,2},{1,2,3}})==5;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-the-mst-weight",
+      "title": "Find the MST Weight",
+      "checkedOn": "2026-10-29",
+      "approach": "Prim grows one tree using the cheapest crossing edge; Kruskal joins components in sorted edge order.",
+      "adaptation": "Both complete public Java methods were checked, along with the practice page’s Java signature. The article uses an edge list; the judge uses List<List<List<Integer>>> adjacency, so both entry points are included. Totals use long internally, and disconnected input is rejected rather than returning a partial tree."
+    },
+    "baselineJava": "static long mstBySubsets(int vertices, int[][] edges) {\n    if (vertices <= 1) return 0;\n    if (edges.length > 22) throw new IllegalArgumentException(\"Use this baseline only on small graphs\");\n    long best = Long.MAX_VALUE;\n    for (int mask = 0; mask < (1 << edges.length); mask++) {\n        if (Integer.bitCount(mask) != vertices-1) continue;\n        boolean[] reached = new boolean[vertices];\n        Queue<Integer> queue = new ArrayDeque<>();\n        reached[0] = true;\n        queue.offer(0);\n        int count = 0;\n        while (!queue.isEmpty()) {\n            int node = queue.poll();\n            count++;\n            for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) {\n                int next = edges[i][0] == node ? edges[i][1] : edges[i][1] == node ? edges[i][0] : -1;\n                if (next >= 0 && !reached[next]) { reached[next] = true; queue.offer(next); }\n            }\n        }\n        if (count != vertices) continue;\n        long total = 0;\n        for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) total += edges[i][2];\n        best = Math.min(best,total);\n    }\n    return best;\n}",
+    "baselineTime": "O(2^E × VE) with the straightforward subset connectivity scan; O(V) extra space. Restricted to at most 22 edges for this teaching baseline."
+  },
+  "371": {
+    "problem": "Use Prim’s algorithm to compute the minimum spanning-tree weight of a connected undirected graph.",
+    "assumptions": "The pinned graph is connected, has positive weights, and uses 0-based vertices. A spanning tree contains every vertex and exactly V − 1 edges. The code also handles zero or negative weights, and explicitly rejects disconnected input as an extension.",
+    "example": {
+      "input": "V = 3, edges = [[0,1,5], [0,2,6], [1,2,2]]",
+      "output": "7",
+      "explanation": "Keep 0–1 and 1–2, costing 5 + 2. All vertices remain connected. Keeping all three edges would create a cycle and cost more."
+    },
+    "baseline": "Choose every possible subset of V − 1 edges, test whether it connects all vertices, and take the smallest total. Connectivity plus V − 1 edges guarantees a tree. This direct definition is useful for tiny examples but has exponentially many subsets.",
+    "approach": "Keep a growing tree and a heap of edges that could attach another vertex. Heap entries store an edge’s weight, not a cumulative path distance.\n\nRemove the cheapest entry. If its destination is already included, it is an obsolete candidate; skip it. Otherwise accept the vertex, add that edge weight, and offer all its edges to vertices still outside. Every accepted edge crosses from the current tree to a new vertex, so it cannot form a cycle.\n\nThe heap can contain several entries for one vertex. This is expected. The included array ensures that only the first valid removal pays for that vertex. Prim’s greedy choice is justified by the cut property: a cheapest edge across the current included/outside split belongs to some MST.",
+    "steps": [
+      "Start vertex 0 with a dummy connection of cost 0.",
+      "Remove the cheapest candidate edge; ignore it if its destination is already in the tree.",
+      "Accept the new vertex and add that edge’s weight to the total.",
+      "Offer its edges to vertices still outside the tree.",
+      "Finish after accepting all vertices."
+    ],
+    "java": "static long primWeight(List<List<int[]>> graph) {\n    int vertices = graph.size();\n    if (vertices == 0) return 0;\n    boolean[] included = new boolean[vertices];\n    PriorityQueue<int[]> heap = new PriorityQueue<>(Comparator.comparingInt(a -> a[0]));\n    heap.offer(new int[]{0,0}); // edge cost, destination\n    long total = 0;\n    int count = 0;\n    while (!heap.isEmpty() && count < vertices) {\n        int[] entry = heap.poll();\n        int node = entry[1];\n        if (included[node]) continue;\n        included[node] = true;\n        total += entry[0];\n        count++;\n        for (int[] edge : graph.get(node))\n            if (!included[edge[0]]) heap.offer(new int[]{edge[1],edge[0]});\n    }\n    if (count != vertices) throw new IllegalArgumentException(\"Graph is disconnected\");\n    return total;\n}\nstatic long mstWeight(int vertices, int[][] edges) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int i = 0; i < vertices; i++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(new int[]{edge[1],edge[2]});\n        graph.get(edge[1]).add(new int[]{edge[0],edge[2]});\n    }\n    return primWeight(graph);\n}\n// Entry point used by the linked practice question.\nstatic int spanningTree(int vertices, List<List<List<Integer>>> adj) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int u = 0; u < vertices; u++) {\n        graph.add(new ArrayList<>());\n        for (List<Integer> edge : adj.get(u))\n            graph.get(u).add(new int[]{edge.get(0),edge.get(1)});\n    }\n    return Math.toIntExact(primWeight(graph));\n}",
+    "time": "O(V + E log(E + 2)) with the lazy edge heap; O(E log V) for a connected simple graph.",
+    "space": "O(V + E) for adjacency, the heap, and inclusion flags.",
+    "pitfalls": [
+      "An MST minimizes total chosen edge weight, not all source-to-vertex distances.",
+      "Accept a vertex when its cheapest valid entry is removed, not when first inserted.",
+      "The starting vertex can change which tied MST is chosen, but not its weight.",
+      "A disconnected graph has a spanning forest, not one spanning tree.",
+      "The initial zero-cost heap entry is not a real tree edge."
+    ],
+    "tests": [
+      "int[][]e={{0,1,5},{0,2,6},{1,2,2}};assert mstWeight(3,e)==7;assert mstBySubsets(3,e)==7;List<List<List<Integer>>>adj=List.of(List.of(List.of(1,5),List.of(2,6)),List.of(List.of(0,5),List.of(2,2)),List.of(List.of(0,6),List.of(1,2)));assert spanningTree(3,adj)==7;",
+      "Random random=new Random(370);\nfor(int trial=0;trial<500;trial++){\n int n=1+random.nextInt(6);List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(j==i+1||random.nextBoolean())list.add(new int[]{i,j,random.nextInt(21)-5});int[][]edges=list.toArray(new int[0][]);assert mstWeight(n,edges)==mstBySubsets(n,edges);\n}",
+      "assert mstWeight(3,new int[][]{{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}})==2L*Integer.MAX_VALUE;assert mstWeight(1,new int[0][])==0;boolean rejected=false;try{mstWeight(3,new int[][]{{0,1,1}});}catch(IllegalArgumentException e){rejected=true;}assert rejected;assert mstWeight(3,new int[][]{{0,0,-99},{0,1,8},{0,1,2},{1,2,3}})==5;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-the-mst-weight",
+      "title": "Find the MST Weight",
+      "checkedOn": "2026-10-29",
+      "approach": "Prim grows one tree using the cheapest crossing edge; Kruskal joins components in sorted edge order.",
+      "adaptation": "Both complete public Java methods were checked, along with the practice page’s Java signature. The article uses an edge list; the judge uses List<List<List<Integer>>> adjacency, so both entry points are included. Totals use long internally, and disconnected input is rejected rather than returning a partial tree."
+    },
+    "baselineJava": "static long mstBySubsets(int vertices, int[][] edges) {\n    if (vertices <= 1) return 0;\n    if (edges.length > 22) throw new IllegalArgumentException(\"Use this baseline only on small graphs\");\n    long best = Long.MAX_VALUE;\n    for (int mask = 0; mask < (1 << edges.length); mask++) {\n        if (Integer.bitCount(mask) != vertices-1) continue;\n        boolean[] reached = new boolean[vertices];\n        Queue<Integer> queue = new ArrayDeque<>();\n        reached[0] = true;\n        queue.offer(0);\n        int count = 0;\n        while (!queue.isEmpty()) {\n            int node = queue.poll();\n            count++;\n            for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) {\n                int next = edges[i][0] == node ? edges[i][1] : edges[i][1] == node ? edges[i][0] : -1;\n                if (next >= 0 && !reached[next]) { reached[next] = true; queue.offer(next); }\n            }\n        }\n        if (count != vertices) continue;\n        long total = 0;\n        for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) total += edges[i][2];\n        best = Math.min(best,total);\n    }\n    return best;\n}",
+    "baselineTime": "O(2^E × VE) with the straightforward subset connectivity scan; O(V) extra space. Restricted to at most 22 edges for this teaching baseline.",
+    "trace": {
+      "columns": [
+        "Step",
+        "What happens"
+      ],
+      "rows": [
+        [
+          "Start",
+          "Only vertex 0 is included after removing the dummy entry. Candidate connections are 0–1 at cost 5 and 0–2 at cost 6."
+        ],
+        [
+          "Accept vertex 1",
+          "Take the edge of weight 5. Vertex 1 offers a cheaper connection to vertex 2 with weight 2."
+        ],
+        [
+          "Accept vertex 2",
+          "Take weight 2, so the total is 7. The old weight-6 entry is unnecessary. The heap key is 2 here, not the path distance 5 + 2."
+        ]
+      ]
+    }
   }
 }
