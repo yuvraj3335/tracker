@@ -17709,5 +17709,153 @@
       "time": "O(n²).",
       "space": "O(n)."
     }
+  },
+  "427": {
+    "problem": "Return a largest subset in which every pair has one number dividing the other.",
+    "assumptions": "Input values are distinct positive integers. Any maximum-size valid subset is accepted; original order does not matter. Zero is excluded because division by zero would be undefined. This version sorts a copy so the caller’s array stays unchanged.",
+    "example": {
+      "input": "nums = [18,2,9,6,3]",
+      "output": "[2,6,18]",
+      "explanation": "2 divides 6, 6 divides 18, and 2 also divides 18. [3,9,18] is another answer of the same maximum size. [2,3,6] is invalid because neither 2 nor 3 divides the other."
+    },
+    "baseline": "Enumerate all subsets and check every pair inside each subset. This directly follows the definition but can cost O(2ⁿ·n²).",
+    "approach": "Unlike LIS, this is a subset problem, so we are allowed to sort. Put smaller values before larger ones. A new value can extend a chain when it is divisible by the chain’s final value.\n\nWhy is checking just the endpoint enough? Suppose every earlier value divides the endpoint, and the endpoint divides the new value. Divisibility passes through the chain, so every earlier value also divides the new value. That is why the pairwise condition can be handled with a single predecessor.\n\nLet length[i] be the longest divisible chain ending at sorted value i. Start each length at one. For every earlier j that divides value i, try length[j]+1. Save j as parent[i] when it makes a longer chain. Finally follow parents from a best endpoint and reverse the collected numbers.\n\nDo not apply the LIS tails shortcut here. A smaller endpoint is not always better for divisibility: a future 9 can extend a chain ending in 3 but not one ending in 2. The numeric ordering alone does not describe which future multiples work.",
+    "steps": [
+      "Copy and sort the positive values.",
+      "Start one-element chains and self-pointing parents.",
+      "Try every smaller earlier value that divides the current value.",
+      "Save the predecessor whenever it gives a longer chain.",
+      "Follow the best chain backward, then reverse it."
+    ],
+    "java": "static List<Integer> largestDivisibleSubset(int[] nums) {\n    if(nums.length==0) return new ArrayList<>();\n    int[] values = nums.clone();\n    Arrays.sort(values);\n    int[] length = new int[values.length], parent = new int[values.length];\n    Arrays.fill(length,1);\n    int end = 0;\n    for(int i=0;i<values.length;i++) {\n        parent[i] = i;\n        for(int j=0;j<i;j++) {\n            if(values[i]%values[j]==0 && length[j]+1>length[i]) {\n                length[i] = length[j]+1;\n                parent[i] = j;\n            }\n        }\n        if(length[i]>length[end]) end=i;\n    }\n    List<Integer> answer = new ArrayList<>();\n    while(parent[end]!=end) {\n        answer.add(values[end]);\n        end=parent[end];\n    }\n    answer.add(values[end]);\n    Collections.reverse(answer);\n    return answer;\n}",
+    "time": "O(n²); sorting costs O(n log n), which is smaller than the pair scan.",
+    "space": "O(n), including the copied array, length/parent arrays, and answer.",
+    "pitfalls": [
+      "A subset may be reordered, so sorting is valid here. That was not valid for LIS.",
+      "Checking that every value divides one common maximum is insufficient: 2 and 3 both divide 6 but are not mutually compatible.",
+      "Only positive nonzero values are in the contract.",
+      "Several answers may be correct; compare validity and maximum size rather than one hard-coded list."
+    ],
+    "tests": [
+      "List<Integer> answer=largestDivisibleSubset(new int[]{18,2,9,6,3});assert answer.size()==3;assert largestDivisibleSubset(new int[]{}).isEmpty();assert largestDivisibleSubset(new int[]{1,Integer.MAX_VALUE}).size()==2;",
+      "Random random=new Random(427);for(int trial=0;trial<1000;trial++){int n=random.nextInt(11);Set<Integer> used=new HashSet<>();int[] a=new int[n];for(int i=0;i<n;i++){int x;do{x=1+random.nextInt(40);}while(!used.add(x));a[i]=x;}int[] saved=a.clone();int expected=0;for(int mask=0;mask<(1<<n);mask++){boolean valid=true;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)for(int j=i+1;j<n;j++)if((mask&(1<<j))!=0&&a[i]%a[j]!=0&&a[j]%a[i]!=0)valid=false;if(valid)expected=Math.max(expected,Integer.bitCount(mask));}List<Integer> answer=largestDivisibleSubset(a);assert answer.size()==expected;assert new HashSet<>(answer).size()==answer.size();for(int x:answer)assert used.contains(x);for(int x:answer)for(int y:answer)assert x%y==0||y%x==0;assert Arrays.equals(a,saved);}",
+      "int[] powers=new int[31];for(int i=0;i<31;i++)powers[i]=1<<i;assert largestDivisibleSubset(powers).size()==31;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/largest-divisible-subset",
+      "title": "Largest Divisible Subset",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort, build longest divisible chains, remember parents, and reconstruct a maximum subset.",
+      "adaptation": "The complete public Java implementation and explanation were checked. The recurrence and parent walk are retained; sorting a clone is an explicit adaptation to preserve the caller’s input."
+    },
+    "trace": {
+      "columns": [
+        "Sorted value",
+        "Best ending length",
+        "One chosen chain"
+      ],
+      "rows": [
+        [
+          "2",
+          "1",
+          "[2]"
+        ],
+        [
+          "3",
+          "1",
+          "[3]"
+        ],
+        [
+          "6",
+          "2",
+          "[2,6]"
+        ],
+        [
+          "9",
+          "2",
+          "[3,9]"
+        ],
+        [
+          "18",
+          "3",
+          "[2,6,18]"
+        ]
+      ]
+    }
+  },
+  "428": {
+    "problem": "Find the longest chain of listed words where each next word adds exactly one character without rearranging the existing characters.",
+    "assumptions": "Words contain lowercase English letters. Every word in a chain must appear in the input, but input order does not matter. The current TUF limit is 1,000 words of length up to 25; the pinned LeetCode limit uses length up to 16. Duplicate words do not add a step. The code preserves the input array and handles empty input.",
+    "example": {
+      "input": "words = [\"plan\", \"a\", \"pan\", \"an\", \"plant\", \"cat\"]",
+      "output": "5",
+      "explanation": "One chain is a → an → pan → plan → plant. Each word adds exactly one character. The added character can be at the front, middle, or end."
+    },
+    "baseline": "Sort by length, then compare every earlier word with the current word. A two-pointer scan checks whether skipping exactly one character from the longer word makes the shorter word. This costs O(n²L), where L is the maximum word length.",
+    "approach": "Adding one character in the forward direction is the same as deleting one character in reverse. For a word such as plan, try lan, pan, pln, and pla. Any of these present in the input can be its immediate predecessor.\n\nSort the words by length. Save best[word] as the longest chain ending at that word. Start at one, because a word alone is a chain. For each one-character deletion, look up the predecessor’s best length and add one. All shorter words have already been processed.\n\nOnly listed words can connect a chain. If a deletion is absent from the map, it contributes no preceding chain. Repeated letters can produce the same predecessor more than once; taking a maximum makes those duplicate candidates harmless. Repeated input words also do not lengthen the chain because a valid step must increase length by exactly one.",
+    "steps": [
+      "Sort a copy of the words by increasing length.",
+      "For each word, start its chain length at one.",
+      "Delete each character in turn to form a possible predecessor.",
+      "Use the saved predecessor length plus one when that word exists.",
+      "Store the best length for this word and update the overall answer."
+    ],
+    "java": "static int longestStrChain(String[] words) {\n    String[] sorted = words.clone();\n    Arrays.sort(sorted,Comparator.comparingInt(String::length));\n    Map<String,Integer> best = new HashMap<>();\n    int answer = 0;\n    for(String word:sorted) {\n        int length = 1;\n        for(int removed=0;removed<word.length();removed++) {\n            String previous = word.substring(0,removed)+word.substring(removed+1);\n            length = Math.max(length,1+best.getOrDefault(previous,0));\n        }\n        best.put(word,Math.max(best.getOrDefault(word,0),length));\n        answer = Math.max(answer,length);\n    }\n    return answer;\n}\nstatic int longestStringChain(String[] words) { return longestStrChain(words); }",
+    "time": "O(n log n + nL²) expected time. Each word creates L deletion strings, and creating/hashing each string takes O(L).",
+    "space": "O(n) map entries and sorted references, plus O(L) temporary string storage at a time; existing word strings are reused.",
+    "pitfalls": [
+      "Do not sort the characters inside a word; their order must stay unchanged.",
+      "A predecessor is exactly one character shorter, not merely any subsequence.",
+      "Equal-length words, including duplicates, cannot extend one another.",
+      "Java substring concatenation copies characters, so the deletion approach is O(nL²), not O(nL)."
+    ],
+    "tests": [
+      "assert longestStrChain(new String[]{\"plan\",\"a\",\"pan\",\"an\",\"plant\",\"cat\"})==5;assert longestStrChain(new String[]{\"a\",\"a\",\"aa\"})==2;assert longestStrChain(new String[]{\"ab\",\"ba\",\"abcd\"})==1;assert longestStrChain(new String[]{})==0;",
+      "Random random=new Random(428);for(int trial=0;trial<700;trial++){int n=random.nextInt(11);String[] words=new String[n];for(int i=0;i<n;i++){StringBuilder b=new StringBuilder();for(int j=0,len=1+random.nextInt(5);j<len;j++)b.append((char)('a'+random.nextInt(3)));words[i]=b.toString();}String[] saved=words.clone(),sorted=words.clone();Arrays.sort(sorted,Comparator.comparingInt(String::length));int expected=0;for(int mask=0;mask<(1<<n);mask++){String previous=null;boolean valid=true;for(int i=0;i<n;i++)if((mask&(1<<i))!=0){if(previous!=null){boolean matches=false;for(int position=0;position<=previous.length();position++)for(char ch='a';ch<='c';ch++)if((previous.substring(0,position)+ch+previous.substring(position)).equals(sorted[i]))matches=true;if(!matches){valid=false;break;}}previous=sorted[i];}if(valid)expected=Math.max(expected,Integer.bitCount(mask));}assert longestStrChain(words)==expected;assert chainByPairs(words)==expected;assert Arrays.equals(words,saved);}",
+      "String[] words=new String[1000];for(int i=0;i<words.length;i++)words[i]=\"a\".repeat(1+i%25);assert longestStrChain(words)==25;assert chainByPairs(words)==25;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-string-chain",
+      "title": "Longest String Chain",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort by length and use a map of best chain lengths; form predecessors by deleting one character.",
+      "adaptation": "The current statement, both public hints, and length-order FAQ were checked. The Solution panel requires sign-in, so no full source Java was inspected. The primary Java follows the deletion-map hint; the pairwise two-pointer method explains the earlier LIS-style formulation."
+    },
+    "baselineJava": "static boolean isPredecessor(String shorter, String longer) {\n    if(longer.length()!=shorter.length()+1) return false;\n    int i=0;\n    for(int j=0;j<longer.length();j++)\n        if(i<shorter.length() && shorter.charAt(i)==longer.charAt(j)) i++;\n    return i==shorter.length();\n}\nstatic int chainByPairs(String[] words) {\n    String[] sorted = words.clone();\n    Arrays.sort(sorted,Comparator.comparingInt(String::length));\n    int[] length = new int[sorted.length];\n    Arrays.fill(length,1);\n    int best=0;\n    for(int i=0;i<sorted.length;i++) {\n        for(int j=0;j<i;j++)\n            if(isPredecessor(sorted[j],sorted[i])) length[i]=Math.max(length[i],length[j]+1);\n        best=Math.max(best,length[i]);\n    }\n    return best;\n}",
+    "baselineTime": "O(n log n + n²L) time and O(n) extra space.",
+    "trace": {
+      "columns": [
+        "Word",
+        "A listed predecessor",
+        "Best ending length"
+      ],
+      "rows": [
+        [
+          "a",
+          "None",
+          "1"
+        ],
+        [
+          "an",
+          "a",
+          "2"
+        ],
+        [
+          "pan",
+          "an",
+          "3"
+        ],
+        [
+          "plan",
+          "pan",
+          "4"
+        ],
+        [
+          "plant",
+          "plan",
+          "5"
+        ]
+      ]
+    }
   }
 }
