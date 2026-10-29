@@ -16394,5 +16394,84 @@
       "time": "Rod memo/table: O(n²). Separate sticks method: O(m log(m + 1)) for m sticks.",
       "space": "Rod memo/table: O(n²), plus O(n) recursion depth for memoization. Sticks: O(m)."
     }
+  },
+  "408": {
+    "problem": "Find the length of the longest sequence of characters that appears in both strings in the same order. Characters may be skipped, but their order cannot change.",
+    "assumptions": "The linked problem uses lowercase English letters and strings of length at most 1000. Empty strings are also handled. This asks for a subsequence, which may have gaps, rather than a contiguous substring. Java char comparisons match this alphabet.",
+    "example": {
+      "input": "first = \"plane\", second = \"panel\"",
+      "output": "4",
+      "explanation": "The subsequence \"pane\" appears in both strings. The l cannot be included as well because it appears before a in \"plane\" but after e in \"panel\"."
+    },
+    "baseline": "Compare the final characters of two prefixes. If they match, use that character and recursively solve both shorter prefixes. If they differ, try dropping the final character from either prefix and keep the longer result. Without storage, many pairs of prefixes are solved repeatedly.",
+    "approach": "Let dp[i][j] mean the LCS length of the first i characters of the first string and the first j characters of the second. Here i and j are lengths, so the characters at their ends are at indices i − 1 and j − 1. An empty prefix has no common characters, which gives the zero row and zero column.\n\nWhen the ending characters match, append that character to an LCS of the two shorter prefixes: 1 + dp[i − 1][j − 1]. When they differ, a common subsequence cannot use both of those ending positions together. Try leaving out the first ending character or the second, then keep the larger length.\n\nFill rows from short prefixes to long ones. A cell needs the diagonal and upper entries from the previous row, and the left entry from the current row. Two rows are enough when only the length is needed. Put the shorter string in the columns so those rows use less memory.",
+    "steps": [
+      "Use the shorter string for columns.",
+      "Initialize the empty-prefix row with zeroes.",
+      "For matching characters, add one to the previous-row diagonal.",
+      "For different characters, take max(previous-row above, current-row left).",
+      "Replace the previous row after finishing a row and return the final column."
+    ],
+    "java": "static int longestCommonSubsequence(String first, String second) {\n    if (second.length() > first.length()) {\n        String swap = first; first = second; second = swap;\n    }\n    int[] previous = new int[second.length()+1];\n    for (int i = 1; i <= first.length(); i++) {\n        int[] current = new int[second.length()+1];\n        for (int j = 1; j <= second.length(); j++) {\n            if (first.charAt(i-1) == second.charAt(j-1)) current[j] = 1+previous[j-1];\n            else current[j] = Math.max(previous[j],current[j-1]);\n        }\n        previous = current;\n    }\n    return previous[second.length()];\n}",
+    "time": "O(n × m), where n and m are the string lengths.",
+    "space": "O(min(n,m) + 1).",
+    "pitfalls": [
+      "i and j in the table are prefix lengths; Java character indices are one smaller.",
+      "A mismatch uses max, not addition. Adding would combine incompatible choices and double-count positions.",
+      "Subsequence characters may have gaps but cannot be rearranged.",
+      "Two rows preserve the length, but ordinary table backtracking needs the full table. The next lesson keeps it."
+    ],
+    "tests": [
+      "assert longestCommonSubsequence(\"plane\",\"panel\")==4;assert longestCommonSubsequence(\"ab\",\"ba\")==1;assert longestCommonSubsequence(\"\",\"abc\")==0;assert longestCommonSubsequence(\"aaaa\",\"aa\")==2;",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=5;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nfor(String a:words)for(String b:words){int expected=0;for(int mask=0;mask<(1<<a.length());mask++){StringBuilder candidate=new StringBuilder();for(int i=0;i<a.length();i++)if((mask&(1<<i))!=0)candidate.append(a.charAt(i));int matched=0;for(int i=0;i<b.length()&&matched<candidate.length();i++)if(b.charAt(i)==candidate.charAt(matched))matched++;if(matched==candidate.length())expected=Math.max(expected,matched);}\n assert longestCommonSubsequence(a,b)==expected;assert lcsMemoized(a,b)==expected;assert lcsTabulated(a,b)==expected;assert lcsRecursive(a,b,a.length(),b.length())==expected;\n}",
+      "assert longestCommonSubsequence(\"a\".repeat(1000),\"a\".repeat(1000))==1000;assert longestCommonSubsequence(\"a\".repeat(1000),\"b\".repeat(1000))==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-common-subsequence",
+      "title": "Longest common subsequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Prefix-length states: matching ends extend the diagonal, and mismatching ends choose the larger of two skips.",
+      "adaptation": "The public problem and both hints were checked. The full solution requires sign-in, so its Java was not inspected. This original Java implements the stated recurrence with two rows and puts the shorter string in the columns. The full-table and memoized versions retain the same state meaning."
+    },
+    "baselineJava": "static int lcsRecursive(String a, String b, int i, int j) {\n    if (i == 0 || j == 0) return 0;\n    if (a.charAt(i-1) == b.charAt(j-1)) return 1+lcsRecursive(a,b,i-1,j-1);\n    return Math.max(lcsRecursive(a,b,i-1,j),lcsRecursive(a,b,i,j-1));\n}",
+    "baselineTime": "O(2^(n + m)) calls as an upper bound; O(n + m) stack depth.",
+    "better": {
+      "explanation": "Memoization saves a prefix pair the first time recursion solves it. Tabulation writes those pairs in order. The extra empty-prefix row and column avoid negative character indices at the boundaries.",
+      "java": "static int lcsMemoized(String a, String b) {\n    int[][] memo = new int[a.length()+1][b.length()+1];\n    for (int[] row : memo) Arrays.fill(row,-1);\n    return lcsMemo(a,b,a.length(),b.length(),memo);\n}\nstatic int lcsMemo(String a, String b, int i, int j, int[][] memo) {\n    if (i == 0 || j == 0) return 0;\n    if (memo[i][j] != -1) return memo[i][j];\n    if (a.charAt(i-1) == b.charAt(j-1)) return memo[i][j] = 1+lcsMemo(a,b,i-1,j-1,memo);\n    return memo[i][j] = Math.max(lcsMemo(a,b,i-1,j,memo),lcsMemo(a,b,i,j-1,memo));\n}\nstatic int lcsTabulated(String a, String b) {\n    int[][] dp = new int[a.length()+1][b.length()+1];\n    for (int i = 1; i <= a.length(); i++) for (int j = 1; j <= b.length(); j++) {\n        if (a.charAt(i-1) == b.charAt(j-1)) dp[i][j] = 1+dp[i-1][j-1];\n        else dp[i][j] = Math.max(dp[i-1][j],dp[i][j-1]);\n    }\n    return dp[a.length()][b.length()];\n}",
+      "time": "O(n × m).",
+      "space": "O((n + 1) × (m + 1)), plus O(n + m) stack depth for memoization."
+    },
+    "trace": {
+      "columns": [
+        "First prefix / second prefix",
+        "empty",
+        "a",
+        "ac",
+        "acb"
+      ],
+      "rows": [
+        [
+          "empty",
+          "0",
+          "0",
+          "0",
+          "0"
+        ],
+        [
+          "a",
+          "0",
+          "1",
+          "1",
+          "1"
+        ],
+        [
+          "ab",
+          "0",
+          "1",
+          "1",
+          "2"
+        ]
+      ]
+    }
   }
 }
