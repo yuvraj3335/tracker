@@ -8605,14 +8605,14 @@
   },
   "224": {
     "problem": "Find the largest rectangle containing only 1s in a binary matrix. Return its area, not its coordinates.",
-    "assumptions": "The tracker links to LeetCode’s char[][] interface, so compare cells with '1', not integer 1. All rows have the same width. The empty-matrix guard below is an additional convenience.",
+    "assumptions": "The tracker links to LeetCode’s char[][] interface, so compare cells with '1', not integer 1. All rows have the same width. The empty-matrix guard below is an additional convenience. This is the same maximal-rectangle problem that appears earlier in the stack section; the pinned sheet keeps both entries.",
     "example": {
       "input": "[\"1101\", \"1111\", \"0111\"]",
       "output": "6",
       "explanation": "The last two rows and last three columns form a 2 × 3 rectangle of 1s."
     },
     "baseline": "Choose every top, bottom, left and right boundary. Check whether all cells inside are 1. This direct method is useful for tiny test cases, but can take O(rows³ × cols³) time.",
-    "approach": "Fix a bottom row and count how many consecutive 1s end at that row in each column. These counts form a histogram. Any rectangle of 1s ending here is a rectangle beneath that histogram.\n\nMove down one row at a time. A 1 increases its column’s height by one; a 0 resets it to zero. Run the histogram stack algorithm after every row and keep the largest area. Every possible rectangle has some bottom row, so this checks all candidates without choosing all four boundaries.\n\nFor the example, the heights become [1,1,0,1], then [2,2,1,2], then [0,3,2,3]. In the last histogram, columns 1 through 3 support height 2 and width 3, giving area 6.",
+    "approach": "Fix a bottom row and count how many consecutive 1s end at that row in each column. These counts form a histogram. Any rectangle of 1s ending here is a rectangle beneath that histogram.\n\nMove down one row at a time. A 1 increases its column’s height by one; a 0 resets it to zero. Run the histogram stack algorithm after every row and keep the largest area. Every possible rectangle has some bottom row, so this checks all candidates without choosing all four boundaries.\n\nFor the example, the heights become [1,1,0,1], then [2,2,1,2], then [0,3,2,3]. In the last histogram, columns 1 through 3 support height 2 and width 3, giving area 6.\n\nInside the histogram helper, the stack holds bar indices with increasing heights. When a new bar is no taller than the stack’s top, pop that top: the new bar limits its rectangle on the right, and the new stack top limits it on the left. Its available width is right−left−1. A virtual zero-height bar at the end closes any rectangles that were still waiting. Equal heights are popped too, leaving a later representative that can cover the combined width.",
     "steps": [
       "Keep one heights array with one entry per column.",
       "For each row, increment a height for '1' or reset it for '0'.",
@@ -8639,6 +8639,30 @@
       "checkedOn": "2026-10-29",
       "approach": "Build consecutive-one heights by row and solve each histogram.",
       "adaptation": "The current public practice statement and histogram-related prompts were checked; no public Java editorial is exposed there, and the old DP article URL now returns Page Not Found. This authored row wrapper uses the stack algorithm checked in Striver’s current Largest Rectangle Java lesson, adapted to the tracker’s char[][] judge interface."
+    },
+    "trace": {
+      "columns": [
+        "Bottom row",
+        "Consecutive-one heights",
+        "Largest histogram rectangle"
+      ],
+      "rows": [
+        [
+          "0",
+          "[1,1,0,1]",
+          "2"
+        ],
+        [
+          "1",
+          "[2,2,1,2]",
+          "4"
+        ],
+        [
+          "2",
+          "[0,3,2,3]",
+          "6"
+        ]
+      ]
     }
   },
   "225": {
@@ -18549,6 +18573,139 @@
           "0",
           "[2] → 2+21; [2,8] → 16+10",
           "26"
+        ]
+      ]
+    }
+  },
+  "438": {
+    "problem": "Find the largest rectangle containing only 1s in a binary matrix. Return its area, not its coordinates.",
+    "assumptions": "The tracker links to LeetCode’s char[][] interface, so compare cells with '1', not integer 1. All rows have the same width. The empty-matrix guard below is an additional convenience. This is the same maximal-rectangle problem that appears earlier in the stack section; the pinned sheet keeps both entries.",
+    "example": {
+      "input": "[\"1101\", \"1111\", \"0111\"]",
+      "output": "6",
+      "explanation": "The last two rows and last three columns form a 2 × 3 rectangle of 1s."
+    },
+    "baseline": "Choose every top, bottom, left and right boundary. Check whether all cells inside are 1. This direct method is useful for tiny test cases, but can take O(rows³ × cols³) time.",
+    "approach": "Fix a bottom row and count how many consecutive 1s end at that row in each column. These counts form a histogram. Any rectangle of 1s ending here is a rectangle beneath that histogram.\n\nMove down one row at a time. A 1 increases its column’s height by one; a 0 resets it to zero. Run the histogram stack algorithm after every row and keep the largest area. Every possible rectangle has some bottom row, so this checks all candidates without choosing all four boundaries.\n\nFor the example, the heights become [1,1,0,1], then [2,2,1,2], then [0,3,2,3]. In the last histogram, columns 1 through 3 support height 2 and width 3, giving area 6.\n\nInside the histogram helper, the stack holds bar indices with increasing heights. When a new bar is no taller than the stack’s top, pop that top: the new bar limits its rectangle on the right, and the new stack top limits it on the left. Its available width is right−left−1. A virtual zero-height bar at the end closes any rectangles that were still waiting. Equal heights are popped too, leaving a later representative that can cover the combined width.",
+    "steps": [
+      "Keep one heights array with one entry per column.",
+      "For each row, increment a height for '1' or reset it for '0'.",
+      "Find the largest rectangle in the current histogram using an increasing stack.",
+      "Keep the best area across every bottom row."
+    ],
+    "java": "static int maximalRectangle(char[][] matrix) {\n    if (matrix.length == 0 || matrix[0].length == 0) return 0;\n    int[] heights = new int[matrix[0].length];\n    int best = 0;\n    for (char[] row : matrix) {\n        for (int col = 0; col < heights.length; col++) {\n            heights[col] = row[col] == '1' ? heights[col] + 1 : 0;\n        }\n        best = Math.max(best, histogramArea(heights));\n    }\n    return best;\n}\n\nstatic int histogramArea(int[] heights) {\n    Deque<Integer> stack = new ArrayDeque<>();\n    int best = 0;\n    for (int right = 0; right <= heights.length; right++) {\n        int current = right == heights.length ? 0 : heights[right];\n        while (!stack.isEmpty() && heights[stack.peek()] >= current) {\n            int height = heights[stack.pop()];\n            int left = stack.isEmpty() ? -1 : stack.peek();\n            best = Math.max(best, height * (right - left - 1));\n        }\n        if (right < heights.length) stack.push(right);\n    }\n    return best;\n}",
+    "time": "O(rows × cols): each row takes one height update and one linear histogram scan.",
+    "space": "O(cols) for heights and the stack.",
+    "pitfalls": [
+      "Reset a height to zero when a zero cell breaks the vertical run.",
+      "Process every row as a possible bottom, not only the last row.",
+      "The rectangle may be wider than it is tall; this is not the maximal-square problem.",
+      "For the TUF int[][] interface, change the parameter and compare cells with integer 1."
+    ],
+    "tests": [
+      "assert maximalRectangle(new char[][]{\"1101\".toCharArray(),\"1111\".toCharArray(),\"0111\".toCharArray()})==6;assert maximalRectangle(new char[][]{{'0'}})==0;assert maximalRectangle(new char[][]{{'1'}})==1;assert maximalRectangle(new char[0][])==0;",
+      "for(int mask=0;mask<(1<<12);mask++){char[][]a=new char[3][4];for(int i=0;i<12;i++)a[i/4][i%4]=(mask&(1<<i))==0?'0':'1';int expected=0;for(int top=0;top<3;top++)for(int bottom=top;bottom<3;bottom++)for(int left=0;left<4;left++)for(int right=left;right<4;right++){boolean full=true;for(int r=top;r<=bottom;r++)for(int col=left;col<=right;col++)if(a[r][col]=='0')full=false;if(full)expected=Math.max(expected,(bottom-top+1)*(right-left+1));}assert maximalRectangle(a)==expected;}",
+      "char[][]a=new char[200][200];for(char[]row:a)Arrays.fill(row,'1');assert maximalRectangle(a)==40000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/maximum-rectangles",
+      "title": "Maximum Rectangles",
+      "checkedOn": "2026-10-29",
+      "approach": "Build consecutive-one heights by row and solve each histogram.",
+      "adaptation": "The current public practice statement and histogram-related prompts were checked; no public Java editorial is exposed there, and the old DP article URL now returns Page Not Found. This authored row wrapper uses the stack algorithm checked in Striver’s current Largest Rectangle Java lesson, adapted to the tracker’s char[][] judge interface."
+    },
+    "trace": {
+      "columns": [
+        "Bottom row",
+        "Consecutive-one heights",
+        "Largest histogram rectangle"
+      ],
+      "rows": [
+        [
+          "0",
+          "[1,1,0,1]",
+          "2"
+        ],
+        [
+          "1",
+          "[2,2,1,2]",
+          "4"
+        ],
+        [
+          "2",
+          "[0,3,2,3]",
+          "6"
+        ]
+      ]
+    }
+  },
+  "439": {
+    "problem": "Count every square submatrix made entirely of 1s, including squares of different sizes and positions.",
+    "assumptions": "The input is a rectangular int[][] containing only 0 and 1. Count all squares, not only the largest one. The source limit is 300 by 300, so the total fits int. The input stays unchanged; empty dimensions return zero.",
+    "example": {
+      "input": "matrix = [[1,1,0],[1,1,1],[0,1,1]]",
+      "output": "9",
+      "explanation": "There are seven 1×1 squares and two 2×2 squares. No 3×3 square is all ones, so the total is 7+2 = 9."
+    },
+    "baseline": "Try each top-left corner and every square size that fits. Scan all cells of each candidate square to check whether they are 1. This directly follows the definition but repeats many cell checks.",
+    "approach": "Let side[row][col] be the largest all-one square whose bottom-right corner is this cell. A zero cell gives side zero. At a one cell, look at the squares ending immediately above, immediately left, and diagonally above-left.\n\nThe new side length is one plus the smallest of those three lengths. All three regions are needed to fill the larger square; the smallest one is the limiting region. Using a maximum would overlook a hole in one of them.\n\nIf the largest square ending here has side 3, there is also a side-2 square and a side-1 square ending here. So this cell contributes 3 squares, not 9 cells and not just one square. Add every side length to get the total. Every square has exactly one bottom-right corner, so none is counted twice.\n\nOnly the previous row, current row’s left value, and old diagonal are needed. The one-row code saves the old top value before overwriting it, then carries that old value forward as the next diagonal.",
+    "steps": [
+      "Keep a zero-filled row array with one extra left boundary cell.",
+      "For each matrix row, reset the saved diagonal to zero.",
+      "Save the old top value before changing the current slot.",
+      "For a one, store 1 + min(top, left, diagonal); for a zero, store zero.",
+      "Add the stored side length to the total and move the old top into the diagonal variable."
+    ],
+    "java": "static int countSquares(int[][] matrix) {\n    if(matrix.length==0 || matrix[0].length==0) return 0;\n    int[] side=new int[matrix[0].length+1];\n    int total=0;\n    for(int[] row:matrix) {\n        int diagonal=0;\n        for(int col=1;col<side.length;col++) {\n            int above=side[col];\n            if(row[col-1]==1)\n                side[col]=1+Math.min(above,Math.min(side[col-1],diagonal));\n            else side[col]=0;\n            total+=side[col];\n            diagonal=above;\n        }\n    }\n    return total;\n}",
+    "time": "O(rows × cols).",
+    "space": "O(cols).",
+    "pitfalls": [
+      "Add side lengths to count squares. Squaring a side gives area instead.",
+      "Use the minimum of all three neighbors, including the diagonal.",
+      "Reset the DP slot on a zero cell; an earlier row’s square cannot continue through it.",
+      "Save the old top value before overwriting it so the next cell gets the correct diagonal."
+    ],
+    "tests": [
+      "assert countSquares(new int[][]{{1,1,0},{1,1,1},{0,1,1}})==9;assert countSquares(new int[][]{{1,1,1,1}})==4;assert countSquares(new int[][]{{0}})==0;assert countSquares(new int[0][])==0;assert countSquares(new int[][]{{}})==0;",
+      "for(int mask=0;mask<(1<<12);mask++){int[][] a=new int[3][4];for(int i=0;i<12;i++)a[i/4][i%4]=(mask>>>i)&1;int[][] saved=new int[3][];for(int i=0;i<3;i++)saved[i]=a[i].clone();int expected=countSquaresBrute(a);assert countSquares(a)==expected;assert countSquaresTable(a)==expected;assert Arrays.deepEquals(a,saved);}",
+      "int[][] a=new int[300][300];for(int[] row:a)Arrays.fill(row,1);assert countSquares(a)==9045050;assert countSquaresTable(a)==9045050;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/count-square-submatrices-with-all-one",
+      "title": "Count Square Submatrices with All Ones",
+      "checkedOn": "2026-10-29",
+      "approach": "Count by bottom-right corner: the largest square side is one plus the minimum of top, left, and diagonal. Sum those side lengths.",
+      "adaptation": "The current statement, examples, constraints, and judge stub were checked. No public algorithm hints are shown and the Solution panel requires sign-in, so no full source Java was inspected. The saved explanation and Java are an original, checked DP solution of the stated task, with a one-row adaptation and a full-table version for comparison."
+    },
+    "baselineJava": "static int countSquaresBrute(int[][] matrix) {\n    if(matrix.length==0 || matrix[0].length==0) return 0;\n    int total=0;\n    for(int top=0;top<matrix.length;top++) {\n        for(int left=0;left<matrix[0].length;left++) {\n            for(int size=1;top+size<=matrix.length && left+size<=matrix[0].length;size++) {\n                boolean full=true;\n                for(int row=top;row<top+size;row++)\n                    for(int col=left;col<left+size;col++)\n                        if(matrix[row][col]==0) full=false;\n                if(full) total++;\n            }\n        }\n    }\n    return total;\n}",
+    "baselineTime": "O(rows × cols × q³), where q = min(rows, cols), as a simple upper bound; O(1) working space.",
+    "better": {
+      "explanation": "Keep the complete side-length table first if the rolling update is difficult to follow. The extra top row and left column remain zero, so border cells need no special branch. Each value counts the squares with that bottom-right corner.",
+      "java": "static int countSquaresTable(int[][] matrix) {\n    if(matrix.length==0 || matrix[0].length==0) return 0;\n    int[][] side=new int[matrix.length+1][matrix[0].length+1];\n    int total=0;\n    for(int row=1;row<side.length;row++) {\n        for(int col=1;col<side[0].length;col++) {\n            if(matrix[row-1][col-1]==1)\n                side[row][col]=1+Math.min(side[row-1][col],\n                    Math.min(side[row][col-1],side[row-1][col-1]));\n            total+=side[row][col];\n        }\n    }\n    return total;\n}",
+      "time": "O(rows × cols).",
+      "space": "O(rows × cols)."
+    },
+    "trace": {
+      "columns": [
+        "Matrix row",
+        "Largest-square sides ending on this row",
+        "Squares contributed"
+      ],
+      "rows": [
+        [
+          "[1,1,0]",
+          "[1,1,0]",
+          "2"
+        ],
+        [
+          "[1,1,1]",
+          "[1,2,1]",
+          "4"
+        ],
+        [
+          "[0,1,1]",
+          "[0,1,2]",
+          "3; total 9"
         ]
       ]
     }
