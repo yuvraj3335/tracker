@@ -2383,7 +2383,7 @@
       "explanation": "The positives 3,1,2 fill even positions in order. The negatives -2,-5,-4 fill odd positions."
     },
     "baseline": "Separate the signs into two lists and interleave them, also taking O(n) extra space.",
-    "approach": "Two output cursors, one even and one odd, encode the required arrangement directly. Scanning in original order preserves stability.",
+    "approach": "The required positions are already known: positive values go at 0,2,4,… and negative values at 1,3,5,…. Keep one write cursor for each sign and scan the original array from left to right.\n\nA positive value goes into the next even slot, then that cursor moves by two. A negative value does the same with the odd cursor. Because each sign is read and written in its original order, the arrangement is stable. A new output array avoids swaps that could scramble that order.",
     "steps": [
       "Allocate an output array of the same length.",
       "Write positives at 0,2,4,… and negatives at 1,3,5,… .",
@@ -2399,8 +2399,16 @@
     "tests": [
       "assert Arrays.equals(alternate(new int[]{3,1,-2,-5,2,-4}),new int[]{3,-2,1,-5,2,-4});",
       "assert Arrays.equals(alternate(new int[]{-1,2}),new int[]{2,-1});",
-      "assert alternate(new int[]{}).length==0;"
-    ]
+      "assert alternate(new int[]{}).length==0;",
+      "Random r=new Random(59);for(int t=0;t<500;t++){int n=r.nextInt(30);List<Integer> values=new ArrayList<>();for(int i=0;i<n;i++){values.add(1+r.nextInt(100));values.add(-1-r.nextInt(100));}Collections.shuffle(values,r);int[] a=values.stream().mapToInt(Integer::intValue).toArray();List<Integer> positives=new ArrayList<>(),negatives=new ArrayList<>();for(int v:a)if(v>0)positives.add(v);else negatives.add(v);int[] out=alternate(a);for(int i=0;i<n;i++){assert out[2*i]==positives.get(i);assert out[2*i+1]==negatives.get(i);}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/rearrange-array-elements-by-sign",
+      "title": "Rearrange Array Elements by Sign",
+      "checkedOn": "2026-10-29",
+      "approach": "Write positive values to even positions and negative values to odd positions in input order.",
+      "adaptation": "The public statement confirms equal sign counts, no zeroes, stable order and a positive first value. Full solution Java was not inspected; this is an original implementation of that arrangement."
+    }
   },
   "60": {
     "problem": "Replace a permutation with the next lexicographically larger permutation in place.",
@@ -2411,7 +2419,7 @@
       "explanation": "The suffix [3,2] is descending. Increase pivot 1 to the smallest larger suffix value, 2, then reverse the remaining suffix to obtain its smallest order."
     },
     "baseline": "Generate all distinct permutations and choose the next, which takes factorial time.",
-    "approach": "A descending suffix is already its largest arrangement. Therefore the rightmost position that can increase is just before that suffix. The rightmost larger suffix element gives the smallest possible increase; reversing the resulting descending suffix minimizes the tail.",
+    "approach": "Keep the beginning unchanged for as long as possible. Scan from the right while values are non-increasing. That suffix is already its greatest arrangement, so the first value before it that can increase is the pivot.\n\nSwap the pivot with the rightmost suffix value strictly greater than it. Since the suffix was descending, that is the smallest possible increase. Reverse the remaining suffix into ascending order to make the rest as small as possible. If no pivot exists, the whole array is the last permutation; reverse it to wrap to the first.",
     "steps": [
       "Find the rightmost index i with a[i] < a[i+1].",
       "If it exists, swap with the rightmost value greater than a[i].",
@@ -2428,25 +2436,33 @@
       "int[] a={1,3,2};nextPermutation(a);assert Arrays.equals(a,new int[]{2,1,3});",
       "int[] b={3,2,1};nextPermutation(b);assert Arrays.equals(b,new int[]{1,2,3});",
       "int[] c={1,1,5};nextPermutation(c);assert Arrays.equals(c,new int[]{1,5,1});",
-      "nextPermutation(new int[]{});"
-    ]
+      "nextPermutation(new int[]{});",
+      "for(int n=0;n<=6;n++){int total=(int)Math.pow(3,n);Map<String,List<int[]>> groups=new HashMap<>();for(int code=0;code<total;code++){int[] a=new int[n];int x=code;for(int i=n-1;i>=0;i--){a[i]=x%3;x/=3;}int[] ordered=a.clone();Arrays.sort(ordered);groups.computeIfAbsent(Arrays.toString(ordered),k->new ArrayList<>()).add(a);}for(List<int[]> permutations:groups.values())for(int i=0;i<permutations.size();i++){int[] actual=permutations.get(i).clone();nextPermutation(actual);assert Arrays.equals(actual,permutations.get((i+1)%permutations.size()));}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/next-permutation",
+      "title": "Next Permutation",
+      "checkedOn": "2026-10-29",
+      "approach": "Find the rightmost increase, swap with its rightmost larger successor, then reverse the suffix.",
+      "adaptation": "Public optimal Java checked. The helper uses the same pivot and reversal rules, including duplicate values."
+    }
   },
   "61": {
     "problem": "Return elements strictly greater than every element to their right.",
-    "assumptions": "This explanation uses strict leaders; some platforms allow equality. Return leaders in original order.",
+    "assumptions": "The pinned practice page requires strict leaders (>). The linked article instead accepts equality (>=). Both variants are shown under different method names; leaders is the pinned exercise.",
     "example": {
       "input": "[10, 22, 12, 3, 0, 6]",
       "output": "[22, 12, 6]",
       "explanation": "The rightmost 6 leads. Scanning left, 12 exceeds 6 and 22 exceeds 12; all other values fail."
     },
     "baseline": "Compare each element with its entire suffix in O(n²) time.",
-    "approach": "A right-to-left scan keeps the maximum of the suffix already visited. The current element is a leader exactly when it exceeds that maximum.",
+    "approach": "When scanning from the right, all values already seen are exactly the values to the current element’s right. Keep their maximum. Under the pinned exercise’s rule, the current value is a leader only when it is strictly greater than that maximum.\n\nFor [4,4], only the final 4 qualifies. The source article uses a different >= rule and would include both, so the two methods below are named separately. Leaders are discovered in reverse order; reverse the collected list before returning it.",
     "steps": [
       "Scan from the final index backward.",
       "Append a value if it is greater than the suffix maximum.",
       "Reverse the collected leaders to restore original order."
     ],
-    "java": "static List<Integer> leaders(int[] a) {\n    List<Integer> result=new ArrayList<>();long maximum=Long.MIN_VALUE;\n    for(int i=a.length-1;i>=0;i--)if(a[i]>maximum){result.add(a[i]);maximum=a[i];}\n    Collections.reverse(result);return result;\n}",
+    "java": "static List<Integer> leaders(int[] a) {\n    List<Integer> result=new ArrayList<>();long maximum=Long.MIN_VALUE;\n    for(int i=a.length-1;i>=0;i--)if(a[i]>maximum){result.add(a[i]);maximum=a[i];}\n    Collections.reverse(result);return result;\n}\nstatic List<Integer> leadersAllowEqual(int[] a) {\n    List<Integer> result=new ArrayList<>();long maximum=Long.MIN_VALUE;\n    for(int i=a.length-1;i>=0;i--)if(a[i]>=maximum){result.add(a[i]);maximum=a[i];}\n    Collections.reverse(result);return result;\n}",
     "time": "O(n).",
     "space": "O(k) for k returned leaders; O(1) additional state.",
     "pitfalls": [
@@ -2457,8 +2473,16 @@
       "assert leaders(new int[]{10,22,12,3,0,6}).equals(List.of(22,12,6));",
       "assert leaders(new int[]{4,4}).equals(List.of(4));",
       "assert leaders(new int[]{Integer.MIN_VALUE}).equals(List.of(Integer.MIN_VALUE));",
-      "assert leaders(new int[]{}).isEmpty();"
-    ]
+      "assert leaders(new int[]{}).isEmpty();",
+      "assert leadersAllowEqual(new int[]{4,4}).equals(List.of(4,4));Random r=new Random(61);for(int t=0;t<700;t++){int[] a=new int[r.nextInt(25)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(11)-5;List<Integer> strict=new ArrayList<>(),equal=new ArrayList<>();for(int i=0;i<a.length;i++){boolean s=true,e=true;for(int j=i+1;j<a.length;j++){if(a[j]>=a[i])s=false;if(a[j]>a[i])e=false;}if(s)strict.add(a[i]);if(e)equal.add(a[i]);}assert leaders(a).equals(strict);assert leadersAllowEqual(a).equals(equal);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/leaders-in-an-array",
+      "title": "Leaders in an Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Scan right to left and track the greatest value seen.",
+      "adaptation": "Public article Java checked. It accepts >=, but the pinned practice statement explicitly requires strictly greater. leaders follows the pinned > rule; leadersAllowEqual demonstrates the article variant."
+    }
   },
   "62": {
     "problem": "Find the length of the longest sequence of consecutive integer values present in an unsorted array.",
@@ -2469,7 +2493,7 @@
       "explanation": "The values 1,2,3,4 form one sequence even though they appear out of order."
     },
     "baseline": "Sort a copy and scan distinct neighboring values in O(n log n) time.",
-    "approach": "Use a set and start a forward walk only at a value whose predecessor is absent. Each distinct value belongs to exactly one such walk, preventing repeated scans of the same sequence.",
+    "approach": "Put the values in a set so you can quickly ask whether a neighboring integer exists. A value can start a sequence only if value-1 is absent. From such a start, count value, value+1, value+2 and so on until a gap.\n\nDo not start the walk from every value. In [1,2,3,4], starting at 2 would repeat most of the walk already made from 1. Starting only at true beginnings means each distinct value is walked once. Duplicates add no length, and the MIN/MAX guards prevent integer wraparound from joining unrelated sequences.",
     "steps": [
       "Build a set of distinct values.",
       "Skip values with an existing predecessor.",
@@ -2486,8 +2510,16 @@
       "assert consecutive(new int[]{100,4,200,1,3,2})==4;",
       "assert consecutive(new int[]{1,1,2})==2;",
       "assert consecutive(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE})==1;",
-      "assert consecutive(new int[]{})==0;"
-    ]
+      "assert consecutive(new int[]{})==0;",
+      "Random r=new Random(62);for(int t=0;t<800;t++){int[] a=new int[r.nextInt(40)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(31)-15;int[] ordered=Arrays.stream(a).distinct().sorted().toArray();int best=0,current=0;for(int i=0;i<ordered.length;i++){current=i>0&&(long)ordered[i-1]+1==ordered[i]?current+1:1;best=Math.max(best,current);}assert consecutive(a)==best;}assert consecutive(new int[]{Integer.MAX_VALUE-1,Integer.MAX_VALUE,Integer.MIN_VALUE,Integer.MIN_VALUE+1})==2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/longest-consecutive-sequence-in-an-array",
+      "title": "Longest Consecutive Sequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Start a set walk only when a value has no predecessor.",
+      "adaptation": "Public optimal Java checked. The helper additionally protects predecessor/successor arithmetic at Integer.MIN_VALUE and Integer.MAX_VALUE."
+    }
   },
   "63": {
     "problem": "If an original matrix cell is zero, set its entire row and column to zero.",
@@ -2498,7 +2530,7 @@
       "explanation": "The original zero marks row 1 and column 1. Their intersection with other rows and columns is cleared; newly written zeroes must not create more markers."
     },
     "baseline": "Record affected rows and columns in separate boolean arrays, using O(rows+columns) space.",
-    "approach": "Reuse the first row and first column as markers. Preserve whether those two borders originally contained zeroes in separate flags, because the shared corner cannot encode both independently.",
+    "approach": "Do not immediately clear a row when you see a zero. The new zeroes could then look like original zeroes and incorrectly clear more rows and columns. First record what needs clearing.\n\nUse the first cell of each row and column as its marker. Save whether the first row and first column originally contained zeroes before using them as storage. Mark from the interior, then clear the interior using those marks. Clear the two borders last, after their marker information is no longer needed.",
     "steps": [
       "Remember whether the first row or first column originally has a zero.",
       "Scan the interior and mark its affected borders.",
@@ -2514,8 +2546,16 @@
     "tests": [
       "int[][] a={{1,1,1},{1,0,1},{1,1,1}};setZeroes(a);assert Arrays.deepEquals(a,new int[][]{{1,0,1},{0,0,0},{1,0,1}});",
       "int[][] b={{0,1,2},{3,4,5}};setZeroes(b);assert Arrays.deepEquals(b,new int[][]{{0,0,0},{0,4,5}});",
-      "int[][] c={{1,0,2}};setZeroes(c);assert Arrays.deepEquals(c,new int[][]{{0,0,0}});"
-    ]
+      "int[][] c={{1,0,2}};setZeroes(c);assert Arrays.deepEquals(c,new int[][]{{0,0,0}});",
+      "for(int rows=1;rows<=3;rows++)for(int cols=1;cols<=4;cols++)for(int mask=0;mask<(1<<(rows*cols));mask++){int[][] a=new int[rows][cols],expected=new int[rows][cols];boolean[] zeroRows=new boolean[rows],zeroCols=new boolean[cols];for(int r=0;r<rows;r++)for(int c=0;c<cols;c++){a[r][c]=((mask>>(r*cols+c))&1)==0?7:0;if(a[r][c]==0){zeroRows[r]=true;zeroCols[c]=true;}}for(int r=0;r<rows;r++)for(int c=0;c<cols;c++)expected[r][c]=zeroRows[r]||zeroCols[c]?0:7;setZeroes(a);assert Arrays.deepEquals(a,expected);}setZeroes(new int[0][0]);setZeroes(new int[2][0]);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/set-matrix-zeroes",
+      "title": "Set Matrix Zeroes",
+      "checkedOn": "2026-10-29",
+      "approach": "Use the first row and column as markers, with separate original-border flags.",
+      "adaptation": "Public optimal Java checked. An empty-column guard is added before accessing the first column."
+    }
   },
   "64": {
     "problem": "Rotate a square matrix 90 degrees clockwise in place.",
@@ -2526,7 +2566,7 @@
       "explanation": "Transposing turns columns into rows. Reversing each transposed row makes the original bottom-left 7 become the new top-left."
     },
     "baseline": "Write each old cell (r,c) into a new matrix at (c,n−1−r), using O(n²) space.",
-    "approach": "Transposition maps (r,c) to (c,r); row reversal then maps it to (c,n−1−r), exactly the clockwise rotation mapping.",
+    "approach": "A clockwise rotation sends old cell (r,c) to (c,n-1-r). Do it in two simple moves: transpose across the main diagonal, then reverse each row. After the transpose, the old column has become a row; reversing that row puts it in the correct clockwise order.\n\nSwap only cells above the diagonal during the transpose. Swapping both (r,c) and (c,r) would undo the change. The matrix must be square for this in-place method; a rectangular rotation needs an output with different dimensions.",
     "steps": [
       "Transpose by swapping only entries above the diagonal.",
       "Reverse every row.",
@@ -2542,8 +2582,16 @@
     "tests": [
       "int[][] a={{1,2,3},{4,5,6},{7,8,9}};rotate(a);assert Arrays.deepEquals(a,new int[][]{{7,4,1},{8,5,2},{9,6,3}});",
       "int[][] a={{1,2},{3,4}};int[][] original={{1,2},{3,4}};for(int i=0;i<4;i++)rotate(a);assert Arrays.deepEquals(a,original);",
-      "rotate(new int[0][0]);"
-    ]
+      "rotate(new int[0][0]);",
+      "for(int n=0;n<=30;n++){int[][] a=new int[n][n],expected=new int[n][n];for(int r=0;r<n;r++)for(int c=0;c<n;c++){a[r][c]=r*n+c;expected[c][n-1-r]=a[r][c];}rotate(a);assert Arrays.deepEquals(a,expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/rotate-matrix-90-degrees-clockwise",
+      "title": "Rotate Matrix 90 Degrees Clockwise",
+      "checkedOn": "2026-10-29",
+      "approach": "Transpose, then reverse every row.",
+      "adaptation": "Public optimal Java checked. This explicitly rejects nonsquare input."
+    }
   },
   "65": {
     "problem": "Read a rectangular matrix in clockwise spiral order, starting at the top-left.",
@@ -2554,7 +2602,7 @@
       "explanation": "Visit the top edge, right edge, bottom edge backward, and left edge upward, then repeat on the remaining inner rectangle."
     },
     "baseline": "Track a visited grid and turn direction whenever the next cell is blocked, using O(rows×columns) extra state.",
-    "approach": "Four boundaries describe all unvisited cells. Consuming an edge moves its boundary inward. Rechecking the boundaries before the last two edges prevents duplicates in one-row or one-column remainders.",
+    "approach": "The unvisited cells always form a rectangle. Walk its top edge, then move top down. Walk its right edge, then move right left. Finish the bottom edge backward and the left edge upward, moving each finished boundary inward.\n\nA remaining rectangle may be only one row or one column wide. Check that an edge still exists before walking the bottom or left edge. Otherwise the final thin strip would be added twice. Continue until the boundaries cross.",
     "steps": [
       "Traverse top, then increment top.",
       "Traverse right, then decrement right.",
@@ -2571,8 +2619,16 @@
       "assert spiral(new int[][]{{1,2,3},{4,5,6},{7,8,9}}).equals(List.of(1,2,3,6,9,8,7,4,5));",
       "assert spiral(new int[][]{{1,2,3}}).equals(List.of(1,2,3));",
       "assert spiral(new int[][]{{1},{2},{3}}).equals(List.of(1,2,3));",
-      "assert spiral(new int[0][0]).isEmpty();"
-    ]
+      "assert spiral(new int[0][0]).isEmpty();",
+      "int[] dr={0,1,0,-1},dc={1,0,-1,0};for(int rows=1;rows<=15;rows++)for(int cols=1;cols<=15;cols++){int[][] a=new int[rows][cols];for(int r=0;r<rows;r++)for(int c=0;c<cols;c++)a[r][c]=r*cols+c;boolean[][] seen=new boolean[rows][cols];List<Integer> expected=new ArrayList<>();int r=0,c=0,d=0;for(int i=0;i<rows*cols;i++){expected.add(a[r][c]);seen[r][c]=true;int nr=r+dr[d],nc=c+dc[d];if(nr<0||nr>=rows||nc<0||nc>=cols||seen[nr][nc]){d=(d+1)%4;nr=r+dr[d];nc=c+dc[d];}r=nr;c=nc;}assert spiral(a).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/spiral-traversal-of-a-matrix",
+      "title": "Spiral Traversal of a Matrix",
+      "checkedOn": "2026-10-29",
+      "approach": "Consume the top, right, bottom and left edges while shrinking four boundaries.",
+      "adaptation": "Public Java checked, including the remaining-row and remaining-column checks."
+    }
   },
   "66": {
     "problem": "Count nonempty contiguous subarrays whose sum equals k.",
@@ -2583,7 +2639,7 @@
       "explanation": "The intervals at indices [0,1] and [1,2] both sum to 2. They correspond to two different matching pairs of prefix sums."
     },
     "baseline": "Enumerate all starts and ends in O(n²) time.",
-    "approach": "For the current prefix sum s, every earlier prefix equal to s−k defines one matching subarray. A frequency map counts all such starts, including repeated identical prefix sums.",
+    "approach": "If the current prefix sum is S, an earlier prefix of S-k leaves a subarray summing to k. Every occurrence of that earlier sum is a different possible starting boundary, so store a frequency rather than just one index.\n\nSeed the empty prefix with count one. For [0,0,0] and k=0, the three steps find 1, then 2, then 3 earlier zero prefixes, for six subarrays. Query before inserting the current prefix; inserting first would also count an empty interval ending at the same boundary.",
     "steps": [
       "Seed prefix zero with frequency one.",
       "Add the current value, then add the frequency of sum−k to the answer.",
@@ -2600,8 +2656,16 @@
       "assert countSum(new int[]{1,1,1},2)==2;",
       "assert countSum(new int[]{0,0,0},0)==6;",
       "assert countSum(new int[]{1,-1,1},1)==3;",
-      "assert countSum(new int[]{},0)==0;"
-    ]
+      "assert countSum(new int[]{},0)==0;",
+      "Random r=new Random(66);for(int t=0;t<1000;t++){int[] a=new int[r.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(11)-5;int k=r.nextInt(15)-7;long expected=0;for(int i=0;i<a.length;i++){long sum=0;for(int j=i;j<a.length;j++){sum+=a[j];if(sum==k)expected++;}}assert countSum(a,k)==expected;}assert countSum(new int[100000],0)==5000050000L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-subarrays-with-given-sum",
+      "title": "Count Subarrays with Given Sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Count earlier prefixes equal to currentSum-target before recording the current prefix.",
+      "adaptation": "Public optimal Java checked. Prefix sums, frequencies and the result use long, as in the source."
+    }
   },
   "67": {
     "problem": "Build the first n rows of Pascal’s triangle. Every row starts and ends with 1. Each inside number is the sum of the two numbers above it.",
