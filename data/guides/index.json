@@ -14216,5 +14216,52 @@
       "time": "O(RC log(H + 1) + RC), including the height-range scan.",
       "space": "O(RC) for each BFS check."
     }
+  },
+  "363": {
+    "problem": "Find the cheapest directed flight route using at most k intermediate stops.",
+    "assumptions": "At most k stops means at most k + 1 flights. Cities are 0-based, endpoints are valid, and prices are nonnegative. Return −1 if no allowed route exists. The long helper protects sums; the int wrapper matches the pinned judge’s bounded-price interface.",
+    "example": {
+      "input": "flights = [[0,1,1], [1,2,1], [2,3,1], [0,3,8], [3,4,1]]; source = 0; destination = 4; k = 2",
+      "output": "9",
+      "explanation": "The cheap route to city 3 uses all three allowed flights, leaving no flight to reach 4. The valid route 0→3→4 costs 9. Keeping only the cheapest cost per city would lose it."
+    },
+    "baseline": "Enumerate every route with at most k + 1 flights and keep the cheapest arrival. The flight limit makes this finite even with cycles, but the number of routes can grow exponentially.",
+    "approach": "Let distance[v] mean the cheapest cost using at most the number of flights already allowed. Initially, only the source is reachable with zero flights. One round allows one more flight.\n\nAt the start of a round, clone the distance array. Read departure costs only from the old array and write improvements only to the clone. The clone already preserves cheaper routes using fewer flights. After every flight is checked, replace the old layer with the new one.\n\nThis separation is essential. Updating and reading the same array could chain several flights during one round, depending on input order. After k + 1 rounds, the destination entry is the cheapest allowed route. No priority queue is needed for this bounded Bellman–Ford method.",
+    "steps": [
+      "Initialize source cost to 0 and all other costs to infinity.",
+      "Repeat k + 1 rounds, each starting with a copy of the previous layer.",
+      "Relax every flight using only previous-layer departure costs.",
+      "Read the destination after the allowed rounds; convert infinity to −1."
+    ],
+    "java": "static long cheapestWithinStops(int cities, int[][] flights, int source, int destination, int stops) {\n    long[] distance = new long[cities];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    distance[source] = 0;\n    for (int round = 0; round <= stops; round++) {\n        long[] next = distance.clone();\n        for (int[] flight : flights) {\n            if (distance[flight[0]] == Long.MAX_VALUE) continue;\n            long candidate = distance[flight[0]] + flight[2];\n            next[flight[1]] = Math.min(next[flight[1]],candidate);\n        }\n        distance = next;\n    }\n    return distance[destination] == Long.MAX_VALUE ? -1 : distance[destination];\n}\nstatic int findCheapestPrice(int cities, int[][] flights, int source, int destination, int stops) {\n    return Math.toIntExact(cheapestWithinStops(cities,flights,source,destination,stops));\n}",
+    "time": "O((k + 1)(V + E)), including the O(V) array copy in each round.",
+    "space": "O(V) for two consecutive distance layers.",
+    "pitfalls": [
+      "Stops and flights differ by one.",
+      "Read the old layer and write the new layer; in-place relaxation can violate the stop limit.",
+      "A cheaper arrival using more flights does not always dominate a costlier arrival using fewer flights.",
+      "Flight edges are directed.",
+      "The source article’s O((k + 1)E) time statement omits array-copy work; this implementation includes it."
+    ],
+    "tests": [
+      "int[][]f={{0,1,1},{1,2,1},{2,3,1},{0,3,8},{3,4,1}};assert findCheapestPrice(5,f,0,4,2)==9;assert cheapestByHeap(5,f,0,4,2)==9;assert cheapestByEnumeration(5,f,0,4,2)==9;assert findCheapestPrice(3,new int[][]{{0,1,1},{1,2,1},{0,2,9}},0,2,0)==9;assert findCheapestPrice(3,new int[][]{{0,1,1},{1,2,1}},0,2,0)==-1;",
+      "Random random=new Random(363);\nfor(int trial=0;trial<1200;trial++){\n int n=2+random.nextInt(5);List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j&&random.nextInt(4)==0)list.add(new int[]{i,j,random.nextInt(30)});\n int[][]flights=list.toArray(new int[0][]);int source=random.nextInt(n),destination=random.nextInt(n),stops=random.nextInt(5);\n long expected=cheapestByEnumeration(n,flights,source,destination,stops);\n assert cheapestWithinStops(n,flights,source,destination,stops)==expected;\n assert cheapestByHeap(n,flights,source,destination,stops)==expected;\n for(int i=flights.length-1;i>0;i--){int j=random.nextInt(i+1);int[]temp=flights[i];flights[i]=flights[j];flights[j]=temp;}\n assert cheapestWithinStops(n,flights,source,destination,stops)==expected;\n}",
+      "int[][]f={{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}};assert cheapestWithinStops(3,f,0,2,1)==2L*Integer.MAX_VALUE;assert cheapestByHeap(3,f,0,2,1)==2L*Integer.MAX_VALUE;assert cheapestWithinStops(1,new int[0][],0,0,0)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/cheapest-flights-within-k-stops",
+      "title": "Cheapest Flights Within K Stops",
+      "checkedOn": "2026-10-29",
+      "approach": "Bounded Bellman–Ford with separate flight-count layers; alternatively use a heap keyed by cost and flights used.",
+      "adaptation": "Both complete public Java methods were checked. The copied-layer method is primary because it is simpler and avoids heap overhead. Its complexity includes the array copies. A checked int wrapper matches the pinned judge, while core costs remain long."
+    },
+    "baselineJava": "static long cheapestByEnumeration(int cities, int[][] flights, int source, int destination, int stops) {\n    long answer = enumerateFlights(flights,source,destination,stops+1);\n    return answer == Long.MAX_VALUE ? -1 : answer;\n}\nstatic long enumerateFlights(int[][] flights, int city, int destination, int remaining) {\n    if (city == destination) return 0;\n    if (remaining == 0) return Long.MAX_VALUE;\n    long best = Long.MAX_VALUE;\n    for (int[] flight : flights) if (flight[0] == city) {\n        long rest = enumerateFlights(flights,flight[1],destination,remaining-1);\n        if (rest != Long.MAX_VALUE) best = Math.min(best,flight[2]+rest);\n    }\n    return best;\n}",
+    "baselineTime": "Exponential route enumeration; each recursive call scans E flights. O(k + 1) recursive space.",
+    "better": {
+      "explanation": "Another source method: use a cost-ordered heap, but track best[flightsUsed][city] rather than one cost per city. Two arrivals with different flight counts have different remaining options. Stop expanding a state after k + 1 flights. With nonnegative prices, the first current destination state removed from the heap has minimum valid cost. This can finish early, but has more memory and heap overhead than the primary copied-layer method.",
+      "java": "static long cheapestByHeap(int cities, int[][] flights, int source, int destination, int stops) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int i = 0; i < cities; i++) graph.add(new ArrayList<>());\n    for (int[] flight : flights) graph.get(flight[0]).add(new int[]{flight[1],flight[2]});\n    int limit = stops+1;\n    long[][] best = new long[limit+1][cities];\n    for (long[] row : best) Arrays.fill(row,Long.MAX_VALUE);\n    PriorityQueue<long[]> heap = new PriorityQueue<>(Comparator.comparingLong((long[] state) -> state[0]));\n    best[0][source] = 0;\n    heap.add(new long[]{0,source,0});\n    while (!heap.isEmpty()) {\n        long[] state = heap.remove();\n        long cost = state[0];\n        int city = (int) state[1], used = (int) state[2];\n        if (cost != best[used][city]) continue;\n        if (city == destination) return cost;\n        if (used == limit) continue;\n        for (int[] edge : graph.get(city)) {\n            long candidate = cost+edge[1];\n            if (candidate < best[used+1][edge[0]]) {\n                best[used+1][edge[0]] = candidate;\n                heap.add(new long[]{candidate,edge[0],used+1});\n            }\n        }\n    }\n    return -1;\n}",
+      "time": "O((k + 2)V + (k + 1)E log((k + 1)E + 2)) as a lazy-heap upper bound.",
+      "space": "O((k + 2)V + (k + 1)E) for the state table, graph, and heap."
+    }
   }
 }
