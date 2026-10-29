@@ -16540,5 +16540,52 @@
         ]
       ]
     }
+  },
+  "410": {
+    "problem": "Find the length of the longest block of consecutive characters that appears in both strings.",
+    "assumptions": "The pinned TUF problem uses lowercase English letters and strings up to length 1000. A substring must be contiguous in both strings. Empty strings are also handled and have answer zero.",
+    "example": {
+      "input": "first = \"catnap\", second = \"batman\"",
+      "output": "2",
+      "explanation": "Both contain the contiguous block \"at\". Their longer common subsequences may skip letters, but skipping is not allowed here."
+    },
+    "baseline": "Try every pair of starting positions. Walk forward while the two characters match, then record how long that run lasted. This checks every possible common block but compares overlapping runs repeatedly.",
+    "approach": "Use a different state from LCS: dp[i][j] is the length of the common block ending exactly at first[i − 1] and second[j − 1]. It does not mean the best answer anywhere inside those prefixes.\n\nIf the ending characters match, extend the block ending one position earlier in both strings: dp[i − 1][j − 1] + 1. If they differ, the block ending here has length zero. We cannot jump over a mismatch and still call the result a substring.\n\nKeep a separate maximum over every cell, because the longest block may end in the middle of either string. Returning only the bottom-right entry would measure the common suffix and could miss the answer.\n\nA cell needs only the previous row’s diagonal. Use two rows, making a fresh zero-filled current row each time. A mismatch naturally stays zero. Put the shorter string in the columns to reduce memory.",
+    "steps": [
+      "Initialize a zero previous row and best = 0.",
+      "For each pair of current characters, compare them.",
+      "On a match, set current[j] = previous[j − 1] + 1.",
+      "On a mismatch, leave current[j] at zero.",
+      "Update best from every cell and return best after all rows."
+    ],
+    "java": "static int longestCommonSubstr(String first, String second) {\n    if (second.length() > first.length()) {\n        String swap = first; first = second; second = swap;\n    }\n    int[] previous = new int[second.length()+1];\n    int best = 0;\n    for (int i = 1; i <= first.length(); i++) {\n        int[] current = new int[second.length()+1];\n        for (int j = 1; j <= second.length(); j++) {\n            if (first.charAt(i-1) == second.charAt(j-1)) {\n                current[j] = previous[j-1]+1;\n                best = Math.max(best,current[j]);\n            }\n        }\n        previous = current;\n    }\n    return best;\n}",
+    "time": "O(n × m) character comparisons.",
+    "space": "O(min(n,m) + 1).",
+    "pitfalls": [
+      "On a mismatch, use zero rather than max(above, left). That max transition belongs to subsequences.",
+      "Take the maximum over all cells, not only the final cell.",
+      "If reusing a current-row array, clear mismatch entries; fresh arrays do this automatically here.",
+      "To return the block itself, also remember the first-string ending index whenever best increases, then take the corresponding substring."
+    ],
+    "tests": [
+      "assert longestCommonSubstr(\"catnap\",\"batman\")==2;assert longestCommonSubstr(\"abcX\",\"abcY\")==3;assert longestCommonSubstr(\"abc\",\"axbyc\")==1;assert longestCommonSubstr(\"\",\"abc\")==0;",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=5;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nfor(String a:words)for(String b:words){int expected=0;for(int start=0;start<a.length();start++)for(int end=start+1;end<=a.length();end++)if(b.contains(a.substring(start,end)))expected=Math.max(expected,end-start);assert longestCommonSubstr(a,b)==expected;assert substringByStarts(a,b)==expected;assert substringTable(a,b)==expected;}",
+      "assert longestCommonSubstr(\"ab\".repeat(500),\"ba\".repeat(500))==999;assert longestCommonSubstr(\"a\".repeat(1000),\"a\".repeat(1000))==1000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-common-substring",
+      "title": "Longest common substring",
+      "checkedOn": "2026-10-29",
+      "approach": "Count matching runs ending at each pair of positions; reset on mismatch and take the maximum over every endpoint.",
+      "adaptation": "The public statement and both endpoint-state hints were checked. The full solution requires sign-in, so its Java was not inspected. This original Java implements those transitions with two rows; the full-table version shows the same state directly."
+    },
+    "baselineJava": "static int substringByStarts(String first, String second) {\n    int best = 0;\n    for (int i = 0; i < first.length(); i++) for (int j = 0; j < second.length(); j++) {\n        int run = 0;\n        while (i+run < first.length() && j+run < second.length()\n                && first.charAt(i+run) == second.charAt(j+run)) run++;\n        best = Math.max(best,run);\n    }\n    return best;\n}",
+    "baselineTime": "O(n × m × min(n,m)) time and O(1) extra space.",
+    "better": {
+      "explanation": "A full table makes it easy to see matching blocks as diagonals of increasing lengths. A mismatch breaks a diagonal by leaving its entry at zero. The largest entry anywhere is the answer.",
+      "java": "static int substringTable(String first, String second) {\n    int[][] dp = new int[first.length()+1][second.length()+1];\n    int best = 0;\n    for (int i = 1; i <= first.length(); i++) for (int j = 1; j <= second.length(); j++) {\n        if (first.charAt(i-1) == second.charAt(j-1)) {\n            dp[i][j] = dp[i-1][j-1]+1;\n            best = Math.max(best,dp[i][j]);\n        }\n    }\n    return best;\n}",
+      "time": "O(n × m).",
+      "space": "O((n + 1) × (m + 1))."
+    }
   }
 }
