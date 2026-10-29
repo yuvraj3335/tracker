@@ -11232,5 +11232,98 @@
       "time": "O(n) for building the graph and two BFS traversals.",
       "space": "O(n) for the graph, distances and queues."
     }
+  },
+  "291": {
+    "problem": "Find the largest sum of node values along any non-empty simple path in a binary tree. A path may start and end anywhere.",
+    "assumptions": "The tree is non-empty. A path cannot repeat a node or split into three branches. Node values may be negative. The code uses long for sums; the linked judge’s smaller bounds permit int, but wider sums avoid overflow in extended examples.",
+    "example": {
+      "input": "root −8 has left child 4 and right child 6; 6 has children 5 and 7",
+      "output": "18",
+      "explanation": "The best path is 5 → 6 → 7. Adding the root −8 would reduce the sum, so the best path stays inside the right subtree."
+    },
+    "baseline": "For every node, recalculate the best downward path from each child, combine useful gains with the node, and compare with answers inside both subtrees. Recalculating gains can take O(n²) time on a chain.",
+    "approach": "For each child, ask for its best path starting at that child and continuing downward through at most one branch. Ignore a negative gain by replacing it with zero: a path is allowed to stop instead of taking that branch.\n\nAt the current node, leftGain + value + rightGain is a complete candidate path. It may turn through both children. Update the best answer with that sum. But return only value + max(leftGain, rightGain) to the parent; returning both branches would create a fork when the parent extends it.\n\nStart the saved answer at Long.MIN_VALUE, not zero. Every candidate includes a real node, so an all-negative tree correctly returns its least negative node. Keep this state local to the call.",
+    "steps": [
+      "Return zero gain for a null child.",
+      "Compute and clamp both child gains to at least zero.",
+      "Update the best complete path using both child gains.",
+      "Return a single downward branch to the parent.",
+      "Return the best saved sum."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic long maxPathSum(TreeNode root) {\n    if (root == null) throw new IllegalArgumentException(\"A non-empty path needs a node\");\n    long[] best = {Long.MIN_VALUE};\n    pathGain(root, best);\n    return best[0];\n}\nstatic long pathGain(TreeNode node, long[] best) {\n    if (node == null) return 0;\n    long left = Math.max(0, pathGain(node.left, best));\n    long right = Math.max(0, pathGain(node.right, best));\n    best[0] = Math.max(best[0], node.val + left + right);\n    return node.val + Math.max(left, right);\n}",
+    "time": "O(n).",
+    "space": "O(h) recursive call-stack space. Use the iterative alternative for trees too deep for Java recursion.",
+    "pitfalls": [
+      "The best path need not include the root or end at a leaf.",
+      "Clamping child gains to zero does not permit an empty final path: the current node is always included.",
+      "Return one branch upward; use both branches only for a complete candidate.",
+      "Initialize the best answer below every valid value and reset it per call."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(-8);r.left=new TreeNode(4);r.right=new TreeNode(6);r.right.left=new TreeNode(5);r.right.right=new TreeNode(7);assert maxPathSum(r)==18;TreeNode a=new TreeNode(-5);a.left=new TreeNode(-2);a.right=new TreeNode(-9);assert maxPathSum(a)==-2;assert maxPathSum(new TreeNode(-7))==-7;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(41)-20);Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(41)-20);boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<String,TreeNode>at=new HashMap<>();for(Map.Entry<TreeNode,String>e:paths.entrySet())at.put(e.getValue(),e.getKey());long want=Long.MIN_VALUE;for(String a:at.keySet())for(String b:at.keySet()){int shared=0;while(shared<Math.min(a.length(),b.length())&&a.charAt(shared)==b.charAt(shared))shared++;long sum=at.get(a.substring(0,shared)).val;for(int length=a.length();length>shared;length--)sum+=at.get(a.substring(0,length)).val;for(int length=b.length();length>shared;length--)sum+=at.get(b.substring(0,length)).val;want=Math.max(want,sum);}assert maxPathSum(root)==want;assert maxPathSumRepeated(root)==want;assert maxPathSumIterative(root)==want;}",
+      "TreeNode r=new TreeNode(Integer.MAX_VALUE);r.left=new TreeNode(Integer.MAX_VALUE);r.right=new TreeNode(Integer.MAX_VALUE);assert maxPathSum(r)==6442450941L;assert maxPathSumIterative(r)==6442450941L;",
+      "TreeNode root=new TreeNode(1),p=root;for(int i=1;i<100000;i++){p.left=new TreeNode(1);p=p.left;}assert maxPathSumIterative(root)==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-tree-maximum-path-sum",
+      "title": "Find the Maximum Path Sum in a Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Calculate each downward gain once, using both branches for the answer and one branch for the parent.",
+      "adaptation": "Both public Java methods were checked. This version widens sums to long, keeps answer state local and explicitly rejects an empty input. The article notes depth limits; the additional iterative method implements the same recurrence without recursion."
+    },
+    "baselineJava": "static long repeatedGain(TreeNode node) {\n    if (node == null) return 0;\n    return node.val + Math.max(0, Math.max(repeatedGain(node.left), repeatedGain(node.right)));\n}\nstatic long maxPathSumRepeated(TreeNode node) {\n    if (node == null) return Long.MIN_VALUE;\n    long through = node.val + Math.max(0, repeatedGain(node.left)) + Math.max(0, repeatedGain(node.right));\n    return Math.max(through, Math.max(maxPathSumRepeated(node.left), maxPathSumRepeated(node.right)));\n}",
+    "better": {
+      "explanation": "For a deep tree, calculate the same gains with explicit postorder frames. Store completed child gains by node identity, then combine them when the parent’s ready frame is popped. This is a practical stack-safe alternative, not a faster asymptotic algorithm; it uses O(n) map space instead of only the recursive path.",
+      "java": "static class GainFrame {\n    final TreeNode node;\n    final boolean ready;\n    GainFrame(TreeNode node, boolean ready) { this.node = node; this.ready = ready; }\n}\nstatic long maxPathSumIterative(TreeNode root) {\n    if (root == null) throw new IllegalArgumentException(\"A non-empty path needs a node\");\n    Map<TreeNode, Long> gains = new IdentityHashMap<>();\n    Deque<GainFrame> stack = new ArrayDeque<>();\n    stack.push(new GainFrame(root, false));\n    long best = Long.MIN_VALUE;\n    while (!stack.isEmpty()) {\n        GainFrame frame = stack.pop();\n        TreeNode node = frame.node;\n        if (!frame.ready) {\n            stack.push(new GainFrame(node, true));\n            if (node.right != null) stack.push(new GainFrame(node.right, false));\n            if (node.left != null) stack.push(new GainFrame(node.left, false));\n        } else {\n            long left = node.left == null ? 0 : Math.max(0, gains.get(node.left));\n            long right = node.right == null ? 0 : Math.max(0, gains.get(node.right));\n            best = Math.max(best, node.val + left + right);\n            gains.put(node, node.val + Math.max(left, right));\n        }\n    }\n    return best;\n}",
+      "time": "O(n).",
+      "space": "O(n) stored gains plus O(h) frames."
+    }
+  },
+  "292": {
+    "problem": "Decide whether two binary trees have the same shape and the same value at every corresponding position.",
+    "assumptions": "Two empty trees are equal. A left child in one tree must match a left child in the other; moving the same value to the right changes the tree. Separate objects can still represent identical trees.",
+    "example": {
+      "input": "tree A: root 8 with left child 4; tree B: root 8 with right child 4",
+      "output": "false",
+      "explanation": "The values are the same, but they occupy different child positions."
+    },
+    "baseline": "Recursively compare the roots, then corresponding left subtrees and corresponding right subtrees. This directly follows the definition and uses O(h) call-stack space.",
+    "approach": "Keep corresponding nodes paired in an explicit stack. Two missing nodes match. Exactly one missing node means the shapes differ. Two existing nodes must have equal values. Once those checks pass, schedule their corresponding children.\n\nPush the right pair before the left pair to process the left side first, though either order is correct for equality. A pair object may contain null references; the stack itself receives a non-null pair. This matters because ArrayDeque does not accept a null element.",
+    "steps": [
+      "Push the pair of roots.",
+      "Pop one pair and handle the two-null and one-null cases.",
+      "Reject different values.",
+      "Push matching child positions as pairs.",
+      "Return true if all pairs match."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic boolean isSameTree(TreeNode first, TreeNode second) {\n    Deque<TreeNode[]> stack = new ArrayDeque<>();\n    stack.push(new TreeNode[]{first, second});\n    while (!stack.isEmpty()) {\n        TreeNode[] pair = stack.pop();\n        TreeNode a = pair[0], b = pair[1];\n        if (a == null && b == null) continue;\n        if (a == null || b == null || a.val != b.val) return false;\n        stack.push(new TreeNode[]{a.right, b.right});\n        stack.push(new TreeNode[]{a.left, b.left});\n    }\n    return true;\n}",
+    "time": "O(n + m) as a general upper bound for trees with n and m nodes; equal n-node trees require O(n) comparisons. The method stops at the first mismatch.",
+    "space": "O(h) stack space for the pending corresponding paths, with h bounded by the larger tree height.",
+    "pitfalls": [
+      "Equal traversal values without null markers do not establish equal shape.",
+      "Compare values at matching positions, not object identity.",
+      "Do not pair left with right; that checks a different relationship.",
+      "Do not push a raw null into ArrayDeque."
+    ],
+    "tests": [
+      "assert isSameTree(null,null);assert !isSameTree(new TreeNode(1),null);TreeNode a=new TreeNode(8),b=new TreeNode(8);a.left=new TreeNode(4);b.right=new TreeNode(4);assert !isSameTree(a,b);b.right=null;b.left=new TreeNode(4);assert isSameTree(a,b);b.left.val=5;assert !isSameTree(a,b);",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<String,TreeNode>copies=new HashMap<>();for(Map.Entry<TreeNode,String>e:paths.entrySet())copies.put(e.getValue(),new TreeNode(e.getKey().val));for(Map.Entry<TreeNode,String>e:paths.entrySet()){TreeNode copy=copies.get(e.getValue());copy.left=copies.get(e.getValue()+\"L\");copy.right=copies.get(e.getValue()+\"R\");}TreeNode other=copies.get(\"\");assert isSameTree(root,other)&&sameTreeRecursive(root,other)&&sameTreeBFS(root,other);TreeNode changed=copies.values().iterator().next();changed.val+=100;assert !isSameTree(root,other)&&!sameTreeRecursive(root,other)&&!sameTreeBFS(root,other);}",
+      "TreeNode a=new TreeNode(1),b=new TreeNode(1),x=a,y=b;for(int i=1;i<100000;i++){x.left=new TreeNode(i);y.left=new TreeNode(i);x=x.left;y=y.left;}assert isSameTree(a,b)&&sameTreeBFS(a,b);y.val=-1;assert !isSameTree(a,b)&&!sameTreeBFS(a,b);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/check-identical-binary-trees",
+      "title": "Check If Two Binary Trees Are Identical",
+      "checkedOn": "2026-10-29",
+      "approach": "Compare corresponding nodes recursively or with a queue or stack of pairs.",
+      "adaptation": "All three public Java implementations were checked. This version uses two-element node arrays instead of a NodePair class; null children remain inside a non-null pair, preserving ArrayDeque compatibility."
+    },
+    "baselineJava": "static boolean sameTreeRecursive(TreeNode a, TreeNode b) {\n    if (a == null || b == null) return a == b;\n    return a.val == b.val && sameTreeRecursive(a.left, b.left) && sameTreeRecursive(a.right, b.right);\n}",
+    "better": {
+      "explanation": "A queue of corresponding pairs performs the same checks level by level. It also avoids recursion; its working memory depends on width rather than height. There is no time advantage over the stack version.",
+      "java": "static boolean sameTreeBFS(TreeNode first, TreeNode second) {\n    Queue<TreeNode[]> queue = new ArrayDeque<>();\n    queue.offer(new TreeNode[]{first, second});\n    while (!queue.isEmpty()) {\n        TreeNode[] pair = queue.poll();\n        TreeNode a = pair[0], b = pair[1];\n        if (a == null && b == null) continue;\n        if (a == null || b == null || a.val != b.val) return false;\n        queue.offer(new TreeNode[]{a.left, b.left});\n        queue.offer(new TreeNode[]{a.right, b.right});\n    }\n    return true;\n}",
+      "time": "O(n + m) upper bound, with early termination on a mismatch.",
+      "space": "O(w) queued pairs, where w is bounded by the larger level width."
+    }
   }
 }
