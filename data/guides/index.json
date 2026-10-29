@@ -19578,5 +19578,118 @@
         ]
       ]
     }
+  },
+  "453": {
+    "problem": "Add characters only at the front of a string to make the shortest possible palindrome.",
+    "assumptions": "The pinned problem uses lowercase English letters, so # is a safe separator in the KMP construction. The original string must remain unchanged at the end of the answer. Adding at the end or in the middle is not allowed. Empty input returns empty.",
+    "example": {
+      "input": "s = \"abac\"",
+      "output": "\"cabac\"",
+      "explanation": "aba is the longest palindromic prefix. Only the final c needs a matching character at the front, so prepend c."
+    },
+    "baseline": "Try prefix lengths from longest to shortest and check each with two pointers. Once a palindromic prefix is found, reverse the remaining suffix and put it in front. This can take O(n²) time.",
+    "approach": "Write the original string as P + S, where P is a palindromic prefix. Then reverse(S) + P + S is a palindrome: the two copies of S mirror each other, and P mirrors itself. The longer P is, the fewer characters we must add.\n\nThis also explains why the longest palindromic prefix gives the minimum. Any shortest solution formed by prepending characters must mirror an equal-length suffix of the original string. The original part left between those mirrored sides must already be a palindrome, and it starts at index zero.\n\nFind that prefix with KMP. Build s + # + reverse(s), then compute its LPS array. The final LPS value is the longest prefix of s equal to a suffix of reverse(s). That suffix is the reverse of the same-length prefix of s, so the prefix must be palindromic.\n\nThe separator prevents a border from crossing the join and pretending to be longer than s. Once the palindromic prefix length is known, reverse only the unmatched suffix and prepend it. This finds a prefix palindrome, not the longest palindrome anywhere in the string.",
+    "steps": [
+      "Reverse the string.",
+      "Build s + # + reverse(s), using a separator absent from the input alphabet.",
+      "Compute LPS and read its final value.",
+      "Take the suffix after that palindromic prefix.",
+      "Reverse that suffix and place it before the original string."
+    ],
+    "java": "static int[] prefixFunction(String s) {\n    int[] lps=new int[s.length()];\n    for(int i=1;i<s.length();i++) {\n        int matched=lps[i-1];\n        while(matched>0 && s.charAt(i)!=s.charAt(matched)) matched=lps[matched-1];\n        if(s.charAt(i)==s.charAt(matched)) matched++;\n        lps[i]=matched;\n    }\n    return lps;\n}\n\nstatic String shortestPalindrome(String s) {\n    if(s.length()<2) return s;\n    String reversed=new StringBuilder(s).reverse().toString();\n    int[] lps=prefixFunction(s+\"#\"+reversed);\n    int prefixLength=lps[lps.length-1];\n    return new StringBuilder(s.substring(prefixLength)).reverse().append(s).toString();\n}",
+    "time": "O(n).",
+    "space": "O(n) for the reversed/combined strings, LPS array, and result.",
+    "pitfalls": [
+      "Only characters added at the front are legal.",
+      "Find a palindromic prefix, not an arbitrary longest palindromic substring.",
+      "The separator must not occur in the input; # is safe for the pinned lowercase alphabet.",
+      "Reverse the unmatched suffix, not the already-palindromic prefix.",
+      "A string that is already a palindrome should be returned unchanged."
+    ],
+    "tests": [
+      "assert shortestPalindrome(\"abac\").equals(\"cabac\");assert shortestPalindrome(\"race\").equals(\"ecarace\");assert shortestPalindrome(\"abba\").equals(\"abba\");assert shortestPalindrome(\"\").isEmpty();",
+      "for(int n=0;n<=8;n++)for(int bits=0;bits<(1<<n);bits++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((bits&(1<<i))==0?'a':'b');String s=b.toString(),expected=null;for(int added=0;added<=Math.max(0,n-1)&&expected==null;added++)for(int mask=0;mask<(1<<added);mask++){StringBuilder prefix=new StringBuilder();for(int i=0;i<added;i++)prefix.append((mask&(1<<i))==0?'a':'b');String candidate=prefix.toString()+s;if(candidate.equals(new StringBuilder(candidate).reverse().toString())){expected=candidate;break;}}assert expected!=null;assert shortestPalindrome(s).equals(expected);assert shortestPalindromeByScan(s).equals(expected);}",
+      "String s=\"a\".repeat(49999)+\"b\";assert shortestPalindrome(s).equals(\"b\"+s);assert shortestPalindrome(\"a\"+\"b\".repeat(49999)).length()==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/shortest-palindrome",
+      "title": "Shortest Palindrome",
+      "checkedOn": "2026-10-29",
+      "approach": "Find the longest palindromic prefix through LPS of s + separator + reverse(s), then prepend the reversed unmatched suffix.",
+      "adaptation": "The complete public Java implementation and explanation were checked. This preserves its KMP construction and # separator under the pinned lowercase-letter contract. The LPS helper is shared in meaning with the preceding KMP lesson, and the result is built with StringBuilder."
+    },
+    "baselineJava": "static String shortestPalindromeByScan(String s) {\n    for(int length=s.length();length>=0;length--) {\n        int left=0,right=length-1;\n        while(left<right && s.charAt(left)==s.charAt(right)) { left++;right--; }\n        if(left>=right) return new StringBuilder(s.substring(length)).reverse().append(s).toString();\n    }\n    throw new AssertionError(\"empty prefix is always palindromic\");\n}",
+    "baselineTime": "O(n²) time and O(n) space for the returned construction."
+  },
+  "455": {
+    "problem": "Count every nonempty palindromic subsequence, distinguishing choices of character positions even when their texts are equal.",
+    "assumptions": "The pinned TUF page limits the lowercase string to 30 characters, asks for the exact count, and explicitly requires no modulus. The empty subsequence is excluded. At most 2³⁰−1 nonempty subsequences exist, so int is sufficient. This is not distinct-palindrome counting and not the similarly named LeetCode task that counts only length-five palindromes. Empty input returns zero as an extension.",
+    "example": {
+      "input": "s = \"aba\"",
+      "output": "5",
+      "explanation": "The three single-character choices count separately, even though two contain a. The two a positions form aa, and all three positions form aba. Total: 3+1+1 = 5."
+    },
+    "baseline": "Enumerate each nonempty subset of positions, preserve their order, and test whether the selected characters read the same in reverse. This takes O(n·2ⁿ) time and is useful only on small strings.",
+    "approach": "Let dp[left][right] count palindromic subsequences chosen inside that interval. A one-character interval has one choice.\n\nFirst consider subsequences that do not use both endpoints. The interval without the left endpoint contributes dp[left+1][right], and the interval without the right endpoint contributes dp[left][right−1]. Choices using neither endpoint appear in both lists, so subtract dp[left+1][right−1] once.\n\nIf the endpoint characters differ, no palindrome can use both as its first and last character. That inclusion-exclusion count is the complete answer.\n\nIf the endpoints match, we can also wrap them around every palindromic subsequence of the inner interval. The pair of endpoints by itself is one more choice. These add innerCount+1, canceling the earlier innerCount subtraction. The final formula becomes leftWithout + rightWithout + 1.\n\nFill short intervals before longer ones. Counts are by positions, so equal texts from different selections remain separate. This is why aaa has seven answers, rather than just the three distinct texts a, aa, and aaa.",
+    "steps": [
+      "Return zero for empty input and set each diagonal count to one.",
+      "Fill intervals by increasing length.",
+      "When endpoint characters differ, add the two smaller counts and subtract their overlap.",
+      "When endpoints match, add the two smaller counts and one.",
+      "Return the full interval’s exact count without a modulus."
+    ],
+    "java": "static int countPalSubseq(String s) {\n    int n=s.length();\n    if(n==0) return 0;\n    int[][] count=new int[n][n];\n    for(int i=0;i<n;i++) count[i][i]=1;\n    for(int length=2;length<=n;length++) {\n        for(int left=0;left+length<=n;left++) {\n            int right=left+length-1;\n            if(s.charAt(left)==s.charAt(right))\n                count[left][right]=count[left+1][right]+count[left][right-1]+1;\n            else {\n                int overlap=length==2?0:count[left+1][right-1];\n                count[left][right]=count[left+1][right]+count[left][right-1]-overlap;\n            }\n        }\n    }\n    return count[0][n-1];\n}",
+    "time": "O(n²).",
+    "space": "O(n²).",
+    "pitfalls": [
+      "Count position selections, not distinct resulting strings.",
+      "Exclude the empty subsequence.",
+      "Do not add a modulus: the actual pinned source asks for an exact count within its 30-character bound.",
+      "For equal endpoints, the inner subtraction cancels against newly wrapped palindromes; the result is the two side counts plus one.",
+      "For longer input outside this contract, use a wider or arbitrary-precision count rather than silently overflowing int."
+    ],
+    "tests": [
+      "assert countPalSubseq(\"aba\")==5;assert countPalSubseq(\"aaa\")==7;assert countPalSubseq(\"aab\")==4;assert countPalSubseq(\"abcd\")==4;assert countPalSubseq(\"\")==0;",
+      "for(int n=0;n<=10;n++)for(int bits=0;bits<(1<<n);bits++){StringBuilder b=new StringBuilder();for(int i=0;i<n;i++)b.append((bits&(1<<i))==0?'a':'b');String s=b.toString();assert countPalSubseq(s)==palindromesBySubsets(s);}",
+      "Random random=new Random(455);for(int trial=0;trial<150;trial++){StringBuilder b=new StringBuilder();for(int i=0,n=random.nextInt(16);i<n;i++)b.append((char)('a'+random.nextInt(4)));String s=b.toString();assert countPalSubseq(s)==palindromesBySubsets(s);}assert countPalSubseq(\"a\".repeat(30))==1073741823;assert countPalSubseq(\"abcdefghijklmnopqrstuvwxyz\")==26;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/count-palindromic-subsequences",
+      "title": "Count Palindromic Subsequences",
+      "checkedOn": "2026-10-29",
+      "approach": "Count index-selected palindromes by interval using inclusion-exclusion and matched endpoints.",
+      "adaptation": "The current statement, examples, 30-character bound, exact-count rule, and judge stub were checked. It exposes no public algorithm hints and its Solution panel is gated, so no complete source Java was inspected. The saved recurrence is derived explicitly and checked against enumeration. The pinned TUF task is kept instead of the different length-five LeetCode problem with a similar name."
+    },
+    "baselineJava": "static int palindromesBySubsets(String s) {\n    if(s.length()>20) throw new IllegalArgumentException(\"enumeration is for small examples\");\n    int answer=0;\n    char[] selected=new char[s.length()];\n    for(int mask=1;mask<(1<<s.length());mask++) {\n        int size=0;\n        for(int i=0;i<s.length();i++) if((mask&(1<<i))!=0) selected[size++]=s.charAt(i);\n        boolean palindrome=true;\n        for(int left=0,right=size-1;left<right;left++,right--)\n            if(selected[left]!=selected[right]) { palindrome=false;break; }\n        if(palindrome) answer++;\n    }\n    return answer;\n}",
+    "baselineTime": "O(n·2ⁿ) time and O(n) temporary storage. Use only for small inputs.",
+    "trace": {
+      "columns": [
+        "Interval in aba",
+        "Count",
+        "Reason"
+      ],
+      "rows": [
+        [
+          "a / b / a",
+          "1 each",
+          "Each position alone"
+        ],
+        [
+          "ab",
+          "2",
+          "Different ends: 1+1−0"
+        ],
+        [
+          "ba",
+          "2",
+          "Different ends: 1+1−0"
+        ],
+        [
+          "aba",
+          "5",
+          "Matching ends: 2+2+1"
+        ]
+      ]
+    }
   }
 }
