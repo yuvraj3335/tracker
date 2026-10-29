@@ -18315,5 +18315,78 @@
       "time": "O(n³).",
       "space": "O(n²) memo table plus O(n) recursion stack."
     }
+  },
+  "435": {
+    "problem": "Count the fully parenthesized versions of an infix Boolean expression that evaluate to true. Also see the separate parser below for the tracker’s different LeetCode link.",
+    "assumptions": "The sheet-title problem uses alternating uppercase T/F operands and binary &, |, ^ operators, with no existing parentheses. Return the count modulo 1,000,000,007. The pinned LeetCode 1106 link instead uses lowercase t/f, prefix operators !, &, |, commas, and already-fixed parentheses; it returns one boolean value. These are different problems, and both are covered explicitly.",
+    "example": {
+      "input": "Sheet problem: expr = \"T^F|T\"",
+      "output": "1",
+      "explanation": "(T^F)|T is true, but T^(F|T) is false. Exactly one of the two complete parenthesizations is true. The parser variant would instead accept an expression such as !(|(f,t)), whose single answer is false."
+    },
+    "baseline": "For the counting problem, list every full parenthesization and evaluate it. The number of possible shapes is a Catalan number, which grows exponentially. This is a useful small-input check, but not a solution for the source limit.",
+    "approach": "Choose the operator used at the root of the final expression tree. The operands on its left and right form two smaller intervals. We need both true and false counts for each interval: a false child can still contribute to a true result through OR or XOR.\n\nFor AND, only true/true makes true. For OR, every pair except false/false makes true. For XOR, the child values must differ. If the left interval has L suitable parenthesizations and the right has R, they make L×R combined parenthesizations. Every left choice can be paired with every right choice.\n\nTry every root operator and both truth values on each side. Add each product to the resulting truth count. Single operands have one way to produce their own value and zero ways to produce the other. Fill intervals from short to long and reduce each addition modulo 1,000,000,007.\n\nEach complete parenthesization has one root operator, so splitting by that operator counts each tree exactly once. Ordinary operator precedence is not used here: the task is to consider all full groupings. The separately linked parser has fixed grouping and should not use this DP.",
+    "steps": [
+      "Index the operands, with operator k stored at expression position 2k+1.",
+      "Initialize each one-operand interval with one true or one false way.",
+      "For every longer interval, try all root operators.",
+      "Combine all four pairs of child truth values with multiplication.",
+      "Apply the modulus after each addition and return the full interval’s true count."
+    ],
+    "java": "static int countTrue(String expression) {\n    final long MOD=1_000_000_007L;\n    int operands=(expression.length()+1)/2;\n    long[][][] ways=new long[operands][operands][2];\n    for(int i=0;i<operands;i++)\n        ways[i][i][expression.charAt(2*i)=='T'?1:0]=1;\n    for(int length=2;length<=operands;length++) {\n        for(int left=0;left+length<=operands;left++) {\n            int right=left+length-1;\n            for(int root=left;root<right;root++) {\n                char operator=expression.charAt(2*root+1);\n                for(int a=0;a<=1;a++) for(int b=0;b<=1;b++) {\n                    int result=operator=='&'?(a&b):operator=='|'?(a|b):(a^b);\n                    long combinations=ways[left][root][a]*ways[root+1][right][b]%MOD;\n                    ways[left][right][result]=(ways[left][right][result]+combinations)%MOD;\n                }\n            }\n        }\n    }\n    return (int)ways[0][operands-1][1];\n}\nstatic int evaluateExp(String expression) { return countTrue(expression); }",
+    "time": "O(m³), where m is the number of operands.",
+    "space": "O(m²) for two truth counts per interval.",
+    "pitfalls": [
+      "Do not substitute the parser for the counting problem: their grammar and return types differ.",
+      "Track false counts as well as true counts.",
+      "Multiply left and right counts; adding them would not count all pairings.",
+      "Use long before multiplying two modular counts and reduce after each addition.",
+      "Do not count partially parenthesized strings as extra ways. The source’s first example lists an extra partial expression; the five full shapes and its true-count result are the relevant ones."
+    ],
+    "tests": [
+      "assert countTrue(\"T^F|T\")==1;assert countTrue(\"T|T&F^T\")==4;assert countTrue(\"T\")==1;assert countTrue(\"F\")==0;assert !parseBoolExpr(\"!(|(f,t))\");assert parseBoolExpr(\"|(&(t,f),!(f))\");",
+      "for(int n=1;n<=5;n++){int operatorPatterns=1;for(int i=1;i<n;i++)operatorPatterns*=3;for(int operands=0;operands<(1<<n);operands++)for(int pattern=0;pattern<operatorPatterns;pattern++){StringBuilder expression=new StringBuilder();int digits=pattern;for(int i=0;i<n;i++){if(i>0){expression.append(\"&|^\".charAt(digits%3));digits/=3;}expression.append((operands&(1<<i))!=0?'T':'F');}List<Boolean> values=booleanTrees(expression.toString(),0,n-1);int expected=0;for(boolean value:values)if(value)expected++;assert countTrue(expression.toString())==expected;}}",
+      "int n=50;BigInteger catalan=BigInteger.ONE;for(int i=0;i<n-1;i++)catalan=catalan.multiply(BigInteger.valueOf(2L*(2L*i+1))).divide(BigInteger.valueOf(i+2));String allTrue=\"T\"+\"|T\".repeat(n-1);assert countTrue(allTrue)==catalan.mod(BigInteger.valueOf(1000000007)).intValue();assert countTrue(\"F\"+\"&F\".repeat(n-1))==0;",
+      "class BuiltExpression {\n    String text;boolean value;\n    BuiltExpression(String text,boolean value){this.text=text;this.value=value;}\n}\nclass GrammarGenerator {\n    Random random=new Random(435);\n    BuiltExpression make(int depth){\n        if(depth==0||random.nextInt(4)==0){boolean value=random.nextBoolean();return new BuiltExpression(value?\"t\":\"f\",value);}\n        char op=\"!&|\".charAt(random.nextInt(3));int count=op=='!'?1:1+random.nextInt(4);boolean value=op=='&';StringBuilder text=new StringBuilder().append(op).append('(');\n        for(int i=0;i<count;i++){BuiltExpression child=make(depth-1);if(i>0)text.append(',');text.append(child.text);if(op=='!')value=!child.value;else if(op=='&')value=value&&child.value;else value=value||child.value;}\n        return new BuiltExpression(text.append(')').toString(),value);\n    }\n}\nGrammarGenerator generator=new GrammarGenerator();for(int i=0;i<1200;i++){BuiltExpression expression=generator.make(4);assert parseBoolExpr(expression.text)==expression.value;}assert parseBoolExpr(\"!(\".repeat(6000)+\"t\"+\")\".repeat(6000));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/different-ways-to-evaluate-a-boolean-expression",
+      "title": "Different Ways to Evaluate a Boolean Expression",
+      "checkedOn": "2026-10-29",
+      "approach": "Count full expression trees by interval and true/false outcome; distinguish this task from the linked fixed-expression parser.",
+      "adaptation": "The current TUF statement, modulus, examples, and stub were read. It exposes no public algorithm hints and its Solution panel requires sign-in, so this is an original, checked interval-DP explanation of the stated problem, not a claim to have read locked Java. The linked LeetCode 1106 grammar was checked separately, and the separate iterative parser below targets that link."
+    },
+    "baselineJava": "static List<Boolean> booleanTrees(String expression,int left,int right) {\n    if(left==right) return List.of(expression.charAt(2*left)=='T');\n    List<Boolean> answers=new ArrayList<>();\n    for(int root=left;root<right;root++) {\n        List<Boolean> a=booleanTrees(expression,left,root);\n        List<Boolean> b=booleanTrees(expression,root+1,right);\n        char op=expression.charAt(2*root+1);\n        for(boolean x:a) for(boolean y:b)\n            answers.add(op=='&'?(x&&y):op=='|'?(x||y):(x!=y));\n    }\n    return answers;\n}",
+    "baselineTime": "Exponential time and storage because it materializes a result for every full tree; use only on small expressions.",
+    "better": {
+      "explanation": "Separate linked problem — LeetCode 1106 parses one already-grouped expression. Push operators, opening parentheses, and truth values on a stack; ignore commas. On a closing parenthesis, combine its collected values and replace the whole group with one t or f. NOT has exactly one child; AND/OR may have several. This iterative parser handles deep valid nesting without recursive Java stack overflow. It does not count parenthesizations and does not accept the uppercase infix grammar above.",
+      "java": "static boolean parseBoolExpr(String expression) {\n    Deque<Character> stack=new ArrayDeque<>();\n    for(int i=0;i<expression.length();i++) {\n        char token=expression.charAt(i);\n        if(token==',') continue;\n        if(token!=')') {\n            stack.push(token);\n            continue;\n        }\n        boolean hasTrue=false,hasFalse=false;\n        while(stack.peek()!='(') {\n            char value=stack.pop();\n            hasTrue |= value=='t';\n            hasFalse |= value=='f';\n        }\n        stack.pop();\n        char operator=stack.pop();\n        boolean value=operator=='!'?hasFalse:operator=='&'?!hasFalse:hasTrue;\n        stack.push(value?'t':'f');\n    }\n    return stack.pop()=='t';\n}",
+      "time": "O(L), where L is the already-valid parser expression length.",
+      "space": "O(L) explicit stack; no recursion stack."
+    },
+    "trace": {
+      "columns": [
+        "Operator",
+        "Child values that make true",
+        "Contribution"
+      ],
+      "rows": [
+        [
+          "AND",
+          "true, true",
+          "leftTrue × rightTrue"
+        ],
+        [
+          "OR",
+          "true,true; true,false; false,true",
+          "Sum of those three products"
+        ],
+        [
+          "XOR",
+          "true,false; false,true",
+          "Sum of those two products"
+        ]
+      ]
+    }
   }
 }
