@@ -11872,5 +11872,160 @@
       "time": "O(n).",
       "space": "O(h) recursion stack. Use BFS for trees deeper than Java’s call stack can handle."
     }
+  },
+  "306": {
+    "problem": "Count the nodes in a complete binary tree without visiting every node.",
+    "assumptions": "The input must be complete: every level except possibly the last is full, and the last level fills from left to right. Equal outer heights prove a subtree is perfect only under this assumption. The pinned LeetCode interface returns int; the count is assumed to fit int.",
+    "example": {
+      "input": "level order [8, 4, 9, 2, 6, 7]",
+      "output": "6",
+      "explanation": "The root’s outer heights differ, so split the tree. Its left subtree is perfect with three nodes; its right subtree has two. Add the root: 3 + 2 + 1 = 6."
+    },
+    "baseline": "Visit each node and return 1 + leftCount + rightCount. This works on any binary tree but takes O(n), ignoring the complete-tree structure.",
+    "approach": "Count the nodes on the all-left path and on the all-right path from the current root. If those heights are equal, the subtree is perfect because the input is complete. A perfect tree with h levels contains 1 + 2 + 4 + … + 2^(h−1) = 2^h − 1 nodes. Return that count immediately.\n\nIf the heights differ, count both child subtrees and add one for the root. At most one child subtree needs further splitting; the other is perfect and can be counted from its height. Across O(log n) levels, height scans take O(log² n) time.",
+    "steps": [
+      "Return 0 for null.",
+      "Measure the leftmost and rightmost heights in nodes.",
+      "For equal heights, return 2^height − 1.",
+      "Otherwise return 1 plus both child counts."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int countNodes(TreeNode root) {\n    if (root == null) return 0;\n    int leftHeight = 0, rightHeight = 0;\n    for (TreeNode node = root; node != null; node = node.left) leftHeight++;\n    for (TreeNode node = root; node != null; node = node.right) rightHeight++;\n    if (leftHeight == rightHeight) return Math.toIntExact((1L << leftHeight) - 1);\n    return 1 + countNodes(root.left) + countNodes(root.right);\n}",
+    "time": "O(log² n) for a complete tree.",
+    "space": "O(log n) recursive stack space.",
+    "pitfalls": [
+      "Do not apply the equal-height shortcut to an arbitrary tree with holes.",
+      "Heights count levels here: a leaf has height 1.",
+      "In Java, ^ means XOR, not exponentiation. Use a shift for powers of two.",
+      "The complete-tree assumption is what allows whole subtrees to be skipped."
+    ],
+    "tests": [
+      "assert countNodes(null)==0;assert countNodes(new TreeNode(0))==1;",
+      "TreeNode[]nodes=new TreeNode[8192];for(int n=1;n<=nodes.length;n++){int i=n-1;nodes[i]=new TreeNode(i);if(i>0){TreeNode parent=nodes[(i-1)/2];if(i%2==1)parent.left=nodes[i];else parent.right=nodes[i];}assert countNodes(nodes[0])==n;if(n<=128||n%127==0)assert countEveryNode(nodes[0])==n;}",
+      "TreeNode[]nodes=new TreeNode[50000];for(int i=0;i<nodes.length;i++)nodes[i]=new TreeNode(-1);for(int i=1;i<nodes.length;i++){if(i%2==1)nodes[(i-1)/2].left=nodes[i];else nodes[(i-1)/2].right=nodes[i];}assert countNodes(nodes[0])==50000;assert countEveryNode(nodes[0])==50000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-nodes-in-a-complete-binary-tree",
+      "title": "Count Nodes in a Complete Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Count every node, then skip perfect subtrees using equal extreme heights.",
+      "adaptation": "Both public Java methods were checked. The source’s long shift is retained, with an int result for the pinned LeetCode interface. The completeness precondition is stated explicitly."
+    },
+    "baselineJava": "static int countEveryNode(TreeNode root) {\n    if (root == null) return 0;\n    return 1 + countEveryNode(root.left) + countEveryNode(root.right);\n}",
+    "baselineTime": "O(n) time and O(log n) recursive space on a complete tree."
+  },
+  "307": {
+    "problem": "Decide whether two ordinary traversal types guarantee a unique arbitrary binary tree, assuming distinct node values and consistent traversal data.",
+    "assumptions": "The practice question encodes preorder as 1, inorder as 2, and postorder as 3. It asks about the guarantee provided by the types, not whether one particular pair of arrays happens to have a unique answer. No extra full-tree, BST, or null-marker information is given.",
+    "example": {
+      "input": "a = 1 (preorder), b = 2 (inorder)",
+      "output": "true",
+      "explanation": "Preorder identifies the root. Its location in inorder separates the left and right subtrees. Repeat the same reasoning inside each part."
+    },
+    "baseline": "List the nine ordered pairs of traversal types. Preorder + inorder and postorder + inorder work in either order. Two copies of the same type do not add information, and preorder + postorder cannot resolve a single child’s side.",
+    "approach": "One traversal must tell us which node is the root, and the other must separate its left and right subtrees. Preorder gives the root first; postorder gives it last. Inorder puts the root between its two subtrees.\n\nSo, among the three allowed types, the types must differ and one must be inorder. For preorder [8, 4] and postorder [4, 8], node 4 could be either the left or right child of 8. Both trees fit, so that pair does not guarantee uniqueness.\n\nThere are useful exceptions outside this question: preorder and postorder determine a full tree with distinct values, and preorder with a marker for every missing child describes an arbitrary tree. Duplicate values also remove the usual guarantee unless node identities or other structure are supplied.",
+    "steps": [
+      "Reject two equal traversal types.",
+      "Check whether either type is inorder.",
+      "Return true only when both conditions hold."
+    ],
+    "java": "static boolean uniqueBinaryTree(int a, int b) {\n    return a != b && (a == 2 || b == 2);\n}",
+    "time": "O(1) for this traversal-type question.",
+    "space": "O(1).",
+    "pitfalls": [
+      "This predicate does not validate actual traversal arrays. Their values and order must still be consistent.",
+      "Preorder + postorder can be unique for some particular trees, but does not guarantee uniqueness for every arbitrary tree.",
+      "Distinct values matter when using a value-to-inorder-index map.",
+      "Do not silently assume a full tree or a BST. Those are extra constraints."
+    ],
+    "tests": [
+      "boolean[][]expected={{false,true,false},{true,false,true},{false,true,false}};for(int a=1;a<=3;a++)for(int b=1;b<=3;b++)assert uniqueBinaryTree(a,b)==expected[a-1][b-1];"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/requirements-needed-to-construct-a-unique-binary-tree",
+      "title": "Requirements needed to construct a unique Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Combine a root-identifying traversal with inorder’s subtree split.",
+      "adaptation": "The complete public theory lesson and the practice page’s 1/2/3 encoding were checked. The lesson has no Java tab; this authored constant-time Java answers its linked practice question. Extra structural guarantees and duplicate-value limitations are explained separately."
+    }
+  },
+  "308": {
+    "problem": "Reconstruct a binary tree from its preorder and inorder traversals.",
+    "assumptions": "Values are distinct and the traversals describe the same tree. Preorder visits root, left, right; inorder visits left, root, right. The methods return newly allocated nodes and do not change the input arrays. Empty arrays produce null.",
+    "example": {
+      "input": "preorder = [8, 4, 2, 6, 9]; inorder = [2, 4, 6, 8, 9]",
+      "output": "root 8; left subtree rooted at 4 with children 2 and 6; right child 9",
+      "explanation": "8 is first in preorder. In inorder, [2, 4, 6] lies left of 8 and [9] lies right. The next unused preorder value, 4, starts the left subtree."
+    },
+    "baseline": "Take the next preorder value as root and linearly search for it inside the current inorder range. Build the left and right ranges recursively. Repeating these searches can take O(n²) time on a skewed tree.",
+    "approach": "Build a map from each value to its inorder position. Keep a cursor pointing to the next unused preorder value. A recursive call receives the inorder range belonging to its subtree.\n\nRead the next preorder value as the root. Its inorder position splits that range into a left part and a right part. Build the left subtree first, then the right, because that is the order in which the shared preorder cursor encounters their values.\n\nAn empty inorder range means a missing child. Every nonempty call consumes exactly one preorder value and creates exactly one node. The index map removes repeated scanning, giving O(n) expected time.",
+    "steps": [
+      "Map each distinct value to its inorder position.",
+      "Start a local preorder cursor at 0.",
+      "For a nonempty inorder range, consume its root and look up the split position.",
+      "Build left first, then right; attach them and return the root."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic Map<Integer, Integer> inorderPositions(int[] traversal, int[] inorder) {\n    if (traversal.length != inorder.length) throw new IllegalArgumentException(\"Lengths differ\");\n    Map<Integer, Integer> positions = new HashMap<>();\n    for (int i = 0; i < inorder.length; i++) {\n        if (positions.put(inorder[i], i) != null) throw new IllegalArgumentException(\"Duplicate value\");\n    }\n    Set<Integer> seen = new HashSet<>();\n    for (int value : traversal) {\n        if (!positions.containsKey(value) || !seen.add(value))\n            throw new IllegalArgumentException(\"Traversals must contain the same distinct values\");\n    }\n    return positions;\n}\n\nstatic TreeNode buildTree(int[] preorder, int[] inorder) {\n    Map<Integer, Integer> positions = inorderPositions(preorder, inorder);\n    return buildPre(preorder, new int[]{0}, 0, inorder.length - 1, positions);\n}\nstatic TreeNode buildPre(int[] preorder, int[] next, int low, int high,\n                         Map<Integer, Integer> positions) {\n    if (low > high) return null;\n    if (next[0] >= preorder.length) throw new IllegalArgumentException(\"Invalid traversal order\");\n    int value = preorder[next[0]++];\n    int split = positions.get(value);\n    if (split < low || split > high) throw new IllegalArgumentException(\"Invalid traversal order\");\n    TreeNode root = new TreeNode(value);\n    root.left = buildPre(preorder, next, low, split - 1, positions);\n    root.right = buildPre(preorder, next, split + 1, high, positions);\n    return root;\n}",
+    "time": "O(n) expected time with HashMap.",
+    "space": "O(n) index/validation storage and O(h) recursion, plus O(n) returned nodes. Deep skewed trees can exceed Java’s call-stack limit.",
+    "pitfalls": [
+      "With one forward preorder cursor, construct the left subtree before the right.",
+      "Search only the current inorder range, not an unrelated subtree.",
+      "Do not reuse a cursor from a previous call.",
+      "A value-to-index map requires distinct values."
+    ],
+    "tests": [
+      "assert buildTree(new int[]{},new int[]{})==null;int[]pre={8,4,2,6,9},in={2,4,6,8,9};TreeNode r=buildTree(pre,in);assert r.val==8&&r.left.val==4&&r.left.left.val==2&&r.left.right.val==6&&r.right.val==9;assert Arrays.equals(pre,new int[]{8,4,2,6,9})&&Arrays.equals(in,new int[]{2,4,6,8,9});assert buildTree(new int[]{1},new int[]{1}).val==1;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>nodes=new ArrayList<>(paths.keySet());for(int i=0;i<nodes.size();i++)nodes.get(i).val=i*17-500;List<TreeNode>pre=new ArrayList<>(nodes),in=new ArrayList<>(nodes),post=new ArrayList<>(nodes);pre.sort(Comparator.comparing(paths::get));in.sort(Comparator.comparing(x->paths.get(x)+\"M\"));post.sort(Comparator.comparing(x->paths.get(x)+\"Z\"));int[]preorder=pre.stream().mapToInt(x->x.val).toArray(),inorder=in.stream().mapToInt(x->x.val).toArray(),postorder=post.stream().mapToInt(x->x.val).toArray();TreeNode[]rebuiltTrees={buildTree(preorder,inorder),buildPreByScan(preorder,inorder)};Map<Integer,String>expected=new HashMap<>();for(TreeNode x:nodes)expected.put(x.val,paths.get(x));for(TreeNode rebuilt:rebuiltTrees){Map<TreeNode,String>actualPaths=new IdentityHashMap<>();Queue<TreeNode>queue=new ArrayDeque<>();queue.offer(rebuilt);actualPaths.put(rebuilt,\"\");Map<Integer,String>actual=new HashMap<>();while(!queue.isEmpty()){TreeNode x=queue.poll();String path=actualPaths.get(x);actual.put(x.val,path);assert !paths.containsKey(x);if(x.left!=null){actualPaths.put(x.left,path+\"L\");queue.offer(x.left);}if(x.right!=null){actualPaths.put(x.right,path+\"R\");queue.offer(x.right);}}assert actual.equals(expected);}}",
+      "int[][][]bad={{{1},{1,2}},{{1,1},{1,1}},{{1,2},{1,3}},{{1,2,3},{3,1,2}}};for(int[][]pair:bad){boolean rejected=false;try{buildTree(pair[0],pair[1]);}catch(IllegalArgumentException e){rejected=true;}assert rejected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/construct-a-binary-tree-from-preorder-and-inorder",
+      "title": "Construct a Binary Tree from Preorder and Inorder",
+      "checkedOn": "2026-10-29",
+      "approach": "Take the next preorder root and split its inorder range, first by scanning and then with a value-index map.",
+      "adaptation": "Both public Java methods were checked. The shared forward cursor and left-before-right recursion are retained, with cursor/map state local to each call. The primary version additionally rejects inconsistent or duplicate traversal data."
+    },
+    "baselineJava": "static TreeNode buildPreByScan(int[] preorder, int[] inorder) {\n    return scanPre(preorder, inorder, new int[]{0}, 0, inorder.length - 1);\n}\nstatic TreeNode scanPre(int[] preorder, int[] inorder, int[] next, int low, int high) {\n    if (low > high) return null;\n    int value = preorder[next[0]++];\n    int split = low;\n    while (split <= high && inorder[split] != value) split++;\n    TreeNode root = new TreeNode(value);\n    root.left = scanPre(preorder, inorder, next, low, split - 1);\n    root.right = scanPre(preorder, inorder, next, split + 1, high);\n    return root;\n}",
+    "baselineTime": "O(n²) worst-case time and O(h) recursive space, excluding the new tree. This teaching version assumes valid, distinct traversals."
+  },
+  "309": {
+    "problem": "Reconstruct a binary tree from its inorder and postorder traversals.",
+    "assumptions": "Values are distinct and both traversals describe the same tree. Postorder visits left, right, root. The pinned interface takes inorder first and postorder second. Input arrays remain unchanged; empty arrays return null.",
+    "example": {
+      "input": "inorder = [2, 4, 6, 8, 9]; postorder = [2, 6, 4, 9, 8]",
+      "output": "root 8; left subtree rooted at 4 with children 2 and 6; right child 9",
+      "explanation": "The last postorder value is 8. Reading backward, 9 comes next, so build the right subtree before the left subtree rooted at 4."
+    },
+    "baseline": "Read postorder backward and search linearly for each root in its current inorder range. This reconstructs the tree but can spend O(n²) time repeating inorder scans.",
+    "approach": "The last unused postorder value is the root of the current subtree. Find its position in inorder to separate the left and right ranges.\n\nA backward postorder cursor sees Root → Right → Left. Build the right subtree first so it consumes the correct values, then build the left subtree. This order is essential when sharing one cursor; it is the reverse of the preorder construction.\n\nStore inorder positions in a HashMap to find each split in expected constant time. Empty ranges return null, and each nonempty range consumes one value and creates one node.",
+    "steps": [
+      "Map inorder values to their positions.",
+      "Start the postorder cursor at the final index.",
+      "Consume a root and find its split in the current inorder range.",
+      "Build right before left, then return the connected root."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic Map<Integer, Integer> inorderPositions(int[] traversal, int[] inorder) {\n    if (traversal.length != inorder.length) throw new IllegalArgumentException(\"Lengths differ\");\n    Map<Integer, Integer> positions = new HashMap<>();\n    for (int i = 0; i < inorder.length; i++) {\n        if (positions.put(inorder[i], i) != null) throw new IllegalArgumentException(\"Duplicate value\");\n    }\n    Set<Integer> seen = new HashSet<>();\n    for (int value : traversal) {\n        if (!positions.containsKey(value) || !seen.add(value))\n            throw new IllegalArgumentException(\"Traversals must contain the same distinct values\");\n    }\n    return positions;\n}\n\nstatic TreeNode buildTree(int[] inorder, int[] postorder) {\n    Map<Integer, Integer> positions = inorderPositions(postorder, inorder);\n    return buildPost(postorder, new int[]{postorder.length - 1}, 0, inorder.length - 1, positions);\n}\nstatic TreeNode buildPost(int[] postorder, int[] next, int low, int high,\n                          Map<Integer, Integer> positions) {\n    if (low > high) return null;\n    if (next[0] < 0) throw new IllegalArgumentException(\"Invalid traversal order\");\n    int value = postorder[next[0]--];\n    int split = positions.get(value);\n    if (split < low || split > high) throw new IllegalArgumentException(\"Invalid traversal order\");\n    TreeNode root = new TreeNode(value);\n    root.right = buildPost(postorder, next, split + 1, high, positions);\n    root.left = buildPost(postorder, next, low, split - 1, positions);\n    return root;\n}",
+    "time": "O(n) expected time with HashMap.",
+    "space": "O(n) index/validation storage and O(h) recursion, plus O(n) output nodes. Deep skewed trees may exceed Java’s call-stack limit.",
+    "pitfalls": [
+      "A backward shared cursor requires right-before-left construction.",
+      "Do not confuse this method’s inorder, postorder parameter order with the preorder question.",
+      "Use inclusive range boundaries consistently.",
+      "Distinct values and matching lengths alone do not prove ordering is valid; the root must also lie in the current range."
+    ],
+    "tests": [
+      "assert buildTree(new int[]{},new int[]{})==null;int[]in={2,4,6,8,9},post={2,6,4,9,8};TreeNode r=buildTree(in,post);assert r.val==8&&r.right.val==9&&r.left.val==4&&r.left.left.val==2&&r.left.right.val==6;assert Arrays.equals(in,new int[]{2,4,6,8,9})&&Arrays.equals(post,new int[]{2,6,4,9,8});assert buildTree(new int[]{7},new int[]{7}).val==7;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>nodes=new ArrayList<>(paths.keySet());for(int i=0;i<nodes.size();i++)nodes.get(i).val=i*17-500;List<TreeNode>pre=new ArrayList<>(nodes),in=new ArrayList<>(nodes),post=new ArrayList<>(nodes);pre.sort(Comparator.comparing(paths::get));in.sort(Comparator.comparing(x->paths.get(x)+\"M\"));post.sort(Comparator.comparing(x->paths.get(x)+\"Z\"));int[]preorder=pre.stream().mapToInt(x->x.val).toArray(),inorder=in.stream().mapToInt(x->x.val).toArray(),postorder=post.stream().mapToInt(x->x.val).toArray();TreeNode[]rebuiltTrees={buildTree(inorder,postorder),buildPostByScan(inorder,postorder)};Map<Integer,String>expected=new HashMap<>();for(TreeNode x:nodes)expected.put(x.val,paths.get(x));for(TreeNode rebuilt:rebuiltTrees){Map<TreeNode,String>actualPaths=new IdentityHashMap<>();Queue<TreeNode>queue=new ArrayDeque<>();queue.offer(rebuilt);actualPaths.put(rebuilt,\"\");Map<Integer,String>actual=new HashMap<>();while(!queue.isEmpty()){TreeNode x=queue.poll();String path=actualPaths.get(x);actual.put(x.val,path);assert !paths.containsKey(x);if(x.left!=null){actualPaths.put(x.left,path+\"L\");queue.offer(x.left);}if(x.right!=null){actualPaths.put(x.right,path+\"R\");queue.offer(x.right);}}assert actual.equals(expected);}}",
+      "int[][][]bad={{{1},{1,2}},{{1,1},{1,1}},{{1,2},{1,3}},{{1,2,3},{3,1,2}}};for(int[][]pair:bad){boolean rejected=false;try{buildTree(pair[0],pair[1]);}catch(IllegalArgumentException e){rejected=true;}assert rejected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/construct-a-bt-from-postorder-and-inorder",
+      "title": "Construct a BT from Postorder and Inorder",
+      "checkedOn": "2026-10-29",
+      "approach": "Read postorder backward and split inorder, building the right subtree before the left.",
+      "adaptation": "The public practice statement, distinct-value constraints, and parameter order were checked. Striver’s unique-construction lesson gives the backward-postorder algorithm but no Java tab for it. This authored Java follows that algorithm and adds validation; it is not presented as a verified source Java listing."
+    },
+    "baselineJava": "static TreeNode buildPostByScan(int[] inorder, int[] postorder) {\n    return scanPost(inorder, postorder, new int[]{postorder.length - 1}, 0, inorder.length - 1);\n}\nstatic TreeNode scanPost(int[] inorder, int[] postorder, int[] next, int low, int high) {\n    if (low > high) return null;\n    int value = postorder[next[0]--];\n    int split = low;\n    while (split <= high && inorder[split] != value) split++;\n    TreeNode root = new TreeNode(value);\n    root.right = scanPost(inorder, postorder, next, split + 1, high);\n    root.left = scanPost(inorder, postorder, next, low, split - 1);\n    return root;\n}",
+    "baselineTime": "O(n²) worst-case time and O(h) recursive space, excluding the new tree. Assumes valid, distinct traversal arrays."
   }
 }
