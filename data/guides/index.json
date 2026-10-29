@@ -12522,5 +12522,133 @@
       "time": "O(h + k), at most O(n).",
       "space": "O(h) recursive stack. Deep trees may exceed Java’s call-stack limit."
     }
+  },
+  "322": {
+    "problem": "Check whether a binary tree obeys strict BST ordering at every node.",
+    "assumptions": "Every value in a node’s left subtree must be smaller, and every value in its right subtree must be larger. Equal values are invalid. Empty input is valid. Values can include Integer.MIN_VALUE and Integer.MAX_VALUE.",
+    "example": {
+      "input": "root 8; left child 4; 4.right = 10; right child 12",
+      "output": "false",
+      "explanation": "10 is larger than its parent 4, but it still belongs to the left subtree of 8, where every value must be below 8."
+    },
+    "baseline": "Carry an allowed open interval down the tree. A left child inherits the lower bound and gets its parent as upper bound; a right child inherits the upper bound and gets its parent as lower bound. Use long bounds so all int values fit strictly inside the initial interval.",
+    "approach": "Inorder traversal of a strict BST must be strictly increasing. Visit the left subtree, compare the current value with the previously visited value, then continue right. Reject a value that is less than or equal to the previous one.\n\nThis catches distant ancestor violations too. In the example, inorder reads 4, 10, 8, 12, and the drop from 10 to 8 reveals the problem. Checking only direct parent-child pairs would miss it.\n\nThe explicit stack below performs inorder without recursive depth limits. previous is local to the call, so validating one tree cannot affect a later call. Both this method and the bounds method take O(n); neither is asymptotically faster.",
+    "steps": [
+      "Push the current node’s left chain.",
+      "Pop the next inorder node.",
+      "Reject it if its value is not strictly greater than the previous value.",
+      "Remember it and continue from its right child."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic boolean isValidBST(TreeNode root) {\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root, previous = null;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        if (previous != null && current.val <= previous.val) return false;\n        previous = current;\n        current = current.right;\n    }\n    return true;\n}",
+    "time": "O(n).",
+    "space": "O(h) stack space.",
+    "pitfalls": [
+      "The condition applies to entire subtrees, not only immediate children.",
+      "Strict ordering rejects duplicates.",
+      "Do not use Integer.MIN_VALUE as an exclusive initial lower bound: that would reject a valid node with that value.",
+      "Keep the previous node local or reset it between calls."
+    ],
+    "tests": [
+      "assert isValidBST(null);TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.left.right=new TreeNode(10);r.right=new TreeNode(12);assert !isValidBST(r);r.left.right.val=6;assert isValidBST(r);assert isValidBST(r);r.left.val=8;assert !isValidBST(r);assert isValidBST(new TreeNode(Integer.MIN_VALUE));assert isValidBST(new TreeNode(Integer.MAX_VALUE));",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}boolean want=true;for(TreeNode a:paths.keySet())for(TreeNode b:paths.keySet()){String x=paths.get(a),y=paths.get(b);if(y.startsWith(x+\"L\")&&b.val>=a.val)want=false;if(y.startsWith(x+\"R\")&&b.val<=a.val)want=false;}assert isValidBST(root)==want;assert validByBounds(root)==want;}",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}assert isValidBST(root);assert validByBounds(root);if(ordered.size()>1){ordered.get(ordered.size()-1).val=ordered.get(0).val;assert !isValidBST(root);assert !validByBounds(root);}}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert isValidBST(r);p.val=-1;assert !isValidBST(r);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/validate-binary-search-tree",
+      "title": "Validate Binary Search Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Propagate strict bounds or check strictly increasing inorder values.",
+      "adaptation": "Both public Java methods were checked. The source’s inorder version keeps previous in an instance field without resetting it; this explicit-stack adaptation uses local state. The bounds version keeps long limits, and both methods are described with the same O(n) time bound."
+    },
+    "baselineJava": "static boolean validByBounds(TreeNode root) {\n    return withinBounds(root, Long.MIN_VALUE, Long.MAX_VALUE);\n}\nstatic boolean withinBounds(TreeNode node, long lower, long upper) {\n    if (node == null) return true;\n    if (node.val <= lower || node.val >= upper) return false;\n    return withinBounds(node.left, lower, node.val) && withinBounds(node.right, node.val, upper);\n}",
+    "baselineTime": "O(n) time and O(h) recursive stack space."
+  },
+  "323": {
+    "problem": "Find the lowest common ancestor of two existing nodes in a binary search tree.",
+    "assumptions": "The tree is a valid strict BST with distinct values, and both target nodes exist in it. A node counts as its own ancestor. The function returns an existing node reference and does not change the tree. The split rule alone does not verify that supplied targets exist.",
+    "example": {
+      "input": "root 8; children 4 and 12; 4 has children 2 and 6; targets 2 and 6",
+      "output": "node 4",
+      "explanation": "Both targets are below 8 on the left. At 4, one target is smaller and one is larger, so their paths split there."
+    },
+    "baseline": "Recursively descend left when both target values are smaller, or right when both are larger. The first node where neither condition holds is the answer. This needs O(h) recursive space.",
+    "approach": "If both targets are smaller than current, their lowest common ancestor must be in the left subtree. If both are larger, it must be in the right subtree. Continue in that one direction.\n\nOtherwise, the two targets lie on different sides, or current is one of the targets. Return current. At a split, neither child subtree can contain both targets, so no lower common ancestor exists. If current is a target, it is already the lowest possible ancestor of itself and the other node.\n\nBST ordering makes one path enough. For an ordinary binary tree, these value comparisons cannot tell us where a target lies.",
+    "steps": [
+      "Start at the root.",
+      "Move left if both target values are smaller.",
+      "Move right if both target values are larger.",
+      "Otherwise return the current node."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {\n    TreeNode current = root;\n    while (current != null) {\n        if (p.val < current.val && q.val < current.val) current = current.left;\n        else if (p.val > current.val && q.val > current.val) current = current.right;\n        else return current;\n    }\n    return null;\n}",
+    "time": "O(h): O(log n) when balanced and O(n) for a chain.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "Both targets must exist for the split-point conclusion to be valid.",
+      "The answer can equal one of the target nodes.",
+      "Do not use this shortcut on an ordinary unordered binary tree.",
+      "Use comparisons rather than multiplying signed differences, which can overflow."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(12);r.left.left=new TreeNode(2);r.left.right=new TreeNode(6);assert lowestCommonAncestor(r,r.left.left,r.left.right)==r.left;assert lowestCommonAncestor(r,r.left,r.left.right)==r.left;assert lowestCommonAncestor(r,r.right,r.left.left)==r;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}Map<String,TreeNode>byPath=new HashMap<>();for(TreeNode x:paths.keySet())byPath.put(paths.get(x),x);for(int t=0;t<50;t++){TreeNode a=ordered.get(random.nextInt(ordered.size())),b=ordered.get(random.nextInt(ordered.size()));String x=paths.get(a),y=paths.get(b);int common=0;while(common<Math.min(x.length(),y.length())&&x.charAt(common)==y.charAt(common))common++;TreeNode want=byPath.get(x.substring(0,common));assert lowestCommonAncestor(root,a,b)==want;assert lcaRecursive(root,a,b)==want;}}",
+      "TreeNode r=new TreeNode(0),p=r,mid=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;if(i==50000)mid=p;}assert lowestCommonAncestor(r,mid,p)==mid;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/lowest-common-ancestor-of-a-binary-search-tree",
+      "title": "Lowest Common Ancestor of a Binary Search Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Descend while both targets lie on the same side; return their first split or matching ancestor.",
+      "adaptation": "Both public Java methods were checked. The source’s value comparisons and existing-target assumption are retained; the iterative method uses only a current-node reference."
+    },
+    "baselineJava": "static TreeNode lcaRecursive(TreeNode root, TreeNode p, TreeNode q) {\n    if (root == null) return null;\n    if (p.val < root.val && q.val < root.val) return lcaRecursive(root.left, p, q);\n    if (p.val > root.val && q.val > root.val) return lcaRecursive(root.right, p, q);\n    return root;\n}",
+    "baselineTime": "O(h) time and O(h) recursive space."
+  },
+  "324": {
+    "problem": "Construct a binary search tree from its preorder traversal.",
+    "assumptions": "Values are distinct and the input is a valid BST preorder, as in the linked problem. The primary version additionally rejects duplicate or invalid preorder sequences. It returns newly allocated nodes and leaves the input unchanged. Empty input produces null.",
+    "example": {
+      "input": "preorder = [8, 4, 2, 6, 12, 10]",
+      "output": "root 8; left subtree 4 with children 2 and 6; right subtree 12 with left child 10",
+      "explanation": "After building the subtree below 4, the next value 12 cannot fit below 8 on the left. Leave it unread until constructing 8’s right subtree."
+    },
+    "baseline": "Insert the values one by one into an empty BST. A valid preorder inserts each parent before its descendants and reproduces the original tree, but repeated searches can take O(n²) time.",
+    "approach": "Keep one cursor for the next unread preorder value and give each subtree an allowed open interval. If the next value is outside that interval, this subtree is empty: return null without advancing the cursor. The value may belong to a later subtree.\n\nIf the value fits, consume it as the root. Build the left subtree with a smaller upper bound, then the right subtree with a larger lower bound. The inherited opposite bounds preserve restrictions from all ancestors.\n\nEvery node is consumed once, so construction is linear. long bounds allow both int extremes. After the root is built, unread values mean the input was not a valid strict-BST preorder; reject it instead of returning only a prefix.",
+    "steps": [
+      "Start a local cursor at 0 with long minimum and maximum bounds.",
+      "Return null without consuming a value if it is outside the current range.",
+      "Otherwise create the node and advance the cursor.",
+      "Build left then right with narrowed bounds; verify all input was consumed."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode bstFromPreorder(int[] preorder) {\n    int[] next = {0};\n    TreeNode root = buildBounded(preorder, next, Long.MIN_VALUE, Long.MAX_VALUE);\n    if (next[0] != preorder.length) throw new IllegalArgumentException(\"Invalid strict-BST preorder\");\n    return root;\n}\nstatic TreeNode buildBounded(int[] preorder, int[] next, long lower, long upper) {\n    if (next[0] == preorder.length) return null;\n    int value = preorder[next[0]];\n    if (value <= lower || value >= upper) return null;\n    next[0]++;\n    TreeNode root = new TreeNode(value);\n    root.left = buildBounded(preorder, next, lower, value);\n    root.right = buildBounded(preorder, next, value, upper);\n    return root;\n}",
+    "time": "O(n).",
+    "space": "O(h) recursive stack plus O(n) returned nodes. A deeply skewed input can exceed Java’s call-stack limit.",
+    "pitfalls": [
+      "Do not advance the cursor when a value fails the current subtree’s bounds.",
+      "Carry both ancestor bounds; comparing only with the direct parent can admit an invalid value.",
+      "Use strict inequalities for distinct-key BSTs.",
+      "The binary-search split alternative relies on valid preorder structure even though the array is not numerically sorted."
+    ],
+    "tests": [
+      "assert bstFromPreorder(new int[]{})==null;int[]a={8,4,2,6,12,10};TreeNode r=bstFromPreorder(a);assert r.val==8&&r.left.val==4&&r.left.left.val==2&&r.left.right.val==6&&r.right.val==12&&r.right.left.val==10;assert Arrays.equals(a,new int[]{8,4,2,6,12,10});TreeNode e=bstFromPreorder(new int[]{0,Integer.MIN_VALUE,Integer.MAX_VALUE});assert e.left.val==Integer.MIN_VALUE&&e.right.val==Integer.MAX_VALUE;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}List<TreeNode>pre=new ArrayList<>(paths.keySet());pre.sort(Comparator.comparing(paths::get));int[]input=pre.stream().mapToInt(x->x.val).toArray();TreeNode[]rebuilt={bstFromPreorder(input),bstByInsertion(input),bstBySplit(input)};Map<Integer,String>want=new HashMap<>();for(TreeNode x:paths.keySet())want.put(x.val,paths.get(x));for(TreeNode copy:rebuilt){Map<TreeNode,String>position=new IdentityHashMap<>();Queue<TreeNode>queue=new ArrayDeque<>();queue.offer(copy);position.put(copy,\"\");Map<Integer,String>actual=new HashMap<>();while(!queue.isEmpty()){TreeNode x=queue.poll();String path=position.get(x);assert !paths.containsKey(x);actual.put(x.val,path);if(x.left!=null){position.put(x.left,path+\"L\");queue.offer(x.left);}if(x.right!=null){position.put(x.right,path+\"R\");queue.offer(x.right);}}assert actual.equals(want);}}",
+      "for(int[]bad:new int[][]{{8,10,5},{8,8},{8,4,12,3},{0,Integer.MAX_VALUE,Integer.MIN_VALUE}}){boolean rejected=false;try{bstFromPreorder(bad);}catch(IllegalArgumentException e){rejected=true;}assert rejected;}",
+      "Random random=new Random(324);for(int t=0;t<1000;t++){List<Integer>values=new ArrayList<>(List.of(1,2,3,4,5,6,7,8));Collections.shuffle(values,random);int[]input=values.stream().mapToInt(x->x).toArray();TreeNode candidate=bstByInsertion(input);List<Integer>pre=new ArrayList<>();Deque<TreeNode>stack=new ArrayDeque<>();stack.push(candidate);while(!stack.isEmpty()){TreeNode x=stack.pop();pre.add(x.val);if(x.right!=null)stack.push(x.right);if(x.left!=null)stack.push(x.left);}boolean valid=pre.equals(values),accepted=true;try{bstFromPreorder(input);}catch(IllegalArgumentException e){accepted=false;}assert accepted==valid;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/construct-a-bst-from-preorder-traversal",
+      "title": "Construct a BST from Preorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated insertion, binary-search partitioning, then a single cursor with inherited bounds.",
+      "adaptation": "All three public Java methods were checked. The primary version preserves the source’s two long bounds and left-before-right construction, uses a local cursor, and rejects leftover input. The insertion and split versions are teaching alternatives for guaranteed-valid preorder only."
+    },
+    "baselineJava": "static TreeNode bstByInsertion(int[] preorder) {\n    TreeNode root = null;\n    for (int value : preorder) root = insertValue(root, value);\n    return root;\n}\nstatic TreeNode insertValue(TreeNode node, int value) {\n    if (node == null) return new TreeNode(value);\n    if (value < node.val) node.left = insertValue(node.left, value);\n    else if (value > node.val) node.right = insertValue(node.right, value);\n    return node;\n}",
+    "baselineTime": "O(n²) worst-case time and O(h) recursive stack, plus the returned tree.",
+    "better": {
+      "explanation": "For a valid preorder segment, its first value is the root. The remaining segment contains all smaller left-subtree values before all larger right-subtree values. That smaller/larger predicate changes once, so binary search can find the split even though the values themselves are not sorted. Recurse on the two ranges.",
+      "java": "static TreeNode bstBySplit(int[] preorder) {\n    return splitBst(preorder, 0, preorder.length - 1);\n}\nstatic TreeNode splitBst(int[] preorder, int start, int end) {\n    if (start > end) return null;\n    TreeNode root = new TreeNode(preorder[start]);\n    int low = start + 1, high = end + 1;\n    while (low < high) {\n        int middle = low + (high - low) / 2;\n        if (preorder[middle] > root.val) high = middle;\n        else low = middle + 1;\n    }\n    root.left = splitBst(preorder, start + 1, low - 1);\n    root.right = splitBst(preorder, low, end);\n    return root;\n}",
+      "time": "O(n log n) in the worst case.",
+      "space": "O(h) recursive stack, plus O(n) output nodes."
+    }
   }
 }
