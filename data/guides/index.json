@@ -10835,5 +10835,119 @@
       "approach": "Follow Left → Right → Root using recursive subtree calls.",
       "adaptation": "The public practice contract and the current tree-foundation traversal definitions were checked. The solution tab requires sign-in and no public Java editorial was available. This authored Java follows the stated traversal order, uses val for the linked judge, and is tested against independently sorted node paths."
     }
+  },
+  "282": {
+    "problem": "Return the tree’s values grouped by level, from the root downward and left to right within each level.",
+    "assumptions": "The pinned title mentions spiral form, but its LeetCode link asks for ordinary level order. This page solves that linked task. Zigzag/spiral order alternates direction and has its own later tracker entry. A null root returns an empty list.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "[[8],[4,9],[6]]",
+      "explanation": "All nodes one edge from the root belong to the second list, even though one branch continues deeper."
+    },
+    "baseline": "A depth-first traversal can place each value into a list indexed by depth. It takes O(n) time too, but a queue directly represents the level-by-level order and avoids recursion.",
+    "approach": "Put the root in a queue. Remove nodes from the front and add their existing children at the back, left child first. The queue keeps earlier discoveries ahead of their children.\n\nBefore processing a level, save the queue’s current size. Process exactly that many nodes into one list. Children added during those removals belong to the next level; using the changing queue size as the loop limit would mix the levels.",
+    "steps": [
+      "Return an empty result if root is null.",
+      "Offer the root to a queue.",
+      "Save levelSize before processing a level.",
+      "Poll exactly levelSize nodes, recording values and offering existing children.",
+      "Append that level and repeat."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<List<Integer>> levelOrder(TreeNode root) {\n    List<List<Integer>> result = new ArrayList<>();\n    if (root == null) return result;\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    queue.offer(root);\n    while (!queue.isEmpty()) {\n        int levelSize = queue.size();\n        List<Integer> level = new ArrayList<>();\n        for (int i = 0; i < levelSize; i++) {\n            TreeNode node = queue.poll();\n            level.add(node.val);\n            if (node.left != null) queue.offer(node.left);\n            if (node.right != null) queue.offer(node.right);\n        }\n        result.add(level);\n    }\n    return result;\n}",
+    "time": "O(n).",
+    "space": "O(w) queue space for maximum level width w, plus O(n) output. The queue can contain parts of two adjacent levels, still O(w).",
+    "pitfalls": [
+      "Do not put null into ArrayDeque.",
+      "Freeze the level size before adding children.",
+      "Use a queue, not a stack.",
+      "Ordinary level order does not reverse every second level."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert levelOrder(r).equals(List.of(List.of(8),List.of(4,9),List.of(6)));assert levelOrder(null).isEmpty();",
+      "Random random=new Random(282);for(int t=0;t<400;t++){int n=1+random.nextInt(100);TreeNode root=new TreeNode(0);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(i);boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>nodes=new ArrayList<>(path.keySet());nodes.sort(Comparator.<TreeNode>comparingInt(x->path.get(x).length()).thenComparing(x->path.get(x)));List<List<Integer>>want=new ArrayList<>();for(TreeNode x:nodes){int depth=path.get(x).length();if(depth==want.size())want.add(new ArrayList<>());want.get(depth).add(x.val);}assert levelOrder(root).equals(want);}",
+      "TreeNode root=new TreeNode(0),p=root;for(int i=1;i<50000;i++){p.right=new TreeNode(i);p=p.right;}List<List<Integer>>a=levelOrder(root);assert a.size()==50000;for(int i=0;i<a.size();i++)assert a.get(i).equals(List.of(i));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-tree-level-order-traversal",
+      "title": "Level Order Traversal of a Binary Tree Using BFS",
+      "checkedOn": "2026-10-29",
+      "approach": "Use a queue and a saved queue size to return one list per level.",
+      "adaptation": "The current public BFS article was read, including level batches and width-based space. It presents algorithms and walkthroughs without a Java code tab; this is an authored implementation of those steps. The tracker’s linked task is ordinary level order, not spiral order."
+    }
+  },
+  "283": {
+    "problem": "Return preorder traversal without recursion: visit each node before its left and right subtrees.",
+    "assumptions": "The tree may be empty and may contain equal values. The explicit stack stores node references. It never changes the tree.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "[8,4,6,9]",
+      "explanation": "After visiting 8, push 9 first and 4 second. Because the stack is last-in-first-out, 4 is processed next."
+    },
+    "baseline": "Recursive preorder records the root, calls the left subtree, then calls the right subtree. This is also O(n), but Java’s call stack can overflow on a long chain.",
+    "approach": "Use a stack to hold nodes waiting to be visited. Pop the next node and append its value. Then schedule its children.\n\nPreorder needs the left child next, so push the right child first and the left child second. The left child then sits on top. Its descendants will be processed before the waiting right subtree, reproducing the recursive order.",
+    "steps": [
+      "Push the root if it exists.",
+      "Pop and record one node.",
+      "Push its right child, then its left child, when present.",
+      "Repeat until the stack is empty."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> preorderTraversal(TreeNode root) {\n    List<Integer> result = new ArrayList<>();\n    if (root == null) return result;\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    stack.push(root);\n    while (!stack.isEmpty()) {\n        TreeNode node = stack.pop();\n        result.add(node.val);\n        if (node.right != null) stack.push(node.right);\n        if (node.left != null) stack.push(node.left);\n    }\n    return result;\n}",
+    "time": "O(n).",
+    "space": "O(h) pending-stack space in a binary tree, plus O(n) output; h is at most n.",
+    "pitfalls": [
+      "Push right before left to visit left first.",
+      "Skip null children because ArrayDeque rejects null.",
+      "Do not use a set of values; equal-valued nodes are separate visits."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert preorderTraversal(r).equals(List.of(8,4,6,9));assert preorderTraversal(null).isEmpty();",
+      "Random r=new Random(279);for(int t=0;t<500;t++){int n=1+r.nextInt(75);TreeNode root=new TreeNode(r.nextInt(11)-5);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size()));TreeNode child=new TreeNode(r.nextInt(11)-5);boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+\"\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert preorderTraversal(root).equals(want);assert preorderTraversal(root).equals(want);}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.left=new TreeNode(i);p=p.left;}List<Integer>a=preorderTraversal(r);assert a.size()==100000;for(int i=0;i<a.size();i++)assert a.get(i)==i;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/preorder-traversal",
+      "title": "Preorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Use a stack, pushing right before left to preserve Root → Left → Right.",
+      "adaptation": "The current public traversal contract and foundation definitions were checked. A public Java editorial was not available; this authored stack implementation is checked against node-path order and a deep chain."
+    }
+  },
+  "284": {
+    "problem": "Return inorder traversal without recursion: finish the left subtree, visit the node, then finish the right subtree.",
+    "assumptions": "The input is a valid binary tree, not necessarily a binary search tree. A null root gives an empty list. The method does not change any child links.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "[4,6,8,9]",
+      "explanation": "Visit 4 after reaching its missing left child, then visit its right child 6 before returning to 8."
+    },
+    "baseline": "Recursive inorder uses the language stack to pause a node while its left subtree is processed. The explicit stack below stores that same unfinished work without recursive calls.",
+    "approach": "Keep walking left, pushing every node you pass. When no left child remains, the top node is ready to be visited. Pop it, append its value, then move into its right subtree.\n\nThe stack remembers ancestors whose left subtrees are being processed. A node is popped only after its entire left subtree is finished. Moving right then repeats the same process there, which gives Left → Root → Right.",
+    "steps": [
+      "Start current at root and create an empty stack.",
+      "Push current and move left until current is null.",
+      "Pop and visit the top node.",
+      "Move current to that node’s right child.",
+      "Continue while current exists or the stack is non-empty."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> inorderTraversal(TreeNode root) {\n    List<Integer> result = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) {\n            stack.push(current);\n            current = current.left;\n        }\n        current = stack.pop();\n        result.add(current.val);\n        current = current.right;\n    }\n    return result;\n}",
+    "time": "O(n): each node is pushed and popped once.",
+    "space": "O(h) stack space, plus O(n) output.",
+    "pitfalls": [
+      "The loop condition needs OR, because ancestors may remain after current becomes null.",
+      "Visit a node after popping, not when first pushing it.",
+      "Do not sort the result; inorder is a structural order and need not be numerically sorted."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert inorderTraversal(r).equals(List.of(4,6,8,9));assert inorderTraversal(null).isEmpty();",
+      "Random r=new Random(279);for(int t=0;t<500;t++){int n=1+r.nextInt(75);TreeNode root=new TreeNode(r.nextInt(11)-5);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size()));TreeNode child=new TreeNode(r.nextInt(11)-5);boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+\"M\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert inorderTraversal(root).equals(want);assert inorderTraversal(root).equals(want);}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.left=new TreeNode(i);p=p.left;}List<Integer>a=inorderTraversal(r);assert a.size()==100000;for(int i=0;i<a.size();i++)assert a.get(i)==99999-i;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/inorder-traversal",
+      "title": "Inorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Store unfinished ancestors while descending left, then visit and move right.",
+      "adaptation": "The public traversal contract and current foundation definitions were checked. This is authored iterative Java because no public Java editorial was available. Tests independently order nodes by their paths and include a 100000-node chain."
+    }
   }
 }
