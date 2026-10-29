@@ -19297,5 +19297,89 @@
         ]
       ]
     }
+  },
+  "449": {
+    "problem": "Understand prefix rolling hashes, then use them to find the first exact occurrence of a pattern in text.",
+    "assumptions": "The sheet entry is a theory lesson; the tracker links to the first-occurrence string-search problem. Return a zero-based index or −1, with an empty pattern returning 0. Hash ranges are half-open [left,right) and must be valid. Java char values are UTF-16 code units; the code does not normalize Unicode.",
+    "example": {
+      "input": "text = \"cabacaba\", pattern = \"aba\"",
+      "output": "1",
+      "explanation": "aba occurs at indices 1 and 5. The pinned problem asks for the first occurrence, so return 1. Each candidate first passes the hash check, then a character check."
+    },
+    "baseline": "At each possible start, compare the pattern characters directly. This takes O(nm) time in the worst case for text length n and pattern length m.",
+    "approach": "Think of a string as digits in a number with base B. Appending character value c changes the hash to oldHash×B+c, reduced modulo a prime. Save this value for every prefix and also save the powers of B.\n\nTo extract [left,right), take hash[right]−hash[left]×B^(right−left). The multiplication aligns the old prefix with its contribution inside the longer prefix. Reduce modulo the prime and correct a negative remainder. The result depends only on that substring’s characters and length, not on its position.\n\nEqual text always gives equal hashes. The reverse is not guaranteed: different strings can collide. Two moduli reduce accidental collisions but do not make equality certain. So use hashes to reject unequal candidates quickly, then check actual characters when the hashes match.\n\nFor example, with base 31, Aa and BB have the same polynomial value even before taking a modulus. Both hashes collide, but the final character check still rejects Aa when searching for BB. This is a concrete reason to keep verification rather than describing double hashing as exact equality.",
+    "steps": [
+      "Build two prefix hashes and matching base-power arrays.",
+      "Extract each candidate window’s pair of hashes in constant time.",
+      "Skip the window if the pair differs from the pattern’s pair.",
+      "On a hash match, compare the actual characters.",
+      "Return the first verified match or −1."
+    ],
+    "java": "static class RollingHash {\n    private static final long BASE=31, MOD1=1_000_000_007L, MOD2=1_000_000_009L;\n    private final String text;\n    private final long[] h1,h2,p1,p2;\n    RollingHash(String text) {\n        this.text=text;\n        int n=text.length();\n        h1=new long[n+1];h2=new long[n+1];p1=new long[n+1];p2=new long[n+1];\n        p1[0]=p2[0]=1;\n        for(int i=0;i<n;i++) {\n            h1[i+1]=(h1[i]*BASE+text.charAt(i))%MOD1;\n            h2[i+1]=(h2[i]*BASE+text.charAt(i))%MOD2;\n            p1[i+1]=p1[i]*BASE%MOD1;\n            p2[i+1]=p2[i]*BASE%MOD2;\n        }\n    }\n    long hashKey(int left,int right) {\n        long a=(h1[right]-h1[left]*p1[right-left]%MOD1+MOD1)%MOD1;\n        long b=(h2[right]-h2[left]*p2[right-left]%MOD2+MOD2)%MOD2;\n        return (a<<32)|b;\n    }\n    boolean sameRange(int first,int second,int length) {\n        return hashKey(first,first+length)==hashKey(second,second+length)\n            && text.regionMatches(first,text,second,length);\n    }\n}\nstatic int strStr(String text,String pattern) {\n    if(pattern.isEmpty()) return 0;\n    if(pattern.length()>text.length()) return -1;\n    RollingHash source=new RollingHash(text),target=new RollingHash(pattern);\n    int m=pattern.length();\n    long wanted=target.hashKey(0,m);\n    for(int start=0;start+m<=text.length();start++)\n        if(source.hashKey(start,start+m)==wanted && text.startsWith(pattern,start)) return start;\n    return -1;\n}",
+    "time": "O(n+m) preprocessing, then O(n+c·m), where c is the number of hash-matching candidates checked before returning. Worst case O(nm); exact range comparison also takes O(length) when hashes match.",
+    "space": "O(n+m) for hash and power arrays. A range hash itself takes O(1) extra space.",
+    "pitfalls": [
+      "Hash equality is a candidate match, not a proof of string equality.",
+      "Compare equal-length ranges; a numeric hash alone does not encode length safely.",
+      "Normalize modular subtraction before comparing hashes.",
+      "Use long for products of modular values; int multiplication can overflow first.",
+      "A hash comparison is O(1), but verifying the actual characters is not."
+    ],
+    "tests": [
+      "assert strStr(\"cabacaba\",\"aba\")==1;assert strStr(\"abc\",\"\")==0;assert strStr(\"ab\",\"abcd\")==-1;RollingHash hash=new RollingHash(\"AaBB\");assert hash.hashKey(0,2)==hash.hashKey(2,4);assert !hash.sameRange(0,2,2);assert strStr(\"AaBB\",\"BB\")==2;",
+      "Random random=new Random(449);for(int trial=0;trial<2000;trial++){StringBuilder a=new StringBuilder(),b=new StringBuilder();for(int i=0,n=random.nextInt(60);i<n;i++)a.append((char)('a'+random.nextInt(4)));for(int i=0,n=random.nextInt(14);i<n;i++)b.append((char)('a'+random.nextInt(4)));String text=a.toString(),pattern=b.toString();assert strStr(text,pattern)==text.indexOf(pattern);assert naiveIndex(text,pattern)==text.indexOf(pattern);RollingHash hash=new RollingHash(text);for(int check=0;check<15;check++){int length=random.nextInt(text.length()+1),x=random.nextInt(text.length()-length+1),y=random.nextInt(text.length()-length+1);boolean expected=text.substring(x,x+length).equals(text.substring(y,y+length));assert hash.sameRange(x,y,length)==expected;if(expected)assert hash.hashKey(x,x+length)==hash.hashKey(y,y+length);}}",
+      "assert strStr(\"a\".repeat(9999)+\"b\",\"a\".repeat(99)+\"b\")==9900;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/string-hashing-rolling-hash",
+      "title": "String Hashing: Rolling Hash and Pattern Matching",
+      "checkedOn": "2026-10-29",
+      "approach": "Polynomial prefix hashes with two moduli, aligned substring extraction, and actual-character verification after matching hashes.",
+      "adaptation": "The complete public Java article was checked. This guide focuses its hash class on the tracker’s first-occurrence task rather than adding the article’s unrelated longest-duplicate application. Base 31 replaces the article’s larger base for a worked collision example and is also listed in the current Rabin–Karp hint. A packed long stores the two modular values without string keys; final character verification remains."
+    },
+    "baselineJava": "static int naiveIndex(String text,String pattern) {\n    for(int start=0;start+pattern.length()<=text.length();start++) {\n        int matched=0;\n        while(matched<pattern.length() && text.charAt(start+matched)==pattern.charAt(matched)) matched++;\n        if(matched==pattern.length()) return start;\n    }\n    return -1;\n}",
+    "baselineTime": "O(nm) worst-case time and O(1) working space."
+  },
+  "450": {
+    "problem": "Use Rabin–Karp to find all pattern occurrences, then apply the same search to the tracker’s linked repeated-string problem.",
+    "assumptions": "The current TUF practice asks for all zero-based starting positions and includes overlapping matches. Its stub takes search(pattern,text), in that order. The pinned LeetCode task instead asks how many copies of a must be repeated so b appears as a substring. Both variants are implemented. The source inputs are nonempty; search returns an empty list for an empty pattern as a defined extension.",
+    "example": {
+      "input": "Pattern search: text = \"aaaa\", pattern = \"aa\". Repetition: a = \"abc\", b = \"cabca\".",
+      "output": "Pattern positions [0,1,2]; repetition count 3",
+      "explanation": "Overlapping aa matches are valid. For repetition, abcabc is too short to contain cabca starting at index 2; abcabcabc contains it, so three copies are needed."
+    },
+    "baseline": "For pattern search, compare every window character by character. For repeated strings, build enough copies to cover b and test containment, then try one more copy. Rabin–Karp accelerates candidate rejection with a rolling hash.",
+    "approach": "Hash the pattern and the first equally long text window. Moving one position right removes the old first character’s contribution at power B^(m−1), multiplies the remaining hash by B, and adds the new final character. Reduce after each step so the numbers stay bounded.\n\nA matching hash is only a candidate. Confirm it with a character comparison before reporting the start. Then move by one position even after a match so overlapping occurrences are retained.\n\nThe linked repetition problem uses the same search but needs only one match. Build r = ceil(|b|/|a|) copies first. Fewer copies cannot be long enough. If b is absent, append one more a and test again. Any occurrence in the infinite repetition can start within the first copy of a, so its final character lies before |a|+|b|. Those r+1 copies are enough to decide whether an occurrence is possible.\n\nThe all-occurrences task and repetition task have different outputs. The shared search engine keeps the matching logic the same while their wrappers return the appropriate result.",
+    "steps": [
+      "Compute the pattern hash, first window hash, and outgoing-character power.",
+      "For every window, verify characters when its hash matches.",
+      "Slide by removing the outgoing contribution, shifting by the base, and adding the incoming character.",
+      "For repeatedStringMatch, test the shortest sufficiently long repetition and at most one extra copy.",
+      "Return original zero-based match positions or the repetition count, depending on the chosen method."
+    ],
+    "java": "static List<Integer> scanRabin(String text,String pattern,boolean firstOnly) {\n    List<Integer> result=new ArrayList<>();\n    int n=text.length(),m=pattern.length();\n    if(m==0 || m>n) return result;\n    final long BASE=31,MOD=1_000_000_007L;\n    long power=1,target=0,window=0;\n    for(int i=0;i<m;i++) {\n        target=(target*BASE+pattern.charAt(i))%MOD;\n        window=(window*BASE+text.charAt(i))%MOD;\n        if(i<m-1) power=power*BASE%MOD;\n    }\n    for(int start=0;start+m<=n;start++) {\n        if(window==target && text.startsWith(pattern,start)) {\n            result.add(start);\n            if(firstOnly) return result;\n        }\n        if(start+m<n) {\n            window=(window-text.charAt(start)*power%MOD+MOD)%MOD;\n            window=(window*BASE+text.charAt(start+m))%MOD;\n        }\n    }\n    return result;\n}\nstatic List<Integer> search(String pattern,String text) {\n    return scanRabin(text,pattern,false);\n}\n\nstatic int repeatedStringMatch(String a,String b) {\n    if(b.isEmpty()) return 0;\n    if(a.isEmpty()) return -1;\n    StringBuilder repeated=new StringBuilder();\n    int copies=0;\n    while(repeated.length()<b.length()) { repeated.append(a); copies++; }\n    if(!scanRabin(repeated.toString(),b,true).isEmpty()) return copies;\n    repeated.append(a);\n    return scanRabin(repeated.toString(),b,true).isEmpty()?-1:copies+1;\n}",
+    "time": "Pattern search: O(n+m+c·m), where c is the number of hash matches verified; worst case O(nm), including repetitive matches. Repetition builds O(|a|+|b|) characters and has the same verification caveat.",
+    "space": "Pattern search uses O(1) rolling state apart from the returned positions. Repetition additionally stores O(|a|+|b|) characters.",
+    "pitfalls": [
+      "Keep the public search argument order as pattern first, text second.",
+      "Do not skip overlapping matches.",
+      "Normalize the hash after subtracting the outgoing character.",
+      "Verify actual text after hash equality; the Aa/BB collision is covered by tests.",
+      "Do not keep appending a forever: the shortest sufficiently long repetition plus one extra copy is enough.",
+      "For guaranteed linear-time matching on adversarial or highly repetitive input, use the later KMP or Z lesson."
+    ],
+    "tests": [
+      "assert search(\"aa\",\"aaaa\").equals(List.of(0,1,2));assert search(\"BB\",\"AaBB\").equals(List.of(2));assert search(\"z\",\"abc\").isEmpty();assert repeatedStringMatch(\"abc\",\"cabca\")==3;assert repeatedStringMatch(\"ab\",\"ac\")==-1;assert repeatedStringMatch(\"a\",\"\")==0;",
+      "Random random=new Random(450);for(int trial=0;trial<2000;trial++){StringBuilder a=new StringBuilder(),b=new StringBuilder();for(int i=0,n=random.nextInt(50);i<n;i++)a.append((char)('a'+random.nextInt(4)));for(int i=0,n=1+random.nextInt(12);i<n;i++)b.append((char)('a'+random.nextInt(4)));String text=a.toString(),pattern=b.toString();List<Integer> expected=new ArrayList<>();for(int at=text.indexOf(pattern);at>=0;at=text.indexOf(pattern,at+1))expected.add(at);assert search(pattern,text).equals(expected);}",
+      "for(int aLength=1;aLength<=4;aLength++)for(int aBits=0;aBits<(1<<aLength);aBits++){StringBuilder aa=new StringBuilder();for(int i=0;i<aLength;i++)aa.append((aBits&(1<<i))==0?'a':'b');String a=aa.toString();for(int bLength=1;bLength<=6;bLength++)for(int bBits=0;bBits<(1<<bLength);bBits++){StringBuilder bb=new StringBuilder();for(int i=0;i<bLength;i++)bb.append((bBits&(1<<i))==0?'a':'b');String b=bb.toString();int at=a.repeat(bLength+2).indexOf(b);int expected=at<0?-1:(at+bLength+aLength-1)/aLength;assert repeatedStringMatch(a,b)==expected;}}",
+      "assert search(\"a\",\"a\".repeat(50000)).size()==50000;assert repeatedStringMatch(\"abcd\",\"abcd\".repeat(2500))==2500;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/rabin-karp-algorithm",
+      "title": "Rabin Karp Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Roll a polynomial window hash by removing, shifting, and adding; verify actual characters on each hash match.",
+      "adaptation": "The current statement, both public rolling-hash hints, zero-based examples, and pattern-first stub were checked. Its Solution panel is gated, so no full Java was inspected there. The companion public String Hashing Java was checked separately. This implements the stated rolling update and explicitly adapts matching to the tracker’s repeated-string LeetCode link."
+    }
   }
 }
