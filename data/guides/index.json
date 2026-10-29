@@ -2742,7 +2742,7 @@
       "explanation": "Both 1 and 2 occur three times, which exceeds 7/3. A third qualifying value would require more than seven total positions."
     },
     "baseline": "Count frequencies in a map in O(n) expected time and O(n) space.",
-    "approach": "Generalized voting maintains two candidates. When a value matches neither occupied slot, decrement both balances: this cancels a group of three distinct values. Every true n/3 majority survives as a candidate, but both candidates still require verification.",
+    "approach": "At most two values can appear more than n/3 times. Three such values would need more than n total positions. Keep two candidate slots instead of a count for every distinct value.\n\nA matching value increases its candidate’s balance. An empty slot accepts a new value. If the value matches neither occupied slot, cancel one vote from both slots along with the new value: that removes three different values. The remaining candidates are only possibilities, so count their actual occurrences in a second pass and apply the strict threshold.",
     "steps": [
       "Match existing candidates before replacing an empty slot.",
       "When both slots are occupied by other values, decrement both counts.",
@@ -2760,7 +2760,14 @@
       "assert majorities(new int[]{1,2,3}).isEmpty();",
       "assert majorities(new int[]{}).isEmpty();",
       "Random r=new Random(68);for(int run=0;run<200;run++){int[] a=new int[r.nextInt(20)];Map<Integer,Integer> counts=new HashMap<>();for(int i=0;i<a.length;i++){a[i]=r.nextInt(7)-3;counts.merge(a[i],1,Integer::sum);}Set<Integer> expected=new HashSet<>();for(var e:counts.entrySet())if(e.getValue()>a.length/3)expected.add(e.getKey());assert new HashSet<>(majorities(a)).equals(expected);}"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/majority-element-ii-n-by-3",
+      "title": "Majority Element II",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep two candidates, cancel groups of three different values, then verify both.",
+      "adaptation": "Public optimal Java checked. This starts with distinct placeholder candidates and also accepts an empty input."
+    }
   },
   "69": {
     "problem": "Return all unique triples of values whose sum is zero.",
@@ -2771,7 +2778,7 @@
       "explanation": "After sorting, fixing the first -1 leaves a two-pointer search that finds both (-1,2) and (0,1). Repeating the same fixed value would duplicate those triples."
     },
     "baseline": "Enumerate index triples in O(n³) time and deduplicate their values.",
-    "approach": "Sort first. With one fixed value, increasing the left pointer raises the sum and decreasing the right pointer lowers it. This monotonicity lets one scan replace a nested pair enumeration.",
+    "approach": "Sort the values, then fix one position. The remaining two values must lie to its right, which guarantees three different indices. Put left at the start of that suffix and right at its end.\n\nIf the sum is too small, move left to try a larger value. If it is too large, move right to try a smaller value. On a match, record the values and skip equal values at both ends. Also skip a fixed value already used by the previous iteration, because it would generate the same triples again.",
     "steps": [
       "Skip duplicate fixed values.",
       "Use left and right pointers on the remaining suffix.",
@@ -2787,8 +2794,16 @@
     "tests": [
       "assert threeSum(new int[]{-1,0,1,2,-1,-4}).equals(List.of(List.of(-1,-1,2),List.of(-1,0,1)));",
       "assert threeSum(new int[]{0,0,0,0}).equals(List.of(List.of(0,0,0)));",
-      "assert threeSum(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,2}).isEmpty();"
-    ]
+      "assert threeSum(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,2}).isEmpty();",
+      "Random r=new Random(69);for(int t=0;t<700;t++){int[] a=new int[r.nextInt(11)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(13)-6;Set<List<Integer>> expected=new HashSet<>();for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)for(int k=j+1;k<a.length;k++)if((long)a[i]+a[j]+a[k]==0){int[] triple={a[i],a[j],a[k]};Arrays.sort(triple);expected.add(List.of(triple[0],triple[1],triple[2]));}List<List<Integer>> result=threeSum(a);assert result.size()==new HashSet<>(result).size();assert new HashSet<>(result).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/3sum",
+      "title": "3Sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Fix one value in sorted order and search the remaining pair with two pointers.",
+      "adaptation": "Public optimal Java checked. Duplicate runs are skipped using saved values rather than previous-index comparisons."
+    }
   },
   "70": {
     "problem": "Return unique quadruples of values whose sum equals a target.",
@@ -2799,7 +2814,7 @@
       "explanation": "Fixing -2 and -1 leaves target 3 for the two remaining pointers, which find 1 and 2. Other fixed pairs yield the remaining distinct quadruples."
     },
     "baseline": "Enumerate four indices in O(n⁴) time and deduplicate results.",
-    "approach": "Fix the first two values in sorted order, then solve the remaining pair with converging pointers. Duplicate skipping is needed independently at both fixed positions and after each matching pair.",
+    "approach": "Sort the array and fix two positions. What remains is a two-sum search on the suffix after them. Move the left pointer for a sum that is too small and the right pointer for a sum that is too large.\n\nDuplicate handling happens at three levels: skip repeated first values, repeated second values within the same first-value iteration, and repeated pointer values after a match. Four ints can overflow before reaching a long destination, so cast the first addend before the additions start.",
     "steps": [
       "Sort and loop over the first two indices.",
       "Skip repeated fixed values at the same depth.",
@@ -2815,8 +2830,16 @@
     "tests": [
       "assert fourSum(new int[]{1,0,-1,0,-2,2},0).equals(List.of(List.of(-2,-1,1,2),List.of(-2,0,0,2),List.of(-1,0,0,1)));",
       "assert fourSum(new int[]{2,2,2,2,2},8).equals(List.of(List.of(2,2,2,2)));",
-      "assert fourSum(new int[]{1000000000,1000000000,1000000000,1000000000},4000000000L).size()==1;"
-    ]
+      "assert fourSum(new int[]{1000000000,1000000000,1000000000,1000000000},4000000000L).size()==1;",
+      "Random r=new Random(70);for(int t=0;t<500;t++){int[] a=new int[r.nextInt(11)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(13)-6;long target=r.nextInt(17)-8;Set<List<Integer>> expected=new HashSet<>();for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)for(int k=j+1;k<a.length;k++)for(int l=k+1;l<a.length;l++)if((long)a[i]+a[j]+a[k]+a[l]==target){int[] four={a[i],a[j],a[k],a[l]};Arrays.sort(four);expected.add(List.of(four[0],four[1],four[2],four[3]));}List<List<Integer>> result=fourSum(a,target);assert result.size()==new HashSet<>(result).size();assert new HashSet<>(result).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/4sum",
+      "title": "4Sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Fix two values, then search the remaining pair with two pointers.",
+      "adaptation": "Public optimal Java checked. The target is widened to long; the first addend is promoted before adding values."
+    }
   },
   "71": {
     "problem": "Find the length of the longest zero-sum contiguous subarray.",
@@ -2827,7 +2850,7 @@
       "explanation": "The segment [-2,2,-8,1,7] sums to zero. Prefix sum 15 occurs at indices 0 and 5, so the intervening five values cancel."
     },
     "baseline": "Enumerate all intervals in O(n²) time.",
-    "approach": "Equal prefix sums delimit a zero-sum interval. Remember the earliest index of each sum so every later repetition gives the longest possible interval for that endpoint.",
+    "approach": "If the sum through index 2 and the sum through index 7 are equal, the values between them must add to zero. Their sums cancel, leaving an interval of length 7-2=5.\n\nStore the first position of each running sum. A later repetition gives the longest zero-sum interval ending there when paired with that earliest position. Seed sum zero at index -1 to handle a segment starting at the beginning. With [0,0,0], every prefix repeats zero and the lengths grow to 1, 2 and 3.",
     "steps": [
       "Seed sum zero at index −1.",
       "Accumulate each value using long.",
@@ -2843,8 +2866,16 @@
     "tests": [
       "assert longestZeroSum(new int[]{15,-2,2,-8,1,7,10,23})==5;",
       "assert longestZeroSum(new int[]{0,0,0})==3;",
-      "assert longestZeroSum(new int[]{1,2,3})==0;"
-    ]
+      "assert longestZeroSum(new int[]{1,2,3})==0;",
+      "Random r=new Random(71);for(int t=0;t<800;t++){int[] a=new int[r.nextInt(25)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(13)-6;int expected=0;for(int i=0;i<a.length;i++){long sum=0;for(int j=i;j<a.length;j++){sum+=a[j];if(sum==0)expected=Math.max(expected,j-i+1);}}assert longestZeroSum(a)==expected;}assert longestZeroSum(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,2})==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/largest-subarray-with-sum-0",
+      "title": "Largest Subarray with Sum 0",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated equal prefix sums enclose a zero-sum interval; keep the earliest index.",
+      "adaptation": "The public statement and both prefix-map hints were checked. Full solution Java was not inspected; this is independently authored Java following those hints."
+    }
   },
   "72": {
     "problem": "Count nonempty contiguous subarrays whose bitwise XOR equals k.",
@@ -2855,7 +2886,7 @@
       "explanation": "The matching segments are [4,2], [4,2,2,6,4], [2,2,6], and [6]."
     },
     "baseline": "Enumerate every start and extend its XOR in O(n²) time.",
-    "approach": "If current prefix XOR is x and earlier prefix XOR is p, the interval XOR is x XOR p. Requiring k gives p = x XOR k. Count all earlier prefixes with that value.",
+    "approach": "XOR cancels a value when the same value is applied again. If X is the current prefix XOR and P is an earlier prefix XOR, the interval between them has XOR X XOR P. To make that equal k, the earlier prefix must be X XOR k.\n\nCount all earlier occurrences of that value, because each gives a different starting boundary. Put one empty prefix of XOR zero in the map before scanning. Query first and record the current prefix afterward; otherwise k=0 would count an empty interval at every position.",
     "steps": [
       "Seed XOR zero with frequency one.",
       "Update the current prefix XOR.",
@@ -2871,8 +2902,16 @@
     "tests": [
       "assert countXor(new int[]{4,2,2,6,4},6)==4;",
       "assert countXor(new int[]{0,0,0},0)==6;",
-      "assert countXor(new int[]{},1)==0;"
-    ]
+      "assert countXor(new int[]{},1)==0;",
+      "Random r=new Random(72);for(int t=0;t<800;t++){int[] a=new int[r.nextInt(25)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(16);int k=r.nextInt(16);long expected=0;for(int i=0;i<a.length;i++){int xor=0;for(int j=i;j<a.length;j++){xor^=a[j];if(xor==k)expected++;}}assert countXor(a,k)==expected;}assert countXor(new int[100000],0)==5000050000L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-subarrays-with-a-given-xor-k",
+      "title": "Count Subarrays with a Given XOR K",
+      "checkedOn": "2026-10-29",
+      "approach": "Count earlier prefix XORs equal to currentPrefix XOR k.",
+      "adaptation": "Public optimal Java checked. Counts and result are long."
+    }
   },
   "73": {
     "problem": "Merge overlapping closed intervals into disjoint ranges that cover exactly the same points. Return them sorted by start.",
@@ -2915,31 +2954,40 @@
     "baselineTime": "O(n log n) overall. Each interval belongs to one look-ahead group and is then skipped by the outer loop; each group also checks at most one non-overlapping successor. O(n) space."
   },
   "74": {
-    "problem": "Merge two sorted arrays using their existing storage.",
-    "assumptions": "Afterward the first array contains the smallest n values and the second contains the largest m values, both sorted. Neither array has spare capacity.",
+    "problem": "Merge two sorted arrays into nums1, which has room at its end for all values from nums2.",
+    "assumptions": "Only the first m positions of nums1 are input values. Its length is m+n, and nums2 contains n values. Both prefixes are sorted. The unused tail is storage, not extra input zeroes.",
     "example": {
-      "input": "a = [1,4,8,10], b = [2,3,9]",
-      "output": "a = [1,2,3,4], b = [8,9,10]",
-      "explanation": "Treat both arrays as one virtual sequence. Compare values separated by shrinking gaps, swapping inversions even when the pair crosses the array boundary."
+      "input": "nums1 = [1,4,7,0,0], m = 3; nums2 = [2,6], n = 2",
+      "output": "nums1 = [1,2,4,6,7]",
+      "explanation": "Write 7 at the last slot, then 6, then 4, then 2. The original 1 is already in place."
     },
-    "baseline": "Merge into an auxiliary array and copy back in O(n+m) time but O(n+m) space. Inserting each out-of-place value across the boundary needs no extra space but may take O(nm) time.",
-    "approach": "The gap method progressively moves misplaced values across the two initially sorted runs. Start with ceil((n+m)/2), compare every pair at that distance, and repeatedly halve upward until a final gap-one pass. The two-sorted-runs precondition is essential; this is not a general one-pass-per-gap sorting algorithm.",
+    "baseline": "Merge into a separate array and copy back. This takes O(m+n) time but also O(m+n) extra memory. The unused tail of nums1 lets us avoid that extra array.",
+    "approach": "Merging from the beginning could overwrite a value in nums1 before it has been read. Start at the end instead, where the spare slots are. Compare the largest unread value from each input and write the larger one into the last free slot.\n\nMove that input pointer left and move the write pointer left. Continue until nums2 is exhausted. If values remain in nums1, they are already in the correct prefix. If nums1 runs out first, copy the remaining nums2 values. This matches both the current Striver page and the pinned LeetCode link.",
     "steps": [
-      "Access index i in a when i<n, otherwise in b at i−n.",
-      "At each gap, swap inverted pairs while scanning left to right.",
-      "After processing gap one, stop."
+      "Set i=m-1, j=n-1 and write=m+n-1.",
+      "While j remains valid, write the larger available value into nums1[write].",
+      "Move the chosen input pointer and write pointer left."
     ],
-    "java": "static void merge(int[] a,int[] b) {\n    int total=a.length+b.length;\n    for(int gap=(total+1)/2;gap>0;gap=gap==1?0:(gap+1)/2){\n        for(int i=0;i+gap<total;i++){\n            int j=i+gap,x=get(a,b,i),y=get(a,b,j);\n            if(x>y){set(a,b,i,y);set(a,b,j,x);}\n        }\n    }\n}\nstatic int get(int[] a,int[] b,int i){return i<a.length?a[i]:b[i-a.length];}\nstatic void set(int[] a,int[] b,int i,int x){if(i<a.length)a[i]=x;else b[i-a.length]=x;}",
-    "time": "O((n+m) log(n+m)).",
-    "space": "O(1).",
+    "java": "static void merge(int[] nums1, int m, int[] nums2, int n) {\n    if (m < 0 || n < 0 || n != nums2.length || (long)m+n != nums1.length) {\n        throw new IllegalArgumentException(\"Array lengths must match m and n\");\n    }\n    int i=m-1, j=n-1, write=m+n-1;\n    while (j >= 0) {\n        if (i >= 0 && nums1[i] > nums2[j]) nums1[write--] = nums1[i--];\n        else nums1[write--] = nums2[j--];\n    }\n}",
+    "time": "O(m+n).",
+    "space": "O(1) extra space.",
     "pitfalls": [
-      "Do not round the gap down in a way that skips required comparisons.",
-      "The variant with spare slots at the end of the first array instead supports a simpler O(n+m) backward merge."
+      "Use m to find the valid input prefix; actual zeroes can be legitimate values in that prefix.",
+      "Read from the back to avoid overwriting unread nums1 values.",
+      "This is the spare-capacity variant. The older two-full-arrays gap method solves a different storage contract."
     ],
     "tests": [
-      "int[] a={1,4,8,10},b={2,3,9};merge(a,b);assert Arrays.equals(a,new int[]{1,2,3,4});assert Arrays.equals(b,new int[]{8,9,10});",
-      "Random r=new Random(74);for(int run=0;run<500;run++){int[] a=new int[r.nextInt(20)],b=new int[r.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(41)-20;for(int i=0;i<b.length;i++)b[i]=r.nextInt(41)-20;Arrays.sort(a);Arrays.sort(b);int[] all=new int[a.length+b.length];System.arraycopy(a,0,all,0,a.length);System.arraycopy(b,0,all,a.length,b.length);Arrays.sort(all);merge(a,b);assert Arrays.equals(a,Arrays.copyOfRange(all,0,a.length));assert Arrays.equals(b,Arrays.copyOfRange(all,a.length,all.length));}"
-    ]
+      "int[] a={1,4,7,0,0};merge(a,3,new int[]{2,6},2);assert Arrays.equals(a,new int[]{1,2,4,6,7});",
+      "int[] a={0};merge(a,0,new int[]{-2},1);assert a[0]==-2;int[] b={3};merge(b,1,new int[]{},0);assert b[0]==3;",
+      "Random r=new Random(74);for(int t=0;t<1000;t++){int m=r.nextInt(30),n=r.nextInt(30);int[] a=new int[m+n],b=new int[n];for(int i=0;i<m;i++)a[i]=r.nextInt(41)-20;for(int i=0;i<n;i++)b[i]=r.nextInt(41)-20;Arrays.sort(a,0,m);Arrays.sort(b);int[] originalB=b.clone(),expected=a.clone();System.arraycopy(b,0,expected,m,n);Arrays.sort(expected);merge(a,m,b,n);assert Arrays.equals(a,expected);assert Arrays.equals(b,originalB);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/merge-two-sorted-arrays-without-extra-space",
+      "title": "Merge Two Sorted Arrays Without Extra Space",
+      "checkedOn": "2026-10-29",
+      "approach": "Merge backward into the spare tail of nums1.",
+      "adaptation": "Current Striver statement and both public hints checked, as well as the pinned LeetCode 88 statement. Full solution Java was not inspected. The previous gap-method draft was replaced because it assumed two full arrays with no spare tail."
+    }
   },
   "75": {
     "problem": "Find the repeated and missing values in an array intended to contain 1 through n.",
@@ -2950,7 +2998,7 @@
       "explanation": "XORing the array with 1 through 5 leaves 3 XOR 4. A bit on which 3 and 4 differ separates them into two groups; a final scan identifies 3 as the repeated value."
     },
     "baseline": "Use a frequency array of n+1 entries, costing O(n) space.",
-    "approach": "All correct pairs cancel under XOR, leaving the XOR of the two exceptional values. Its lowest set bit partitions all values into two groups, each containing exactly one exception. XOR within each group isolates them without square-sum overflow.",
+    "approach": "XOR the input with the full expected range 1..n. Ordinary values occur twice across those two collections and cancel. The repeated value occurs three times and leaves one copy; the missing value occurs once and also remains.\n\nTheir combined XOR has a set bit because the two values differ. Split both collections by that bit and XOR within each group. Matching values still cancel in the same group, but the two exceptions land in different groups. Finally check which survivor appears in the input: that one is repeated, and the other is missing.",
     "steps": [
       "XOR actual and expected values to obtain the exceptional XOR.",
       "Split both sets by one set bit and XOR each group.",
@@ -2968,26 +3016,33 @@
       "assert Arrays.equals(repeatedMissing(new int[]{1,1}),new int[]{1,2});",
       "assert Arrays.equals(repeatedMissing(new int[]{2,2}),new int[]{2,1});",
       "for(int n=2;n<15;n++)for(int missing=1;missing<=n;missing++)for(int repeated=1;repeated<=n;repeated++){if(missing==repeated)continue;int[] a=new int[n];for(int i=0;i<n;i++)a[i]=i+1==missing?repeated:i+1;assert Arrays.equals(repeatedMissing(a),new int[]{repeated,missing});}"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-the-missing-and-repeating-numbers-in-an-array",
+      "title": "Find the Missing and Repeating Numbers",
+      "checkedOn": "2026-10-29",
+      "approach": "Separate the two XOR survivors by a bit on which they differ.",
+      "adaptation": "Public optimal XOR Java checked. A presence check identifies the repeated survivor under the promised multiplicities."
+    }
   },
   "76": {
     "problem": "Count pairs i<j with a[i]>a[j].",
-    "assumptions": "Equal values do not form inversions. The method sorts the input as a side effect and returns long.",
+    "assumptions": "Equal values do not form inversions. The method sorts a copy and leaves the input unchanged; it returns long.",
     "example": {
       "input": "[5,3,2,4,1]",
       "output": "8",
       "explanation": "The leading 5 contributes four inversions, 3 contributes two, 2 contributes one, and 4 contributes one."
     },
     "baseline": "Compare every ordered index pair in O(n²) time.",
-    "approach": "During merge sort, both halves are already sorted. If the next right value is smaller than the next left value, it is smaller than every remaining left value, adding all those cross inversions at once.",
+    "approach": "Count pairs inside each half recursively. Once the halves are sorted, count pairs crossing from the left half to the right half while merging.\n\nIf the next left value is <= the next right value, take the left value and add nothing. If the right value is smaller, every unfinished left value is also larger, so add their count in one step. For left [3,6,8] and right value 2, that single choice contributes three inversions. Equal values never count. Work on a copy so the caller’s array stays unchanged.",
     "steps": [
       "Recursively count inversions within each half.",
       "Merge the halves into a reusable buffer.",
       "When taking a strictly smaller right value, add the number of unmerged left values."
     ],
-    "java": "static long inversions(int[] a){return count(a,new int[a.length],0,a.length);}\nstatic long count(int[] a,int[] tmp,int lo,int hi){\n    if(hi-lo<2)return 0;int mid=lo+(hi-lo)/2;\n    long answer=count(a,tmp,lo,mid)+count(a,tmp,mid,hi);\n    int i=lo,j=mid,k=lo;\n    while(i<mid&&j<hi){if(a[i]<=a[j])tmp[k++]=a[i++];else{answer+=mid-i;tmp[k++]=a[j++];}}\n    while(i<mid)tmp[k++]=a[i++];while(j<hi)tmp[k++]=a[j++];\n    System.arraycopy(tmp,lo,a,lo,hi-lo);return answer;\n}",
+    "java": "static long inversions(int[] a){int[] copy=a.clone();return count(copy,new int[a.length],0,a.length);}\nstatic long count(int[] a,int[] tmp,int lo,int hi){\n    if(hi-lo<2)return 0;int mid=lo+(hi-lo)/2;\n    long answer=count(a,tmp,lo,mid)+count(a,tmp,mid,hi);\n    int i=lo,j=mid,k=lo;\n    while(i<mid&&j<hi){if(a[i]<=a[j])tmp[k++]=a[i++];else{answer+=mid-i;tmp[k++]=a[j++];}}\n    while(i<mid)tmp[k++]=a[i++];while(j<hi)tmp[k++]=a[j++];\n    System.arraycopy(tmp,lo,a,lo,hi-lo);return answer;\n}",
     "time": "O(n log n).",
-    "space": "O(n) buffer plus O(log n) recursion.",
+    "space": "O(n) for the input copy and merge buffer, plus O(log n) recursive depth.",
     "pitfalls": [
       "Use <= when selecting the left value so equal pairs are not counted.",
       "The maximum n(n−1)/2 can exceed int."
@@ -2995,27 +3050,36 @@
     "tests": [
       "assert inversions(new int[]{5,3,2,4,1})==8;",
       "assert inversions(new int[]{2,2,2})==0;",
-      "Random r=new Random(76);for(int run=0;run<200;run++){int[] a=new int[r.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(21)-10;long expected=0;for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)if(a[i]>a[j])expected++;assert inversions(a)==expected;}"
-    ]
+      "Random r=new Random(76);for(int run=0;run<200;run++){int[] a=new int[r.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(21)-10;long expected=0;for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)if(a[i]>a[j])expected++;assert inversions(a)==expected;}",
+      "int[] a={Integer.MAX_VALUE,Integer.MIN_VALUE,0,-1,Integer.MIN_VALUE};int[] before=a.clone();long expected=0;for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)if(a[i]>a[j])expected++;assert inversions(a)==expected;assert Arrays.equals(a,before);",
+      "int[] a=new int[100000];for(int i=0;i<a.length;i++)a[i]=a.length-i;assert inversions(a)==4999950000L;assert a[0]==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-inversions-in-an-array-using-merge-sort",
+      "title": "Count Inversions Using Merge Sort",
+      "checkedOn": "2026-10-29",
+      "approach": "During merging, a smaller right value forms inversions with every remaining left value.",
+      "adaptation": "Public optimal Java checked. Like the source, this sorts a copy. Half-open ranges and one reusable merge buffer replace inclusive ranges and per-merge allocation."
+    }
   },
   "77": {
     "problem": "Count pairs i<j satisfying a[i] > 2×a[j].",
-    "assumptions": "Values can be negative. The input is sorted as a side effect; return a long count.",
+    "assumptions": "Values can be negative. The input is left unchanged; a copy is sorted and the count is returned as long.",
     "example": {
       "input": "[1,3,2,3,1]",
       "output": "2",
       "explanation": "The 3 at index 1 and the 3 at index 3 each form a pair with the final 1. Equality, such as 2 versus 2×1, does not count."
     },
     "baseline": "Test every index pair in O(n²) time.",
-    "approach": "Merge sort separates pairs inside each half from cross pairs. For sorted halves, a right prefix satisfies the inequality for a fixed left value. As left values increase, that right prefix can only grow, so one pointer counts all cross pairs linearly.",
+    "approach": "Split the pairs into those inside the left half, inside the right half, and crossing between them. Recursion counts the first two groups and leaves both halves sorted. For each left value, count the right values satisfying left > 2×right.\n\nAs left values increase, the qualifying right prefix can only grow, so keep one right pointer moving forward. Do this before the ordinary merge, which would erase the boundary between the halves. Use 2L×value to prevent int overflow. Negative values still use the same inequality: -3 > 2×-3 is true.",
     "steps": [
       "Count recursively within both halves.",
       "Before merging, advance a right pointer while the doubled-value inequality holds.",
       "Add its distance from the right-half start for each left value, then merge normally."
     ],
-    "java": "static long reversePairs(int[] a){return count(a,new int[a.length],0,a.length);}\nstatic long count(int[] a,int[] tmp,int lo,int hi){\n    if(hi-lo<2)return 0;int mid=lo+(hi-lo)/2;\n    long answer=count(a,tmp,lo,mid)+count(a,tmp,mid,hi);int j=mid;\n    for(int i=lo;i<mid;i++){while(j<hi&&(long)a[i]>2L*a[j])j++;answer+=j-mid;}\n    int i=lo,k=lo;j=mid;\n    while(i<mid&&j<hi)tmp[k++]=a[i]<=a[j]?a[i++]:a[j++];\n    while(i<mid)tmp[k++]=a[i++];while(j<hi)tmp[k++]=a[j++];\n    System.arraycopy(tmp,lo,a,lo,hi-lo);return answer;\n}",
+    "java": "static long reversePairs(int[] a){int[] copy=a.clone();return count(copy,new int[a.length],0,a.length);}\nstatic long count(int[] a,int[] tmp,int lo,int hi){\n    if(hi-lo<2)return 0;int mid=lo+(hi-lo)/2;\n    long answer=count(a,tmp,lo,mid)+count(a,tmp,mid,hi);int j=mid;\n    for(int i=lo;i<mid;i++){while(j<hi&&(long)a[i]>2L*a[j])j++;answer+=j-mid;}\n    int i=lo,k=lo;j=mid;\n    while(i<mid&&j<hi)tmp[k++]=a[i]<=a[j]?a[i++]:a[j++];\n    while(i<mid)tmp[k++]=a[i++];while(j<hi)tmp[k++]=a[j++];\n    System.arraycopy(tmp,lo,a,lo,hi-lo);return answer;\n}",
     "time": "O(n log n).",
-    "space": "O(n).",
+    "space": "O(n) for the input copy and merge buffer, plus O(log n) recursive depth.",
     "pitfalls": [
       "Count cross pairs before the ordinary merge destroys the half boundary.",
       "Use 2L*a[j]; int multiplication can overflow and reverse the comparison.",
@@ -3025,8 +3089,17 @@
       "assert reversePairs(new int[]{1,3,2,3,1})==2;",
       "assert reversePairs(new int[]{-3,-3})==1;",
       "assert reversePairs(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE})==0;",
-      "Random r=new Random(77);for(int run=0;run<200;run++){int[] a=new int[r.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(31)-15;long expected=0;for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)if((long)a[i]>2L*a[j])expected++;assert reversePairs(a)==expected;}"
-    ]
+      "Random r=new Random(77);for(int run=0;run<200;run++){int[] a=new int[r.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(31)-15;long expected=0;for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)if((long)a[i]>2L*a[j])expected++;assert reversePairs(a)==expected;}",
+      "int[] a={Integer.MAX_VALUE,Integer.MIN_VALUE,0,-1,Integer.MIN_VALUE};int[] before=a.clone();long expected=0;for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)if((long)a[i]>2L*a[j])expected++;assert reversePairs(a)==expected;assert Arrays.equals(a,before);",
+      "int[] a=new int[100000];Arrays.fill(a,-1);assert reversePairs(a)==4999950000L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-reverse-pairs",
+      "title": "Count Reverse Pairs",
+      "checkedOn": "2026-10-29",
+      "approach": "Count the doubled-value condition across sorted halves before ordinary merging.",
+      "adaptation": "Public optimal Java checked. Like the source, this sorts a copy. A reusable buffer and long result extend the same algorithm safely to larger pair counts."
+    }
   },
   "78": {
     "problem": "Find the largest product you can make by multiplying a nonempty run of neighbouring numbers.",
