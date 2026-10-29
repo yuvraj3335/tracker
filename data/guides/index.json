@@ -13570,5 +13570,123 @@
       "time": "O(RC + Σ k log k) over island sizes k; eight orientations are a constant factor.",
       "space": "O(R × C) including stored signatures and temporary coordinates."
     }
+  },
+  "348": {
+    "problem": "Decide whether every vertex can be assigned one of two colors so that the endpoints of every edge have different colors.",
+    "assumptions": "The pinned LeetCode problem supplies an undirected adjacency array, graph[u] = neighbors of u. The current TUF practice instead takes an edge list; a wrapper handles that input too. Disconnected graphs must be checked component by component.",
+    "example": {
+      "input": "cycle 0–1–2–3–0",
+      "output": "true",
+      "explanation": "Color 0 and 2 blue, and 1 and 3 orange. Every edge crosses between colors. Adding edge 0–2 creates a triangle and makes such coloring impossible."
+    },
+    "baseline": "BFS can assign opposite colors when discovering neighbors. It has the same linear time as DFS and avoids recursive stack depth. Trying every one of 2^V color assignments is a much slower way to check the definition.",
+    "approach": "Start an uncolored component with color 0. Every neighbor must have color 1. From a color-1 vertex, every neighbor must have color 0, and so on.\n\nIf a neighbor is uncolored, give it the opposite color and continue DFS. If it already has the same color as the current vertex, the constraints conflict, so return false.\n\nAn odd cycle forces its final edge to join equal colors. An even cycle can alternate colors all the way around. The method does not need to find or count cycles explicitly; the color conflict detects the problem.",
+    "steps": [
+      "Initialize colors to −1 for uncolored vertices.",
+      "Start DFS with color 0 at every uncolored component.",
+      "Assign each new neighbor the opposite color.",
+      "Return false for an edge joining equal colors."
+    ],
+    "java": "static boolean isBipartite(int[][] graph) {\n    int[] color = new int[graph.length];\n    Arrays.fill(color,-1);\n    for (int vertex = 0; vertex < graph.length; vertex++)\n        if (color[vertex] == -1 && !colorDfs(vertex,0,graph,color)) return false;\n    return true;\n}\nstatic boolean colorDfs(int vertex, int chosen, int[][] graph, int[] color) {\n    color[vertex] = chosen;\n    for (int next : graph[vertex]) {\n        if (color[next] == -1) {\n            if (!colorDfs(next,1-chosen,graph,color)) return false;\n        } else if (color[next] == chosen) return false;\n    }\n    return true;\n}\nstatic boolean isBipartiteEdges(int vertices, int[][] edges) {\n    List<List<Integer>> lists = adjacency(vertices,edges);\n    int[][] graph = new int[vertices][];\n    for (int i = 0; i < vertices; i++) graph[i] = lists.get(i).stream().mapToInt(Integer::intValue).toArray();\n    return isBipartite(graph);\n}\n\nstatic List<List<Integer>> adjacency(int vertices, int[][] edges) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        graph.get(edge[0]).add(edge[1]);\n        graph.get(edge[1]).add(edge[0]);\n    }\n    return graph;\n}",
+    "time": "O(V + E).",
+    "space": "O(V) traversal space; the edge-list wrapper also builds O(V + E) adjacency storage.",
+    "pitfalls": [
+      "A disconnected odd cycle still makes the graph non-bipartite.",
+      "Do not require both color groups to be nonempty; isolated vertices are allowed.",
+      "An undirected cycle is not automatically a failure: even cycles are bipartite.",
+      "Recursive DFS may overflow on a long chain; the queue alternative avoids that."
+    ],
+    "tests": [
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}boolean expected=false;for(int colors=0;colors<(1<<n);colors++){boolean valid=true;for(int[]e:edges)if(((colors>>e[0])&1)==((colors>>e[1])&1))valid=false;if(valid)expected=true;}List<List<Integer>>lists=adjacency(n,edges);int[][]a=new int[n][];for(int i=0;i<n;i++)a[i]=lists.get(i).stream().mapToInt(Integer::intValue).toArray();assert isBipartite(a)==expected;assert bipartiteBfs(a)==expected;assert isBipartiteEdges(n,edges)==expected;}}",
+      "assert !isBipartite(new int[][]{{0}});assert !bipartiteBfs(new int[][]{{0}});assert isBipartite(new int[][]{{1},{0},{}});",
+      "int n=100000;int[][]a=new int[n][];for(int i=0;i<n;i++)a[i]=i==0?new int[]{1}:i==n-1?new int[]{n-2}:new int[]{i-1,i+1};assert bipartiteBfs(a);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/bipartite-graph",
+      "title": "Bipartite graph",
+      "checkedOn": "2026-10-29",
+      "approach": "Two-color each component and reject equal-color edge endpoints.",
+      "adaptation": "The public TUF edge-list statement and the pinned LeetCode adjacency-array contract were checked. No public TUF Java editorial was available. These authored DFS and BFS implementations use the stated two-coloring rule, with an explicit input wrapper."
+    },
+    "baselineJava": "static boolean bipartiteBfs(int[][] graph) {\n    int[] color = new int[graph.length];\n    Arrays.fill(color,-1);\n    Deque<Integer> queue = new ArrayDeque<>();\n    for (int start = 0; start < graph.length; start++) {\n        if (color[start] != -1) continue;\n        color[start] = 0; queue.add(start);\n        while (!queue.isEmpty()) {\n            int vertex = queue.remove();\n            for (int next : graph[vertex]) {\n                if (color[next] == -1) { color[next] = 1-color[vertex]; queue.add(next); }\n                else if (color[next] == color[vertex]) return false;\n            }\n        }\n    }\n    return true;\n}",
+    "baselineTime": "O(V + E) time and O(V) queue/color space."
+  },
+  "349": {
+    "problem": "Detect a directed cycle by tracking which vertices are still on the active DFS path.",
+    "assumptions": "Edges are directed, and the graph may be disconnected. Seeing a previously finished vertex is allowed. The pinned row links to Course Schedule II, which needs an order rather than a boolean; a findOrder wrapper is included for that linked task.",
+    "example": {
+      "input": "edges 0→1, 0→2, 1→2",
+      "output": "false",
+      "explanation": "Vertex 2 can be reached from two places, but there is no route back. Adding 2→0 would create a cycle."
+    },
+    "baseline": "Kahn’s algorithm repeatedly removes vertices of indegree zero. If it cannot process all vertices, a cycle exists. It has the same linear time and avoids recursion.",
+    "approach": "Keep two facts separate. visited means a vertex has been reached at some point. active means its DFS call has started but has not finished.\n\nAn edge to an active vertex closes a directed path back to an ancestor, so it proves a cycle. An edge to a finished vertex does not: that vertex’s outgoing paths were already checked without finding a cycle.\n\nClear active when leaving a vertex normally. Start DFS from every still-unvisited vertex. For the linked ordering task, record vertices on completion and reverse that list, returning no order if a cycle is found.",
+    "steps": [
+      "Set both visited and active when entering a vertex.",
+      "Explore unvisited outgoing neighbors.",
+      "Report a cycle when an outgoing neighbor is active.",
+      "Clear active on completion; check all components."
+    ],
+    "java": "static boolean directedCycle(List<List<Integer>> graph) {\n    boolean[] visited = new boolean[graph.size()], active = new boolean[graph.size()];\n    for (int vertex = 0; vertex < graph.size(); vertex++)\n        if (!visited[vertex] && visitDirected(vertex,graph,visited,active)) return true;\n    return false;\n}\nstatic boolean visitDirected(int vertex, List<List<Integer>> graph, boolean[] visited, boolean[] active) {\n    visited[vertex] = true;\n    active[vertex] = true;\n    for (int next : graph.get(vertex)) {\n        if (!visited[next]) {\n            if (visitDirected(next,graph,visited,active)) return true;\n        } else if (active[next]) return true;\n    }\n    active[vertex] = false;\n    return false;\n}\n\nstatic List<List<Integer>> courseGraph(int courses, int[][] prerequisites) {\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int i = 0; i < courses; i++) graph.add(new ArrayList<>());\n    for (int[] pair : prerequisites) graph.get(pair[1]).add(pair[0]);\n    return graph;\n}\n\nstatic int[] topologicalDfs(List<List<Integer>> graph) {\n    int[] state = new int[graph.size()];\n    List<Integer> finished = new ArrayList<>();\n    for (int vertex = 0; vertex < graph.size(); vertex++) {\n        if (state[vertex] == 0 && !finishVertex(vertex,graph,state,finished)) return new int[0];\n    }\n    int[] order = new int[finished.size()];\n    for (int i = 0; i < order.length; i++) order[i] = finished.get(order.length-1-i);\n    return order;\n}\nstatic boolean finishVertex(int vertex, List<List<Integer>> graph, int[] state, List<Integer> finished) {\n    if (state[vertex] == 1) return false;\n    if (state[vertex] == 2) return true;\n    state[vertex] = 1;\n    for (int next : graph.get(vertex)) if (!finishVertex(next,graph,state,finished)) return false;\n    state[vertex] = 2;\n    finished.add(vertex);\n    return true;\n}\n\nstatic int[] findOrder(int courses, int[][] prerequisites) {\n    return topologicalDfs(courseGraph(courses,prerequisites));\n}",
+    "time": "O(V + E).",
+    "space": "O(V) extra for cycle detection; O(V + E) including course-graph construction.",
+    "pitfalls": [
+      "Visited alone is insufficient: a DAG can have paths that merge.",
+      "Do not apply the undirected parent exception to directed edges.",
+      "A self-loop is a directed cycle.",
+      "The pinned course link returns an ordering; use findOrder rather than the boolean helper."
+    ],
+    "tests": [
+      "for(int n=0;n<=4;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<List<Integer>>graph=new ArrayList<>();for(int i=0;i<n;i++)graph.add(new ArrayList<>());\n  boolean[][]reach=new boolean[n][n];List<int[]>requirements=new ArrayList<>();\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);graph.get(edge[0]).add(edge[1]);reach[edge[0]][edge[1]]=true;requirements.add(new int[]{edge[1],edge[0]});}\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n  boolean cyclic=false;for(int i=0;i<n;i++)cyclic|=reach[i][i];\n  int[][]prerequisites=requirements.toArray(new int[0][]);assert directedCycle(graph)==cyclic;assert (topologicalKahn(graph).length!=n)==cyclic;int[]order=findOrder(n,prerequisites);if(cyclic)assert order.length==0;\nelse{assert order.length==n;int[]position=new int[n];Arrays.fill(position,-1);for(int i=0;i<n;i++){assert order[i]>=0&&order[i]<n&&position[order[i]]==-1;position[order[i]]=i;}for(int u=0;u<n;u++)for(int v:graph.get(u))assert position[u]<position[v];}}}",
+      "List<List<Integer>>g=List.of(List.of(1,2),List.of(2),List.of());assert !directedCycle(g);assert directedCycle(List.of(List.of(0)));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/detect-a-cycle-in-a-directed-graph",
+      "title": "Detect a Cycle in a Directed Graph",
+      "checkedOn": "2026-10-29",
+      "approach": "Separate visited and active-path state; Kahn’s processed count is an iterative alternative.",
+      "adaptation": "Both public cycle-detection Java methods were checked. The linked Course Schedule II Java was also checked to supply its prerequisite-direction and ordering wrapper. Boolean flags replace integer visited arrays."
+    },
+    "baselineJava": "static int[] topologicalKahn(List<List<Integer>> graph) {\n    int n = graph.size();\n    int[] indegree = new int[n];\n    for (List<Integer> neighbors : graph) for (int next : neighbors) indegree[next]++;\n    Deque<Integer> ready = new ArrayDeque<>();\n    for (int vertex = 0; vertex < n; vertex++) if (indegree[vertex] == 0) ready.add(vertex);\n    int[] order = new int[n];\n    int count = 0;\n    while (!ready.isEmpty()) {\n        int vertex = ready.remove();\n        order[count++] = vertex;\n        for (int next : graph.get(vertex)) if (--indegree[next] == 0) ready.add(next);\n    }\n    return count == n ? order : new int[0];\n}",
+    "baselineTime": "O(V + E) time and O(V) extra space; a returned order shorter than V means a cycle."
+  },
+  "350": {
+    "problem": "Return any topological ordering: each directed edge u→v must place u before v.",
+    "assumptions": "The linked practice guarantees a DAG and supplies adjacency lists. This implementation additionally returns an empty array for cyclic inputs. Several orders may be valid; the answer need not match an example exactly. Empty graphs return an empty valid order.",
+    "example": {
+      "input": "edges 0→2, 1→2, 2→3",
+      "output": "one valid order: [1,0,2,3]",
+      "explanation": "Both 0 and 1 must precede 2, and 2 must precede 3. There is no edge deciding whether 0 or 1 comes first."
+    },
+    "baseline": "Kahn’s algorithm chooses vertices with no remaining incoming edges. It also gives a valid order in O(V + E). The DFS method below instead records vertices after their outgoing work is finished.",
+    "approach": "In DFS, finish every outgoing neighbor before recording the current vertex. For an edge u→v, v will therefore be recorded before u. Reversing the finished list puts u before v, as required.\n\nUse states 0 = unseen, 1 = active, and 2 = finished. Reaching state 1 reveals a cycle, so no ordering is possible. State 2 can be reused safely because that vertex’s outgoing paths are already finished.\n\nRun DFS from every unseen vertex to include disconnected components and isolated vertices. Reverse the complete postorder only after all DFS calls succeed.",
+    "steps": [
+      "Track unseen, active, and finished vertices.",
+      "Explore each outgoing neighbor before appending the current vertex.",
+      "Reject an edge to an active vertex.",
+      "Reverse the finished list after all components are explored."
+    ],
+    "java": "static int[] topologicalDfs(List<List<Integer>> graph) {\n    int[] state = new int[graph.size()];\n    List<Integer> finished = new ArrayList<>();\n    for (int vertex = 0; vertex < graph.size(); vertex++) {\n        if (state[vertex] == 0 && !finishVertex(vertex,graph,state,finished)) return new int[0];\n    }\n    int[] order = new int[finished.size()];\n    for (int i = 0; i < order.length; i++) order[i] = finished.get(order.length-1-i);\n    return order;\n}\nstatic boolean finishVertex(int vertex, List<List<Integer>> graph, int[] state, List<Integer> finished) {\n    if (state[vertex] == 1) return false;\n    if (state[vertex] == 2) return true;\n    state[vertex] = 1;\n    for (int next : graph.get(vertex)) if (!finishVertex(next,graph,state,finished)) return false;\n    state[vertex] = 2;\n    finished.add(vertex);\n    return true;\n}",
+    "time": "O(V + E).",
+    "space": "O(V) state, recursive stack, and output.",
+    "pitfalls": [
+      "Appending on entry gives DFS discovery order, which is not generally topological.",
+      "Reverse the finish order exactly once.",
+      "Do not return a partial order after detecting a cycle.",
+      "A long dependency chain can exhaust the recursive stack; use Kahn’s queue alternative."
+    ],
+    "tests": [
+      "for(int n=0;n<=4;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(i!=j)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<List<Integer>>graph=new ArrayList<>();for(int i=0;i<n;i++)graph.add(new ArrayList<>());\n  boolean[][]reach=new boolean[n][n];List<int[]>requirements=new ArrayList<>();\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);graph.get(edge[0]).add(edge[1]);reach[edge[0]][edge[1]]=true;requirements.add(new int[]{edge[1],edge[0]});}\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n  boolean cyclic=false;for(int i=0;i<n;i++)cyclic|=reach[i][i];\n  int[][]prerequisites=requirements.toArray(new int[0][]);for(int[]order:new int[][]{topologicalDfs(graph),topologicalKahn(graph)}){if(cyclic)assert order.length==0;\nelse{assert order.length==n;int[]position=new int[n];Arrays.fill(position,-1);for(int i=0;i<n;i++){assert order[i]>=0&&order[i]<n&&position[order[i]]==-1;position[order[i]]=i;}for(int u=0;u<n;u++)for(int v:graph.get(u))assert position[u]<position[v];}}}}",
+      "assert topologicalDfs(List.of(List.of(0))).length==0;assert Arrays.equals(topologicalDfs(List.of(List.of(1),List.of(2),List.of())),new int[]{0,1,2});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/topological-sort-or-kahns-algorithm",
+      "title": "Topological sort or Kahn's algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "DFS reverse finishing order, with active-path detection for invalid cyclic input.",
+      "adaptation": "The public DAG practice contract was checked. Its Java editorial is not public. The reverse-postorder Java algorithm was checked in the public Course Schedule II article and adapted to a supplied adjacency list."
+    },
+    "baselineJava": "static int[] topologicalKahn(List<List<Integer>> graph) {\n    int n = graph.size();\n    int[] indegree = new int[n];\n    for (List<Integer> neighbors : graph) for (int next : neighbors) indegree[next]++;\n    Deque<Integer> ready = new ArrayDeque<>();\n    for (int vertex = 0; vertex < n; vertex++) if (indegree[vertex] == 0) ready.add(vertex);\n    int[] order = new int[n];\n    int count = 0;\n    while (!ready.isEmpty()) {\n        int vertex = ready.remove();\n        order[count++] = vertex;\n        for (int next : graph.get(vertex)) if (--indegree[next] == 0) ready.add(next);\n    }\n    return count == n ? order : new int[0];\n}",
+    "baselineTime": "O(V + E) time and O(V) queue/indegree/output space."
   }
 }
