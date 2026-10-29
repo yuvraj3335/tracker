@@ -12195,5 +12195,205 @@
       "time": "O(n).",
       "space": "O(h) call stack; a very deep tree can overflow it."
     }
+  },
+  "314": {
+    "problem": "Understand the ordering rule of a binary search tree and why inorder traversal returns its values in sorted order.",
+    "assumptions": "We use a strict BST: every value anywhere in a node’s left subtree is smaller, and every value anywhere in its right subtree is larger. Values are distinct. Other duplicate policies exist, but they must be stated separately. A BST is not automatically balanced.",
+    "example": {
+      "input": "root 8; left subtree has 4 with children 2 and 6; right subtree has 12 with children 10 and 14",
+      "output": "inorder = [2, 4, 6, 8, 10, 12, 14]",
+      "explanation": "All of 8’s left-subtree values are smaller than 8, and all right-subtree values are larger. This condition repeats at every node."
+    },
+    "baseline": "An ordinary binary tree only limits each node to two children; it does not order values. Finding a value may require visiting every node. A BST adds the ordering rule that lets a search choose one child direction.",
+    "approach": "The rule applies to entire subtrees, not only immediate children. For example, putting 10 under the right child of node 4 still breaks the rule if 4 belongs to the left subtree of 8. The value 10 is too large for that whole side of 8.\n\nInorder visits the left subtree, then the node, then the right subtree. Since the three parts are ordered by value, the result is sorted. The Java example builds a small BST and reads it with an explicit stack.\n\nSearch, insertion, and deletion follow paths of length at most the tree height h. They take O(h), which is O(log n) when balanced and O(n) for a chain. Ordinary insertion does not balance the tree; inserting sorted values can produce that chain.",
+    "steps": [
+      "Check the smaller-left, larger-right rule across every whole subtree.",
+      "Build nodes and connect them with left and right references.",
+      "Read inorder by finishing the left side, recording the node, then visiting the right side.",
+      "Keep tree height in mind when judging search performance."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode exampleBst() {\n    TreeNode root = new TreeNode(8);\n    root.left = new TreeNode(4);\n    root.right = new TreeNode(12);\n    root.left.left = new TreeNode(2);\n    root.left.right = new TreeNode(6);\n    root.right.left = new TreeNode(10);\n    root.right.right = new TreeNode(14);\n    return root;\n}\n\nstatic List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}",
+    "time": "O(n) for inorder traversal. Search/insert/delete depend on height: O(h).",
+    "space": "O(h) traversal stack and O(n) output. The tree itself stores O(n) nodes.",
+    "pitfalls": [
+      "Smaller immediate children do not prove that all descendants satisfy the rule.",
+      "A BST can be completely skewed. Do not promise logarithmic operations without a balancing condition.",
+      "Inorder is sorted only when the input actually satisfies the BST rule.",
+      "Assigning one node reference to another variable does not copy the tree."
+    ],
+    "tests": [
+      "TreeNode r=exampleBst();assert inorderValues(r).equals(List.of(2,4,6,8,10,12,14));assert exampleBst()!=r;assert inorderValues(null).isEmpty();r.left.right.val=10;assert inorderValues(r).equals(List.of(2,4,10,8,10,12,14));",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}assert inorderValues(root).equals(new ArrayList<>(keys));}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}List<Integer>a=inorderValues(r);assert a.size()==100000&&a.get(99999)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-search-tree",
+      "title": "Binary Search Tree (BST): Introduction and Operations",
+      "checkedOn": "2026-10-29",
+      "approach": "Strict ordering across whole subtrees and sorted inorder traversal.",
+      "adaptation": "The public foundation lesson was read. It has no Java tab, so this is an authored construction and traversal example. Complexity is expressed as O(height); choosing one subtree does not guarantee halving the node count in an unbalanced BST."
+    }
+  },
+  "315": {
+    "problem": "Find a target value in a binary search tree and return the existing node containing it, including its subtree. Return null if it is absent.",
+    "assumptions": "The input is a valid strict BST with distinct values. Returning a node returns a reference to the existing subtree, not a copy and not just its value. The method does not modify any child references.",
+    "example": {
+      "input": "root 8; children 4 and 12; 4 has children 2 and 6; target = 4",
+      "output": "the existing node 4, with children 2 and 6",
+      "explanation": "4 is smaller than 8, so move left once. The target node is found and returned with its existing children."
+    },
+    "baseline": "Recursively compare the target with the current value and search only the appropriate child. This uses the BST rule correctly, but keeps O(h) recursive calls on a path.",
+    "approach": "Compare the target with the current node. If equal, return that node. If smaller, continue left: the current node and everything to its right are too large. If larger, continue right for the symmetric reason.\n\nEach comparison leaves only one possible child subtree. No backtracking is needed because the rejected side cannot contain the target. Reaching null means the target is absent.\n\nIteration keeps only the current reference, so it uses constant extra space. The number of comparisons still depends on height; a skewed BST may require visiting every node.",
+    "steps": [
+      "Start at the root.",
+      "Return the current node on equality.",
+      "Move left for a smaller target or right for a larger target.",
+      "Return null if the path ends."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode searchBST(TreeNode root, int target) {\n    TreeNode current = root;\n    while (current != null) {\n        if (current.val == target) return current;\n        current = target < current.val ? current.left : current.right;\n    }\n    return null;\n}",
+    "time": "O(h): O(log n) when balanced, O(n) in the worst case.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "Return the matching node reference, not a newly created node.",
+      "The one-branch rule is valid only for a BST.",
+      "A search must not detach or replace child references.",
+      "Use direct comparisons instead of subtraction, which can overflow for extreme int values."
+    ],
+    "tests": [
+      "assert searchBST(null,1)==null;TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(12);r.left.left=new TreeNode(2);r.left.right=new TreeNode(6);assert searchBST(r,4)==r.left;assert searchBST(r,5)==null;assert r.left.right.val==6;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}Map<TreeNode,TreeNode[]>before=new IdentityHashMap<>();for(TreeNode x:paths.keySet())before.put(x,new TreeNode[]{x.left,x.right});for(int key:keys){assert searchBST(root,key)==byValue.get(key);assert searchRecursive(root,key)==byValue.get(key);}for(int t=0;t<100;t++){int key=random.nextInt();assert searchBST(root,key)==byValue.get(key);assert searchRecursive(root,key)==byValue.get(key);}for(TreeNode x:before.keySet())assert x.left==before.get(x)[0]&&x.right==before.get(x)[1];}",
+      "TreeNode r=new TreeNode(Integer.MIN_VALUE);r.right=new TreeNode(Integer.MAX_VALUE);assert searchBST(r,Integer.MAX_VALUE)==r.right;assert searchBST(r,Integer.MIN_VALUE)==r;",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert searchBST(r,99999)==p;assert searchBST(r,100000)==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/search-in-a-binary-search-tree",
+      "title": "Search in a Binary Search Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Follow one ordered child path recursively or iteratively.",
+      "adaptation": "Both public Java methods were checked. The iterative comparison logic and returned node identity are retained. The explanation avoids claiming that an arbitrary BST discards half its nodes at each step."
+    },
+    "baselineJava": "static TreeNode searchRecursive(TreeNode root, int target) {\n    if (root == null || root.val == target) return root;\n    return target < root.val ? searchRecursive(root.left, target) : searchRecursive(root.right, target);\n}",
+    "baselineTime": "O(h) time and O(h) recursion space."
+  },
+  "316": {
+    "problem": "Return the smallest and largest values in a binary search tree, as [minimum, maximum].",
+    "assumptions": "The tree is a valid strict BST. The current Striver practice problem guarantees a nonempty tree and permits negative values. This implementation returns an empty array for an empty tree as an explicit extension, rather than using a value such as −1 that could be a real answer.",
+    "example": {
+      "input": "root 8; left child 4 with right child 6; right child 12 with left child 10",
+      "output": "[4, 12]",
+      "explanation": "Keep moving left to reach 4 and right to reach 12. The minimum and maximum can have a child on the opposite side; they need not be leaves."
+    },
+    "baseline": "Traverse every node while tracking the smallest and largest values. That costs O(n) and works for any binary tree. A BST lets us ignore all but its two outer paths.",
+    "approach": "The smallest value cannot be to the right of the current node. If a left child exists, every value there is smaller, so move left. When no left child remains, the current value is the minimum.\n\nFind the maximum in the same way by following right children. The two searches may share the root, but each takes at most h steps. No sorting, recursion, or full traversal is needed.",
+    "steps": [
+      "For an empty tree, return an empty result.",
+      "Follow left children to find the minimum.",
+      "Starting again at the root, follow right children to find the maximum.",
+      "Return the two values in minimum-then-maximum order."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int[] findMinMax(TreeNode root) {\n    if (root == null) return new int[0];\n    TreeNode minimum = root, maximum = root;\n    while (minimum.left != null) minimum = minimum.left;\n    while (maximum.right != null) maximum = maximum.right;\n    return new int[]{minimum.val, maximum.val};\n}",
+    "time": "O(h), which is O(log n) for a balanced BST and O(n) for a chain.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "The minimum can have a right child, and the maximum can have a left child.",
+      "Restart from the root before finding the opposite extreme.",
+      "Negative values are allowed, so −1 is not a safe missing-value marker.",
+      "This shortcut requires BST ordering, not merely a binary-tree shape."
+    ],
+    "tests": [
+      "assert findMinMax(null).length==0;assert Arrays.equals(findMinMax(new TreeNode(-7)),new int[]{-7,-7});TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.left.right=new TreeNode(6);r.right=new TreeNode(12);r.right.left=new TreeNode(10);assert Arrays.equals(findMinMax(r),new int[]{4,12});",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}assert Arrays.equals(findMinMax(root),new int[]{keys.first(),keys.last()});assert Arrays.equals(scanMinMax(root),new int[]{keys.first(),keys.last()});}",
+      "TreeNode r=new TreeNode(Integer.MIN_VALUE);r.right=new TreeNode(Integer.MAX_VALUE);assert Arrays.equals(findMinMax(r),new int[]{Integer.MIN_VALUE,Integer.MAX_VALUE});",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert Arrays.equals(findMinMax(r),new int[]{0,99999});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-and-maximum-in-bst",
+      "title": "Minimum and Maximum in BST",
+      "checkedOn": "2026-10-29",
+      "approach": "Follow the leftmost and rightmost paths.",
+      "adaptation": "The current public Striver problem, [minimum, maximum] output order, and negative-value constraints were checked. No public Java editorial was available; this authored implementation follows the statement’s outer-path explanation."
+    },
+    "baselineJava": "static int[] scanMinMax(TreeNode root) {\n    if (root == null) return new int[0];\n    int minimum = root.val, maximum = root.val;\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    stack.push(root);\n    while (!stack.isEmpty()) {\n        TreeNode node = stack.pop();\n        minimum = Math.min(minimum, node.val);\n        maximum = Math.max(maximum, node.val);\n        if (node.left != null) stack.push(node.left);\n        if (node.right != null) stack.push(node.right);\n    }\n    return new int[]{minimum, maximum};\n}",
+    "baselineTime": "O(n) time and O(h) stack space."
+  },
+  "317": {
+    "problem": "Find the smallest BST value greater than or equal to a key (its ceiling).",
+    "assumptions": "The current practice link combines floor and ceiling, returning [floor, ceil]. This row focuses on ceil, which is the second element. The practice constraints use positive keys and values, so −1 unambiguously means no candidate. An exact match supplies both answers.",
+    "example": {
+      "input": "BST values {2, 4, 6, 8, 10}; key = 5",
+      "output": "ceil = 6; combined result [4, 6]",
+      "explanation": "5 is not present. The closest existing values on its two sides are 4 and 6."
+    },
+    "baseline": "Collect the inorder traversal, which is sorted. Scan it, remembering the last value at most the key and stopping at the first value at least the key. This costs O(n) time and storage.",
+    "approach": "A value smaller than the key cannot be a ceiling, and neither can anything in its left subtree. Move right. A value larger than the key is a possible ceiling; remember it, then move left to look for a smaller value that still qualifies.\n\nThe linked problem asks for both floor and ceiling. One walk can track both: a smaller node updates floor and sends us right; a larger node updates ceil and sends us left. An exact match is both answers. When the path ends, the saved candidates are the closest qualifying values, or −1 if none was found.",
+    "steps": [
+      "Start both candidates at −1.",
+      "On equality, return [key, key].",
+      "A smaller current value updates floor before moving right.",
+      "A larger current value updates ceil before moving left; return the final pair when the path ends."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int[] floorCeilOfBST(TreeNode root, int key) {\n    int floor = -1, ceil = -1;\n    TreeNode current = root;\n    while (current != null) {\n        if (current.val == key) return new int[]{key, key};\n        if (current.val < key) {\n            floor = current.val;\n            current = current.right;\n        } else {\n            ceil = current.val;\n            current = current.left;\n        }\n    }\n    return new int[]{floor, ceil};\n}",
+    "time": "O(h): O(log n) when balanced, O(n) in the worst case.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "Floor and ceil include equality; strict predecessor/successor are different questions.",
+      "The return order is [floor, ceil], even on this single-topic sheet row.",
+      "Keep the last valid candidate when moving to a null child.",
+      "A BST discards one subtree per comparison, not necessarily half its nodes."
+    ],
+    "tests": [
+      "assert Arrays.equals(floorCeilOfBST(null,5),new int[]{-1,-1});TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(12);r.left.right=new TreeNode(6);assert Arrays.equals(floorCeilOfBST(r,5),new int[]{4,6});assert Arrays.equals(floorCeilOfBST(r,8),new int[]{8,8});assert Arrays.equals(floorCeilOfBST(r,1),new int[]{-1,4});assert Arrays.equals(floorCeilOfBST(r,20),new int[]{12,-1});",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(1+random.nextInt(1000));Iterator<Integer>it=keys.iterator();for(TreeNode x:ordered)x.val=it.next();for(int key=1;key<=1001;key++){Integer floor=keys.floor(key),ceil=keys.ceiling(key);int[]want={floor==null?-1:floor,ceil==null?-1:ceil};assert Arrays.equals(floorCeilOfBST(root,key),want);assert Arrays.equals(floorCeilByScan(root,key),want);}}",
+      "TreeNode r=new TreeNode(1),p=r;for(int n=2;n<=100000;n++){p.right=new TreeNode(n);p=p.right;}assert Arrays.equals(floorCeilOfBST(r,100001),new int[]{100000,-1});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/floor-and-ceil-in-a-bst",
+      "title": "Floor and Ceil in a BST",
+      "checkedOn": "2026-10-29",
+      "approach": "Track the nearest lower and upper candidates during one ordered walk.",
+      "adaptation": "Both public Java methods and the practice page’s positive-value constraints were checked. The combined method is named floorCeilOfBST to match the practice interface; the explanation identifies which result belongs to this preserved sheet row."
+    },
+    "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic int[] floorCeilByScan(TreeNode root, int key) {\n    int floor = -1, ceil = -1;\n    for (int value : inorderValues(root)) {\n        if (value <= key) floor = value;\n        if (value >= key) { ceil = value; break; }\n    }\n    return new int[]{floor, ceil};\n}",
+    "baselineTime": "O(n) time and O(n) stored values, plus O(h) traversal stack."
+  },
+  "318": {
+    "problem": "Find the greatest BST value less than or equal to a key (its floor).",
+    "assumptions": "The current practice link combines floor and ceiling, returning [floor, ceil]. This row focuses on floor, which is the first element. The practice constraints use positive keys and values, so −1 unambiguously means no candidate. An exact match supplies both answers.",
+    "example": {
+      "input": "BST values {2, 4, 6, 8, 10}; key = 5",
+      "output": "floor = 4; combined result [4, 6]",
+      "explanation": "5 is not present. The closest existing values on its two sides are 4 and 6."
+    },
+    "baseline": "Collect the inorder traversal, which is sorted. Scan it, remembering the last value at most the key and stopping at the first value at least the key. This costs O(n) time and storage.",
+    "approach": "A value larger than the key cannot be a floor, and neither can anything in its right subtree. Move left. A value smaller than the key is a possible floor; remember it, then move right to look for a larger value that still qualifies.\n\nThe linked problem asks for both floor and ceiling. One walk can track both: a smaller node updates floor and sends us right; a larger node updates ceil and sends us left. An exact match is both answers. When the path ends, the saved candidates are the closest qualifying values, or −1 if none was found.",
+    "steps": [
+      "Start both candidates at −1.",
+      "On equality, return [key, key].",
+      "A smaller current value updates floor before moving right.",
+      "A larger current value updates ceil before moving left; return the final pair when the path ends."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int[] floorCeilOfBST(TreeNode root, int key) {\n    int floor = -1, ceil = -1;\n    TreeNode current = root;\n    while (current != null) {\n        if (current.val == key) return new int[]{key, key};\n        if (current.val < key) {\n            floor = current.val;\n            current = current.right;\n        } else {\n            ceil = current.val;\n            current = current.left;\n        }\n    }\n    return new int[]{floor, ceil};\n}",
+    "time": "O(h): O(log n) when balanced, O(n) in the worst case.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "Floor and ceil include equality; strict predecessor/successor are different questions.",
+      "The return order is [floor, ceil], even on this single-topic sheet row.",
+      "Keep the last valid candidate when moving to a null child.",
+      "A BST discards one subtree per comparison, not necessarily half its nodes."
+    ],
+    "tests": [
+      "assert Arrays.equals(floorCeilOfBST(null,5),new int[]{-1,-1});TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(12);r.left.right=new TreeNode(6);assert Arrays.equals(floorCeilOfBST(r,5),new int[]{4,6});assert Arrays.equals(floorCeilOfBST(r,8),new int[]{8,8});assert Arrays.equals(floorCeilOfBST(r,1),new int[]{-1,4});assert Arrays.equals(floorCeilOfBST(r,20),new int[]{12,-1});",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(1+random.nextInt(1000));Iterator<Integer>it=keys.iterator();for(TreeNode x:ordered)x.val=it.next();for(int key=1;key<=1001;key++){Integer floor=keys.floor(key),ceil=keys.ceiling(key);int[]want={floor==null?-1:floor,ceil==null?-1:ceil};assert Arrays.equals(floorCeilOfBST(root,key),want);assert Arrays.equals(floorCeilByScan(root,key),want);}}",
+      "TreeNode r=new TreeNode(1),p=r;for(int n=2;n<=100000;n++){p.right=new TreeNode(n);p=p.right;}assert Arrays.equals(floorCeilOfBST(r,100001),new int[]{100000,-1});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/floor-and-ceil-in-a-bst",
+      "title": "Floor and Ceil in a BST",
+      "checkedOn": "2026-10-29",
+      "approach": "Track the nearest lower and upper candidates during one ordered walk.",
+      "adaptation": "Both public Java methods and the practice page’s positive-value constraints were checked. The combined method is named floorCeilOfBST to match the practice interface; the explanation identifies which result belongs to this preserved sheet row."
+    },
+    "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic int[] floorCeilByScan(TreeNode root, int key) {\n    int floor = -1, ceil = -1;\n    for (int value : inorderValues(root)) {\n        if (value <= key) floor = value;\n        if (value >= key) { ceil = value; break; }\n    }\n    return new int[]{floor, ceil};\n}",
+    "baselineTime": "O(n) time and O(n) stored values, plus O(h) traversal stack."
   }
 }
