@@ -16295,5 +16295,53 @@
       "time": "O(n × (amount + 1)) additions; multiply by B for bit complexity.",
       "space": "O(n × (amount + 1)) count entries, plus recursion depth for memoization."
     }
+  },
+  "406": {
+    "problem": "Choose any number of copies of each item type to maximize total value without exceeding the knapsack’s weight capacity.",
+    "assumptions": "The pinned problem has up to 500 item types, capacity at most 1000, and positive weights and values at most 500. Total value therefore fits int. Unused capacity is allowed. The four-argument overload matches the practice page’s Java signature, where n equals both array lengths.",
+    "example": {
+      "input": "weights = [3,4], values = [7,9], capacity = 8",
+      "output": "18",
+      "explanation": "Choose two weight-4 items for value 18. The weight-3 item has a better value/weight ratio, but taking two of them uses weight 6 and gives only 14. Ratio-greedy cannot split an item to use the remaining space."
+    },
+    "baseline": "For each item type, try skipping it or taking one copy. Taking reduces capacity but leaves the same item type available. Skipping moves to the previous type. Compare both values. This repeats many item-and-capacity states.",
+    "approach": "Let dp[w] mean the best value we can carry with weight at most w using the item types seen so far. Before any types are available, every capacity has answer zero because taking nothing is allowed.\n\nFor an item with weight x and value v, compare the old dp[w] with v + dp[w − x]. The old value means skipping this type for the last choice. The second means taking one copy and using the remaining capacity as well as possible.\n\nVisit capacities upward. The smaller entry dp[w − x] may already contain this type, so this order allows repeated copies. A downward scan would prevent reuse and instead solve the 0/1 variant.\n\nThis is an at-most-capacity problem. We do not mark unused weight as impossible. If nothing fits, the answer stays zero. The rod-cutting problem after this has a related recurrence but requires using an exact total length.",
+    "steps": [
+      "Initialize every capacity’s value to zero.",
+      "Process each item type.",
+      "Scan capacities upward from that item’s weight.",
+      "Compare skipping with value + best value at the remaining capacity.",
+      "Return the best value at the full allowed capacity."
+    ],
+    "java": "static int unboundedKnapsack(int[] weights, int[] values, int capacity) {\n    int[] dp = new int[capacity+1];\n    for (int item = 0; item < weights.length; item++) {\n        for (int room = weights[item]; room <= capacity; room++) {\n            dp[room] = Math.max(dp[room],values[item]+dp[room-weights[item]]);\n        }\n    }\n    return dp[capacity];\n}\nstatic int unboundedKnapsack(int[] weights, int[] values, int n, int capacity) {\n    if (n != weights.length || n != values.length) throw new IllegalArgumentException(\"Mismatched item count\");\n    return unboundedKnapsack(weights,values,capacity);\n}",
+    "time": "O(n × (capacity + 1)). This depends on the numeric capacity, not just the number of bits used to write it.",
+    "space": "O(capacity + 1).",
+    "pitfalls": [
+      "Items are indivisible; value/weight ratio sorting does not prove an optimal answer.",
+      "A take keeps the same item index in recursion.",
+      "Ascending capacities allow reuse; descending capacities would allow each type only once.",
+      "Do not require every unit of capacity to be filled.",
+      "Positive weights ensure a take makes progress. A zero-weight positive-value item would make the optimum unbounded and is outside the contract."
+    ],
+    "tests": [
+      "assert unboundedKnapsack(new int[]{3,4},new int[]{7,9},8)==18;assert unboundedKnapsack(new int[]{3,4},new int[]{7,9},2,8)==18;assert unboundedKnapsack(new int[]{4},new int[]{6},3)==0;assert unboundedKnapsack(new int[]{3},new int[]{7},7)==14;",
+      "class Oracle { int solve(int[]w,int[]v,int i,int room){if(i==w.length)return 0;int best=0;for(int copies=0;copies<=room/w[i];copies++)best=Math.max(best,copies*v[i]+solve(w,v,i+1,room-copies*w[i]));return best;} }\nOracle oracle=new Oracle();Random random=new Random(406);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(4),capacity=random.nextInt(17);int[] w=new int[n],v=new int[n];for(int i=0;i<n;i++){w[i]=1+random.nextInt(8);v[i]=1+random.nextInt(20);}int[] wc=w.clone(),vc=v.clone();int expected=oracle.solve(w,v,0,capacity);\n assert unboundedKnapsack(w,v,capacity)==expected;assert packMemoized(w,v,capacity)==expected;assert packTable(w,v,capacity)==expected;assert packRecursive(w,v,n-1,capacity)==expected;assert Arrays.equals(w,wc)&&Arrays.equals(v,vc);\n}",
+      "assert unboundedKnapsack(new int[]{1},new int[]{500},1000)==500000;assert packTable(new int[]{1},new int[]{500},1000)==500000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/unbounded-knapsack",
+      "title": "Unbounded Knapsack: Dynamic Programming Solution",
+      "checkedOn": "2026-10-29",
+      "approach": "Take-or-skip choices with same-item reuse; memoization, tabulation and ascending one-array updates.",
+      "adaptation": "All four complete public Java methods were checked, along with the practice Java signature. The code keeps the same recurrence but begins with an empty item prefix instead of a special first-item row. Bounds from the pinned practice page justify int values. A four-argument overload preserves its judge signature."
+    },
+    "baselineJava": "static int packRecursive(int[] weights, int[] values, int item, int room) {\n    if (item < 0 || room == 0) return 0;\n    int best = packRecursive(weights,values,item-1,room);\n    if (weights[item] <= room) {\n        best = Math.max(best,values[item]+packRecursive(weights,values,item,room-weights[item]));\n    }\n    return best;\n}",
+    "baselineTime": "O(2^(n + capacity/minWeight)) calls as an upper bound; O(n + capacity/minWeight) stack depth.",
+    "better": {
+      "explanation": "The memoized helper caches the item-prefix and remaining-capacity state. In the full table, skipping reads the previous row and taking reads the current row at a smaller capacity. Both versions allow a partially empty knapsack.",
+      "java": "static int packMemoized(int[] weights, int[] values, int capacity) {\n    int[][] memo = new int[weights.length][capacity+1];\n    for (int[] row : memo) Arrays.fill(row,-1);\n    return packMemo(weights,values,weights.length-1,capacity,memo);\n}\nstatic int packMemo(int[] w, int[] v, int item, int room, int[][] memo) {\n    if (item < 0 || room == 0) return 0;\n    if (memo[item][room] != -1) return memo[item][room];\n    int best = packMemo(w,v,item-1,room,memo);\n    if (w[item] <= room) best = Math.max(best,v[item]+packMemo(w,v,item,room-w[item],memo));\n    return memo[item][room] = best;\n}\nstatic int packTable(int[] weights, int[] values, int capacity) {\n    int[][] dp = new int[weights.length+1][capacity+1];\n    for (int used = 1; used <= weights.length; used++) {\n        int item = used-1;\n        for (int room = 0; room <= capacity; room++) {\n            dp[used][room] = dp[used-1][room];\n            if (weights[item] <= room) {\n                dp[used][room] = Math.max(dp[used][room],values[item]+dp[used][room-weights[item]]);\n            }\n        }\n    }\n    return dp[weights.length][capacity];\n}",
+      "time": "O(n × (capacity + 1)).",
+      "space": "O(n × (capacity + 1)), plus recursion depth for memoization."
+    }
   }
 }
