@@ -16587,5 +16587,52 @@
       "time": "O(n × m).",
       "space": "O((n + 1) × (m + 1))."
     }
+  },
+  "411": {
+    "problem": "Find the greatest number of characters you can keep, in their original order, so that the kept sequence reads the same forward and backward.",
+    "assumptions": "The pinned problem uses lowercase English letters and at most 1000 characters. Characters may be deleted from anywhere, so the result need not be contiguous. The methods also return zero for an empty string.",
+    "example": {
+      "input": "text = \"character\"",
+      "output": "5",
+      "explanation": "Keep \"carac\": c at index 0, a at 2, r at 3, a at 4 and c at 5. It reads the same in both directions. The skipped characters need not form one block."
+    },
+    "baseline": "Look at the two ends of a substring. If they match, use both and solve the inside. If they differ, try leaving out the left end or the right end and keep the larger result. Plain recursion repeatedly solves the same intervals.",
+    "approach": "Let dp[left][right] be the longest palindromic subsequence length inside the inclusive interval from left to right. One character is already a palindrome of length one. An empty interval has length zero.\n\nWhen the two end characters match, they can surround the best palindrome from the inside interval, giving 2 + dp[left + 1][right − 1]. When they differ, they cannot both be the outer pair. Try dropping one end and keep the larger answer.\n\nFill left from the end of the string toward the start, and right from left + 1 toward the end. Then the shorter interval below and the shorter interval to the left are already available. For adjacent matching characters, the inside is empty and contributes zero.\n\nThe source also connects this length to the LCS of the string and its reverse. That gives an O(n)-space alternative below. The equality is about optimal lengths: arbitrary LCS backtracking against the reverse does not guarantee that the returned sequence itself is a palindrome. Use interval decisions if you later need to reconstruct one.",
+    "steps": [
+      "Return zero for empty text.",
+      "Set every one-character interval to length 1.",
+      "Process left endpoints from right to left.",
+      "For each later right endpoint, use the matching-end or one-end-skipped rule.",
+      "Return the value for the entire interval."
+    ],
+    "java": "static int longestPalindromeSubseq(String text) {\n    int n = text.length();\n    if (n == 0) return 0;\n    int[][] dp = new int[n][n];\n    for (int left = n-1; left >= 0; left--) {\n        dp[left][left] = 1;\n        for (int right = left+1; right < n; right++) {\n            if (text.charAt(left) == text.charAt(right)) {\n                dp[left][right] = 2 + (right == left+1 ? 0 : dp[left+1][right-1]);\n            } else dp[left][right] = Math.max(dp[left+1][right],dp[left][right-1]);\n        }\n    }\n    return dp[0][n-1];\n}\nstatic int longestPalinSubseq(String text) {\n    return longestPalindromeSubseq(text);\n}",
+    "time": "O(n²).",
+    "space": "O(n²). The reverse-LCS alternative below uses O(n) space.",
+    "pitfalls": [
+      "Subsequence and substring are different: gaps are allowed here.",
+      "A single character has length one; an empty inside interval has length zero.",
+      "On mismatching ends, use max of the two choices, not their sum.",
+      "If using reverse-LCS, treat it as a length calculation unless reconstruction is separately made palindrome-safe."
+    ],
+    "tests": [
+      "assert longestPalindromeSubseq(\"character\")==5;assert longestPalindromeSubseq(\"ab\")==1;assert longestPalindromeSubseq(\"aa\")==2;assert longestPalindromeSubseq(\"\")==0;assert longestPalinSubseq(\"bbab\")==3;",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=9;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nRandom random=new Random(411);for(int trial=0;trial<300;trial++){StringBuilder word=new StringBuilder();for(int i=0,n=random.nextInt(11);i<n;i++)word.append((char)('a'+random.nextInt(4)));words.add(word.toString());}\nfor(String text:words){int expected=0;for(int mask=0;mask<(1<<text.length());mask++){StringBuilder candidate=new StringBuilder();for(int i=0;i<text.length();i++)if((mask&(1<<i))!=0)candidate.append(text.charAt(i));boolean palindrome=true;for(int i=0,j=candidate.length()-1;i<j;i++,j--)if(candidate.charAt(i)!=candidate.charAt(j)){palindrome=false;break;}if(palindrome)expected=Math.max(expected,candidate.length());}\n assert longestPalindromeSubseq(text)==expected;assert palindromeLengthByLcs(text)==expected;assert palindromeRecursive(text,0,text.length()-1)==expected;\n}",
+      "assert longestPalindromeSubseq(\"a\".repeat(1000))==1000;assert palindromeLengthByLcs(\"a\".repeat(1000))==1000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-palindromic-subsequence",
+      "title": "Longest palindromic subsequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Interval DP from the public hint; reverse-string LCS length from the public FAQ.",
+      "adaptation": "The public problem, interval-state hint, and LCS FAQ were checked. The full solution requires sign-in, so its Java was not inspected. These original methods implement the two public approaches. The explanation narrows the FAQ’s LCS statement to the length identity, because an arbitrary reconstructed common subsequence need not itself be palindromic."
+    },
+    "baselineJava": "static int palindromeRecursive(String text, int left, int right) {\n    if (left > right) return 0;\n    if (left == right) return 1;\n    if (text.charAt(left) == text.charAt(right)) return 2+palindromeRecursive(text,left+1,right-1);\n    return Math.max(palindromeRecursive(text,left+1,right),palindromeRecursive(text,left,right-1));\n}",
+    "baselineTime": "O(2^n) time as an upper bound and O(n) stack space.",
+    "better": {
+      "explanation": "For length only, run the previous LCS recurrence between the string and its reverse. A palindromic subsequence is unchanged by reversal, and the maximum common-subsequence length equals the longest palindrome-subsequence length. Keep two rows to reduce memory. Reconstructing an actual palindrome is a separate task; this helper returns only its length.",
+      "java": "static int palindromeLengthByLcs(String text) {\n    String reversed = new StringBuilder(text).reverse().toString();\n    int[] previous = new int[text.length()+1];\n    for (int i = 1; i <= text.length(); i++) {\n        int[] current = new int[text.length()+1];\n        for (int j = 1; j <= text.length(); j++) {\n            if (text.charAt(i-1) == reversed.charAt(j-1)) current[j] = 1+previous[j-1];\n            else current[j] = Math.max(previous[j],current[j-1]);\n        }\n        previous = current;\n    }\n    return previous[text.length()];\n}",
+      "time": "O(n²).",
+      "space": "O(n), including the reversed string and two DP rows."
+    }
   }
 }
