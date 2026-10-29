@@ -10368,5 +10368,118 @@
       "approach": "Consider jobs by decreasing profit and place each in its latest free slot.",
       "adaptation": "The public Java backward-slot algorithm was checked. This version caps the timeline at n, preserves job order by sorting a copy, and widens total profit to long. These adaptations are reflected in the complexity and return type."
     }
+  },
+  "269": {
+    "problem": "Give every child at least one candy. A child with a higher rating than an adjacent child must get more candies than that neighbour. Return the smallest possible total.",
+    "assumptions": "Only immediate neighbours matter. Equal ratings impose no equality requirement on candy counts. The linked problem has at most 20000 children; this version returns long and also handles larger totals.",
+    "example": {
+      "input": "ratings = [2,4,3,2,2]",
+      "output": "8",
+      "explanation": "A minimum distribution is [1,3,2,1,1]. The peak needs 3 because two lower-rated children descend to its right. The final equal pair may each receive 1."
+    },
+    "baseline": "Start everyone at one candy. Repeatedly scan neighbour pairs and increase any count that violates a higher-rating rule. Eventually all rules hold, but long slopes may require many passes.",
+    "approach": "First satisfy the left neighbour: scan left to right, giving one extra candy whenever the rating rises. Then satisfy the right neighbour with a right-to-left pass.\n\nDuring the second pass, keep the larger of the count already assigned and the count required by the right neighbour. Replacing rather than taking the maximum could undo the left-side rule. Each child must meet both lower bounds, and their maximum is enough; any larger value would be unnecessary.",
+    "steps": [
+      "Initialize every candy count to 1.",
+      "On a left-to-right pass, increase the count when the rating rises.",
+      "On a right-to-left pass, take max(current, right + 1) when the rating is higher than the right rating.",
+      "Sum all counts using long."
+    ],
+    "java": "static long candy(int[] ratings) {\n    int[] candies = new int[ratings.length];\n    Arrays.fill(candies, 1);\n    for (int i = 1; i < ratings.length; i++)\n        if (ratings[i] > ratings[i - 1]) candies[i] = candies[i - 1] + 1;\n    for (int i = ratings.length - 2; i >= 0; i--)\n        if (ratings[i] > ratings[i + 1]) candies[i] = Math.max(candies[i], candies[i + 1] + 1);\n    long total = 0;\n    for (int count : candies) total += count;\n    return total;\n}",
+    "time": "O(n).",
+    "space": "O(n) for the candy counts.",
+    "pitfalls": [
+      "Equal ratings do not force equal candy counts.",
+      "Use max on the reverse pass so the first pass is not undone.",
+      "A local rating peak may need enough candies for the longer of its two slopes."
+    ],
+    "tests": [
+      "assert candy(new int[]{2,4,3,2,2})==8;assert candy(new int[]{1,0,2})==5;assert candy(new int[]{1,2,2})==4;assert candy(new int[]{})==0;",
+      "class Oracle{int solve(int[]r,int i,int[]c,int sum,int best){if(i==r.length)return Math.min(best,sum);for(int v=1;v<=r.length;v++){if(sum+v>=best)continue;if(i>0&&((r[i]>r[i-1]&&v<=c[i-1])||(r[i]<r[i-1]&&v>=c[i-1])))continue;c[i]=v;best=solve(r,i+1,c,sum+v,best);}return best;}}Oracle o=new Oracle();for(int n=1;n<=5;n++){int total=(int)Math.pow(3,n);for(int mask=0;mask<total;mask++){int x=mask;int[]r=new int[n];for(int i=0;i<n;i++){r[i]=x%3;x/=3;}assert candy(r)==o.solve(r,0,new int[n],0,Integer.MAX_VALUE);}}",
+      "int[]a=new int[100000];for(int i=0;i<a.length;i++)a[i]=i;assert candy(a)==5000050000L;Arrays.fill(a,7);assert candy(a)==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/candy-distribution-problem",
+      "title": "Candy Distribution: Minimum Candies for Given Ratings",
+      "checkedOn": "2026-10-29",
+      "approach": "Use forward and reverse passes, keeping the larger neighbour requirement.",
+      "adaptation": "The current public Java uses a candy array and two passes; this guide follows that version. The total is widened to long. Exhaustive small assignments check minimality, including equal ratings."
+    }
+  },
+  "270": {
+    "problem": "Schedule all processes using shortest job first and return the floor of their average waiting time.",
+    "assumptions": "All processes are available at time 0. Each runs to completion once selected. Burst times are positive. Waiting time excludes a process’s own execution time. The linked task can have 100000 processes with burst times up to 100000, so both accumulated time and waiting sum use long.",
+    "example": {
+      "input": "burst times = [6,2,4]",
+      "output": "2",
+      "explanation": "Run 2, then 4, then 6. Their waiting times are 0,2,6. The average is 8/3, and its floor is 2."
+    },
+    "baseline": "Try every process order, calculate its total waiting time, and take the smallest. There are n! orders, so this is useful only for tiny test cases.",
+    "approach": "Sort burst times from shortest to longest. To understand why, compare two adjacent jobs of lengths a and b after the same elapsed time. Running a first makes the pair’s combined waiting time smaller than running b first exactly when a ≤ b. Swapping an out-of-order pair does not affect jobs after the pair, because the total duration stays a + b. Repeating such swaps leads to sorted order.\n\nBefore running each process, add the elapsed time to the waiting sum. Then add its burst time to elapsed. Divide the final sum by n using integer division, which gives the requested floor because all values are non-negative.",
+    "steps": [
+      "Sort a copy of the burst times.",
+      "Start elapsed and totalWaiting at zero.",
+      "For each process, add elapsed to totalWaiting before advancing elapsed.",
+      "Return totalWaiting / numberOfProcesses."
+    ],
+    "java": "static long averageWaitingTime(int[] burstTimes) {\n    if (burstTimes.length == 0) return 0;\n    int[] ordered = burstTimes.clone();\n    Arrays.sort(ordered);\n    long elapsed = 0, totalWaiting = 0;\n    for (int duration : ordered) {\n        totalWaiting += elapsed;\n        elapsed += duration;\n    }\n    return totalWaiting / ordered.length;\n}",
+    "time": "O(n log n).",
+    "space": "O(n) for a preserved-input copy.",
+    "pitfalls": [
+      "Add waiting time before adding the current process’s duration.",
+      "Do not round to the nearest integer; the task asks for the floor.",
+      "If processes have different arrival times, sorting all durations upfront is no longer this problem’s solution.",
+      "Use long: valid input can exceed int even for the final average."
+    ],
+    "tests": [
+      "assert averageWaitingTime(new int[]{6,2,4})==2;assert averageWaitingTime(new int[]{4,1,3,7,2})==4;assert averageWaitingTime(new int[]{8})==0;",
+      "class Oracle{long best(int[]a,int used,long elapsed,long waiting){if(used==(1<<a.length)-1)return waiting;long result=Long.MAX_VALUE;for(int i=0;i<a.length;i++)if((used&(1<<i))==0)result=Math.min(result,best(a,used|(1<<i),elapsed+a[i],waiting+elapsed));return result;}}Random r=new Random(270);Oracle o=new Oracle();for(int t=0;t<200;t++){int n=1+r.nextInt(7);int[]a=new int[n];for(int i=0;i<n;i++)a[i]=1+r.nextInt(12);int[]copy=a.clone();assert averageWaitingTime(a)==o.best(a,0,0,0)/n;assert Arrays.equals(a,copy);}",
+      "int[]a=new int[100000];Arrays.fill(a,100000);assert averageWaitingTime(a)==4999950000L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/shortest-job-first",
+      "title": "Shortest Job First",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort burst times and accumulate the waiting time before each process runs.",
+      "adaptation": "The public statement, floor requirement, bounds and all-processes-available model were checked. It exposes a starter rather than a public Java editorial. This authored Java is checked against all process orders on small inputs."
+    }
+  },
+  "271": {
+    "problem": "Count page faults under least-recently-used page replacement. On a miss, load the page; if memory is full, evict the resident page whose last use was longest ago.",
+    "assumptions": "The tracker title says page replacement, but its link opens the LRU cache-design task, also covered earlier in the sheet. This page teaches the title’s page-fault simulation. Memory begins empty. A hit refreshes recency. With capacity 0, every request is a fault.",
+    "example": {
+      "input": "pages = [1,2,1,3,2], capacity = 2",
+      "output": "4 faults",
+      "explanation": "Load 1 and 2. The second request for 1 is a hit and makes 2 least recent. Loading 3 evicts 2; requesting 2 again faults and evicts 1."
+    },
+    "baseline": "Keep resident pages in a list from least to most recently used. For each request, find and remove the old entry if present, or count a fault and remove the first entry when full. Append the requested page. Searching and shifting can cost O(capacity) per request.",
+    "approach": "Use a LinkedHashSet, which combines fast membership checks with insertion order. Keep its first entry as the least recently used page and its last entry as the most recently used.\n\nFor a hit, remove the page and add it again so it moves to the end. For a miss, count one fault; if full, remove the first entry through an iterator, then add the new page. Reading a resident page must update its position—otherwise the policy becomes first-in-first-out rather than LRU.",
+    "steps": [
+      "Return the request count immediately when capacity is zero.",
+      "Try to remove the requested page; success means a hit.",
+      "On a miss, count a fault and evict the oldest entry if full.",
+      "Add the page at the end on both hits and misses."
+    ],
+    "java": "static int pageFaultsLRU(int[] pages, int capacity) {\n    if (capacity < 0) throw new IllegalArgumentException(\"Negative capacity\");\n    if (capacity == 0) return pages.length;\n    LinkedHashSet<Integer> resident = new LinkedHashSet<>();\n    int faults = 0;\n    for (int page : pages) {\n        boolean hit = resident.remove(page);\n        if (!hit) {\n            faults++;\n            if (resident.size() == capacity) {\n                Iterator<Integer> oldest = resident.iterator();\n                oldest.next();\n                oldest.remove();\n            }\n        }\n        resident.add(page);\n    }\n    return faults;\n}",
+    "time": "O(n) expected time with hash-set operations.",
+    "space": "O(min(n, capacity)) resident entries.",
+    "pitfalls": [
+      "A hit changes recency even though it adds no fault.",
+      "Faults count failed lookups, including loads into an empty slot.",
+      "An ordinary HashSet does not preserve the eviction order.",
+      "This is an authored page-replacement adaptation, not a claim that TUF’s linked cache starter contains this exact method."
+    ],
+    "tests": [
+      "assert pageFaultsLRU(new int[]{1,2,1,3,2},2)==4;assert pageFaultsLRU(new int[]{1,1,1},1)==1;assert pageFaultsLRU(new int[]{1,1,1},0)==3;assert pageFaultsLRU(new int[]{},4)==0;",
+      "Random r=new Random(271);for(int t=0;t<2000;t++){int[]a=new int[r.nextInt(70)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(12)-6;int capacity=r.nextInt(10),faults=0;Set<Integer>resident=new HashSet<>();for(int i=0;i<a.length;i++){if(resident.contains(a[i]))continue;faults++;if(capacity==0)continue;if(resident.size()==capacity){int victim=0,oldest=Integer.MAX_VALUE;for(int value:resident){int last=i-1;while(last>=0&&a[last]!=value)last--;if(last<oldest){oldest=last;victim=value;}}resident.remove(victim);}resident.add(a[i]);}assert pageFaultsLRU(a,capacity)==faults;assert pageFaultsList(a,capacity)==faults;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/lru-cache",
+      "title": "LRU Cache",
+      "checkedOn": "2026-10-29",
+      "approach": "Apply the same least-recently-used ordering to page-fault counting.",
+      "adaptation": "The pinned URL is the cache-design problem, whose public contract was checked for the earlier LRU guide. It is not a page-replacement editorial. This page explicitly follows the tracker title and provides an authored simulation with an independent last-access oracle."
+    },
+    "baselineJava": "static int pageFaultsList(int[] pages, int capacity) {\n    if (capacity == 0) return pages.length;\n    List<Integer> order = new ArrayList<>();\n    int faults = 0;\n    for (int page : pages) {\n        if (!order.remove(Integer.valueOf(page))) {\n            faults++;\n            if (order.size() == capacity) order.remove(0);\n        }\n        order.add(page);\n    }\n    return faults;\n}"
   }
 }
