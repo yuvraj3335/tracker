@@ -11186,5 +11186,51 @@
       "time": "O(n).",
       "space": "O(h) recursion stack."
     }
+  },
+  "290": {
+    "problem": "Return the number of edges on the longest path between any two nodes in a binary tree.",
+    "assumptions": "The path may lie entirely inside a subtree and need not include the root. A single node has diameter 0. The helper’s height counts nodes; the final diameter counts edges. The input has no cycles.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has children 2 and 6",
+      "output": "3",
+      "explanation": "A longest path is 2 → 4 → 8 → 9. It contains four nodes and three edges."
+    },
+    "baseline": "For every node, calculate its left and right subtree heights separately and use their sum as a candidate. Also check both subtrees. Repeated height calculations take O(nh) time and become O(n²) on a chain.",
+    "approach": "At a node, the longest path turning there can use the deepest left branch and the deepest right branch. If child heights count nodes, leftHeight + rightHeight already counts the edges from this node out along both branches.\n\nA postorder helper computes each height once. After getting both child heights, update the best diameter with their sum. Return 1 + max(leftHeight, rightHeight) to the parent. The parent can extend only one branch; returning the whole two-sided diameter would describe a branching shape rather than a single path.\n\nThe best diameter is local to each public call, so a later call cannot inherit an answer from an earlier tree. For a very deep chain, the two-BFS alternative below avoids recursive stack limits.",
+    "steps": [
+      "Return height 0 for null.",
+      "Compute left and right heights.",
+      "Update the best edge count with leftHeight + rightHeight.",
+      "Return one plus the larger child height.",
+      "Return the saved best value from the public method."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int diameterOfBinaryTree(TreeNode root) {\n    int[] best = {0};\n    diameterHeight(root, best);\n    return best[0];\n}\nstatic int diameterHeight(TreeNode node, int[] best) {\n    if (node == null) return 0;\n    int left = diameterHeight(node.left, best);\n    int right = diameterHeight(node.right, best);\n    best[0] = Math.max(best[0], left + right);\n    return 1 + Math.max(left, right);\n}",
+    "time": "O(n).",
+    "space": "O(h) recursion space. Very deep trees may exceed Java’s call stack; use the iterative graph/BFS alternative for those inputs.",
+    "pitfalls": [
+      "The helper returns a height, while the public method returns a diameter.",
+      "Check the candidate at every node, not only the root.",
+      "Do not add 1 to leftHeight + rightHeight when the answer counts edges.",
+      "Reset the best result for each call."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.left=new TreeNode(2);r.left.right=new TreeNode(6);assert diameterOfBinaryTree(r)==3;assert diameterOfBinaryTree(new TreeNode(1))==0;assert diameterOfBinaryTree(null)==0;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}int want=0;for(String a:paths.values())for(String b:paths.values()){int common=0;while(common<Math.min(a.length(),b.length())&&a.charAt(common)==b.charAt(common))common++;want=Math.max(want,a.length()+b.length()-2*common);}assert diameterOfBinaryTree(root)==want;assert diameterByRepeatedHeights(root)==want;assert diameterByBFS(root)==want;}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}assert diameterByBFS(r)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/diameter-of-a-binary-tree",
+      "title": "Calculate the Diameter of a Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Avoid repeated heights with postorder, or find the diameter with two BFS passes on an undirected tree.",
+      "adaptation": "All three public Java methods were checked, including the full BFS method. The recursive formula is preserved with call-local answer state. The graph alternative builds its adjacency lists iteratively, unlike the source’s recursive graph builder, so it also handles deep trees without recursion."
+    },
+    "baselineJava": "static int plainHeight(TreeNode node) {\n    if (node == null) return 0;\n    return 1 + Math.max(plainHeight(node.left), plainHeight(node.right));\n}\nstatic int diameterByRepeatedHeights(TreeNode node) {\n    if (node == null) return 0;\n    int through = plainHeight(node.left) + plainHeight(node.right);\n    return Math.max(through, Math.max(diameterByRepeatedHeights(node.left), diameterByRepeatedHeights(node.right)));\n}",
+    "better": {
+      "explanation": "Treat child links as undirected edges. A BFS from any node reaches an endpoint of some diameter; a second BFS from that endpoint finds the diameter length. This is linear too, but stores a graph. The graph builder here also uses a queue, making the entire alternative safe from recursive depth limits.",
+      "java": "static class Farthest {\n    final TreeNode node;\n    final int distance;\n    Farthest(TreeNode node, int distance) { this.node = node; this.distance = distance; }\n}\nstatic int diameterByBFS(TreeNode root) {\n    if (root == null) return 0;\n    Map<TreeNode, List<TreeNode>> graph = new IdentityHashMap<>();\n    Queue<TreeNode> pending = new ArrayDeque<>();\n    graph.put(root, new ArrayList<>());\n    pending.offer(root);\n    while (!pending.isEmpty()) {\n        TreeNode node = pending.poll();\n        for (TreeNode child : new TreeNode[]{node.left, node.right}) {\n            if (child == null) continue;\n            graph.put(child, new ArrayList<>());\n            graph.get(node).add(child);\n            graph.get(child).add(node);\n            pending.offer(child);\n        }\n    }\n    TreeNode endpoint = farthestFrom(root, graph).node;\n    return farthestFrom(endpoint, graph).distance;\n}\nstatic Farthest farthestFrom(TreeNode start, Map<TreeNode, List<TreeNode>> graph) {\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    Map<TreeNode, Integer> distances = new IdentityHashMap<>();\n    queue.offer(start);\n    distances.put(start, 0);\n    TreeNode farthest = start;\n    while (!queue.isEmpty()) {\n        TreeNode node = queue.poll();\n        farthest = node;\n        for (TreeNode next : graph.get(node)) {\n            if (!distances.containsKey(next)) {\n                distances.put(next, distances.get(node) + 1);\n                queue.offer(next);\n            }\n        }\n    }\n    return new Farthest(farthest, distances.get(farthest));\n}",
+      "time": "O(n) for building the graph and two BFS traversals.",
+      "space": "O(n) for the graph, distances and queues."
+    }
   }
 }
