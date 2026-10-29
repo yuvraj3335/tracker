@@ -377,15 +377,15 @@
       "explanation": "Pair 1 with 5 and 2 with 4; each pair totals 6, with 3 left over. The formula gives 5 × 6 / 2 = 15."
     },
     "baseline": "A loop or recursion that adds one number per step costs O(n) time; recursive addition also uses O(n) stack frames.",
-    "approach": "Pair the first and last terms. There are n terms and each has average (n+1)/2, giving n(n+1)/2. Promote before addition and multiplication.",
+    "approach": "The recursive question is: if I already know the sum through n-1, what is left? Just add n. Start with sum(0)=0. For n=4, the calls return 0, 1, 3, 6 and 10 as each waiting call adds its own number.\n\nFor this recursion lesson use sumRecursive, on small inputs such as the source limit n<=1000. sumTo shows the alternative formula: pair the first and last terms, whose average is (n+1)/2, and multiply by n. The formula avoids stack growth and supports every nonnegative int here.",
     "steps": [
-      "Reject negative n.",
-      "Compute n * (n + 1) in long.",
-      "Divide the even product by two."
+      "For recursion, return 0 at n=0.",
+      "Otherwise return n + sumRecursive(n-1).",
+      "Use the formula only when the exercise permits a nonrecursive solution."
     ],
-    "java": "static long sumTo(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    return (long) n * (n + 1L) / 2;\n}",
-    "time": "O(1) arithmetic operations.",
-    "space": "O(1).",
+    "java": "static long sumTo(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    return (long) n * (n + 1L) / 2;\n}\nstatic long sumRecursive(int n) {\n    if(n<0)throw new IllegalArgumentException();\n    return n==0?0:n+sumRecursive(n-1);\n}\n",
+    "time": "O(n) for sumRecursive; O(1) for sumTo.",
+    "space": "O(n) call stack for sumRecursive; O(1) for sumTo.",
     "pitfalls": [
       "n*(n+1) overflows int well before the result is large by long standards.",
       "The empty sum for n=0 is zero."
@@ -393,8 +393,16 @@
     "tests": [
       "assert sumTo(5)==15;",
       "assert sumTo(0)==0;",
-      "assert sumTo(100000)==5000050000L;"
-    ]
+      "assert sumTo(100000)==5000050000L;",
+      "long total=0;for(int n=0;n<=1000;n++){total+=n;assert sumRecursive(n)==total;assert sumTo(n)==total;}assert sumTo(Integer.MAX_VALUE)==2305843008139952128L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/sum-of-first-n-numbers",
+      "title": "Sum of First N Numbers",
+      "checkedOn": "2026-10-29",
+      "approach": "Use sum(n)=n+sum(n-1), with sum(0)=0.",
+      "adaptation": "The public statement asks for recursion, with n up to 1000. That method is included alongside the constant-space formula. Full source Java was not inspected."
+    }
   },
   "25": {
     "problem": "Compute n factorial, the product of the integers from 1 through n.",
@@ -405,7 +413,7 @@
       "explanation": "The recursive chain is 5 × factorial(4), continuing until factorial(0)=1, then multiplying while calls return."
     },
     "baseline": "Multiply iteratively from 2 to n. This has the same arithmetic work and avoids recursion-stack space.",
-    "approach": "The recurrence factorial(n)=n×factorial(n−1) mirrors the product definition. The base case must be one because one is multiplication’s identity.",
+    "approach": "The factorial of 5 is 5 times the factorial of 4. Keep asking for the smaller factorial until reaching zero, whose factorial is 1. When the calls return, multiply by 1, then 2, then 3, and so on.\n\nThe base value must be 1. Starting from zero would make every product zero. A second style carries the product into the next call; both use O(n) stack space in Java. The code rejects n>20 because 21! no longer fits in long.",
     "steps": [
       "Validate the range so overflow cannot silently produce an answer.",
       "Use 0! = 1 as the base case.",
@@ -421,27 +429,35 @@
     "tests": [
       "assert factorial(5)==120;",
       "assert factorial(0)==1;",
-      "assert factorial(20)==2432902008176640000L;"
-    ]
+      "assert factorial(20)==2432902008176640000L;",
+      "BigInteger expected=BigInteger.ONE;for(int n=0;n<=20;n++){if(n>0)expected=expected.multiply(BigInteger.valueOf(n));assert factorial(n)==expected.longValueExact();}boolean rejected=false;try{factorial(21);}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/factorial-of-a-number-using-recursion",
+      "title": "Factorial of a Number Using Recursion",
+      "checkedOn": "2026-10-29",
+      "approach": "Multiply n by the factorial returned from n-1.",
+      "adaptation": "Both public Java recursion styles were checked. This uses the functional version and rejects inputs outside 0..20 to prevent long overflow."
+    }
   },
   "26": {
     "problem": "Reverse an array in place.",
-    "assumptions": "The array may be empty. Element values and duplicates are unrestricted.",
+    "assumptions": "The title teaches recursive integer-array reversal. The pinned practice link instead accepts char[] and requires O(1) extra memory. reverse(int[]) is the recursion lesson; reverseString(char[]) is the linked judge version.",
     "example": {
       "input": "[1, 2, 3, 4]",
       "output": "[4, 3, 2, 1]",
       "explanation": "Swap positions 0 and 3, giving [4,2,3,1]. Swap positions 1 and 2, giving [4,3,2,1]."
     },
     "baseline": "Copy elements into a new array in reverse order, using O(n) additional storage.",
-    "approach": "The left and right endpoints belong in each other’s positions. After swapping, the only unfinished work is the smaller interior interval. This version uses recursion to expose that shrinking subproblem.",
+    "approach": "The first value belongs at the last position and the last value belongs at the first. Swap that pair. Those two positions are now finished, so recurse only on the interior interval.\n\nStop when left meets or passes right. An odd-length array leaves its middle value alone; an empty array stops immediately. Recursion still uses stack space even though no second array is created. The linked character-array problem asks for O(1) extra memory, so its wrapper uses the same two pointers in a loop.",
     "steps": [
       "Call the helper with both end indices.",
       "Stop when the indices meet or cross.",
       "Swap the endpoints, then recurse inward."
     ],
-    "java": "static void reverse(int[] a) { reverse(a, 0, a.length - 1); }\nstatic void reverse(int[] a, int left, int right) {\n    if (left >= right) return;\n    int value = a[left]; a[left] = a[right]; a[right] = value;\n    reverse(a, left + 1, right - 1);\n}",
+    "java": "static void reverse(int[] a) { reverse(a, 0, a.length - 1); }\nstatic void reverse(int[] a, int left, int right) {\n    if (left >= right) return;\n    int value = a[left]; a[left] = a[right]; a[right] = value;\n    reverse(a, left + 1, right - 1);\n}\nstatic void reverseString(char[] s) {\n    int left = 0, right = s.length - 1;\n    while (left < right) {\n        char saved = s[left]; s[left] = s[right]; s[right] = saved;\n        left++; right--;\n    }\n}",
     "time": "O(n).",
-    "space": "O(n) recursion stack. Replacing recursion with a while loop reduces extra space to O(1).",
+    "space": "O(n) call stack for recursive integer-array reversal. O(1) auxiliary space for iterative reverseString.",
     "pitfalls": [
       "The middle element in an odd-length array stays in place.",
       "Do not recurse without advancing both endpoints.",
@@ -450,27 +466,35 @@
     "tests": [
       "int[] a={1,2,3,4}; reverse(a); assert Arrays.equals(a,new int[]{4,3,2,1});",
       "int[] b={}; reverse(b); assert b.length==0;",
-      "int[] c={7}; reverse(c); assert c[0]==7;"
-    ]
+      "int[] c={7}; reverse(c); assert c[0]==7;",
+      "Random r=new Random(26);for(int n=0;n<200;n++){int[] a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt();int[] before=a.clone();reverse(a);for(int i=0;i<n;i++)assert a[i]==before[n-1-i];}char[] s=\"hello\".toCharArray();reverseString(s);assert new String(s).equals(\"olleh\");char[] large=new char[100000];Arrays.fill(large,'x');large[0]='y';reverseString(large);assert large[99999]=='y';"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/reversing-an-array-using-recursion",
+      "title": "Reversing an Array Using Recursion",
+      "checkedOn": "2026-10-29",
+      "approach": "Swap the endpoints, then recurse on the smaller interior.",
+      "adaptation": "Public Java checked. The pinned LeetCode link is Reverse String, so reverseString(char[]) is included with the same swaps in a loop to satisfy its constant-space requirement and large input limit."
+    }
   },
   "27": {
-    "problem": "Check whether a string is a palindrome by comparing characters from its ends.",
-    "assumptions": "This version is case-sensitive and compares UTF-16 code units exactly, including spaces and punctuation.",
+    "problem": "Check whether a string reads the same from both ends. For the pinned Valid Palindrome link, ignore punctuation and spaces and compare letters without case.",
+    "assumptions": "isPalindrome follows the linked problem’s printable ASCII contract. palindrome is the separate exact-character recursion exercise: case, spaces and punctuation all matter there.",
     "example": {
       "input": "s = \"racecar\"",
       "output": "true",
       "explanation": "Compare r with r, a with a, and c with c. The remaining middle e cannot break the palindrome."
     },
     "baseline": "Reverse the string into a new buffer and compare it with the original, using O(n) extra space.",
-    "approach": "A string is a palindrome when its endpoints match and its interior is also a palindrome. A mismatch lets us return immediately.",
+    "approach": "In the exact recursion lesson, compare the first and last characters. If they differ, return false. If they match, ask the same question about the shorter interior. An interval with zero or one character is already a palindrome.\n\nThe pinned practice link adds normalization. Skip spaces and punctuation on each side, then compare the remaining letters in lowercase; digits are kept. For \"No, on!\", the compared sequence is \"noon\", so it passes. Use the iterative isPalindrome version for that judge: its long strings could overflow a recursive Java stack.",
     "steps": [
       "Start at the first and last positions.",
       "Return true when the interval has zero or one character.",
       "Otherwise compare endpoints and recurse inward only if they match."
     ],
-    "java": "static boolean palindrome(String s) { return pal(s, 0, s.length() - 1); }\nstatic boolean pal(String s, int lo, int hi) {\n    return lo >= hi || (s.charAt(lo) == s.charAt(hi) && pal(s, lo + 1, hi - 1));\n}",
+    "java": "static boolean palindrome(String s) { return pal(s, 0, s.length() - 1); }\nstatic boolean pal(String s, int lo, int hi) {\n    return lo >= hi || (s.charAt(lo) == s.charAt(hi) && pal(s, lo + 1, hi - 1));\n}\nstatic boolean alphanumeric(char ch) {\n    return ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9';\n}\nstatic boolean isPalindrome(String s) {\n    int left = 0, right = s.length() - 1;\n    while (left < right) {\n        while (left < right && !alphanumeric(s.charAt(left))) left++;\n        while (left < right && !alphanumeric(s.charAt(right))) right--;\n        if (Character.toLowerCase(s.charAt(left)) != Character.toLowerCase(s.charAt(right))) return false;\n        left++; right--;\n    }\n    return true;\n}",
     "time": "O(n) comparisons in the worst case.",
-    "space": "O(n) recursion stack; iteration uses O(1).",
+    "space": "O(n) stack for the exact recursive palindrome helper; O(1) for the linked normalized isPalindrome method.",
     "pitfalls": [
       "Clarify whether a platform wants punctuation removed or case ignored; that is a different normalization step.",
       "Supplementary Unicode characters require code-point handling rather than char indexing."
@@ -479,8 +503,17 @@
       "assert palindrome(\"racecar\");",
       "assert palindrome(\"\");",
       "assert !palindrome(\"Racecar\");",
-      "assert !palindrome(\"ab\");"
-    ]
+      "assert !palindrome(\"ab\");",
+      "assert isPalindrome(\"No, on!\");assert isPalindrome(\"., \");assert !isPalindrome(\"0P\");assert isPalindrome(\"A man, a plan, a canal: Panama\");assert !isPalindrome(\"race a car\");assert isPalindrome(\"a\".repeat(200000));",
+      "Random r=new Random(27);for(int t=0;t<1000;t++){StringBuilder b=new StringBuilder();for(int i=r.nextInt(80);i>0;i--)b.append((char)(32+r.nextInt(95)));String s=b.toString();String cleaned=s.replaceAll(\"[^a-zA-Z0-9]\",\"\").toLowerCase(Locale.ROOT);assert isPalindrome(s)==cleaned.equals(new StringBuilder(cleaned).reverse().toString());}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/valid-palindrome",
+      "title": "Valid Palindrome",
+      "checkedOn": "2026-10-29",
+      "approach": "Skip non-alphanumeric characters and compare lowercase characters from both ends.",
+      "adaptation": "All three public Java methods checked. The exact, case-sensitive recursive lesson from Check Whether a String Is a Palindrome is retained as palindrome; isPalindrome implements the normalized ASCII variant actually linked by Codolio."
+    }
   },
   "28": {
     "problem": "Return the nth Fibonacci number with F(0)=0 and F(1)=1.",
@@ -490,8 +523,8 @@
       "output": "13",
       "explanation": "Starting with 0 and 1, successive sums are 1, 2, 3, 5, 8, and 13."
     },
-    "baseline": "The direct recursive formula computes the same smaller values repeatedly, taking exponential time. Memoization reduces that to O(n) time and space.",
-    "approach": "Only the previous two values are needed. Advance the pair instead of storing the entire sequence. The loop computes up to F(n), avoiding an unnecessary F(93) overflow when n=92.",
+    "baseline": "The definition gives a recursive method directly: fib(n-1) + fib(n-2). It repeats smaller problems: fib(5) asks for fib(3) both directly and inside fib(4). Use the plain version only for small n.",
+    "approach": "The recursion lesson follows the definition: return n at 0 or 1; otherwise add the answers for n-1 and n-2. Trace fib(4): fib(3) gives 2 and fib(2) gives 1, so the answer is 3.\n\nTo avoid repeated calls, build the sequence from left to right. Keep only the previous two values. Their sum becomes the next value, then shift the pair forward. Stop after calculating F(n), rather than calculating an unused F(n+1), which would overflow when n=92.",
     "steps": [
       "Handle n=0 directly.",
       "Initialize the pair to F(0) and F(1).",
@@ -508,8 +541,18 @@
       "assert fib(7)==13;",
       "assert fib(0)==0;",
       "assert fib(1)==1;",
-      "assert fib(92)==7540113804746346429L;"
-    ]
+      "assert fib(92)==7540113804746346429L;",
+      "BigInteger previous=BigInteger.ZERO,current=BigInteger.ONE;for(int n=0;n<=92;n++){assert fib(n)==previous.longValueExact();if(n<=20)assert fibRecursive(n)==fib(n);BigInteger next=previous.add(current);previous=current;current=next;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/fibonacci-number",
+      "title": "Fibonacci Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Use F(n)=F(n-1)+F(n-2), starting from 0 and 1.",
+      "adaptation": "The public definition and small practice limit were checked; full solution Java was not inspected. Plain recursion is included for this lesson, with iterative Java as a faster extension up to the long limit."
+    },
+    "baselineJava": "static long fibRecursive(int n) {\n    if (n < 0 || n > 30) throw new IllegalArgumentException(\"Use a small n for plain recursion\");\n    return n < 2 ? n : fibRecursive(n-1) + fibRecursive(n-2);\n}",
+    "baselineTime": "O(2^n) upper bound and O(n) recursion depth."
   },
   "1": {
     "problem": "Read a value from standard input and write it to standard output. The important distinction is between input data and explanatory output intended only for a person.",
@@ -902,31 +945,41 @@
     }
   },
   "20": {
-    "problem": "Use recursion to produce a fixed message.",
-    "assumptions": "n is nonnegative. The implementation collects output in a list so it can be tested; printing each added item gives the corresponding console exercise.",
+    "problem": "Understand how a recursive call repeats work, then solve the linked exercise that prints 1 through n without loops.",
+    "assumptions": "The pinned title says print something N times, but its link asks for 1 to N. repeat demonstrates repeating a message; numbers and printNumbers solve the linked numeric task. Use small n because Java recursion needs stack space.",
     "example": {
       "input": "n = 3, text = \"Miso\"",
       "output": "[Miso, Miso, Miso]",
       "explanation": "Each call reduces n by one. Appending before the recursive call emits one copy per level."
     },
     "baseline": "A loop produces the same sequence without recursion-stack overhead.",
-    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "approach": "A recursive method calls itself with less work left. In repeat(3,\"Miso\"), append one Miso and ask repeat’s helper to handle two more. That helper appends one and asks for one more. At zero, stop. Without that base case, the calls would continue until the stack fills.\n\nThe linked exercise asks for increasing numbers instead of repeated text. Handle 1 through n-1 first, then append or print n. For n=3, the calls reach zero before output starts; returning from them produces 1, then 2, then 3.",
     "steps": [
       "Return immediately when n is zero.",
       "Perform the append before or after recursion according to the desired order.",
       "Recurse with n−1 so the base case is reachable."
     ],
-    "java": "static List<String> repeat(int n, String text) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<String> result = new ArrayList<>();\n    fill(n, text, result); return result;\n}\nstatic void fill(int n, String text, List<String> result) {\n    if (n == 0) return;\n    result.add(text);\n    fill(n - 1, text, result);\n}",
+    "java": "static List<String> repeat(int n, String text) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<String> result = new ArrayList<>();\n    fill(n, text, result); return result;\n}\nstatic void fill(int n, String text, List<String> result) {\n    if (n == 0) return;\n    result.add(text);\n    fill(n - 1, text, result);\n}\n\nstatic List<Integer> numbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    fillNumbers(n, result); return result;\n}\nstatic void fillNumbers(int n, List<Integer> result) {\n    if (n == 0) return;\n    fillNumbers(n - 1, result);\n    result.add(n);\n}\nstatic void printNumbers(int n) { if(n<=0)return; printNumbers(n-1); System.out.println(n); }\n",
     "time": "O(n).",
     "space": "O(n) for the recursion stack and O(n) for the result.",
     "pitfalls": [
       "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
-      "Do not confuse the return order with the order in which recursive calls begin."
+      "Do not confuse the return order with the order in which recursive calls begin.",
+      "Java does not guarantee tail-call optimization. A large n can overflow the call stack even when each call does little work."
     ],
     "tests": [
       "assert repeat(3,\"Miso\").equals(List.of(\"Miso\",\"Miso\",\"Miso\"));",
-      "assert repeat(0,\"Miso\").isEmpty();"
-    ]
+      "assert repeat(0,\"Miso\").isEmpty();",
+      "assert numbers(4).equals(List.of(1,2,3,4));assert numbers(0).isEmpty();",
+      "for(int n=0;n<=100;n++)assert repeat(n,\"Java\").equals(Collections.nCopies(n,\"Java\"));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/print-1-to-n-using-recursion",
+      "title": "Print 1 to N Using Recursion",
+      "checkedOn": "2026-10-29",
+      "approach": "Finish the smaller call before appending the current number.",
+      "adaptation": "The public statement requires recursion without loops. Full solution Java was not inspected. The tracker title and link differ for the introductory entry; both repeated-text teaching and the linked numeric exercise are covered."
+    }
   },
   "21": {
     "problem": "Use recursion to produce a name.",
@@ -937,7 +990,7 @@
       "explanation": "Each call reduces n by one. Appending before the recursive call emits one copy per level."
     },
     "baseline": "A loop produces the same sequence without recursion-stack overhead.",
-    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "approach": "Give the helper a number meaning how many copies are still needed. If that number is zero, return without adding anything. Otherwise add the name once and call the helper with one fewer copy left.\n\nFor n=3, the calls have remaining counts 3, 2, 1, 0. Only the first three add a name. All calls share one output list; creating a separate list inside each call would lose the earlier work unless you combined the results. Returning a list makes the output easy to check; a console version can print the name at the same point.",
     "steps": [
       "Return immediately when n is zero.",
       "Perform the append before or after recursion according to the desired order.",
@@ -948,12 +1001,21 @@
     "space": "O(n) for the recursion stack and O(n) for the result.",
     "pitfalls": [
       "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
-      "Do not confuse the return order with the order in which recursive calls begin."
+      "Do not confuse the return order with the order in which recursive calls begin.",
+      "Java does not guarantee tail-call optimization. A large n can overflow the call stack even when each call does little work."
     ],
     "tests": [
       "assert repeat(3,\"Miso\").equals(List.of(\"Miso\",\"Miso\",\"Miso\"));",
-      "assert repeat(0,\"Miso\").isEmpty();"
-    ]
+      "assert repeat(0,\"Miso\").isEmpty();",
+      "for(int n=0;n<=100;n++)assert repeat(n,\"Java\").equals(Collections.nCopies(n,\"Java\"));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: Recursion Theory",
+      "checkedOn": "2026-10-29",
+      "approach": "Do one repetition, then recurse with one fewer repetition left.",
+      "adaptation": "The pinned Print Name article returns 404 and the current Recursion Theory heading has no public article link. This is an original Java explanation of that pinned exercise; no unavailable source code is claimed."
+    }
   },
   "22": {
     "problem": "Use recursion to produce the numbers from 1 through n.",
@@ -964,23 +1026,32 @@
       "explanation": "Each call reduces n by one. Appending after the recursive call emits the smaller numbers first."
     },
     "baseline": "A loop produces the same sequence without recursion-stack overhead.",
-    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "approach": "Ask the smaller call to produce 1 through n-1. Once it returns, append n. For n=3, the outer call waits for n=2, which waits for n=1, which reaches the base case n=0.\n\nThe calls then finish in reverse order: append 1, append 2, append 3. This is why the add statement belongs after the recursive call. Moving it before the call would produce descending order. printNumbers below uses the same rule to print each value on its own line, as the linked statement asks.",
     "steps": [
       "Return immediately when n is zero.",
       "Perform the append before or after recursion according to the desired order.",
       "Recurse with n−1 so the base case is reachable."
     ],
-    "java": "static List<Integer> numbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    fill(n, result); return result;\n}\nstatic void fill(int n, List<Integer> result) {\n    if (n == 0) return;\n    fill(n - 1, result);\n    result.add(n);\n}",
+    "java": "static List<Integer> numbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    fill(n, result); return result;\n}\nstatic void fill(int n, List<Integer> result) {\n    if (n == 0) return;\n    fill(n - 1, result);\n    result.add(n);\n}\nstatic void printNumbers(int n) { if(n<=0)return; printNumbers(n-1); System.out.println(n); }\n",
     "time": "O(n).",
     "space": "O(n) for the recursion stack and O(n) for the result.",
     "pitfalls": [
       "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
-      "Do not confuse the return order with the order in which recursive calls begin."
+      "Do not confuse the return order with the order in which recursive calls begin.",
+      "Java does not guarantee tail-call optimization. A large n can overflow the call stack even when each call does little work."
     ],
     "tests": [
       "assert numbers(3).equals(List.of(1,2,3));",
-      "assert numbers(0).isEmpty();"
-    ]
+      "assert numbers(0).isEmpty();",
+      "for(int n=0;n<=100;n++){List<Integer> expected=new ArrayList<>();for(int j=1;j<=n;j++)expected.add(j);assert numbers(n).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/print-1-to-n-using-recursion",
+      "title": "Print 1 to N Using Recursion",
+      "checkedOn": "2026-10-29",
+      "approach": "Finish the smaller call before appending the current number.",
+      "adaptation": "The public statement requires recursion without loops. Full solution Java was not inspected. The tracker title and link differ for the introductory entry; both repeated-text teaching and the linked numeric exercise are covered."
+    }
   },
   "23": {
     "problem": "Use recursion to produce the numbers from n down to 1.",
@@ -991,23 +1062,32 @@
       "explanation": "Each call reduces n by one. Appending before the recursive call emits the larger numbers first."
     },
     "baseline": "A loop produces the same sequence without recursion-stack overhead.",
-    "approach": "A recursive solution needs a base case, one unit of work, and a smaller subproblem. The position of the work relative to the recursive call determines output order.",
+    "approach": "The first required value is n, so append or print it immediately. The only work left is the same task for n-1. Continue until zero, which is not part of the required output.\n\nFor n=3, the calls append 3, then 2, then 1 before reaching zero. Nothing is added while the calls return. Compare this with the increasing-order exercise: the only important change is whether the output happens before or after the recursive call.",
     "steps": [
       "Return immediately when n is zero.",
       "Perform the append before or after recursion according to the desired order.",
       "Recurse with n−1 so the base case is reachable."
     ],
-    "java": "static List<Integer> numbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    fill(n, result); return result;\n}\nstatic void fill(int n, List<Integer> result) {\n    if (n == 0) return;\n    result.add(n);\n    fill(n - 1, result);\n}",
+    "java": "static List<Integer> numbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    fill(n, result); return result;\n}\nstatic void fill(int n, List<Integer> result) {\n    if (n == 0) return;\n    result.add(n);\n    fill(n - 1, result);\n}\nstatic void printNumbers(int n) { if(n<=0)return; System.out.println(n); printNumbers(n-1); }\n",
     "time": "O(n).",
     "space": "O(n) for the recursion stack and O(n) for the result.",
     "pitfalls": [
       "Large n can overflow the call stack; prefer iteration when recursion is not the lesson.",
-      "Do not confuse the return order with the order in which recursive calls begin."
+      "Do not confuse the return order with the order in which recursive calls begin.",
+      "Java does not guarantee tail-call optimization. A large n can overflow the call stack even when each call does little work."
     ],
     "tests": [
       "assert numbers(3).equals(List.of(3,2,1));",
-      "assert numbers(0).isEmpty();"
-    ]
+      "assert numbers(0).isEmpty();",
+      "for(int n=0;n<=100;n++){List<Integer> expected=new ArrayList<>();for(int j=1;j<=n;j++)expected.add(n-j+1);assert numbers(n).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/print-n-to-1-using-recursion",
+      "title": "Print N to 1 Using Recursion",
+      "checkedOn": "2026-10-29",
+      "approach": "Print the current number before handling n-1.",
+      "adaptation": "The public statement and no-loops requirement were checked. Java is independently authored; full solution code was not inspected."
+    }
   },
   "29": {
     "problem": "Understand hash-based lookup and build a frequency table.",
@@ -1018,7 +1098,7 @@
       "explanation": "The map accumulates three occurrences of 5, two of 2, and one of 9. Repeated values update an existing key."
     },
     "baseline": "For each value, scan the entire input to count matches. Repeating that work can take O(n²) time.",
-    "approach": "Hashing maps a key to a bucket so a lookup can avoid scanning all previous keys. Collisions still require resolution; equal hash codes do not mean equal keys. A frequency table stores one count per distinct value.",
+    "approach": "A frequency table remembers what a scan has already seen. When you read 5, update the count under key 5. The next 5 changes that same entry instead of making another entry. After one pass, a lookup can answer how many times a value occurred.\n\nHashing helps locate the entry quickly. Different keys can land in the same bucket, so the table still checks key equality. Equal hash codes do not mean equal keys. Java HashMap handles that work for us. It does not promise sorted iteration order; use TreeMap when that order is needed.",
     "steps": [
       "Create an empty map.",
       "For each element, insert one or increment its existing count.",
@@ -1035,24 +1115,31 @@
     "tests": [
       "assert counts(new int[]{5,2,5,2,5,9}).equals(Map.of(2,2,5,3,9,1));",
       "assert counts(new int[]{}).isEmpty();"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/hashing-data-structures",
+      "title": "Hashing in Data Structures: Hash Maps and Collisions",
+      "checkedOn": "2026-10-29",
+      "approach": "Store each key with a frequency and resolve collisions without merging different keys.",
+      "adaptation": "The public conceptual article was checked. It contains explanations rather than a Java solution tab; this is a Java frequency-map demonstration."
+    }
   },
   "30": {
-    "problem": "Count how often every distinct integer appears in an array.",
+    "problem": "Return one [value, frequency] pair for each distinct integer in the input array.",
     "assumptions": "HashMap provides expected constant-time basic operations under normal hashing assumptions; it does not preserve sorted order.",
     "example": {
       "input": "[5, 2, 5, 2, 5, 9]",
-      "output": "{2=2, 5=3, 9=1}",
+      "output": "[[2, 2], [5, 3], [9, 1]] in any order",
       "explanation": "The map accumulates three occurrences of 5, two of 2, and one of 9. Repeated values update an existing key."
     },
     "baseline": "For each value, scan the entire input to count matches. Repeating that work can take O(n²) time.",
-    "approach": "Hashing maps a key to a bucket so a lookup can avoid scanning all previous keys. Collisions still require resolution; equal hash codes do not mean equal keys. A frequency table stores one count per distinct value.",
+    "approach": "Scan the array once and keep a count for each value. A first occurrence starts at one; every later occurrence adds one. Negative values work as map keys too, so there is no need to allocate an array large enough for the whole value range.\n\nThe practice problem asks for pairs, not the map itself. After counting, walk through the entries and append [key, count] for each one. A map has one entry per key, so no value is emitted twice. The order of the pairs does not matter in this problem.",
     "steps": [
       "Create an empty map.",
       "For each element, insert one or increment its existing count.",
       "Query a missing key with getOrDefault(key,0)."
     ],
-    "java": "static Map<Integer, Integer> counts(int[] a) {\n    Map<Integer, Integer> frequency = new HashMap<>();\n    for (int value : a) frequency.merge(value, 1, Integer::sum);\n    return frequency;\n}",
+    "java": "static Map<Integer, Integer> counts(int[] a) {\n    Map<Integer, Integer> frequency = new HashMap<>();\n    for (int value : a) frequency.merge(value, 1, Integer::sum);\n    return frequency;\n}\nstatic List<List<Integer>> countFrequencies(int[] nums) {\n    List<List<Integer>> result = new ArrayList<>();\n    for (Map.Entry<Integer,Integer> entry : counts(nums).entrySet()) {\n        result.add(List.of(entry.getKey(), entry.getValue()));\n    }\n    return result;\n}",
     "time": "Expected O(n) to build the table.",
     "space": "O(d), with d distinct values.",
     "pitfalls": [
@@ -1062,27 +1149,35 @@
     ],
     "tests": [
       "assert counts(new int[]{5,2,5,2,5,9}).equals(Map.of(2,2,5,3,9,1));",
-      "assert counts(new int[]{}).isEmpty();"
-    ]
+      "assert counts(new int[]{}).isEmpty();",
+      "List<List<Integer>> pairs=countFrequencies(new int[]{-4,2,-4,9,2,-4});assert pairs.size()==3;assert new HashSet<>(pairs).equals(Set.of(List.of(-4,3),List.of(2,2),List.of(9,1)));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/counting-frequencies-of-array-elements",
+      "title": "Counting Frequencies of Array Elements",
+      "checkedOn": "2026-10-29",
+      "approach": "Count each value in a map, then return one value/count pair per distinct value.",
+      "adaptation": "The public statement was checked: output is a list of pairs in any order. countFrequencies supplies that interface; counts is the internal map helper. Full solution Java was not inspected."
+    }
   },
   "31": {
     "problem": "Find the values with the highest and lowest occurrence counts in an array.",
-    "assumptions": "For ties choose the smaller value. The input must be nonempty. Return [mostFrequent, leastFrequent].",
+    "assumptions": "extremes returns [mostFrequentValue, leastFrequentValue], breaking count ties by smaller value, for a nonempty array. The pinned LeetCode link is a different task: maxFrequency returns the largest achievable count after at most k increments; it does not return an element.",
     "example": {
       "input": "[5, 2, 5, 2, 5, 9]",
       "output": "[5, 9]",
       "explanation": "Counts are 5→3, 2→2, and 9→1. Thus 5 is most frequent and 9 is least frequent."
     },
     "baseline": "Count each candidate by a full scan, taking O(n²) time.",
-    "approach": "Build a frequency table once, then compare its entries. Tie-breaking is part of the contract and must be explicit because HashMap order is unspecified.",
+    "approach": "For the title’s exercise, build counts first. Keep the best high-count value and low-count value. Replace a candidate when its count is better, or when the counts tie and the new value is smaller. Never rely on HashMap iteration order to decide a tie.\n\nThe linked LeetCode problem allows k increments. Sort a copy and consider raising a window to its largest value. The cost is largest × windowLength - windowSum. If the cost exceeds k, remove the smallest value from the left until the window is affordable. For [2,3,6] with k=3, you can raise 3 to 6 and obtain two sixes; making all three sixes would cost seven.",
     "steps": [
       "Count every distinct value.",
       "Initialize both answers from an actual input value.",
       "Replace an answer on a better frequency or an equal frequency with a smaller key."
     ],
-    "java": "static int[] extremes(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    Map<Integer, Integer> count = new HashMap<>();\n    for (int x : a) count.merge(x, 1, Integer::sum);\n    int high = a[0], low = a[0];\n    for (int x : count.keySet()) {\n        if (count.get(x) > count.get(high) || (count.get(x).equals(count.get(high)) && x < high)) high = x;\n        if (count.get(x) < count.get(low) || (count.get(x).equals(count.get(low)) && x < low)) low = x;\n    }\n    return new int[]{high, low};\n}",
-    "time": "Expected O(n+d).",
-    "space": "O(d).",
+    "java": "static int[] extremes(int[] a) {\n    if (a.length == 0) throw new IllegalArgumentException();\n    Map<Integer, Integer> count = new HashMap<>();\n    for (int x : a) count.merge(x, 1, Integer::sum);\n    int high = a[0], low = a[0];\n    for (int x : count.keySet()) {\n        if (count.get(x) > count.get(high) || (count.get(x).equals(count.get(high)) && x < high)) high = x;\n        if (count.get(x) < count.get(low) || (count.get(x).equals(count.get(low)) && x < low)) low = x;\n    }\n    return new int[]{high, low};\n}\nstatic int maxFrequency(int[] nums, int k) {\n    if (k < 0) throw new IllegalArgumentException();\n    int[] a = nums.clone();\n    Arrays.sort(a);\n    int left = 0, best = 0;\n    long sum = 0;\n    for (int right = 0; right < a.length; right++) {\n        sum += a[right];\n        while ((long)a[right] * (right-left+1) - sum > k) sum -= a[left++];\n        best = Math.max(best, right-left+1);\n    }\n    return best;\n}",
+    "time": "Expected O(n) for extremes. O(n log n) for maxFrequency, dominated by sorting.",
+    "space": "O(d) map entries for extremes, where d is the distinct count. O(n) for the sorted copy in maxFrequency.",
     "pitfalls": [
       "Clarify whether the question wants element values or frequency counts.",
       "Initializing to zero fails when zero is absent or every input is negative."
@@ -1090,8 +1185,17 @@
     "tests": [
       "assert Arrays.equals(extremes(new int[]{5,2,5,2,5,9}),new int[]{5,9});",
       "assert Arrays.equals(extremes(new int[]{4,2}),new int[]{2,2});",
-      "assert Arrays.equals(extremes(new int[]{-3,-3}),new int[]{-3,-3});"
-    ]
+      "assert Arrays.equals(extremes(new int[]{-3,-3}),new int[]{-3,-3});",
+      "assert maxFrequency(new int[]{2,3,6},3)==2;assert maxFrequency(new int[]{1,2,4},5)==3;assert maxFrequency(new int[]{1,4,8,13},5)==2;assert maxFrequency(new int[]{3,9,6},2)==1;",
+      "Random r=new Random(31);for(int t=0;t<600;t++){int n=1+r.nextInt(9),k=r.nextInt(20);int[] a=new int[n];for(int i=0;i<n;i++)a[i]=1+r.nextInt(10);int expected=1;for(int mask=1;mask<(1<<n);mask++){int target=0,count=0,sum=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0){target=Math.max(target,a[i]);count++;sum+=a[i];}if(target*count-sum<=k)expected=Math.max(expected,count);}int[] before=a.clone();assert maxFrequency(a,k)==expected;assert Arrays.equals(a,before);Map<Integer,Integer> frequencies=new TreeMap<>();for(int v:a)frequencies.merge(v,1,Integer::sum);int high=a[0],low=a[0];for(int v:frequencies.keySet()){if(frequencies.get(v)>frequencies.get(high)||(frequencies.get(v).equals(frequencies.get(high))&&v<high))high=v;if(frequencies.get(v)<frequencies.get(low)||(frequencies.get(v).equals(frequencies.get(low))&&v<low))low=v;}assert Arrays.equals(extremes(a),new int[]{high,low});}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/highest-freq-element",
+      "title": "Highest Frequency Element",
+      "checkedOn": "2026-10-29",
+      "approach": "Use a frequency map and choose the smaller value when counts tie.",
+      "adaptation": "The public article’s statement, map algorithm and displayed C++ were checked; its Java tab was not inspected. The guide extends the same comparison to the least frequent value. Codolio links to LeetCode 1838, a different task allowing increments; maxFrequency implements that separately after checking its statement."
+    }
   },
   "32": {
     "problem": "Selection sort repeatedly places the smallest remaining value at the next output position.",
