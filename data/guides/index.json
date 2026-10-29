@@ -15850,5 +15850,123 @@
       "time": "O(rows × cols²).",
       "space": "O(rows × cols²) for saved answers and O(rows) for recursion."
     }
+  },
+  "397": {
+    "problem": "Decide whether some array positions can be selected so that their values add up to the target. Each position may be used at most once.",
+    "assumptions": "The tracker links to the subsequence-existence problem with positive values, at most 20 elements and target at most 2000. For sum existence, a subset of positions can always be read in the original order as a subsequence. The methods also support zero values, an empty array, and target zero. They do not support negative values or a negative target.",
+    "example": {
+      "input": "values = [3,6,4], target = 7",
+      "output": "true",
+      "explanation": "Choose 3 and 4 and skip 6. You cannot use 3 twice: a position is either chosen once or skipped."
+    },
+    "baseline": "For the last available position, try skipping it. Also try taking it when its value fits the remaining sum. Then move to the previous position. Return true if either branch succeeds. This considers every subset but may solve the same prefix-and-sum question repeatedly.",
+    "approach": "Ask a precise question for each state: can the positions seen so far make sum s? Before reading any values, only sum zero is possible.\n\nWhen the next value is x, there are two ways to make s. Skip x and keep an earlier way to make s. Or take x and use an earlier way to make s − x. Read both answers from the previous row so the new value cannot be used again inside its own row.\n\nWrite these results into a fresh current row and then replace previous. The target entry after the last value answers the question. Zero remains reachable through the empty selection. Duplicate values belong to different positions, so both may be used if both are present.",
+    "steps": [
+      "Set previous[0] to true and all other sums to false.",
+      "For each value, start a fresh row and keep sum zero true.",
+      "A sum is possible if it was already possible, or if taking the value leaves an earlier reachable sum.",
+      "Use only previous-row values in that calculation.",
+      "After every position is processed, return the target entry."
+    ],
+    "java": "static boolean checkSubsequenceSum(int[] values, int target) {\n    boolean[] previous = new boolean[target+1];\n    previous[0] = true;\n    for (int value : values) {\n        boolean[] current = new boolean[target+1];\n        current[0] = true;\n        for (int sum = 1; sum <= target; sum++) {\n            current[sum] = previous[sum]\n                || (value <= sum && previous[sum-value]);\n        }\n        previous = current;\n    }\n    return previous[target];\n}",
+    "time": "O(n × (target + 1)), where n is the number of positions.",
+    "space": "O(target + 1) for two rows.",
+    "pitfalls": [
+      "This asks whether a subset exists, not how many subsets exist. Use OR, not addition.",
+      "Moving to the previous position after taking prevents repeated use of the same element.",
+      "A value greater than the target may be skipped; it does not make the whole answer false.",
+      "The array index represents a sum only because values are nonnegative. Negative values need a different state representation."
+    ],
+    "tests": [
+      "assert checkSubsequenceSum(new int[]{3,6,4},7);assert !checkSubsequenceSum(new int[]{3},6);assert checkSubsequenceSum(new int[]{3,3},6);assert checkSubsequenceSum(new int[]{},0);assert !checkSubsequenceSum(new int[]{},1);",
+      "Random random=new Random(397);\nfor(int trial=0;trial<1000;trial++){\n int n=random.nextInt(13);int[] values=new int[n];int total=0;for(int i=0;i<n;i++){values[i]=random.nextInt(10);total+=values[i];}int[] saved=values.clone();boolean[] reachable=new boolean[total+2];\n for(int mask=0;mask<(1<<n);mask++){int sum=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)sum+=values[i];reachable[sum]=true;}\n for(int target=0;target<reachable.length;target++){boolean expected=reachable[target];assert checkSubsequenceSum(values,target)==expected;assert subsetMemoized(values,target)==expected;assert subsetTabulated(values,target)==expected;if(n<=8)assert subsetRecursive(values,n-1,target)==expected;}\n assert Arrays.equals(values,saved);\n}",
+      "int[] values=new int[20];Arrays.fill(values,100);assert checkSubsequenceSum(values,2000);assert !checkSubsequenceSum(values,1999);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/subset-sum-equal-to-target",
+      "title": "Check If a Subset with the Target Sum Exists",
+      "checkedOn": "2026-10-29",
+      "approach": "Take-or-skip recursion, memoization, tabulation, and two-row boolean DP.",
+      "adaptation": "All four complete public Java methods were checked. This version starts from an empty prefix instead of special-casing the first value, so empty inputs and zero values are also handled. The tracker links to a subsequence wording of the same sum-existence question; its positive-value bounds were checked."
+    },
+    "baselineJava": "static boolean subsetRecursive(int[] values, int index, int remaining) {\n    if (remaining == 0) return true;\n    if (index < 0) return false;\n    return subsetRecursive(values,index-1,remaining)\n        || (values[index] <= remaining\n            && subsetRecursive(values,index-1,remaining-values[index]));\n}",
+    "baselineTime": "O(2^n) time and O(n) stack space.",
+    "better": {
+      "explanation": "Memoization saves each prefix-and-remaining-sum answer as −1 (uncomputed), 0 (false), or 1 (true). The full table uses an extra row for the empty prefix, which makes its initial state explicit.",
+      "java": "static boolean subsetMemoized(int[] values, int target) {\n    int[][] memo = new int[values.length][target+1];\n    for (int[] row : memo) Arrays.fill(row,-1);\n    return subsetMemo(values,values.length-1,target,memo);\n}\nstatic boolean subsetMemo(int[] values, int index, int remaining, int[][] memo) {\n    if (remaining == 0) return true;\n    if (index < 0) return false;\n    if (memo[index][remaining] != -1) return memo[index][remaining] == 1;\n    boolean possible = subsetMemo(values,index-1,remaining,memo)\n        || (values[index] <= remaining\n            && subsetMemo(values,index-1,remaining-values[index],memo));\n    memo[index][remaining] = possible ? 1 : 0;\n    return possible;\n}\nstatic boolean subsetTabulated(int[] values, int target) {\n    boolean[][] dp = new boolean[values.length+1][target+1];\n    dp[0][0] = true;\n    for (int used = 1; used <= values.length; used++) {\n        dp[used][0] = true;\n        for (int sum = 1; sum <= target; sum++) {\n            int value = values[used-1];\n            dp[used][sum] = dp[used-1][sum]\n                || (value <= sum && dp[used-1][sum-value]);\n        }\n    }\n    return dp[values.length][target];\n}",
+      "time": "O(n × (target + 1)).",
+      "space": "O(n × (target + 1)); memoization also needs O(n) stack space."
+    },
+    "trace": {
+      "columns": [
+        "Available values",
+        "Reachable sums up to 7"
+      ],
+      "rows": [
+        [
+          "None",
+          "0"
+        ],
+        [
+          "3",
+          "0, 3"
+        ],
+        [
+          "3, 6",
+          "0, 3, 6"
+        ],
+        [
+          "3, 6, 4",
+          "0, 3, 4, 6, 7"
+        ]
+      ]
+    }
+  },
+  "398": {
+    "problem": "Split all array positions into two groups whose sums are equal. Return whether such a split exists; the groups do not need equal numbers of elements.",
+    "assumptions": "The pinned LeetCode problem contains 1 to 200 positive integers, each at most 100. Every position goes into exactly one group. These bounds keep the total sum and the DP array small enough for int indexing.",
+    "example": {
+      "input": "values = [2,4,6,8]",
+      "output": "true",
+      "explanation": "The total is 20. Choosing [2,8] makes 10; the remaining [4,6] also makes 10."
+    },
+    "baseline": "Assign every value to either the first group or the second and compare their sums at the end. There are up to 2^n assignments. Equivalently, recursively choose a subset with half of the total sum.",
+    "approach": "Let the total be S. If both groups have equal sums, each must sum to S/2. An odd S cannot be split equally. If a subset reaches S/2, its complement automatically has the same sum, so we only need to find one of the groups.\n\nThis is the previous subset-sum problem with target S/2. Use one boolean array where possible[s] says whether the processed positions can make s. Initially only zero is possible.\n\nFor a value x, scan sums downward. At sum s, possible[s − x] must still describe the earlier positions. Going downward preserves that old value; going upward could use x repeatedly during one pass. For example, a single 2 must not create sum 4.\n\nThe array length never asks how many elements were chosen. Equal sums and equal group sizes are different requirements.",
+    "steps": [
+      "Add all values. Reject an odd total.",
+      "Set target to half the total and mark sum zero reachable.",
+      "For each value, scan sums from target down to that value.",
+      "Keep any old way to make sum, or take this value if sum − value was reachable earlier.",
+      "Return whether target is reachable."
+    ],
+    "java": "static boolean canPartition(int[] values) {\n    int total = 0;\n    for (int value : values) total += value;\n    if ((total & 1) != 0) return false;\n    int target = total/2;\n    boolean[] possible = new boolean[target+1];\n    possible[0] = true;\n    for (int value : values) {\n        for (int sum = target; sum >= value; sum--) {\n            possible[sum] |= possible[sum-value];\n        }\n    }\n    return possible[target];\n}",
+    "time": "O(n × (S + 1)), where S is the total sum. Only sums up to S/2 are stored.",
+    "space": "O(S + 1).",
+    "pitfalls": [
+      "An even total is necessary but not sufficient: [1,2,5] has total 8 but no subset makes 4.",
+      "Scan downward to prevent reusing the current position.",
+      "Do not require the same number of elements on each side: [1,1,2] is a valid equal-sum partition.",
+      "This boolean method does not return the actual groups."
+    ],
+    "tests": [
+      "assert canPartition(new int[]{2,4,6,8});assert !canPartition(new int[]{1,2,5});assert canPartition(new int[]{1,1,2});assert !canPartition(new int[]{2});assert !canPartition(new int[]{1,2,4});",
+      "Random random=new Random(398);\nfor(int trial=0;trial<1200;trial++){\n int n=1+random.nextInt(13);int[] values=new int[n];int total=0;for(int i=0;i<n;i++){values[i]=1+random.nextInt(12);total+=values[i];}int[] copy=values.clone();boolean expected=false;\n for(int mask=0;mask<(1<<n);mask++){int first=0,second=0;for(int i=0;i<n;i++){if((mask&(1<<i))!=0)first+=values[i];else second+=values[i];}if(first==second){expected=true;break;}}\n assert canPartition(values)==expected;assert partitionByTable(values)==expected;assert partitionRecursive(values,0,0,0)==expected;assert Arrays.equals(values,copy);\n}",
+      "int[] values=new int[200];Arrays.fill(values,100);assert canPartition(values);assert partitionByTable(values);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/partition-equal-subset-sum",
+      "title": "Partition equal subset sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Reduce to subset sum at half the total; use the public hint’s descending one-array update.",
+      "adaptation": "The public problem and both hints were checked. The full solution requires sign-in, so its Java was not inspected. This Java implements the stated take-or-skip recurrence and descending loop. The preceding public subset-sum article’s complete Java was also checked. The linked LeetCode bounds determine the stated limits."
+    },
+    "baselineJava": "static boolean partitionRecursive(int[] values, int index, int first, int second) {\n    if (index == values.length) return first == second;\n    return partitionRecursive(values,index+1,first+values[index],second)\n        || partitionRecursive(values,index+1,first,second+values[index]);\n}",
+    "baselineTime": "O(2^n) time and O(n) stack space.",
+    "better": {
+      "explanation": "A full prefix-by-sum table makes the earlier-row dependency explicit. Once it is understood, the descending one-array update removes old rows without allowing repeated use of an item.",
+      "java": "static boolean partitionByTable(int[] values) {\n    int total = 0;\n    for (int value : values) total += value;\n    if ((total & 1) != 0) return false;\n    int target = total/2;\n    boolean[][] dp = new boolean[values.length+1][target+1];\n    dp[0][0] = true;\n    for (int used = 1; used <= values.length; used++) {\n        dp[used][0] = true;\n        for (int sum = 1; sum <= target; sum++) {\n            int value = values[used-1];\n            dp[used][sum] = dp[used-1][sum]\n                || (sum >= value && dp[used-1][sum-value]);\n        }\n    }\n    return dp[values.length][target];\n}",
+      "time": "O(n × (S + 1)).",
+      "space": "O(n × (S + 1))."
+    }
   }
 }
