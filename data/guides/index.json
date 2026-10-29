@@ -9817,5 +9817,173 @@
       "approach": "Repeatedly merge the two smallest lengths with a min-heap.",
       "adaptation": "The public stick-joining cost rule and min-heap prompts were checked. The tracker’s ropes terminology is equivalent. No public Java editorial is exposed; this authored solution returns long to cover larger lengths than the current int-returning practice stub."
     }
+  },
+  "255": {
+    "problem": "After each new number arrives, return the kth largest number seen so far. Keep duplicate values as separate entries.",
+    "assumptions": "k is positive. The constructor may receive fewer than k values, but each judged add call has at least k total values available. An add before that point throws in this version because a kth largest value does not yet exist.",
+    "example": {
+      "input": "k = 3, initial = [6,2,8,4], add 5, then 9",
+      "output": "5, then 6",
+      "explanation": "After 5, the three largest values are 8,6,5. After 9, they are 9,8,6."
+    },
+    "baseline": "Store every value. On each add, sort a copy in descending order and read index k − 1. This is simple, but it sorts old values again and again.",
+    "approach": "Keep only the largest k values in a min-heap. The root is the smallest of those k values, so it is exactly the kth largest overall.\n\nOffer each incoming value. If the heap grows to k + 1, remove its smallest value. That removed value already has k values at least as large as it, so keeping it cannot improve a future kth-largest answer. Duplicates still occupy separate heap entries.",
+    "steps": [
+      "Save k and create a min-heap.",
+      "Feed the initial values into the heap, trimming it to k entries.",
+      "For each add, offer the value and remove the minimum if the size exceeds k.",
+      "Return the minimum once k values are present."
+    ],
+    "java": "static class KthLargest {\n    private final int k;\n    private final PriorityQueue<Integer> largest = new PriorityQueue<>();\n    KthLargest(int k, int[] nums) {\n        if (k <= 0) throw new IllegalArgumentException(\"k must be positive\");\n        this.k = k;\n        for (int value : nums) retain(value);\n    }\n    private void retain(int value) {\n        largest.offer(value);\n        if (largest.size() > k) largest.poll();\n    }\n    public int add(int value) {\n        retain(value);\n        if (largest.size() < k) throw new IllegalStateException(\"Fewer than k values\");\n        return largest.peek();\n    }\n}",
+    "time": "Constructor: O(n log(k + 1)). Each add: O(log(k + 1)).",
+    "space": "O(k), independent of the total stream length.",
+    "pitfalls": [
+      "Use a min-heap of the retained large values, not a max-heap of them.",
+      "Do not remove duplicate values.",
+      "The initial array may be shorter than k; a return value is required only once enough values have arrived."
+    ],
+    "tests": [
+      "KthLargest h=new KthLargest(3,new int[]{6,2,8,4});assert h.add(5)==5;assert h.add(9)==6;assert h.add(6)==6;",
+      "Random r=new Random(255);for(int k=1;k<=20;k++){int[]start=new int[k-1];List<Integer>all=new ArrayList<>();for(int i=0;i<start.length;i++){start[i]=r.nextInt();all.add(start[i]);}KthLargest h=new KthLargest(k,start);KthLargestSorted b=new KthLargestSorted(k,start);for(int i=0;i<300;i++){int v=r.nextInt();all.add(v);List<Integer>copy=new ArrayList<>(all);copy.sort(Comparator.reverseOrder());int want=copy.get(k-1);assert h.add(v)==want;assert b.add(v)==want;assert h.largest.size()<=k;}}",
+      "KthLargest h=new KthLargest(1,new int[]{});assert h.add(Integer.MIN_VALUE)==Integer.MIN_VALUE;assert h.add(Integer.MAX_VALUE)==Integer.MAX_VALUE;assert h.add(-1)==Integer.MAX_VALUE;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/kth-largest-element-stream",
+      "title": "Kth Largest Element in a Stream",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort all values, then improve to a min-heap containing only the largest k.",
+      "adaptation": "Both public Java approaches were checked. The heap logic is preserved; the class is named KthLargest for the linked judge. Explicit guards reject non-positive k and queries before k values exist."
+    },
+    "baselineJava": "static class KthLargestSorted {\n    private final int k;\n    private final List<Integer> values = new ArrayList<>();\n    KthLargestSorted(int k, int[] nums) {\n        this.k = k;\n        for (int value : nums) values.add(value);\n    }\n    int add(int value) {\n        values.add(value);\n        List<Integer> ordered = new ArrayList<>(values);\n        ordered.sort(Comparator.reverseOrder());\n        return ordered.get(k - 1);\n    }\n}",
+    "baselineTime": "O(m log m) per add when m values have arrived; O(m) retained and copied storage."
+  },
+  "256": {
+    "problem": "Choose one value from each of two arrays and return the C largest pair sums, in descending order.",
+    "assumptions": "The pinned InterviewBit task has two arrays of equal length N, values up to 100000, and 1 ≤ C ≤ N. Different index pairs count separately, even when their sums are equal. This implementation also accepts C = 0 and C up to N². Sums fit int under the task bounds.",
+    "example": {
+      "input": "A = [1,4,2,3], B = [2,5,1,6], C = 4",
+      "output": "[10,9,9,8]",
+      "explanation": "The largest pairs are 4+6, 4+5, 3+6, and one pair totalling 8. Both ways to make 9 must be counted."
+    },
+    "baseline": "Generate all N² pair sums, sort them in descending order, and take the first C. This needs O(N²) storage and O(N² log N) time.",
+    "approach": "Sort copies of both arrays in ascending order. Imagine a grid where cell (i,j) holds A[i] + B[j]. Moving left or up cannot increase the sum. The bottom-right cell is therefore the largest.\n\nKeep the next candidate cells in a max-heap. Remove the largest candidate, save its sum, and offer its upper and left neighbours. A cell can be reached from two parents, so remember visited index pairs. Do not remember only sums: two different cells with the same sum are both valid answers.\n\nWhy does the heap contain the next answer? Any cell not yet reached has a path from the bottom-right corner through cells with at least its sum. Until that path reaches the cell, an earlier cell on the path is on the heap. A hidden cell therefore cannot beat every candidate.",
+    "steps": [
+      "Sort copies of A and B.",
+      "Offer the bottom-right index pair and mark it visited.",
+      "Poll the largest sum and add it to the answer.",
+      "Offer each in-bounds upper/left neighbour once.",
+      "Repeat C times."
+    ],
+    "java": "static int[] maximumSumCombinations(int[] first, int[] second, int count) {\n    int n = first.length;\n    if (second.length != n || count < 0 || count > (long) n * n)\n        throw new IllegalArgumentException(\"Invalid lengths or count\");\n    if (count == 0) return new int[0];\n    int[] a = first.clone(), b = second.clone();\n    Arrays.sort(a);\n    Arrays.sort(b);\n    PriorityQueue<int[]> heap = new PriorityQueue<>((x, y) -> Integer.compare(y[0], x[0]));\n    Set<Long> visited = new HashSet<>();\n    heap.offer(new int[]{a[n - 1] + b[n - 1], n - 1, n - 1});\n    visited.add((long) (n - 1) * n + n - 1);\n    int[] result = new int[count];\n    for (int p = 0; p < count; p++) {\n        int[] cell = heap.poll();\n        result[p] = cell[0];\n        int i = cell[1], j = cell[2];\n        if (i > 0 && visited.add((long) (i - 1) * n + j))\n            heap.offer(new int[]{a[i - 1] + b[j], i - 1, j});\n        if (j > 0 && visited.add((long) i * n + j - 1))\n            heap.offer(new int[]{a[i] + b[j - 1], i, j - 1});\n    }\n    return result;\n}",
+    "time": "O(N log N + C log(C + 1)).",
+    "space": "O(N + C) including sorted copies, heap, visited pairs and output.",
+    "pitfalls": [
+      "Count index pairs, not distinct sums.",
+      "Use long for i * N + j; N² can exceed the int range.",
+      "The original arrays are preserved because this code sorts copies.",
+      "The current TUF practice page permits more output pairs than the pinned InterviewBit version; the original tracker link is unchanged."
+    ],
+    "tests": [
+      "assert Arrays.equals(maximumSumCombinations(new int[]{1,4,2,3},new int[]{2,5,1,6},4),new int[]{10,9,9,8});",
+      "Random r=new Random(256);for(int n=1;n<=9;n++)for(int t=0;t<70;t++){int[]a=new int[n],b=new int[n];for(int i=0;i<n;i++){a[i]=r.nextInt(11)-5;b[i]=r.nextInt(11)-5;}int[]ac=a.clone(),bc=b.clone();List<Integer>all=new ArrayList<>();for(int x:a)for(int y:b)all.add(x+y);all.sort(Comparator.reverseOrder());for(int k=0;k<=n*n;k++){int[]got=maximumSumCombinations(a,b,k);assert got.length==k;for(int i=0;i<k;i++)assert got[i]==all.get(i);}assert Arrays.equals(a,ac)&&Arrays.equals(b,bc);}",
+      "int[]a=new int[100000];Arrays.fill(a,100000);assert Arrays.equals(maximumSumCombinations(a,a,3),new int[]{200000,200000,200000});"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/maximum-sum-combination",
+      "title": "Maximum Sum Combination",
+      "checkedOn": "2026-10-29",
+      "approach": "Use a max-heap to explore the largest pair sums without building the full grid.",
+      "adaptation": "The current public practice statement and the pinned InterviewBit statement were checked. TUF exposes a starter rather than a public Java editorial here. This authored implementation preserves duplicate index-pair sums and is checked against all-pairs sorting."
+    }
+  },
+  "257": {
+    "problem": "Support adding numbers to a stream and finding the median of all numbers seen so far.",
+    "assumptions": "findMedian is called only after at least one number has been added. For an even count, return the average of the two middle values. Values may use the full int range.",
+    "example": {
+      "input": "add 8, add 2, find median, add 5, find median",
+      "output": "5.0, then 5.0",
+      "explanation": "Sorted values are first [2,8], whose middle average is 5, then [2,5,8], whose middle value is 5."
+    },
+    "baseline": "Keep an unsorted list. For every median query, sort a copy and read its middle value or middle pair. Adds take O(1) amortized; queries take O(n log n).",
+    "approach": "Split the values into a lower half and an upper half. A max-heap gives the largest value in the lower half; a min-heap gives the smallest value in the upper half. These are exactly the values needed at the middle.\n\nKeep the lower heap the same size as the upper heap, or one entry larger. To add a value, put it in the lower heap, then move the largest lower value to the upper heap. If the upper heap becomes larger, move its smallest value back. These moves restore both the size rule and the rule that every lower value is at most every upper value.\n\nWith an odd count, the lower root is the median. With an even count, average both roots. Divide each root by 2.0 before adding, so two large ints cannot overflow during addition.",
+    "steps": [
+      "Create a max-heap lower and a min-heap upper.",
+      "Add the new value to lower and move lower’s maximum to upper.",
+      "If upper is larger, move its minimum back to lower.",
+      "Read one root for an odd count, or average the roots for an even count."
+    ],
+    "java": "static class MedianFinder {\n    private final PriorityQueue<Integer> lower = new PriorityQueue<>(Comparator.reverseOrder());\n    private final PriorityQueue<Integer> upper = new PriorityQueue<>();\n    public void addNum(int value) {\n        lower.offer(value);\n        upper.offer(lower.poll());\n        if (upper.size() > lower.size()) lower.offer(upper.poll());\n    }\n    public double findMedian() {\n        if (lower.isEmpty()) throw new NoSuchElementException(\"Empty stream\");\n        if (lower.size() > upper.size()) return lower.peek();\n        return lower.peek() / 2.0 + upper.peek() / 2.0;\n    }\n}",
+    "time": "O(log n) per insertion and O(1) per median query.",
+    "space": "O(n) for the two heaps together.",
+    "pitfalls": [
+      "PriorityQueue iteration is not sorted; only peek/poll gives its extreme.",
+      "Rebalance sizes after every insertion.",
+      "Avoid (a + b) / 2.0 with int operands, because a + b can overflow first.",
+      "Do not negate int values to simulate a max-heap; Integer.MIN_VALUE cannot be negated safely."
+    ],
+    "tests": [
+      "MedianFinder h=new MedianFinder();h.addNum(8);h.addNum(2);assert h.findMedian()==5.0;h.addNum(5);assert h.findMedian()==5.0;",
+      "Random r=new Random(257);MedianFinder h=new MedianFinder();MedianSorted s=new MedianSorted();MedianResort b=new MedianResort();List<Integer>values=new ArrayList<>();for(int i=0;i<1500;i++){int v=i%7==0?Integer.MAX_VALUE:i%11==0?Integer.MIN_VALUE:r.nextInt();values.add(v);h.addNum(v);s.addNum(v);b.addNum(v);List<Integer>ordered=new ArrayList<>(values);Collections.sort(ordered);int n=ordered.size();double want=n%2==1?ordered.get(n/2):ordered.get(n/2-1)/2.0+ordered.get(n/2)/2.0;assert h.findMedian()==want;assert s.findMedian()==want;assert b.findMedian()==want;assert h.lower.size()==h.upper.size()||h.lower.size()==h.upper.size()+1;if(!h.upper.isEmpty())assert h.lower.peek()<=h.upper.peek();}",
+      "MedianFinder h=new MedianFinder();h.addNum(Integer.MAX_VALUE);h.addNum(Integer.MAX_VALUE);assert h.findMedian()==Integer.MAX_VALUE;MedianFinder q=new MedianFinder();q.addNum(Integer.MIN_VALUE);q.addNum(Integer.MAX_VALUE);assert q.findMedian()==-0.5;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/find-median-data-stream",
+      "title": "Find Median from Data Stream",
+      "checkedOn": "2026-10-29",
+      "approach": "Progress from sorting per query to sorted insertion, then two balanced heaps.",
+      "adaptation": "The public Java implementations were checked. The two-heap transfer order is preserved; the judge-facing class is MedianFinder and an empty-query guard is explicit."
+    },
+    "baselineJava": "static class MedianResort {\n    private final List<Integer> values = new ArrayList<>();\n    void addNum(int value) { values.add(value); }\n    double findMedian() {\n        List<Integer> sorted = new ArrayList<>(values);\n        Collections.sort(sorted);\n        int n = sorted.size();\n        return n % 2 == 1 ? sorted.get(n / 2)\n            : sorted.get(n / 2 - 1) / 2.0 + sorted.get(n / 2) / 2.0;\n    }\n}",
+    "better": {
+      "explanation": "Keep the list sorted all the time. Binary search finds where the new value belongs, but ArrayList still shifts later entries to make room. That makes insertion O(n), while a median query only reads the middle positions.",
+      "java": "static class MedianSorted {\n    private final List<Integer> values = new ArrayList<>();\n    void addNum(int value) {\n        int low = 0, high = values.size();\n        while (low < high) {\n            int mid = low + (high - low) / 2;\n            if (values.get(mid) < value) low = mid + 1;\n            else high = mid;\n        }\n        values.add(low, value);\n    }\n    double findMedian() {\n        int n = values.size();\n        return n % 2 == 1 ? values.get(n / 2)\n            : values.get(n / 2 - 1) / 2.0 + values.get(n / 2) / 2.0;\n    }\n}",
+      "time": "O(n) insertion, O(1) median query.",
+      "space": "O(n)."
+    }
+  },
+  "258": {
+    "problem": "Return the k distinct numbers that occur most often in an array. The output can be in any order.",
+    "assumptions": "1 ≤ k ≤ the number of distinct values. The linked problem guarantees a unique answer set. Ties within that selected set do not matter; output order is unrestricted.",
+    "example": {
+      "input": "nums = [4,4,4,7,7,2], k = 2",
+      "output": "[4,7]",
+      "explanation": "4 appears three times and 7 twice, more often than 2. [7,4] is equally valid."
+    },
+    "baseline": "Count each value, sort the distinct values by decreasing count, and take k. With U distinct values this takes O(n + U log U) time and O(U) space.",
+    "approach": "A frequency can only be between 1 and n. Use that small range as an array of buckets: bucket[f] contains all values occurring f times. A value goes into one bucket, no matter how large or negative the value itself is.\n\nWalk the buckets from n down to 1 and collect values until k have been taken. Larger frequencies are visited first, so no unvisited value can be more frequent than a value already selected. Counting, filling buckets, and reading them all take linear time.",
+    "steps": [
+      "Count occurrences in a map.",
+      "Create n + 1 buckets, indexed by frequency.",
+      "Place each distinct value in its frequency bucket.",
+      "Visit buckets from highest frequency to lowest, stopping after k values."
+    ],
+    "java": "static int[] topKFrequent(int[] nums, int k) {\n    Map<Integer, Integer> frequency = new HashMap<>();\n    for (int value : nums) frequency.merge(value, 1, Integer::sum);\n    List<List<Integer>> buckets = new ArrayList<>();\n    for (int i = 0; i <= nums.length; i++) buckets.add(new ArrayList<>());\n    for (int value : frequency.keySet()) buckets.get(frequency.get(value)).add(value);\n    int[] result = new int[k];\n    int used = 0;\n    for (int count = nums.length; count >= 1; count--) {\n        for (int value : buckets.get(count)) {\n            result[used++] = value;\n            if (used == k) return result;\n        }\n    }\n    return result;\n}",
+    "time": "O(n) expected time with hash-map operations.",
+    "space": "O(n + U), which is O(n); buckets are indexed by frequency, not by value.",
+    "pitfalls": [
+      "The answer contains distinct values, not repeated occurrences.",
+      "Do not use value as a bucket index. Negative or huge values are valid map keys.",
+      "A size-k min-heap is an alternative when allocating n buckets is undesirable.",
+      "Output order is unrestricted. Compare answer sets in tests."
+    ],
+    "tests": [
+      "int[]a=topKFrequent(new int[]{4,4,4,7,7,2},2);Arrays.sort(a);assert Arrays.equals(a,new int[]{4,7});",
+      "Random r=new Random(258);for(int u=1;u<=20;u++)for(int t=0;t<20;t++){List<Integer>values=new ArrayList<>();Set<Integer>keys=new HashSet<>();while(keys.size()<u)keys.add(r.nextInt());int[]key=keys.stream().mapToInt(x->x).toArray();for(int i=0;i<u;i++)for(int j=0;j<=i;j++)values.add(key[i]);Collections.shuffle(values,r);int[]input=values.stream().mapToInt(x->x).toArray();for(int k=1;k<=u;k++){Set<Integer>want=new HashSet<>();for(int i=u-k;i<u;i++)want.add(key[i]);for(int[]result:new int[][]{topKFrequent(input,k),topKSorted(input,k),topKHeap(input,k)}){Set<Integer>got=new HashSet<>();for(int x:result)got.add(x);assert result.length==k&&got.equals(want);}}}",
+      "int[]a={Integer.MIN_VALUE,Integer.MAX_VALUE,Integer.MIN_VALUE};assert topKFrequent(a,1)[0]==Integer.MIN_VALUE;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/top-k-frequent-elements",
+      "title": "Top K Frequent Elements",
+      "checkedOn": "2026-10-29",
+      "approach": "Count values, then use sorting, a bounded min-heap, or frequency buckets.",
+      "adaptation": "The public Java sorting and bucket implementations and the heap method were checked. The same three algorithms are shown here; comparisons use Integer.compare."
+    },
+    "baselineJava": "static int[] topKSorted(int[] nums, int k) {\n    Map<Integer, Integer> counts = new HashMap<>();\n    for (int value : nums) counts.merge(value, 1, Integer::sum);\n    List<Integer> values = new ArrayList<>(counts.keySet());\n    values.sort((a, b) -> Integer.compare(counts.get(b), counts.get(a)));\n    int[] result = new int[k];\n    for (int i = 0; i < k; i++) result[i] = values.get(i);\n    return result;\n}",
+    "better": {
+      "explanation": "Count values, then retain only k (frequency, value) pairs in a min-heap. When there are k + 1 candidates, remove the least frequent. The remaining pairs are the required set; polling them need not produce descending frequency order.",
+      "java": "static int[] topKHeap(int[] nums, int k) {\n    Map<Integer, Integer> counts = new HashMap<>();\n    for (int value : nums) counts.merge(value, 1, Integer::sum);\n    PriorityQueue<int[]> heap = new PriorityQueue<>((a, b) -> Integer.compare(a[0], b[0]));\n    for (int value : counts.keySet()) {\n        heap.offer(new int[]{counts.get(value), value});\n        if (heap.size() > k) heap.poll();\n    }\n    int[] result = new int[k];\n    for (int i = 0; i < k; i++) result[i] = heap.poll()[1];\n    return result;\n}",
+      "time": "O(n + U log(k + 1)) expected.",
+      "space": "O(U + k)."
+    }
   }
 }
