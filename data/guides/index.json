@@ -9216,5 +9216,89 @@
     },
     "baselineJava": "static int exactDistinctByExpansion(int[] nums, int k) {\n    if (k <= 0) return 0;\n    int count = 0;\n    for (int start = 0; start < nums.length; start++) {\n        Set<Integer> types = new HashSet<>();\n        for (int end = start; end < nums.length; end++) {\n            types.add(nums[end]);\n            if (types.size() == k) count++;\n            if (types.size() > k) break;\n        }\n    }\n    return count;\n}",
     "baselineTime": "O(n²) time and O(min(n, k + 1)) space."
+  },
+  "240": {
+    "problem": "Return the shortest contiguous substring of s containing every character of t, including repeated copies. Return an empty string if none exists.",
+    "assumptions": "The linked task uses uppercase and lowercase English letters; the source’s 128-slot arrays also support other ASCII characters. Order does not matter here, but frequency does. An empty target returns an empty string.",
+    "example": {
+      "input": "s = \"BAACAB\", t = \"AAB\"",
+      "output": "\"BAA\"",
+      "explanation": "Two copies of A and one B are required. \"BAA\" is a length-3 answer; a window with just one A is insufficient. This implementation keeps the leftmost answer on equal lengths."
+    },
+    "baseline": "For each start, extend the end while counting characters. Stop at its first valid end and compare that length with the best so far. Doing this for every start takes O(n² + m) time. Recounting each range from scratch would be slower.",
+    "approach": "Keep need[c], the copies required by t, and window[c], the copies currently present. matched counts required copies already supplied, not distinct letters. For t = \"AAB\", matched must reach 3. An extra A after the second one does not increase it.\n\nExpand right until matched reaches t.length(). Now try removing characters from the left. Before each removal, save the window if it is shorter. Removing an irrelevant character or an extra required character keeps it valid. Removing a needed copy makes its count fall below need and decreases matched; stop shrinking then. This checks the smallest valid windows as the right edge advances.",
+    "steps": [
+      "Build the required character counts.",
+      "Add s[right]; increase matched only if this copy helps satisfy a requirement.",
+      "While all required copies are supplied, save a shorter answer and remove one left character.",
+      "Decrease matched only when the removal creates a shortage.",
+      "Return the saved range, or an empty string if no range was saved."
+    ],
+    "java": "static String minWindow(String s, String t) {\n    if (t.isEmpty() || s.length() < t.length()) return \"\";\n    int[] need = new int[128], window = new int[128];\n    for (int i = 0; i < t.length(); i++) need[t.charAt(i)]++;\n    int left = 0, matched = 0, bestStart = -1, bestLength = Integer.MAX_VALUE;\n    for (int right = 0; right < s.length(); right++) {\n        char incoming = s.charAt(right);\n        window[incoming]++;\n        if (need[incoming] > 0 && window[incoming] <= need[incoming]) matched++;\n        while (matched == t.length()) {\n            int length = right - left + 1;\n            if (length < bestLength) { bestStart = left; bestLength = length; }\n            char outgoing = s.charAt(left++);\n            window[outgoing]--;\n            if (need[outgoing] > 0 && window[outgoing] < need[outgoing]) matched--;\n        }\n    }\n    return bestStart < 0 ? \"\" : s.substring(bestStart, bestStart + bestLength);\n}",
+    "time": "O(n + m), where n = s.length() and m = t.length().",
+    "space": "O(1) working space for ASCII counters, plus O(answer length) for the returned Java string.",
+    "pitfalls": [
+      "Duplicate characters in t need duplicate copies in the window.",
+      "matched counts supplied copies, not distinct required types.",
+      "Save the valid window before removing its left character.",
+      "Extra copies do not increase matched or make it fall when removed.",
+      "This problem ignores order; Minimum Window Subsequence does not."
+    ],
+    "tests": [
+      "assert minWindow(\"BAACAB\",\"AAB\").equals(\"BAA\");assert minWindow(\"ADOBECODEBANC\",\"ABC\").equals(\"BANC\");assert minWindow(\"a\",\"aa\").equals(\"\");assert minWindow(\"aa\",\"aa\").equals(\"aa\");assert minWindow(\"a\",\"\").equals(\"\");",
+      "Random r=new Random(240);String alphabet=\"AaB!\";for(int trial=0;trial<3000;trial++){StringBuilder s=new StringBuilder(),t=new StringBuilder();for(int i=r.nextInt(12);i>0;i--)s.append(alphabet.charAt(r.nextInt(4)));for(int i=r.nextInt(6);i>0;i--)t.append(alphabet.charAt(r.nextInt(4)));String source=s.toString(),target=t.toString();String expected=\"\";if(!target.isEmpty()){for(int l=0;l<source.length();l++)for(int end=l+1;end<=source.length();end++){int[]need=new int[128];for(int j=0;j<target.length();j++)need[target.charAt(j)]++;for(int j=l;j<end;j++)need[source.charAt(j)]--;boolean valid=true;for(int v:need)if(v>0)valid=false;if(valid&&(expected.isEmpty()||end-l<expected.length()))expected=source.substring(l,end);}}assert minWindow(source,target).equals(expected);assert minWindowByExpansion(source,target).equals(expected);}",
+      "assert minWindow(\"ab\",\"b\").equals(\"b\");assert minWindow(\"aAA\",\"AA\").equals(\"AA\");assert minWindow(\"zzAAzzB\",\"AAB\").equals(\"AAzzB\");"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/minimum-window-substring",
+      "title": "Minimum Window Substring",
+      "checkedOn": "2026-10-29",
+      "approach": "Track required copies with two frequency arrays, expand until valid, then shrink while preserving coverage.",
+      "adaptation": "All three public Java approaches were checked. This keeps the source’s matched-copy conditions and strict shorter-window update, with one final substring allocation. Its ASCII character assumption is stated explicitly."
+    },
+    "baselineJava": "static String minWindowByExpansion(String s, String t) {\n    if (t.isEmpty() || s.length() < t.length()) return \"\";\n    int[] need = new int[128];\n    for (int i = 0; i < t.length(); i++) need[t.charAt(i)]++;\n    int bestStart = -1, bestLength = Integer.MAX_VALUE;\n    for (int start = 0; start < s.length(); start++) {\n        int[] window = new int[128];\n        int matched = 0;\n        for (int end = start; end < s.length(); end++) {\n            char incoming = s.charAt(end);\n            window[incoming]++;\n            if (need[incoming] > 0 && window[incoming] <= need[incoming]) matched++;\n            if (matched == t.length()) {\n                if (end - start + 1 < bestLength) {\n                    bestStart = start;\n                    bestLength = end - start + 1;\n                }\n                break;\n            }\n        }\n    }\n    return bestStart < 0 ? \"\" : s.substring(bestStart, bestStart + bestLength);\n}",
+    "baselineTime": "O(n² + m) time and O(1) ASCII working space, excluding the returned string."
+  },
+  "241": {
+    "problem": "Find the shortest contiguous part of s1 in which s2 appears as a subsequence. The matched characters must occur in the same order as s2. Return the leftmost shortest window, or an empty string if none exists.",
+    "assumptions": "The public task uses lowercase English strings with s1 length up to 20,000 and s2 length up to 100. A window may contain extra characters between the matches. This guide also returns an empty string for an empty target.",
+    "example": {
+      "input": "s1 = \"cabxba\", s2 = \"aba\"",
+      "output": "\"abxba\"",
+      "explanation": "Match a at index 1, b at index 2 or 4, and a at index 5. The window from index 1 through 5 contains that sequence in order."
+    },
+    "baseline": "Try each possible start. Scan forward while matching the next needed target character. The first end that completes the target is the shortest window for that start. Compare all starts. This costs O(n²) time in the worst case.",
+    "approach": "Character counts cannot solve this problem: \"ba\" has the same letters as \"ab\", but in the wrong order. Keep one state for each prefix of the target instead.\n\nstart[j] stores the latest possible starting index of a match for s2[0..j] in the source scanned so far. A later start is better because it gives a shorter window for any future end. If the incoming source character matches s2[j], extend a known match for j − 1. For j = 0, a new match starts at the current source index.\n\nUpdate j from right to left. Otherwise one source character could update j = 0 and then immediately be reused for j = 1, falsely matching \"aa\" with a single a. Whenever the full target is matched, compare its window length with the best. Use a strict shorter comparison to preserve the leftmost tie.",
+    "steps": [
+      "Fill a start array of length s2.length() with −1, meaning no match yet.",
+      "For each source position, examine target positions from right to left.",
+      "On matching characters, copy start[j − 1], or use the current index for j = 0.",
+      "When the full target has a start, compare the candidate window.",
+      "Return the shortest saved range, keeping the first on ties."
+    ],
+    "java": "static String minWindowSubsequence(String source, String target) {\n    if (target.isEmpty() || source.length() < target.length()) return \"\";\n    int[] start = new int[target.length()];\n    Arrays.fill(start, -1);\n    int bestStart = -1, bestLength = Integer.MAX_VALUE;\n    for (int right = 0; right < source.length(); right++) {\n        for (int j = target.length() - 1; j >= 0; j--) {\n            if (source.charAt(right) != target.charAt(j)) continue;\n            if (j == 0) start[0] = right;\n            else if (start[j - 1] >= 0) start[j] = start[j - 1];\n        }\n        int candidateStart = start[target.length() - 1];\n        if (candidateStart >= 0) {\n            int length = right - candidateStart + 1;\n            if (length < bestLength) { bestStart = candidateStart; bestLength = length; }\n        }\n    }\n    return bestStart < 0 ? \"\" : source.substring(bestStart, bestStart + bestLength);\n}",
+    "time": "O(n × m), where n is the source length and m is the target length.",
+    "space": "O(m) working space, plus the returned string.",
+    "pitfalls": [
+      "The target’s order matters; a frequency map cannot verify a subsequence.",
+      "Update target states backward so one source position cannot match multiple target characters.",
+      "Store the latest start for a matched prefix to shorten future candidates.",
+      "Use < rather than ≤ when replacing the best answer, preserving the leftmost tie.",
+      "A stored match may end before the current position; extending its window remains valid but cannot improve an already shorter answer."
+    ],
+    "tests": [
+      "assert minWindowSubsequence(\"cabxba\",\"aba\").equals(\"abxba\");assert minWindowSubsequence(\"abcdebdde\",\"bde\").equals(\"bcde\");assert minWindowSubsequence(\"ba\",\"ab\").equals(\"\");assert minWindowSubsequence(\"a\",\"aa\").equals(\"\");assert minWindowSubsequence(\"aaa\",\"aa\").equals(\"aa\");",
+      "Random r=new Random(241);for(int trial=0;trial<5000;trial++){StringBuilder source=new StringBuilder(),target=new StringBuilder();for(int i=r.nextInt(14);i>0;i--)source.append((char)('a'+r.nextInt(3)));for(int i=r.nextInt(6);i>0;i--)target.append((char)('a'+r.nextInt(3)));String s=source.toString(),t=target.toString();String expected=\"\";if(!t.isEmpty())for(int left=0;left<s.length();left++)for(int end=left+1;end<=s.length();end++){int j=0;for(int x=left;x<end&&j<t.length();x++)if(s.charAt(x)==t.charAt(j))j++;if(j==t.length()&&(expected.isEmpty()||end-left<expected.length()))expected=s.substring(left,end);}assert minWindowSubsequence(s,t).equals(expected);assert subsequenceByStarts(s,t).equals(expected);}",
+      "assert minWindowSubsequence(\"x\".repeat(19900)+\"a\".repeat(100),\"a\".repeat(100)).equals(\"a\".repeat(100));assert minWindowSubsequence(\"abc\",\"\").equals(\"\");"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-window-subsequence",
+      "title": "Minimum Window Subsequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Track the latest start for each matched target prefix, retaining character order.",
+      "adaptation": "The current public statement, leftmost-tie rule and size limits were checked. It exposes a starter method rather than a public Java editorial. This is an authored O(n × m) dynamic-programming solution with backward updates, tested against direct window enumeration; it is not presented as copied Striver Java."
+    },
+    "baselineJava": "static String subsequenceByStarts(String source, String target) {\n    if (target.isEmpty()) return \"\";\n    int bestStart = -1, bestLength = Integer.MAX_VALUE;\n    for (int left = 0; left < source.length(); left++) {\n        int matched = 0;\n        for (int right = left; right < source.length(); right++) {\n            if (source.charAt(right) == target.charAt(matched)) matched++;\n            if (matched == target.length()) {\n                if (right - left + 1 < bestLength) {\n                    bestStart = left;\n                    bestLength = right - left + 1;\n                }\n                break;\n            }\n        }\n    }\n    return bestStart < 0 ? \"\" : source.substring(bestStart, bestStart + bestLength);\n}",
+    "baselineTime": "O(n²) time and O(1) working space, excluding the returned string."
   }
 }
