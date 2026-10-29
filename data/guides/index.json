@@ -16112,5 +16112,91 @@
       "time": "O(n × (target + 1)).",
       "space": "O(n × (target + 1)) for the table and O(n) for recursion."
     }
+  },
+  "402": {
+    "problem": "Give at most one cookie to each child. A child is satisfied when the cookie size is at least that child’s requirement. Maximize the number of satisfied children.",
+    "assumptions": "Each cookie can be used once. Cookie sizes and requirements are positive. This version sorts copies, preserving both inputs. This pinned Codolio entry repeats Assign Cookies inside the DP section. It is still the greedy matching problem, not the 0/1 Knapsack lesson found at the corresponding place in the newer Striver sequence.",
+    "example": {
+      "input": "requirements = [2,4,6], cookies = [1,3,5]",
+      "output": "2",
+      "explanation": "Give 3 to the child needing 2, and 5 to the child needing 4. The cookie of size 1 cannot help any child."
+    },
+    "baseline": "Sort both arrays. For each child, scan the cookie array from the beginning for the smallest unused cookie that fits. A used array prevents assigning a cookie twice. Repeated scans can take O(nm) time.",
+    "approach": "Start with the easiest child to satisfy and the smallest remaining cookie. If the cookie is too small, skip it: all other remaining children need at least as much. Otherwise, give it to this child and move to the next child.\n\nUsing the smallest cookie that fits leaves all larger cookies available. This cannot reduce the number of later matches. If another assignment used this cookie for a harder child and a larger cookie for the easier child, swapping those cookies would still satisfy both.",
+    "steps": [
+      "Sort requirements and cookie sizes.",
+      "Keep a pointer to the first unsatisfied child.",
+      "Scan cookies from smallest to largest.",
+      "Advance the child pointer only when the cookie fits.",
+      "Return the number of children passed."
+    ],
+    "java": "static int findContentChildren(int[] requirements, int[] sizes) {\n    int[] children = requirements.clone(), cookies = sizes.clone();\n    Arrays.sort(children);\n    Arrays.sort(cookies);\n    int child = 0;\n    for (int cookie : cookies) {\n        if (child == children.length) break;\n        if (cookie >= children[child]) child++;\n    }\n    return child;\n}",
+    "time": "O(n log n + m log m) for n children and m cookies.",
+    "space": "O(n + m) for the preserved-input copies. The matching scan itself uses O(1).",
+    "pitfalls": [
+      "Do not combine several small cookies for one child; each child gets at most one.",
+      "A cookie that is too small is skipped without skipping the child.",
+      "Sorting is part of the cost, even though the final scan is linear."
+    ],
+    "tests": [
+      "assert findContentChildren(new int[]{2,4,6},new int[]{1,3,5})==2;assert findContentChildren(new int[]{},new int[]{1})==0;assert findContentChildren(new int[]{1},new int[]{})==0;",
+      "class Oracle{int solve(int[]g,int[]s,int i,int used){if(i==g.length)return 0;int best=solve(g,s,i+1,used);for(int j=0;j<s.length;j++)if((used&(1<<j))==0&&s[j]>=g[i])best=Math.max(best,1+solve(g,s,i+1,used|(1<<j)));return best;}}Random r=new Random(259);Oracle o=new Oracle();for(int t=0;t<400;t++){int[]a=new int[r.nextInt(7)],b=new int[r.nextInt(7)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(6);for(int i=0;i<b.length;i++)b[i]=1+r.nextInt(6);int[]ac=a.clone(),bc=b.clone();int want=o.solve(a,b,0,0);assert findContentChildren(a,b)==want;assert cookiesByScanning(a,b)==want;assert Arrays.equals(a,ac)&&Arrays.equals(b,bc);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/assign-cookies",
+      "title": "Assign Cookies: Greedy Algorithm and Solution",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort both arrays and match each child with the smallest remaining cookie that fits.",
+      "adaptation": "Both public Java methods were checked. The repeated-scan and two-pointer choices are preserved; these snippets clone arrays before sorting."
+    },
+    "baselineJava": "static int cookiesByScanning(int[] requirements, int[] sizes) {\n    int[] children = requirements.clone(), cookies = sizes.clone();\n    Arrays.sort(children);\n    Arrays.sort(cookies);\n    boolean[] used = new boolean[cookies.length];\n    int satisfied = 0;\n    for (int need : children) {\n        for (int j = 0; j < cookies.length; j++) {\n            if (!used[j] && cookies[j] >= need) {\n                used[j] = true;\n                satisfied++;\n                break;\n            }\n        }\n    }\n    return satisfied;\n}"
+  },
+  "403": {
+    "problem": "Make an exact amount using the fewest coins. Each denomination may be used any number of times. Return −1 if the amount cannot be formed.",
+    "assumptions": "Denominations are positive integers. The linked LeetCode problem allows amount zero through 10,000 and coin values up to Integer.MAX_VALUE. Repeated copies of a denomination do not affect the minimum. The input is not sorted or changed.",
+    "example": {
+      "input": "coins = [1,4,6], amount = 8",
+      "output": "2",
+      "explanation": "Use 4 + 4. Taking the largest coin first would give 6 + 1 + 1, which uses three coins. Arbitrary denominations need more than the currency-greedy rule."
+    },
+    "baseline": "Try every denomination as the next coin, recursively solve the remaining amount, and add one to the best valid answer. Amount zero needs zero coins. Plain recursion solves the same remaining amount over and over.",
+    "approach": "Let dp[s] be the fewest coins needed to form amount s using the denominations processed so far. Start with dp[0] = 0 and mark every positive sum unreachable.\n\nFor a denomination coin, scan amounts upward from coin. If s − coin is reachable, one more copy of this denomination forms s. Compare that candidate with the best answer already stored for s.\n\nThe upward direction is intentional: dp[s − coin] may already use this same denomination. That is allowed because supplies are unlimited. In the earlier subset lessons, each position was usable only once and a one-array update had to go downward.\n\nAn impossible amount is represented by amount + 1. With positive integer coins, a valid answer never needs more than amount coins. Check that the earlier amount is reachable before adding one, then convert an unreachable final answer to −1.",
+    "steps": [
+      "Create amount + 1 entries, initially marked unreachable; set dp[0] = 0.",
+      "For each positive denomination, scan sums upward from that denomination.",
+      "If sum − coin is reachable, compare dp[sum] with dp[sum − coin] + 1.",
+      "Keep the smaller count.",
+      "Return −1 only when the final amount remains unreachable."
+    ],
+    "java": "static int coinChange(int[] coins, int amount) {\n    int unreachable = amount+1;\n    int[] dp = new int[amount+1];\n    Arrays.fill(dp,unreachable);\n    dp[0] = 0;\n    for (int coin : coins) {\n        for (int sum = coin; sum <= amount; sum++) {\n            if (dp[sum-coin] != unreachable) {\n                dp[sum] = Math.min(dp[sum],dp[sum-coin]+1);\n            }\n        }\n    }\n    return dp[amount] == unreachable ? -1 : dp[amount];\n}",
+    "time": "O(n × (amount + 1)), where n is the number of denominations.",
+    "space": "O(amount + 1).",
+    "pitfalls": [
+      "Greedy largest-first is not correct for arbitrary denominations.",
+      "Scan upward to permit repeated use of a coin.",
+      "Zero amount needs zero coins, even if the input has no denominations in the helper’s extended case.",
+      "Zero or negative denominations are outside the contract and would invalidate the recurrence.",
+      "The recursive variants are teaching versions for smaller amounts; a long chain of one-unit coins can exceed Java’s call stack. Use the iterative method for the full judge bound."
+    ],
+    "tests": [
+      "assert coinChange(new int[]{1,4,6},8)==2;assert coinChange(new int[]{4,6},7)==-1;assert coinChange(new int[]{Integer.MAX_VALUE,2},3)==-1;assert coinChange(new int[]{},0)==0;assert coinChange(new int[]{},2)==-1;",
+      "Random random=new Random(403);\nfor(int trial=0;trial<1000;trial++){\n int[] coins=new int[1+random.nextInt(6)];for(int i=0;i<coins.length;i++)coins[i]=1+random.nextInt(15);int amount=random.nextInt(61);int[] copy=coins.clone();int[] distance=new int[amount+1];Arrays.fill(distance,-1);distance[0]=0;ArrayDeque<Integer> queue=new ArrayDeque<>();queue.add(0);\n while(!queue.isEmpty()){int sum=queue.remove();for(int coin:coins)if(coin<=amount-sum&&distance[sum+coin]==-1){distance[sum+coin]=distance[sum]+1;queue.add(sum+coin);}}\n assert coinChange(coins,amount)==distance[amount];assert coinsMemoized(coins,amount)==distance[amount];assert coinsTabulated(coins,amount)==distance[amount];if(amount<=10)assert coinsRecursive(coins,amount)==distance[amount];assert Arrays.equals(coins,copy);\n}",
+      "assert coinChange(new int[]{1},10000)==10000;assert coinChange(new int[]{Integer.MAX_VALUE,10000},10000)==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-coins",
+      "title": "Minimum coins",
+      "checkedOn": "2026-10-29",
+      "approach": "Minimum-count DP with unlimited denomination reuse and one-dimensional storage.",
+      "adaptation": "The public problem and both DP hints were read. Its full solution requires sign-in, so that Java was not inspected. This original implementation follows the hinted recurrence and uses an ascending coin-first loop. The similarly named Minimum Number of Coins blog is about currency-style greedy choices, which do not solve the pinned arbitrary-denomination problem; the example here demonstrates the difference."
+    },
+    "baselineJava": "static int coinsRecursive(int[] coins, int remaining) {\n    if (remaining == 0) return 0;\n    int best = remaining+1;\n    for (int coin : coins) if (coin <= remaining) {\n        int smaller = coinsRecursive(coins,remaining-coin);\n        if (smaller >= 0) best = Math.min(best,smaller+1);\n    }\n    return best == remaining+1 ? -1 : best;\n}",
+    "baselineTime": "Exponential in the amount: at most n choices at each level, with depth at most amount/minCoin. O(amount/minCoin) stack space.",
+    "better": {
+      "explanation": "Memoization saves the answer for each remaining amount. The full prefix table makes unlimited reuse explicit: skipping reads the previous coin row, but taking reads the current row at a smaller amount. These are two ways to reach the same iterative recurrence.",
+      "java": "static int coinsMemoized(int[] coins, int amount) {\n    int[] memo = new int[amount+1];\n    Arrays.fill(memo,-2);\n    memo[0] = 0;\n    return coinsMemo(coins,amount,memo);\n}\nstatic int coinsMemo(int[] coins, int remaining, int[] memo) {\n    if (memo[remaining] != -2) return memo[remaining];\n    int best = remaining+1;\n    for (int coin : coins) if (coin <= remaining) {\n        int smaller = coinsMemo(coins,remaining-coin,memo);\n        if (smaller >= 0) best = Math.min(best,smaller+1);\n    }\n    return memo[remaining] = best == remaining+1 ? -1 : best;\n}\nstatic int coinsTabulated(int[] coins, int amount) {\n    int unreachable = amount+1;\n    int[][] dp = new int[coins.length+1][amount+1];\n    for (int[] row : dp) { Arrays.fill(row,unreachable); row[0] = 0; }\n    for (int used = 1; used <= coins.length; used++) {\n        int coin = coins[used-1];\n        for (int sum = 1; sum <= amount; sum++) {\n            dp[used][sum] = dp[used-1][sum];\n            if (coin <= sum && dp[used][sum-coin] != unreachable) {\n                dp[used][sum] = Math.min(dp[used][sum],dp[used][sum-coin]+1);\n            }\n        }\n    }\n    return dp[coins.length][amount] == unreachable ? -1 : dp[coins.length][amount];\n}",
+      "time": "O(n × (amount + 1)).",
+      "space": "Memoization: O(amount + 1) plus recursion depth. Full table: O(n × (amount + 1))."
+    }
   }
 }
