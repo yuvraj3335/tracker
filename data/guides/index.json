@@ -17498,5 +17498,216 @@
       "time": "O(n).",
       "space": "O(n) table; memoization also has an O(n) stack."
     }
+  },
+  "424": {
+    "problem": "Return the length of a longest strictly increasing subsequence while preserving the original order.",
+    "assumptions": "You may skip elements, but you may not rearrange them. Equal values do not extend a strictly increasing sequence. The pinned LeetCode input has up to 2,500 elements, where this O(n²) teaching method fits; the current TUF practice page allows up to 100,000, for which the binary-search method in the later LIS lesson is needed. Empty input is handled as an extension.",
+    "example": {
+      "input": "nums = [4,1,5,2,6]",
+      "output": "3",
+      "explanation": "Possible answers include [4,5,6] and [1,2,6]. Both keep the input order. The question asks for their length, not the values."
+    },
+    "baseline": "For each position, either skip it or take it if it is larger than the last chosen value. This recursion explores subsequences but has up to 2ⁿ branches.",
+    "approach": "Give every index its own question: what is the longest increasing subsequence that ends exactly here? One value alone has length one. To put a previous value before the current value, that previous index must be earlier and its value must be smaller.\n\nIf a valid previous index ends a chain of length L, appending the current value makes length L+1. Try every earlier index and keep the largest result. Earlier entries are ready because we scan left to right.\n\nThe answer is the largest entry anywhere, not necessarily the last entry. A longest subsequence might finish before the array ends. This state needs only one index; an alternative take/skip recurrence remembers both the current position and the previous chosen index.",
+    "steps": [
+      "Initialize each ending length to one.",
+      "For each index, scan earlier indices.",
+      "Extend only from a strictly smaller earlier value.",
+      "Record the largest ending length seen.",
+      "Return zero for an empty array; otherwise return that largest length."
+    ],
+    "java": "static int lisLengthQuadratic(int[] nums) {\n    int[] length = new int[nums.length];\n    Arrays.fill(length,1);\n    int best = 0;\n    for(int end=0;end<nums.length;end++) {\n        for(int previous=0;previous<end;previous++) {\n            if(nums[previous]<nums[end])\n                length[end] = Math.max(length[end],length[previous]+1);\n        }\n        best = Math.max(best,length[end]);\n    }\n    return best;\n}\n\nstatic int lengthOfLIS(int[] nums) { return lisLengthQuadratic(nums); }",
+    "time": "O(n²).",
+    "space": "O(n).",
+    "pitfalls": [
+      "Use <, not <=. Equal values would change the problem to a non-decreasing subsequence.",
+      "Do not sort the input; original order is part of the problem.",
+      "A subsequence can skip positions; a subarray cannot.",
+      "The final answer is the maximum of all ending lengths, not just the final entry."
+    ],
+    "tests": [
+      "Random random=new Random(424);for(int trial=0;trial<1200;trial++){int n=random.nextInt(12);int[] a=new int[n];for(int i=0;i<n;i++)a[i]=random.nextInt(13)-6;int expected=0;for(int mask=0;mask<(1<<n);mask++){boolean valid=true,started=false;int last=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0){if(started&&a[i]<=last){valid=false;break;}last=a[i];started=true;}if(valid)expected=Math.max(expected,Integer.bitCount(mask));}assert lisLengthQuadratic(a)==expected;assert lisLengthFast(a)==expected;assert lisRecursive(a,0,-1)==expected;}",
+      "assert lengthOfLIS(new int[]{4,1,5,2,6})==3;assert lengthOfLIS(new int[]{5,5,5})==1;assert lengthOfLIS(new int[]{})==0;assert lengthOfLIS(new int[]{Integer.MIN_VALUE,0,Integer.MAX_VALUE})==3;",
+      "int[] a=new int[2500];for(int i=0;i<a.length;i++)a[i]=i;assert lengthOfLIS(a)==2500;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-increasing-subsequence",
+      "title": "Longest Increasing Subsequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Ending-at-index DP, then smallest-tail binary search; the public FAQ also describes memoization.",
+      "adaptation": "The current practice statement, both public hints, and relevant FAQs were read. Its Solution panel requires sign-in, so no full Java solution from that panel was inspected. The Java here implements the stated methods. The ending-at-index recurrence was also checked in the public Print LIS article’s complete Java."
+    },
+    "baselineJava": "static int lisRecursive(int[] nums, int position, int previous) {\n    if(position==nums.length) return 0;\n    int best = lisRecursive(nums,position+1,previous);\n    if(previous==-1 || nums[previous]<nums[position])\n        best = Math.max(best,1+lisRecursive(nums,position+1,position));\n    return best;\n}",
+    "baselineTime": "O(2ⁿ) time and O(n) recursion stack.",
+    "better": {
+      "explanation": "The later LIS lesson keeps the smallest possible tail for every length and uses binary search. It produces the same length in O(n log n), so use it for the current TUF page’s larger limits. These tails are not necessarily one actual subsequence.",
+      "java": "static int lisLengthFast(int[] nums) {\n    int[] tails = new int[nums.length];\n    int size = 0;\n    for(int value:nums) {\n        int low=0, high=size;\n        while(low<high) {\n            int middle=low+(high-low)/2;\n            if(tails[middle]<value) low=middle+1;\n            else high=middle;\n        }\n        tails[low] = value;\n        if(low==size) size++;\n    }\n    return size;\n}",
+      "time": "O(n log n).",
+      "space": "O(n)."
+    },
+    "trace": {
+      "columns": [
+        "Index",
+        "Value",
+        "Best length ending here",
+        "Reason"
+      ],
+      "rows": [
+        [
+          "0",
+          "4",
+          "1",
+          "Start alone"
+        ],
+        [
+          "1",
+          "1",
+          "1",
+          "No smaller earlier value"
+        ],
+        [
+          "2",
+          "5",
+          "2",
+          "Extend 4 or 1"
+        ],
+        [
+          "3",
+          "2",
+          "2",
+          "Extend 1"
+        ],
+        [
+          "4",
+          "6",
+          "3",
+          "Extend an earlier length-two chain"
+        ]
+      ]
+    }
+  },
+  "426": {
+    "problem": "Find the longest strictly increasing subsequence length using binary search.",
+    "assumptions": "This is the faster LIS lesson for the same order-preserving, strictly increasing problem. It handles the current TUF page’s limit of 100,000 elements. Return zero on empty input. Equal values must replace a tail, not extend the length.",
+    "example": {
+      "input": "nums = [3,8,5,2,7,9]",
+      "output": "4",
+      "explanation": "[3,5,7,9] is an increasing subsequence of length four. The maintained tails finish as [2,5,7,9], but those particular values are not a subsequence in that order because 2 appears after 5."
+    },
+    "baseline": "For every ending index, scan all earlier indices and extend the best compatible chain. That O(n²) DP is simple, but at 100,000 elements it may need billions of comparisons.",
+    "approach": "Among all increasing subsequences of the same length, prefer the one with the smallest final value. A smaller tail is easier to extend with a future number. Keep tails[L−1] as that smallest ending value for length L.\n\nFor each input value x, find the first tail that is at least x. Replace it with x. This does not claim a longer sequence yet; it gives that length an equal or better tail. If no tail is at least x, append x and increase the known maximum length.\n\nWhy is replacement valid? Before position p, every tail is smaller than x. So a length-p chain can be extended by x to length p+1. Its new ending is no larger than the old tail at p. The tails stay sorted, making binary search possible.\n\nOnly the length is preserved directly. Different tail entries can come from different subsequences. To print an actual sequence, track predecessor indices or use the reconstruction lesson.",
+    "steps": [
+      "Keep an empty tails array and a size counter.",
+      "For each value, binary-search the first used tail >= value.",
+      "Replace that tail, or append if the position equals size.",
+      "Return size, the largest feasible subsequence length."
+    ],
+    "java": "static int lisLengthFast(int[] nums) {\n    int[] tails = new int[nums.length];\n    int size = 0;\n    for(int value:nums) {\n        int low=0, high=size;\n        while(low<high) {\n            int middle=low+(high-low)/2;\n            if(tails[middle]<value) low=middle+1;\n            else high=middle;\n        }\n        tails[low] = value;\n        if(low==size) size++;\n    }\n    return size;\n}\n\nstatic int LIS(int[] nums) { return lisLengthFast(nums); }\nstatic int lengthOfLIS(int[] nums) { return lisLengthFast(nums); }",
+    "time": "O(n log n).",
+    "space": "O(n) allocated space; only the first LIS-length entries are used.",
+    "pitfalls": [
+      "Use lower bound (first >= value), not upper bound (first > value).",
+      "Search only [0,size), not the unused zero-filled part of tails.",
+      "Do not return tails as an actual subsequence.",
+      "Replacing a tail improves future choices; it does not mean earlier input values have been rearranged."
+    ],
+    "tests": [
+      "Random random=new Random(424);for(int trial=0;trial<1200;trial++){int n=random.nextInt(12);int[] a=new int[n];for(int i=0;i<n;i++)a[i]=random.nextInt(13)-6;int expected=0;for(int mask=0;mask<(1<<n);mask++){boolean valid=true,started=false;int last=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0){if(started&&a[i]<=last){valid=false;break;}last=a[i];started=true;}if(valid)expected=Math.max(expected,Integer.bitCount(mask));}assert lisLengthQuadratic(a)==expected;assert lisLengthFast(a)==expected;assert lisRecursive(a,0,-1)==expected;}",
+      "assert LIS(new int[]{3,8,5,2,7,9})==4;assert LIS(new int[]{2,2,2})==1;assert LIS(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE,0})==2;",
+      "int[] a=new int[100000];for(int i=0;i<a.length;i++)a[i]=i;assert LIS(a)==100000;Arrays.fill(a,-7);assert LIS(a)==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-increasing-subsequence",
+      "title": "Longest Increasing Subsequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Ending-at-index DP, then smallest-tail binary search; the public FAQ also describes memoization.",
+      "adaptation": "The current practice statement, both public hints, and relevant FAQs were read. Its Solution panel requires sign-in, so no full Java solution from that panel was inspected. The Java here implements the stated methods. The ending-at-index recurrence was also checked in the public Print LIS article’s complete Java."
+    },
+    "baselineJava": "static int lisLengthQuadratic(int[] nums) {\n    int[] length = new int[nums.length];\n    Arrays.fill(length,1);\n    int best = 0;\n    for(int end=0;end<nums.length;end++) {\n        for(int previous=0;previous<end;previous++) {\n            if(nums[previous]<nums[end])\n                length[end] = Math.max(length[end],length[previous]+1);\n        }\n        best = Math.max(best,length[end]);\n    }\n    return best;\n}\n\nstatic int lisRecursive(int[] nums, int position, int previous) {\n    if(position==nums.length) return 0;\n    int best = lisRecursive(nums,position+1,previous);\n    if(previous==-1 || nums[previous]<nums[position])\n        best = Math.max(best,1+lisRecursive(nums,position+1,position));\n    return best;\n}",
+    "baselineTime": "Quadratic ending DP: O(n²) time and O(n) space. Take/skip recursion: O(2ⁿ) time and O(n) stack, only for small examples.",
+    "trace": {
+      "columns": [
+        "Read value",
+        "Tails after update",
+        "Meaning"
+      ],
+      "rows": [
+        [
+          "3",
+          "[3]",
+          "Length one"
+        ],
+        [
+          "8",
+          "[3,8]",
+          "Extend to two"
+        ],
+        [
+          "5",
+          "[3,5]",
+          "Improve the length-two tail"
+        ],
+        [
+          "2",
+          "[2,5]",
+          "Improve the length-one tail"
+        ],
+        [
+          "7",
+          "[2,5,7]",
+          "Extend to three"
+        ],
+        [
+          "9",
+          "[2,5,7,9]",
+          "Length four; tails need not form one subsequence"
+        ]
+      ]
+    }
+  },
+  "425": {
+    "problem": "Return a longest strictly increasing subsequence, choosing the earliest sequence of indices when several have maximum length.",
+    "assumptions": "The pinned practice problem requires index-wise lexicographic order, not the smallest values. The public article accepts any LIS. These contracts differ. The primary method below meets the stricter pinned rule; the article’s parent-link method is included separately for the any-LIS version. Empty input returns an empty list.",
+    "example": {
+      "input": "arr = [2,5,3,7,9,8]",
+      "output": "[2,5,7,9]",
+      "explanation": "Both [2,5,7,9] and [2,3,7,8] have length four. Choose index 1 (value 5) before index 2 (value 3), then index 4 (value 9) before index 5 (value 8). Earlier indices win even when their values are larger."
+    },
+    "baseline": "Enumerate every subsequence, keep the strictly increasing ones, and compare their lengths and index lists. This gives the exact tie rule but uses O(n·2ⁿ) time.",
+    "approach": "Striver’s article records the best length ending at each index and a parent pointing to the previous chosen index. Follow those parents from the best ending index, then reverse the values. That produces a valid longest subsequence.\n\nFor the pinned problem’s earliest-index requirement, it is helpful to ask the reverse question: how long an increasing subsequence can start at each index? Fill startLength from right to left by trying strictly larger later values. The maximum startLength is the required answer length.\n\nNow scan from the beginning. Pick the first index whose value is larger than the last chosen value and whose startLength is large enough to finish the remaining answer. Then continue scanning after that index. This always chooses the earliest feasible next index. A later index cannot improve the index order, and a candidate with too short a suffix cannot complete a longest answer.\n\nDo not sort the array. We return the selected values, but the tie decision is based on their original positions.",
+    "steps": [
+      "Compute the longest increasing chain starting at each index, scanning right to left.",
+      "Let remaining be the maximum of these lengths.",
+      "Scan left to right and choose the earliest compatible value with startLength >= remaining.",
+      "After choosing a value, decrease remaining and continue after its index.",
+      "Return the chosen values once remaining reaches zero."
+    ],
+    "java": "static List<Integer> longestIncreasingSubsequence(int[] arr) {\n    int n = arr.length;\n    int[] startLength = new int[n];\n    int remaining = 0;\n    for(int i=n-1;i>=0;i--) {\n        startLength[i] = 1;\n        for(int j=i+1;j<n;j++)\n            if(arr[j]>arr[i]) startLength[i] = Math.max(startLength[i],1+startLength[j]);\n        remaining = Math.max(remaining,startLength[i]);\n    }\n    List<Integer> answer = new ArrayList<>();\n    for(int i=0;i<n && remaining>0;i++) {\n        boolean follows = answer.isEmpty() || arr[i]>answer.get(answer.size()-1);\n        if(follows && startLength[i]>=remaining) {\n            answer.add(arr[i]);\n            remaining--;\n        }\n    }\n    return answer;\n}",
+    "time": "O(n²) to compute lengths, then O(n) to choose indices.",
+    "space": "O(n), including the returned sequence.",
+    "pitfalls": [
+      "The smallest values and the earliest indices are different tie rules.",
+      "A length-only tails array cannot be printed as the LIS.",
+      "When using parents for any LIS, update the parent whenever a strictly better length is found, then reverse the collected chain.",
+      "The source practice page’s first example output chooses 50, while its prose mentions 41. The earlier-index rule selects 50; this guide follows the stated rule."
+    ],
+    "tests": [
+      "assert longestIncreasingSubsequence(new int[]{2,5,3,7,9,8}).equals(List.of(2,5,7,9));assert longestIncreasingSubsequence(new int[]{10,22,9,33,21,50,41,60,80}).equals(List.of(10,22,33,50,60,80));assert longestIncreasingSubsequence(new int[]{Integer.MIN_VALUE,0,Integer.MAX_VALUE}).equals(List.of(Integer.MIN_VALUE,0,Integer.MAX_VALUE));assert longestIncreasingSubsequence(new int[]{}).isEmpty();",
+      "Random random=new Random(425);for(int trial=0;trial<1200;trial++){int n=random.nextInt(12);int[] a=new int[n];for(int i=0;i<n;i++)a[i]=random.nextInt(13)-6;List<Integer> bestIndices=new ArrayList<>();for(int mask=0;mask<(1<<n);mask++){List<Integer> indices=new ArrayList<>();boolean valid=true;for(int i=0;i<n;i++)if((mask&(1<<i))!=0){if(!indices.isEmpty()&&a[indices.get(indices.size()-1)]>=a[i]){valid=false;break;}indices.add(i);}if(!valid)continue;boolean better=indices.size()>bestIndices.size();if(indices.size()==bestIndices.size()){for(int j=0;j<indices.size();j++){if(!indices.get(j).equals(bestIndices.get(j))){better=indices.get(j)<bestIndices.get(j);break;}}}if(better)bestIndices=indices;}List<Integer> expected=new ArrayList<>();for(int i:bestIndices)expected.add(a[i]);assert longestIncreasingSubsequence(a).equals(expected);List<Integer> any=anyLis(a);assert any.size()==expected.size();int position=0;for(int i=0;i<any.size();i++){if(i>0)assert any.get(i)>any.get(i-1);while(position<n&&a[position]!=any.get(i))position++;assert position<n;position++;}}",
+      "int[] a=new int[1000];for(int i=0;i<a.length;i++)a[i]=i;assert longestIncreasingSubsequence(a).size()==1000;assert anyLis(a).size()==1000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/print-longest-increasing-subsequence",
+      "title": "Print Longest Increasing Subsequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Ending-at-index DP with parent links reconstructs any LIS. The pinned practice contract adds an earliest-index tie rule.",
+      "adaptation": "The complete public Java article was checked, along with the pinned practice statement and both hints. The practice Solution panel is sign-in gated. The article’s any-LIS parent method appears below; the primary suffix-length/earliest-feasible method is an explicit adaptation for the stricter index-order contract, not a claim that the article implements that rule."
+    },
+    "better": {
+      "explanation": "This is the article’s any-LIS method: save an earlier predecessor when it improves the length, remember a best ending index, and walk the parent chain backward. The primary method above additionally enforces the pinned earliest-index contract.",
+      "java": "static List<Integer> anyLis(int[] arr) {\n    if(arr.length==0) return new ArrayList<>();\n    int[] length = new int[arr.length], parent = new int[arr.length];\n    Arrays.fill(length,1);\n    int end = 0;\n    for(int i=0;i<arr.length;i++) {\n        parent[i] = i;\n        for(int j=0;j<i;j++) {\n            if(arr[j]<arr[i] && length[j]+1>length[i]) {\n                length[i] = length[j]+1;\n                parent[i] = j;\n            }\n        }\n        if(length[i]>length[end]) end = i;\n    }\n    List<Integer> result = new ArrayList<>();\n    while(parent[end]!=end) {\n        result.add(arr[end]);\n        end = parent[end];\n    }\n    result.add(arr[end]);\n    Collections.reverse(result);\n    return result;\n}",
+      "time": "O(n²).",
+      "space": "O(n)."
+    }
   }
 }
