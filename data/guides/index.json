@@ -12650,5 +12650,91 @@
       "time": "O(n log n) in the worst case.",
       "space": "O(h) recursive stack, plus O(n) output nodes."
     }
+  },
+  "325": {
+    "problem": "Find the strict inorder predecessor and successor of a key in a binary search tree.",
+    "assumptions": "The predecessor is the largest value strictly below the key; the successor is the smallest value strictly above it. Equality does not qualify. The key need not exist. Node-returning methods use null for absence, so negative values remain unambiguous. The TUF-style value wrapper returns [predecessor, successor], using −1 for missing values.",
+    "example": {
+      "input": "BST values {2, 4, 6, 8, 10}; key = 6",
+      "output": "predecessor = 4; successor = 8",
+      "explanation": "The key itself is excluded. Floor and ceiling would both be 6, but predecessor and successor use strict inequalities."
+    },
+    "baseline": "Save all node references in inorder. The last node below the key is the predecessor, and the first node above it is the successor. This costs O(n) time and storage.",
+    "approach": "For the predecessor, a smaller current value is a candidate. Remember it and move right to look for a larger value that is still below the key. If current is at least the key, move left.\n\nFor the successor, reverse those choices: a larger current value is a candidate, and moving left may find a smaller qualifying value. A value at most the key sends us right.\n\nRun both searches from the root. They do not need to locate the key itself; they only maintain the closest qualifying candidates. Returning node references also gives access to the actual successor node when a node-based interface is required.",
+    "steps": [
+      "Walk from the root for the predecessor, saving smaller candidates and trying right.",
+      "Restart from the root for the successor, saving larger candidates and trying left.",
+      "Keep equality out of both answers.",
+      "Return the candidate nodes, or null for a missing side."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode predecessor(TreeNode root, int key) {\n    TreeNode answer = null;\n    for (TreeNode current = root; current != null;) {\n        if (current.val < key) { answer = current; current = current.right; }\n        else current = current.left;\n    }\n    return answer;\n}\nstatic TreeNode successor(TreeNode root, int key) {\n    TreeNode answer = null;\n    for (TreeNode current = root; current != null;) {\n        if (current.val > key) { answer = current; current = current.left; }\n        else current = current.right;\n    }\n    return answer;\n}\nstatic TreeNode inorderSuccessor(TreeNode root, TreeNode node) {\n    return successor(root, node.val);\n}\nstatic int[] findPredecessorAndSuccessor(TreeNode root, int key) {\n    TreeNode before = predecessor(root, key), after = successor(root, key);\n    return new int[]{before == null ? -1 : before.val, after == null ? -1 : after.val};\n}",
+    "time": "O(h) for both searches together.",
+    "space": "O(1) auxiliary space.",
+    "pitfalls": [
+      "A node is never its own strict predecessor or successor.",
+      "Do not stop at equality; its left/right subtrees may contain the answers.",
+      "The value wrapper’s −1 marker cannot distinguish absence from a real −1. Use the node methods when that distinction matters.",
+      "The pinned LeetCode page is Premium; the public TUF contract and algorithm are the checked reference."
+    ],
+    "tests": [
+      "assert predecessor(null,5)==null&&successor(null,5)==null;TreeNode r=new TreeNode(6);r.left=new TreeNode(4);r.right=new TreeNode(8);assert predecessor(r,6)==r.left&&successor(r,6)==r.right;assert inorderSuccessor(r,r.left)==r;assert predecessor(r,4)==null;assert successor(r,8)==null;assert Arrays.equals(findPredecessorAndSuccessor(r,7),new int[]{6,8});",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}List<Integer>queries=new ArrayList<>(keys);for(int t=0;t<100;t++)queries.add(random.nextInt());for(int key:queries){Integer low=keys.lower(key),high=keys.higher(key);TreeNode a=low==null?null:byValue.get(low),b=high==null?null:byValue.get(high);assert predecessor(root,key)==a&&successor(root,key)==b;TreeNode[]scan=neighborsByList(root,key),recursive=neighborsRecursive(root,key);assert scan[0]==a&&scan[1]==b;assert recursive[0]==a&&recursive[1]==b;}}",
+      "TreeNode r=new TreeNode(-1);r.left=new TreeNode(Integer.MIN_VALUE);r.right=new TreeNode(Integer.MAX_VALUE);assert successor(r,Integer.MIN_VALUE)==r;assert predecessor(r,Integer.MAX_VALUE)==r;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/inorder-successor-and-predecessor-in-a-bst",
+      "title": "Find the Inorder Successor and Predecessor in a Binary Search Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Track strict lower and upper candidates on two ordered root-to-leaf walks.",
+      "adaptation": "All three public Java approaches were checked. The primary searches return node references, with a value wrapper for the source’s [predecessor, successor] result. The recursive adaptation keeps candidates local and uses null instead of −1 as internal state. The pinned Premium page’s hidden editorial was not accessed."
+    },
+    "baselineJava": "static TreeNode[] neighborsByList(TreeNode root, int key) {\n    List<TreeNode> nodes = new ArrayList<>();\n    collectNodes(root, nodes);\n    TreeNode before = null, after = null;\n    for (TreeNode node : nodes) {\n        if (node.val < key) before = node;\n        else if (node.val > key) { after = node; break; }\n    }\n    return new TreeNode[]{before, after};\n}\nstatic void collectNodes(TreeNode node, List<TreeNode> nodes) {\n    if (node == null) return;\n    collectNodes(node.left, nodes);\n    nodes.add(node);\n    collectNodes(node.right, nodes);\n}",
+    "baselineTime": "O(n) time and O(n) stored references, plus O(h) recursive space.",
+    "better": {
+      "explanation": "During inorder, update the predecessor for every value below the key and save only the first successor above it. This removes the saved list but still visits the tree. Local node references avoid stale results across calls and allow a real value of −1.",
+      "java": "static TreeNode[] neighborsRecursive(TreeNode root, int key) {\n    TreeNode[] answer = new TreeNode[2];\n    visitNeighbors(root, key, answer);\n    return answer;\n}\nstatic void visitNeighbors(TreeNode node, int key, TreeNode[] answer) {\n    if (node == null) return;\n    visitNeighbors(node.left, key, answer);\n    if (node.val < key) answer[0] = node;\n    else if (node.val > key && answer[1] == null) answer[1] = node;\n    visitNeighbors(node.right, key, answer);\n}",
+      "time": "O(n).",
+      "space": "O(h) recursive stack."
+    }
+  },
+  "326": {
+    "problem": "Implement a BST iterator that returns values in increasing order, then use two iterators to merge the values of two BSTs into one sorted list.",
+    "assumptions": "The pinned row is titled “Merge 2 BST’s”, but its practice link is LeetCode’s BST Iterator. Both tasks are covered explicitly. mergeBsts returns sorted values; it does not construct or rebalance a new tree. Values shared by the two inputs are kept twice. Neither tree may be modified while its iterator is active.",
+    "example": {
+      "input": "first BST values {2, 6, 10}; second BST values {4, 6, 9}",
+      "output": "merged values [2, 4, 6, 6, 9, 10]",
+      "explanation": "Each iterator exposes its next smallest value. Choose the smaller one each time, keeping both copies of 6 because they came from different input nodes."
+    },
+    "baseline": "Precompute inorder values in a list. An iterator then advances a list index. For merging, build both sorted lists and merge them with two indices. This uses O(n + m) stored input values before producing the answer.",
+    "approach": "Pause inorder traversal with a stack. The constructor pushes the root’s left chain, placing the smallest node on top. next pops that node, then pushes the left chain of its right subtree. The stack top is again the next smallest pending node. hasNext only checks whether the stack is empty.\n\nTo merge, keep one current value from each iterator. Append the smaller value and advance only that iterator. If one ends, take the rest from the other. This is the same comparison used to merge two sorted arrays, but the values arrive as needed.\n\nOne next call can push a long chain, so its worst-case cost is O(h). Across a full traversal each node is pushed and popped once, giving amortized O(1) per next call.",
+    "steps": [
+      "Initialize each iterator with its root’s left chain.",
+      "Pop the next node and prepare the left chain under its right child.",
+      "For merging, compare the two current values and advance the smaller side.",
+      "Drain whichever side remains after the other ends."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class BSTIterator {\n    private final Deque<TreeNode> stack = new ArrayDeque<>();\n    BSTIterator(TreeNode root) { pushLeft(root); }\n    private void pushLeft(TreeNode node) {\n        while (node != null) { stack.push(node); node = node.left; }\n    }\n    boolean hasNext() { return !stack.isEmpty(); }\n    int next() {\n        if (!hasNext()) throw new NoSuchElementException(\"Iterator is exhausted\");\n        TreeNode node = stack.pop();\n        pushLeft(node.right);\n        return node.val;\n    }\n}\n\nstatic List<Integer> mergeBsts(TreeNode first, TreeNode second) {\n    BSTIterator a = new BSTIterator(first), b = new BSTIterator(second);\n    Integer left = a.hasNext() ? a.next() : null;\n    Integer right = b.hasNext() ? b.next() : null;\n    List<Integer> answer = new ArrayList<>();\n    while (left != null || right != null) {\n        if (right == null || (left != null && left <= right)) {\n            answer.add(left);\n            left = a.hasNext() ? a.next() : null;\n        } else {\n            answer.add(right);\n            right = b.hasNext() ? b.next() : null;\n        }\n    }\n    return answer;\n}",
+    "time": "Iterator initialization O(h); next O(h) worst-case and O(1) amortized; hasNext O(1). Merging consumes O(n + m) total time.",
+    "space": "O(h1 + h2) iterator stacks for merging, plus O(n + m) output. One iterator uses O(h).",
+    "pitfalls": [
+      "hasNext must not consume a value.",
+      "After popping a node, prepare its right subtree’s left chain.",
+      "Keep equal values from different trees; merging is not deduplication.",
+      "Changing the tree during iteration invalidates the pending traversal."
+    ],
+    "tests": [
+      "BSTIterator empty=new BSTIterator(null);assert !empty.hasNext();boolean rejected=false;try{empty.next();}catch(NoSuchElementException e){rejected=true;}assert rejected;TreeNode a=new TreeNode(6);a.left=new TreeNode(2);a.right=new TreeNode(10);TreeNode b=new TreeNode(6);b.left=new TreeNode(4);b.right=new TreeNode(9);assert mergeBsts(a,b).equals(List.of(2,4,6,6,9,10));assert mergeBsts(null,null).isEmpty();assert a.left.val==2&&b.right.val==9;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));TreeSet<Integer>keys=new TreeSet<>();while(keys.size()<ordered.size())keys.add(random.nextInt());Iterator<Integer>values=keys.iterator();Map<Integer,TreeNode>byValue=new HashMap<>();for(TreeNode x:ordered){x.val=values.next();byValue.put(x.val,x);}BSTIterator iterator=new BSTIterator(root);PrecomputedIterator eager=new PrecomputedIterator(root);for(int value:keys){assert iterator.hasNext()&&iterator.hasNext()&&eager.hasNext();assert iterator.next()==value;assert eager.next()==value;}assert !iterator.hasNext()&&!eager.hasNext();List<Integer>want=new ArrayList<>();for(int value:keys){want.add(value);want.add(value);}assert mergeBsts(root,root).equals(want);assert mergeByLists(root,root).equals(want);assert mergeBsts(null,root).equals(new ArrayList<>(keys));}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}BSTIterator iterator=new BSTIterator(r);for(int i=0;i<100000;i++){assert iterator.hasNext();assert iterator.next()==i;}assert !iterator.hasNext();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-search-tree-iterator",
+      "title": "Binary Search Tree Iterator",
+      "checkedOn": "2026-10-29",
+      "approach": "Pause inorder with a stack; merge two resulting sorted streams.",
+      "adaptation": "Both public iterator Java implementations were checked. The lazy version uses ArrayDeque and an explicit exhausted-iterator exception. The two-iterator merge is an authored extension to cover the preserved row title, while BSTIterator covers the actual linked exercise."
+    },
+    "baselineJava": "static List<Integer> inorderValues(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root;\n    while (current != null || !stack.isEmpty()) {\n        while (current != null) { stack.push(current); current = current.left; }\n        current = stack.pop();\n        answer.add(current.val);\n        current = current.right;\n    }\n    return answer;\n}\n\nstatic class PrecomputedIterator {\n    private final List<Integer> values;\n    private int next;\n    PrecomputedIterator(TreeNode root) { values = inorderValues(root); }\n    boolean hasNext() { return next < values.size(); }\n    int next() {\n        if (!hasNext()) throw new NoSuchElementException(\"Iterator is exhausted\");\n        return values.get(next++);\n    }\n}\nstatic List<Integer> mergeByLists(TreeNode first, TreeNode second) {\n    List<Integer> a = inorderValues(first), b = inorderValues(second), answer = new ArrayList<>();\n    int i = 0, j = 0;\n    while (i < a.size() || j < b.size()) {\n        if (j == b.size() || (i < a.size() && a.get(i) <= b.get(j))) answer.add(a.get(i++));\n        else answer.add(b.get(j++));\n    }\n    return answer;\n}",
+    "baselineTime": "O(n) initialization and O(n) stored values for an eager iterator; O(n + m) time/storage for merging two saved lists."
   }
 }
