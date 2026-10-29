@@ -12,7 +12,7 @@ for (const [number, guide] of Object.entries(guides)) {
   for (const field of ['input', 'output', 'explanation']) if (!guide.example?.[field]) throw new Error(`Question ${number} missing example ${field}`);
   if (!guide.steps?.length || !guide.pitfalls?.length || !guide.tests?.length) throw new Error(`Question ${number} missing checks or reasoning`);
   if (guide.trace && (!guide.trace.columns?.length || !guide.trace.rows?.length || guide.trace.rows.some(row => row.length !== guide.trace.columns.length))) throw new Error(`Question ${number} has an incomplete walkthrough table`);
-  if (guide.reference && (!guide.reference.url.startsWith('https://takeuforward.org/') || !guide.reference.approach || !guide.reference.checkedOn)) throw new Error(`Question ${number} has an incomplete source check`);
+  if (!guide.reference?.url?.startsWith('https://takeuforward.org/') || !guide.reference.title || !guide.reference.approach || !guide.reference.checkedOn) throw new Error(`Question ${number} has an incomplete source check`);
   if (guide.better && ['explanation', 'java', 'time', 'space'].some(field => !guide.better[field]?.trim())) throw new Error(`Question ${number} has an incomplete intermediate approach`);
   if (process.argv.includes('--java')) {
     const name = `Guide${number}Test`;
@@ -32,6 +32,6 @@ if (process.argv.includes('--java') && javaFiles.length) {
   }
 }
 const missing = questions.filter(q => !guides[String(q.globalOrder + 1)]).map(q => `${q.globalOrder + 1}: ${q.name}`);
-console.log(`${Object.keys(guides).length}/${questions.length} authored guides; ${assertions} Java assertions${process.argv.includes('--java') ? ' passed' : ' prepared (not executed)'}.`);
+console.log(`${Object.keys(guides).length}/${questions.length} authored guides; ${assertions} Java check blocks${process.argv.includes('--java') ? ' passed' : ' prepared (not executed)'}.`);
 await fs.writeFile('build/guide-coverage.json', JSON.stringify({ authored: Object.keys(guides).length, total: questions.length, missing }, null, 2));
 if (process.argv.includes('--complete') && missing.length) throw new Error(`${missing.length} guides still need to be authored.`);

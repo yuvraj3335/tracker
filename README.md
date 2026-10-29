@@ -252,7 +252,7 @@ change tracker records.
 
 Use Miso’s existing **Talk** button. Question titles and **Explanation** links
 open `/questions/<id>` with source links, notes, and an original written Java
-article when available. **Talk about this with Miso** supplies that question as
+article for each of the 455 pinned questions. **Talk about this with Miso** supplies that question as
 context. The old `/tutor` URL redirects to the sheet.
 
 The server-only `TUTOR_API_URL` and `TUTOR_API_KEY` names are retained for
@@ -262,11 +262,20 @@ transcription, and speech. Aura-2 has natural speech but uses the allowance
 quickly (about 3,666 output characters if nothing else uses the allowance).
 The app cannot promise unlimited conversations or guaranteed availability.
 
-Articles are repository content, not generated on page visits. Coverage is
-reported by `node scripts/check-guides.mjs`; `--java` compiles and executes
-examples, and `--complete` fails until all 455 source questions are covered.
-Unwritten articles are explicitly marked as in preparation. Existing Codolio
-IDs, ordering, completion, bookmarks and notes are unchanged.
+All 455 guides are saved repository content, not generated on page visits.
+They use original teaching prose, worked examples, Java, complexity and common
+mistakes. The grouped Patterns entry includes all 22 current Striver exercises.
+Each guide records its source and any difference from the pinned problem.
+Where Striver exposes Java, the source algorithm is checked; where its solution
+is gated or absent, the note identifies the independently written implementation.
+These are AI-authored, source-audited guides with automated checks, not a claim
+of human review or a reproduction of paid articles.
+
+`node scripts/check-guides.mjs --complete` validates coverage and source notes.
+GitHub Actions runs `--java --complete` to compile and execute every published
+Java example, including edge cases and many brute-force comparisons. Java
+checks run in the cloud; no local JDK or local AI model is required. Existing
+Codolio IDs, ordering, completion, bookmarks and notes are unchanged.
 
 ### 1. Database
 
