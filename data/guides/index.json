@@ -16634,5 +16634,51 @@
       "time": "O(n²).",
       "space": "O(n), including the reversed string and two DP rows."
     }
+  },
+  "412": {
+    "problem": "Insert as few characters as possible, anywhere in the string, so that the result becomes a palindrome. Existing characters keep their order and are not deleted.",
+    "assumptions": "The pinned LeetCode problem uses lowercase English letters and length at most 500. Empty strings are also handled. This asks for the number of insertions, not the resulting palindrome.",
+    "example": {
+      "input": "text = \"abca\"",
+      "output": "1",
+      "explanation": "Insert b between c and the final a to obtain \"abcba\". The original string is not a palindrome, so zero insertions cannot work."
+    },
+    "baseline": "Solve an interval from its two ends. Matching ends need no new partner, so solve the inside. Different ends require a matching insertion for one end; try both choices and add one to the smaller remaining cost.",
+    "approach": "The source reduces this to the previous lesson: minimum insertions = string length − longest palindromic subsequence length. The characters in that subsequence already provide the largest part that can be paired from both ends; the remaining original characters need inserted partners. This does not mean deleting them—the output still contains every original character.\n\nThe interval recurrence gives another way to see the formula. Matching ends add two to the longest palindrome length and add zero to the insertion cost. Mismatching ends force one insertion and let us keep whichever shorter interval needs fewer additions. In both cases, interval length minus its longest-palindrome length follows the same rule.\n\nUse the source’s LCS-with-the-reversed-string method to get that length, with two rows of storage. Subtract the result from n. Only the length is needed, so no reconstruction choices or actual inserted string are involved.",
+    "steps": [
+      "Reverse the string.",
+      "Compute its LCS length with the original using two rows.",
+      "Treat that length as the longest palindromic subsequence length.",
+      "Return original length minus that length."
+    ],
+    "java": "static int minInsertions(String text) {\n    return text.length()-palindromeLengthByLcs(text);\n}\nstatic int minInsertion(String text) {\n    return minInsertions(text);\n}\n\nstatic int palindromeLengthByLcs(String text) {\n    String reversed = new StringBuilder(text).reverse().toString();\n    int[] previous = new int[text.length()+1];\n    for (int i = 1; i <= text.length(); i++) {\n        int[] current = new int[text.length()+1];\n        for (int j = 1; j <= text.length(); j++) {\n            if (text.charAt(i-1) == reversed.charAt(j-1)) current[j] = 1+previous[j-1];\n            else current[j] = Math.max(previous[j],current[j-1]);\n        }\n        previous = current;\n    }\n    return previous[text.length()];\n}",
+    "time": "O(n²).",
+    "space": "O(n), including the reversed string and two rows.",
+    "pitfalls": [
+      "The arithmetic matches a minimum-deletion count, but the permitted operation here is insertion. The original characters are retained.",
+      "A longest palindromic substring is not enough; the useful subsequence can have gaps.",
+      "An already-palindromic string needs zero insertions.",
+      "The reverse-LCS helper computes a length only. Do not assume arbitrary LCS backtracking directly gives the finished palindrome."
+    ],
+    "tests": [
+      "assert minInsertions(\"abca\")==1;assert minInsertion(\"race\")==3;assert minInsertions(\"level\")==0;assert minInsertions(\"\")==0;",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=5;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nRandom random=new Random(412);for(int trial=0;trial<150;trial++){StringBuilder word=new StringBuilder();for(int i=0,n=1+random.nextInt(7);i<n;i++)word.append((char)('a'+random.nextInt(3)));words.add(word.toString());}\nfor(String text:words){int expected=0;if(!text.isEmpty()){boolean found=false;for(int length=text.length();length<=2*text.length()-1&&!found;length++){int half=(length+1)/2,possibilities=1;for(int i=0;i<half;i++)possibilities*=3;for(int code=0;code<possibilities;code++){StringBuilder candidate=new StringBuilder();int digits=code;for(int i=0;i<half;i++){candidate.append((char)('a'+digits%3));digits/=3;}for(int i=length%2==0?half-1:half-2;i>=0;i--)candidate.append(candidate.charAt(i));int matched=0;for(int i=0;i<candidate.length()&&matched<text.length();i++)if(candidate.charAt(i)==text.charAt(matched))matched++;if(matched==text.length()){expected=length-text.length();found=true;break;}}}assert found;}\n assert minInsertions(text)==expected;assert insertionTable(text)==expected;assert insertionRecursive(text,0,text.length()-1)==expected;\n}",
+      "assert minInsertions(\"a\".repeat(500))==0;assert minInsertions(\"ab\".repeat(250))==1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-insertions-to-make-string-palindrome",
+      "title": "Minimum insertions to make string palindrome",
+      "checkedOn": "2026-10-29",
+      "approach": "Subtract reverse-string LCS length from the original length; compare with direct interval insertion DP.",
+      "adaptation": "The public statement and both reduction hints were checked. The full solution requires sign-in, so its Java was not inspected. This original Java implements the hinted length reduction and includes a direct interval version. The test oracle independently enumerates candidate palindromes and checks whether the original text is a subsequence."
+    },
+    "baselineJava": "static int insertionRecursive(String text, int left, int right) {\n    if (left >= right) return 0;\n    if (text.charAt(left) == text.charAt(right)) return insertionRecursive(text,left+1,right-1);\n    return 1+Math.min(insertionRecursive(text,left+1,right),insertionRecursive(text,left,right-1));\n}",
+    "baselineTime": "O(2^n) time as an upper bound and O(n) stack space.",
+    "better": {
+      "explanation": "This table asks directly how many insertions the interval needs. Matching ends are already paired. For different ends, either insert a copy of the left character after the right end or insert a copy of the right character before the left end. Choose the cheaper remaining interval.",
+      "java": "static int insertionTable(String text) {\n    int n = text.length();\n    if (n == 0) return 0;\n    int[][] dp = new int[n][n];\n    for (int left = n-2; left >= 0; left--) for (int right = left+1; right < n; right++) {\n        if (text.charAt(left) == text.charAt(right)) {\n            dp[left][right] = right == left+1 ? 0 : dp[left+1][right-1];\n        } else dp[left][right] = 1+Math.min(dp[left+1][right],dp[left][right-1]);\n    }\n    return dp[0][n-1];\n}",
+      "time": "O(n²).",
+      "space": "O(n²)."
+    }
   }
 }
