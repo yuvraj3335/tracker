@@ -14922,5 +14922,52 @@
     },
     "baselineJava": "static List<Integer> numIslands2ByRecount(int rows, int cols, int[][] positions) {\n    boolean[][] land = new boolean[rows][cols];\n    List<Integer> answer = new ArrayList<>();\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    for (int[] p : positions) {\n        land[p[0]][p[1]] = true;\n        boolean[][] seen = new boolean[rows][cols];\n        int count = 0;\n        for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) if (land[r][c] && !seen[r][c]) {\n            count++;\n            Queue<int[]> queue = new ArrayDeque<>();\n            queue.offer(new int[]{r,c}); seen[r][c] = true;\n            while (!queue.isEmpty()) {\n                int[] cell = queue.poll();\n                for (int d = 0; d < 4; d++) {\n                    int nr = cell[0]+dr[d], nc = cell[1]+dc[d];\n                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && land[nr][nc] && !seen[nr][nc]) {\n                        seen[nr][nc] = true; queue.offer(new int[]{nr,nc});\n                    }\n                }\n            }\n        }\n        answer.add(count);\n    }\n    return answer;\n}",
     "baselineTime": "O(KRC) time and O(RC + K) space including the answer."
+  },
+  "379": {
+    "problem": "Find the largest four-directional island you can obtain by changing at most one water cell into land.",
+    "assumptions": "The grid is a nonempty n × n binary matrix. Diagonals do not connect. An all-land grid returns n²; an all-water grid returns 1. The primary DSU method leaves the grid unchanged.",
+    "example": {
+      "input": "grid = [[1,1,0], [1,0,0], [0,0,1]]",
+      "output": "4",
+      "explanation": "The top-left island has area 3. Flipping a cell beside it gives area 4. Flipping the middle cell touches that same island from two sides, but its area must be added only once."
+    },
+    "baseline": "Try every zero: temporarily change it to one, count island areas, then restore it. Also consider the unchanged grid. This costs O(n⁴), but provides a direct way to check tiny grids.",
+    "approach": "First group the existing land into islands with DSU. The size at each land root is that island’s area. Water nodes are left unused.\n\nNow examine each zero independently. If we flip it, its new island contains that cell plus the distinct islands touching its four sides. Put those neighboring roots in a set, then add each root’s size once. Without the set, a U-shaped island touching several sides would be counted repeatedly.\n\nDo not actually union the zero during these trials. Each trial assumes this is the only flipped cell. Keep the largest candidate. If there is no zero, return n².",
+    "steps": [
+      "Union adjacent land cells using id = row × n + col.",
+      "For each zero, collect the distinct roots of adjacent land cells.",
+      "Its candidate area is 1 plus those components’ sizes.",
+      "Take the maximum candidate, or n² when the grid is already all land."
+    ],
+    "java": "static class DSU {\n    final int[] parent, size;\n    DSU(int n) {\n        parent = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int root(int node) {\n        if (parent[node] != node) parent[node] = root(parent[node]);\n        return parent[node];\n    }\n    boolean unite(int a, int b) {\n        a = root(a); b = root(b);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n}\n\nstatic int largestIsland(int[][] grid) {\n    int n = grid.length;\n    DSU dsu = new DSU(n*n);\n    for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) if (grid[r][c] == 1) {\n        if (r+1 < n && grid[r+1][c] == 1) dsu.unite(r*n+c,(r+1)*n+c);\n        if (c+1 < n && grid[r][c+1] == 1) dsu.unite(r*n+c,r*n+c+1);\n    }\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    int answer = 0;\n    boolean hasWater = false;\n    for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) if (grid[r][c] == 0) {\n        hasWater = true;\n        Set<Integer> roots = new HashSet<>();\n        for (int d = 0; d < 4; d++) {\n            int nr = r+dr[d], nc = c+dc[d];\n            if (nr >= 0 && nr < n && nc >= 0 && nc < n && grid[nr][nc] == 1)\n                roots.add(dsu.root(nr*n+nc));\n        }\n        int area = 1;\n        for (int root : roots) area += dsu.size[root];\n        answer = Math.max(answer,area);\n    }\n    return hasWater ? answer : n*n;\n}",
+    "time": "O(n²α(n²)) time.",
+    "space": "O(n²) for DSU; each temporary root set contains at most four entries.",
+    "pitfalls": [
+      "Deduplicate neighboring roots before adding areas.",
+      "Count only land neighbors; water DSU slots also start with size 1 but are not islands.",
+      "Do not permanently merge a trial zero: later trials must be independent.",
+      "Handle all-land and all-water grids.",
+      "The labeling alternative below changes grid values into island IDs; pass a copy if you need the binary grid afterward."
+    ],
+    "tests": [
+      "int[][]a={{1,1,0},{1,0,0},{0,0,1}};assert largestIsland(a)==4;assert largestIslandByTrials(a)==4;assert largestIslandByLabels(copyGrid(a))==4;assert largestIsland(new int[][]{{1,1,1},{1,0,1},{1,1,1}})==9;assert largestIsland(new int[][]{{0}})==1;assert largestIsland(new int[][]{{1}})==1;",
+      "for(int n=1;n<=3;n++)for(int mask=0;mask<(1<<(n*n));mask++){\n int[][]a=new int[n][n];for(int i=0;i<n*n;i++)a[i/n][i%n]=(mask>>i)&1;int[][]before=copyGrid(a);\n int expected=largestIslandByTrials(a);assert largestIsland(a)==expected;assert largestIslandByLabels(copyGrid(a))==expected;assert Arrays.deepEquals(a,before);\n}",
+      "int[][]a=new int[500][500];for(int[]row:a)Arrays.fill(row,1);assert largestIsland(a)==250000;assert largestIslandByLabels(copyGrid(a))==250000;a[250][250]=0;assert largestIsland(a)==250000;assert largestIslandByLabels(copyGrid(a))==250000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/making-a-large-island",
+      "title": "Making a Large Island",
+      "checkedOn": "2026-10-29",
+      "approach": "Try each flip directly, label existing islands, or join land cells with DSU and combine distinct neighboring components.",
+      "adaptation": "All three complete public Java methods were checked. DSU is primary to match this sheet section. The source’s recursive flood fills are adapted to queues so a large connected grid does not exhaust Java’s call stack. The labeling method retains its documented input mutation."
+    },
+    "baselineJava": "static int[][] copyGrid(int[][] grid) {\n    int[][] result = new int[grid.length][];\n    for (int i = 0; i < grid.length; i++) result[i] = grid[i].clone();\n    return result;\n}\nstatic int largestCurrentIsland(int[][] grid) {\n    int n = grid.length, best = 0;\n    boolean[][] seen = new boolean[n][n];\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) if (grid[r][c] == 1 && !seen[r][c]) {\n        Queue<Integer> queue = new ArrayDeque<>();\n        seen[r][c] = true; queue.offer(r*n+c);\n        int area = 0;\n        while (!queue.isEmpty()) {\n            int id = queue.poll(); area++;\n            for (int d = 0; d < 4; d++) {\n                int nr = id/n+dr[d], nc = id%n+dc[d];\n                if (nr >= 0 && nr < n && nc >= 0 && nc < n && grid[nr][nc] == 1 && !seen[nr][nc]) {\n                    seen[nr][nc] = true; queue.offer(nr*n+nc);\n                }\n            }\n        }\n        best = Math.max(best,area);\n    }\n    return best;\n}\nstatic int largestIslandByTrials(int[][] grid) {\n    int answer = largestCurrentIsland(grid);\n    for (int r = 0; r < grid.length; r++) for (int c = 0; c < grid.length; c++) if (grid[r][c] == 0) {\n        grid[r][c] = 1;\n        answer = Math.max(answer,largestCurrentIsland(grid));\n        grid[r][c] = 0;\n    }\n    return answer;\n}",
+    "baselineTime": "O(n⁴) time and O(n²) extra space.",
+    "better": {
+      "explanation": "Label each existing island with an ID starting at 2 and store its area. A queue flood fill replaces the source’s recursive traversal. For each zero, collect distinct neighboring IDs and add their areas plus one. This is O(n²), and it changes the grid to hold IDs. It answers the same one-flip question without DSU.",
+      "java": "static int largestIslandByLabels(int[][] grid) {\n    int n = grid.length;\n    Map<Integer,Integer> areaById = new HashMap<>();\n    int nextId = 2, answer = 0;\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) if (grid[r][c] == 1) {\n        Queue<Integer> queue = new ArrayDeque<>();\n        grid[r][c] = nextId; queue.offer(r*n+c);\n        int area = 0;\n        while (!queue.isEmpty()) {\n            int cell = queue.poll(); area++;\n            for (int d = 0; d < 4; d++) {\n                int nr = cell/n+dr[d], nc = cell%n+dc[d];\n                if (nr >= 0 && nr < n && nc >= 0 && nc < n && grid[nr][nc] == 1) {\n                    grid[nr][nc] = nextId; queue.offer(nr*n+nc);\n                }\n            }\n        }\n        areaById.put(nextId++,area);\n        answer = Math.max(answer,area);\n    }\n    for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) if (grid[r][c] == 0) {\n        Set<Integer> seen = new HashSet<>();\n        for (int d = 0; d < 4; d++) {\n            int nr = r+dr[d], nc = c+dc[d];\n            if (nr >= 0 && nr < n && nc >= 0 && nc < n && grid[nr][nc] > 1) seen.add(grid[nr][nc]);\n        }\n        int area = 1;\n        for (int id : seen) area += areaById.get(id);\n        answer = Math.max(answer,area);\n    }\n    return answer;\n}",
+      "time": "O(n²) time.",
+      "space": "O(n²) for the queue and area map; the grid itself stores labels."
+    }
   }
 }
