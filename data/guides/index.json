@@ -14741,5 +14741,87 @@
     },
     "baselineJava": "static long mstBySubsets(int vertices, int[][] edges) {\n    if (vertices <= 1) return 0;\n    if (edges.length > 22) throw new IllegalArgumentException(\"Use this baseline only on small graphs\");\n    long best = Long.MAX_VALUE;\n    for (int mask = 0; mask < (1 << edges.length); mask++) {\n        if (Integer.bitCount(mask) != vertices-1) continue;\n        boolean[] reached = new boolean[vertices];\n        Queue<Integer> queue = new ArrayDeque<>();\n        reached[0] = true;\n        queue.offer(0);\n        int count = 0;\n        while (!queue.isEmpty()) {\n            int node = queue.poll();\n            count++;\n            for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) {\n                int next = edges[i][0] == node ? edges[i][1] : edges[i][1] == node ? edges[i][0] : -1;\n                if (next >= 0 && !reached[next]) { reached[next] = true; queue.offer(next); }\n            }\n        }\n        if (count != vertices) continue;\n        long total = 0;\n        for (int i = 0; i < edges.length; i++) if ((mask & (1 << i)) != 0) total += edges[i][2];\n        best = Math.min(best,total);\n    }\n    return best;\n}",
     "baselineTime": "O(2^E × VE) time and O(V) extra space, restricted to at most 22 edges."
+  },
+  "375": {
+    "problem": "Move existing network cables so all n computers become connected, using as few cable moves as possible. Return −1 if there are not enough cables.",
+    "assumptions": "Computers are 0-based. Each undirected connection is a cable that can be removed and reattached between any two computers. One move relocates one cable; it does not create a new cable. The LeetCode entry point is makeConnected.",
+    "example": {
+      "input": "n = 5, connections = [[0,1], [1,2], [2,0], [2,3]]",
+      "output": "1",
+      "explanation": "Computers 0–3 form one component and computer 4 is isolated. The triangle has a spare cable; move it to connect computer 4."
+    },
+    "baseline": "Build adjacency and count components by BFS or DFS. If there are at least n − 1 cables, the answer is components − 1. This traversal approach is already linear and is often the simplest for a fixed graph.",
+    "approach": "If there are C components, joining all of them needs at least C − 1 new connections between components. DSU counts C while reading the cables: begin with n components, and subtract one for each successful union.\n\nWhy is the total cable count enough to decide whether moves are possible? Keeping a spanning tree inside each component uses n − C cables. The remaining m − (n − C) cables are spare. We need at least C − 1 spares, which simplifies to m >= n − 1.\n\nSo first reject too few cables. Then count successful unions and return components − 1. This is the same spare-edge reasoning used in Striver’s public hint, with the algebra simplified.",
+    "steps": [
+      "Return −1 if fewer than n − 1 cables exist.",
+      "Start with n separate DSU components.",
+      "Union each cable’s endpoints; decrement the component count only when a union succeeds.",
+      "Return components − 1."
+    ],
+    "java": "static class DSU {\n    final int[] parent, size;\n    DSU(int n) {\n        parent = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int root(int node) {\n        if (parent[node] != node) parent[node] = root(parent[node]);\n        return parent[node];\n    }\n    boolean unite(int a, int b) {\n        a = root(a); b = root(b);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n}\n\nstatic int makeConnected(int n, int[][] connections) {\n    if (connections.length < n-1) return -1;\n    DSU dsu = new DSU(n);\n    int components = n;\n    for (int[] edge : connections) if (dsu.unite(edge[0],edge[1])) components--;\n    return components-1;\n}",
+    "time": "O(n + mα(n)) time, including DSU initialization.",
+    "space": "O(n) for the DSU arrays.",
+    "pitfalls": [
+      "Count isolated computers as components.",
+      "A failed union identifies a spare cable; it must not decrement the component count.",
+      "You need components − 1 moves, not one move per isolated computer.",
+      "The early cable-count test is necessary; DSU alone cannot manufacture missing cables."
+    ],
+    "tests": [
+      "assert makeConnected(5,new int[][]{{0,1},{1,2},{2,0},{2,3}})==1;assert makeConnectedByTraversal(5,new int[][]{{0,1},{1,2},{2,0},{2,3}})==1;assert makeConnected(4,new int[][]{{0,1}})==-1;assert makeConnected(1,new int[0][])==0;",
+      "for(int n=0;n<=5;n++){\n List<int[]>possible=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)possible.add(new int[]{i,j});\n for(int mask=0;mask<(1<<possible.size());mask++){\n  List<int[]>chosen=new ArrayList<>();boolean[][]reach=new boolean[n][n];int[][]distance=new int[n][n];\n  for(int i=0;i<n;i++){Arrays.fill(distance[i],1000);distance[i][i]=0;reach[i][i]=true;}\n  for(int e=0;e<possible.size();e++)if((mask&(1<<e))!=0){int[]edge=possible.get(e);chosen.add(edge);reach[edge[0]][edge[1]]=reach[edge[1]][edge[0]]=true;distance[edge[0]][edge[1]]=distance[edge[1]][edge[0]]=1;}\n  int[][]edges=chosen.toArray(new int[0][]);\n  for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++){reach[i][j]|=reach[i][k]&&reach[k][j];distance[i][j]=Math.min(distance[i][j],distance[i][k]+distance[k][j]);}\n  int components=0;for(int i=0;i<n;i++){boolean earlier=false;for(int j=0;j<i;j++)earlier|=reach[i][j];if(!earlier)components++;}if(n>0){int expected=edges.length<n-1?-1:components-1;assert makeConnected(n,edges)==expected;assert makeConnectedByTraversal(n,edges)==expected;}\n}}",
+      "int n=100000;int[][]edges=new int[n-1][2];for(int i=1;i<n;i++)edges[i-1]=new int[]{i-1,i};assert makeConnected(n,edges)==0;assert makeConnectedByTraversal(n,edges)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/number-of-operations-to-make-network-connected",
+      "title": "Number of Operations to Make Network Connected",
+      "checkedOn": "2026-10-29",
+      "approach": "Count DSU components and compare available spare edges with components − 1.",
+      "adaptation": "The public statement and Union-Find hint were checked. The solution tab requires sign-in, so no claim is made about its Java. This Java uses the fully checked DSU pattern from Striver’s public DSU/MST lessons and simplifies the spare-edge inequality to m >= n − 1."
+    },
+    "baselineJava": "static int makeConnectedByTraversal(int n, int[][] connections) {\n    if (connections.length < n-1) return -1;\n    List<List<Integer>> graph = new ArrayList<>();\n    for (int i = 0; i < n; i++) graph.add(new ArrayList<>());\n    for (int[] edge : connections) {\n        graph.get(edge[0]).add(edge[1]); graph.get(edge[1]).add(edge[0]);\n    }\n    boolean[] visited = new boolean[n];\n    int components = 0;\n    for (int start = 0; start < n; start++) if (!visited[start]) {\n        components++;\n        Queue<Integer> queue = new ArrayDeque<>();\n        visited[start] = true; queue.offer(start);\n        while (!queue.isEmpty()) for (int next : graph.get(queue.poll()))\n            if (!visited[next]) { visited[next] = true; queue.offer(next); }\n    }\n    return components-1;\n}",
+    "baselineTime": "O(n + m) time and O(n + m) space. The DSU alternative saves adjacency storage; it is not an asymptotic speed improvement here."
+  },
+  "376": {
+    "problem": "Remove as many stones as possible. A stone may be removed only if another remaining stone shares its row or its column.",
+    "assumptions": "Coordinates are distinct and nonnegative, bounded as in the pinned problem. Connections may pass through chains of shared rows and columns; diagonal proximity alone does not connect stones.",
+    "example": {
+      "input": "stones = [[0,0], [0,2], [3,2], [8,8]]",
+      "output": "2",
+      "explanation": "The first three stones form a chain. Remove [0,0], then [0,2], leaving [3,2]. The isolated stone [8,8] must stay."
+    },
+    "baseline": "Treat each stone as a graph vertex. To find its neighbors, scan all other stones for a matching row or column. A stack traversal counts components in O(N²) time; the answer is N minus that count.",
+    "approach": "One stone must remain in each connected component: its final stone has no partner to justify removal. You can remove all the others. To see why, take any spanning tree of the component and repeatedly remove a leaf; its parent still remains. Thus a component with k stones permits k − 1 removals.\n\nTo count components efficiently, make rows and columns the DSU nodes. A stone joins its row node to its column node. Row 2 and column 2 are different things, so shift every column ID by maxRow + 1. Chains of stones now join the corresponding coordinate nodes.\n\nCount components only among coordinates that actually occur. Unused rows or columns represent no stones and must not be subtracted from the answer.",
+    "steps": [
+      "Find the row and column ranges; place column IDs after all row IDs.",
+      "Union each stone’s row ID with its shifted column ID.",
+      "Record all used coordinate IDs.",
+      "Count distinct roots among those used IDs.",
+      "Return number of stones minus the root count."
+    ],
+    "java": "static class DSU {\n    final int[] parent, size;\n    DSU(int n) {\n        parent = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int root(int node) {\n        if (parent[node] != node) parent[node] = root(parent[node]);\n        return parent[node];\n    }\n    boolean unite(int a, int b) {\n        a = root(a); b = root(b);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n}\n\nstatic int removeStones(int[][] stones) {\n    if (stones.length == 0) return 0;\n    int maxRow = 0, maxCol = 0;\n    for (int[] stone : stones) { maxRow = Math.max(maxRow,stone[0]); maxCol = Math.max(maxCol,stone[1]); }\n    int offset = maxRow+1;\n    DSU dsu = new DSU(offset+maxCol+1);\n    Set<Integer> used = new HashSet<>();\n    for (int[] stone : stones) {\n        int row = stone[0], col = offset+stone[1];\n        dsu.unite(row,col);\n        used.add(row); used.add(col);\n    }\n    Set<Integer> roots = new HashSet<>();\n    for (int node : used) roots.add(dsu.root(node));\n    return stones.length-roots.size();\n}",
+    "time": "O(R + C + Nα(R + C)), where R = maxRow + 1 and C = maxCol + 1.",
+    "space": "O(R + C + N) for DSU arrays and used/root sets; the sets contain at most R + C distinct IDs.",
+    "pitfalls": [
+      "Keep row and column ID ranges separate.",
+      "Do not count unused coordinate nodes as stone components.",
+      "The DSU component size counts coordinate nodes, not stones; it cannot directly give the answer.",
+      "Connected does not mean every pair directly shares a row or column.",
+      "For huge sparse coordinates, compress coordinate IDs rather than allocate through the largest coordinate. This source-aligned version uses the pinned coordinate bounds."
+    ],
+    "tests": [
+      "int[][]s={{0,0},{0,2},{3,2},{8,8}};assert removeStones(s)==2;assert removeStonesByTraversal(s)==2;assert removeStones(new int[][]{{0,1},{1,0}})==0;assert removeStones(new int[0][])==0;",
+      "// Independent oracle: try every legal next removal, not a component formula.\nint[]best=new int[1<<9];\nfor(int mask=0;mask<(1<<9);mask++){\n for(int i=0;i<9;i++)if((mask&(1<<i))!=0){boolean legal=false;for(int j=0;j<9;j++)if(i!=j&&(mask&(1<<j))!=0&&(i/3==j/3||i%3==j%3))legal=true;if(legal)best[mask]=Math.max(best[mask],1+best[mask^(1<<i)]);}\n List<int[]>list=new ArrayList<>();for(int i=0;i<9;i++)if((mask&(1<<i))!=0)list.add(new int[]{i/3,i%3});int[][]stones=list.toArray(new int[0][]);assert removeStones(stones)==best[mask];assert removeStonesByTraversal(stones)==best[mask];\n}",
+      "assert removeStones(new int[][]{{10000,10000},{10000,0},{0,0}})==2;int[][]stones=new int[1000][2];for(int i=0;i<1000;i++)stones[i]=new int[]{5000,i};assert removeStones(stones)==999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/most-stones-removed-same-row-column",
+      "title": "Most Stones Removed with Same Row or Column Using DSU",
+      "checkedOn": "2026-10-29",
+      "approach": "Count stone components by traversal or by joining separate row and column DSU nodes.",
+      "adaptation": "Both complete public Java methods were checked. The guide keeps the source’s coordinate-offset method, explains why exactly one stone remains per component, and uses distinct roots among used coordinates. Its tests also enumerate legal removal orders."
+    },
+    "baselineJava": "static int removeStonesByTraversal(int[][] stones) {\n    boolean[] visited = new boolean[stones.length];\n    int components = 0;\n    for (int start = 0; start < stones.length; start++) if (!visited[start]) {\n        components++;\n        Deque<Integer> stack = new ArrayDeque<>();\n        stack.push(start); visited[start] = true;\n        while (!stack.isEmpty()) {\n            int current = stack.pop();\n            for (int next = 0; next < stones.length; next++)\n                if (!visited[next] && (stones[current][0] == stones[next][0] || stones[current][1] == stones[next][1])) {\n                    visited[next] = true; stack.push(next);\n                }\n        }\n    }\n    return stones.length-components;\n}",
+    "baselineTime": "O(N²) time and O(N) space."
   }
 }
