@@ -1906,7 +1906,7 @@
       "explanation": "Merge their next values in order, but append only when the chosen value differs from the last output value."
     },
     "baseline": "Insert everything into a TreeSet, costing O((n+m) log(n+m)) time.",
-    "approach": "Two pointers exploit existing order. Each step consumes one smallest remaining value; a last-output check removes duplicates from either source.",
+    "approach": "Both arrays are sorted, so the smallest value still available must be at one of the two current positions. Take the smaller head and advance that pointer. When one array ends, take the remaining values from the other.\n\nA union keeps each value once. Before appending, compare the candidate with the last result value. This removes repeats inside either array as well as values shared by both. Do not use a sentinel such as -1 for the previous value: -1 may be valid input.",
     "steps": [
       "Choose the smaller current head, or the only remaining head.",
       "Advance that array’s pointer.",
@@ -1922,36 +1922,51 @@
     "tests": [
       "assert union(new int[]{1,1,3},new int[]{1,2,4}).equals(List.of(1,2,3,4));",
       "assert union(new int[]{},new int[]{2,2}).equals(List.of(2));",
-      "assert union(new int[]{},new int[]{}).isEmpty();"
-    ]
+      "assert union(new int[]{},new int[]{}).isEmpty();",
+      "Random r=new Random(47);for(int t=0;t<500;t++){int[] a=new int[r.nextInt(30)],b=new int[r.nextInt(30)];Set<Integer> set=new TreeSet<>();for(int i=0;i<a.length;i++){a[i]=r.nextInt(21)-10;set.add(a[i]);}for(int i=0;i<b.length;i++){b[i]=r.nextInt(21)-10;set.add(b[i]);}Arrays.sort(a);Arrays.sort(b);assert union(a,b).equals(new ArrayList<>(set));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/union-of-two-sorted-arrays",
+      "title": "Union of Two Sorted Arrays",
+      "checkedOn": "2026-10-29",
+      "approach": "Merge in sorted order and omit repeated output values.",
+      "adaptation": "Public optimal Java checked. This combines the main and leftover loops; equal heads are consumed on successive steps with the same last-output check."
+    }
   },
   "48": {
-    "problem": "Find the one missing value from the range 1 through n.",
-    "assumptions": "The array contains n−1 distinct values from that range. This is the 1-based variant; some platforms instead use 0 through n.",
+    "problem": "Find the one missing value from the range 0 through n, where n is the array length.",
+    "assumptions": "The array has n distinct values drawn from 0..n. Exactly one value is absent. This is the contract of the pinned LeetCode problem; it is not the separate 1..n variant.",
     "example": {
-      "input": "[1, 2, 4, 5]",
-      "output": "3",
-      "explanation": "XOR all numbers 1 through 5, then XOR the supplied values. Every present number cancels with itself, leaving 3."
+      "input": "[4, 0, 1, 3]",
+      "output": "2",
+      "explanation": "The expected values are 0,1,2,3,4. Every supplied value cancels its expected copy under XOR, leaving 2."
     },
     "baseline": "Use a presence array to mark values, requiring O(n) extra storage.",
-    "approach": "XOR is associative and commutative, x XOR x is zero, and x XOR zero is x. Cancellation removes every paired value without arithmetic-sum overflow.",
+    "approach": "Combine the expected values 0..n and the supplied values using XOR. For each present number, there are two copies, and x XOR x is zero. The only number without a second copy is the missing one.\n\nStart the accumulator with n, then pair each index i with a[i] while scanning. This includes every expected value exactly once without a second loop. It also avoids the overflow that a sum formula can have when evaluated using int multiplication.",
     "steps": [
-      "Infer n as array length plus one.",
-      "XOR all expected values.",
-      "XOR all supplied values and return the remainder."
+      "Initialize the XOR with n, the array length.",
+      "For each index i from 0 to n-1, XOR both i and a[i].",
+      "Return the value left after matching pairs cancel."
     ],
-    "java": "static int missing(int[] a) {\n    int answer = a.length + 1;\n    for (int i = 0; i < a.length; i++) answer ^= (i + 1) ^ a[i];\n    return answer;\n}",
+    "java": "static int missing(int[] a) {\n    int answer = a.length;\n    for (int i = 0; i < a.length; i++) answer ^= i ^ a[i];\n    return answer;\n}\nstatic int missingNumber(int[] nums) { return missing(nums); }",
     "time": "O(n).",
     "space": "O(1).",
     "pitfalls": [
-      "Duplicates or out-of-range values violate the premise and invalidate cancellation.",
-      "For the 0-based variant, XOR indices 0 through length−1 and the final length instead."
+      "The complete range is 0..array.length, inclusive.",
+      "Duplicates or out-of-range values violate the premise. XOR cannot validate that premise by itself."
     ],
     "tests": [
-      "assert missing(new int[]{1,2,4,5})==3;",
-      "assert missing(new int[]{})==1;",
-      "assert missing(new int[]{2,3})==1;"
-    ]
+      "assert missing(new int[]{4,0,1,3})==2;",
+      "assert missing(new int[]{})==0;assert missing(new int[]{1,2})==0;assert missing(new int[]{0,1})==2;",
+      "Random r=new Random(48);for(int n=0;n<=100;n++)for(int absent=0;absent<=n;absent++){int[] a=new int[n];for(int v=0,j=0;v<=n;v++)if(v!=absent)a[j++]=v;for(int j=n-1;j>0;j--){int k=r.nextInt(j+1),t=a[j];a[j]=a[k];a[k]=t;}assert missing(a)==absent;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/missing-number-solutions",
+      "title": "Missing Number",
+      "checkedOn": "2026-10-29",
+      "approach": "XOR all values and all expected indices in 0..n.",
+      "adaptation": "Public XOR Java checked. The previous 1-based draft was corrected to the 0..n contract used by both the current source and the pinned LeetCode link."
+    }
   },
   "49": {
     "problem": "Find the longest contiguous run of ones in a binary array.",
@@ -1962,7 +1977,7 @@
       "explanation": "The first run has length two. Zero resets the current count; the final run reaches three."
     },
     "baseline": "Start a new scan at every one and count its run, repeating work and taking O(n²) in the worst case.",
-    "approach": "The only state needed is the length of the run ending at the current position and the best completed-or-current run.",
+    "approach": "Keep current for the run that ends here and best for the longest run anywhere so far. A 1 extends current by one. A 0 ends that run, so current becomes zero, but best must be kept.\n\nUpdate best as you scan rather than waiting for a zero. Otherwise a longest run at the end of the array could be missed. With no ones, current never increases and the answer remains zero.",
     "steps": [
       "Increment current when the value is one.",
       "Reset current on zero.",
@@ -1978,8 +1993,16 @@
     "tests": [
       "assert longestOnes(new int[]{1,1,0,1,1,1})==3;",
       "assert longestOnes(new int[]{0,0})==0;",
-      "assert longestOnes(new int[]{})==0;"
-    ]
+      "assert longestOnes(new int[]{})==0;",
+      "for(int n=0;n<=12;n++)for(int mask=0;mask<(1<<n);mask++){int[] a=new int[n];for(int i=0;i<n;i++)a[i]=(mask>>i)&1;int best=0;for(int i=0;i<n;i++)for(int j=i;j<n;j++){boolean all=true;for(int k=i;k<=j;k++)if(a[k]==0)all=false;if(all)best=Math.max(best,j-i+1);}assert longestOnes(a)==best;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/maximum-consecutive-ones-in-a-binary-array",
+      "title": "Maximum Consecutive Ones",
+      "checkedOn": "2026-10-29",
+      "approach": "Track the current streak and the longest streak separately.",
+      "adaptation": "Public optimal Java checked. Empty input returns zero."
+    }
   },
   "50": {
     "problem": "Find the value that appears once when every other value appears twice.",
@@ -2019,22 +2042,22 @@
   },
   "51": {
     "problem": "Find the length of the longest contiguous subarray whose sum equals k.",
-    "assumptions": "This sliding-window version requires nonnegative elements and k>=0. Empty subarrays do not contribute positive length.",
+    "assumptions": "This sliding-window version requires nonnegative elements and k>=0. Empty subarrays do not contribute positive length. The linked page also allows negative values: use longestSubarray for that general contract.",
     "example": {
       "input": "[1, 2, 1, 1, 1], k = 3",
       "output": "3",
       "explanation": "The first window [1,2] has length two. Later the window [1,1,1] also sums to three and has length three."
     },
     "baseline": "Enumerate all subarray boundaries and accumulate sums, taking O(n²) time.",
-    "approach": "With nonnegative values, extending right never lowers the sum and removing left never raises it. When the sum is too large, shrinking from the left cannot discard a valid longer window ending at the same right position.",
+    "approach": "For nonnegative values, adding an element cannot reduce the sum. Extend the right end of the window. If the sum is too large, remove values from the left until it is at most k. When it equals k, record the window length.\n\nDo not remove leading zeroes just because the sum already equals k; they may make the longest valid window. This method is only for the title’s nonnegative variant. The actual linked page permits negatives, so longestSubarray below uses the prefix-map method from the next lesson instead.",
     "steps": [
       "Add the next rightmost value.",
       "While the sum exceeds k, remove leftmost values.",
       "When equal, compare the current window length with the best."
     ],
-    "java": "static int longestSum(int[] a, long k) {\n    if (k < 0) return 0;\n    int left = 0, best = 0; long sum = 0;\n    for (int right = 0; right < a.length; right++) {\n        sum += a[right];\n        while (left <= right && sum > k) sum -= a[left++];\n        if (sum == k) best = Math.max(best, right - left + 1);\n    }\n    return best;\n}",
-    "time": "O(n): each index enters and leaves the window at most once.",
-    "space": "O(1).",
+    "java": "static int longestSum(int[] a, long k) {\n    if (k < 0) return 0;\n    int left = 0, best = 0; long sum = 0;\n    for (int right = 0; right < a.length; right++) {\n        sum += a[right];\n        while (left <= right && sum > k) sum -= a[left++];\n        if (sum == k) best = Math.max(best, right - left + 1);\n    }\n    return best;\n}\nstatic int longestSubarray(int[] a, long k) {\n    Map<Long, Integer> first = new HashMap<>(); first.put(0L, -1);\n    long sum = 0; int best = 0;\n    for (int i = 0; i < a.length; i++) {\n        sum += a[i];\n        Integer before = first.get(sum - k);\n        if (before != null) best = Math.max(best, i - before);\n        first.putIfAbsent(sum, i);\n    }\n    return best;\n}",
+    "time": "O(n) for the nonnegative sliding window; expected O(n) for the general prefix-map method.",
+    "space": "O(1) for the sliding window; O(n) for the general prefix map.",
     "pitfalls": [
       "Negative numbers destroy the monotonic-sum property; use prefix sums for that variant.",
       "Zeroes are supported and can extend a valid window without changing its sum.",
@@ -2043,8 +2066,16 @@
     "tests": [
       "assert longestSum(new int[]{1,2,1,1,1},3)==3;",
       "assert longestSum(new int[]{0,0,0},0)==3;",
-      "assert longestSum(new int[]{5},3)==0;"
-    ]
+      "assert longestSum(new int[]{5},3)==0;",
+      "Random r=new Random(51);for(int t=0;t<1000;t++){int[] a=new int[r.nextInt(20)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(6);int k=r.nextInt(30),best=0;for(int i=0;i<a.length;i++){long sum=0;for(int j=i;j<a.length;j++){sum+=a[j];if(sum==k)best=Math.max(best,j-i+1);}}assert longestSum(a,k)==best;assert longestSubarray(a,k)==best;}assert longestSubarray(new int[]{2,-1,2},3)==3;assert longestSubarray(new int[]{-1,-2},-3)==2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-subarray-with-sum-k",
+      "title": "Longest Subarray with Sum K",
+      "checkedOn": "2026-10-29",
+      "approach": "Use a prefix-sum map retaining each sum’s earliest index.",
+      "adaptation": "The current public statement allows negative values, and both public hints specify prefix sums and a map. Full solution Java was not inspected. The positives-only title also retains its sliding-window lesson, clearly separated from the general linked problem."
+    }
   },
   "52": {
     "problem": "Find the longest contiguous subarray with sum k when values may be positive, zero, or negative.",
@@ -2055,7 +2086,7 @@
       "explanation": "The first four values sum to three. A prefix sum of three at index 3 pairs with the initial zero prefix at index -1, producing length 4."
     },
     "baseline": "Compute every subarray sum in O(n²) time using a running sum for each start.",
-    "approach": "A subarray ending at i sums to k exactly when an earlier prefix equals prefix[i]−k. Keep the earliest index for each prefix, because it yields the longest matching interval.",
+    "approach": "Call the sum from the start through the current position S. If an earlier prefix had sum S-k, removing that earlier prefix leaves exactly k. Store the first index at which each prefix sum appears, then look up S-k at every position.\n\nThe earliest index gives the longest interval. Never overwrite it with a later occurrence. Seed sum zero at index -1 so a matching interval can start at index 0. This works with negatives because it uses subtraction of prefix sums, not a window that assumes sums only grow.",
     "steps": [
       "Seed prefix zero at index −1.",
       "Update the running sum and look up sum−k.",
@@ -2074,7 +2105,14 @@
       "assert longestSum(new int[]{},0)==0;",
       "assert longestSum(new int[]{-2,-1,2,1},1)==2;",
       "Random r=new Random(52); for(int run=0;run<200;run++){int[] a=new int[r.nextInt(12)]; for(int i=0;i<a.length;i++)a[i]=r.nextInt(9)-4; int k=r.nextInt(11)-5,best=0; for(int i=0;i<a.length;i++){long sum=0;for(int j=i;j<a.length;j++){sum+=a[j];if(sum==k)best=Math.max(best,j-i+1);}} assert longestSum(a,k)==best;}"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-subarray-with-sum-k",
+      "title": "Longest Subarray with Sum K",
+      "checkedOn": "2026-10-29",
+      "approach": "Use a prefix-sum map retaining each sum’s earliest index.",
+      "adaptation": "The current public statement allows negative values, and both public hints specify prefix sums and a map. Full solution Java was not inspected. The positives-only title also retains its sliding-window lesson, clearly separated from the general linked problem."
+    }
   },
   "53": {
     "problem": "Return two different indices whose values add to a target.",
@@ -2085,7 +2123,7 @@
       "explanation": "After remembering 2 at index 0, the value 7 asks for complement 2 and finds it."
     },
     "baseline": "Try every pair of distinct indices in O(n²) time.",
-    "approach": "Store earlier values in a hash map. Looking up the complement before inserting the current value prevents an element from pairing with itself.",
+    "approach": "For each value, ask what number would complete the target. In [4,8,6] with target 10, the 6 needs a 4. A map remembers that 4 was at index 0, so indices 0 and 2 form the answer.\n\nLook up the complement before storing the current value. That prevents a lone 5 from matching itself for target 10, while still allowing two separate fives to match. Store indices, because the problem asks for positions rather than the values themselves.",
     "steps": [
       "Scan indices from left to right.",
       "Look for target minus the current value among earlier values.",
@@ -2102,8 +2140,16 @@
       "assert Arrays.equals(twoSum(new int[]{2,7,11,15},9),new int[]{0,1});",
       "assert Arrays.equals(twoSum(new int[]{3,3},6),new int[]{0,1});",
       "assert twoSum(new int[]{3},6).length==0;",
-      "assert twoSum(new int[]{Integer.MAX_VALUE,1},2147483648L).length==2;"
-    ]
+      "assert twoSum(new int[]{Integer.MAX_VALUE,1},2147483648L).length==2;",
+      "Random r=new Random(53);for(int t=0;t<600;t++){int[] a=new int[r.nextInt(15)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(21)-10;int target=r.nextInt(31)-15;boolean exists=false;for(int i=0;i<a.length;i++)for(int j=i+1;j<a.length;j++)if((long)a[i]+a[j]==target)exists=true;int[] pair=twoSum(a,target);assert (pair.length==2)==exists;if(exists)assert pair[0]!=pair[1]&&(long)a[pair[0]]+a[pair[1]]==target;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/two-sum",
+      "title": "Two Sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Look up the complement among earlier values before inserting the current value.",
+      "adaptation": "The public hash-map explanation was checked. This Java uses long keys to avoid overflow in complements. It returns an empty result when absent, as the article does."
+    }
   },
   "54": {
     "problem": "Sort an array containing only zeroes, ones, and twos in place.",
@@ -2114,7 +2160,7 @@
       "explanation": "A zero belongs in the left region, a two in the right region, and a one stays in the middle."
     },
     "baseline": "Count each value and overwrite the array in two passes; this is also O(n) time and O(1) space.",
-    "approach": "The Dutch national flag partition maintains zeroes before low, ones from low to mid−1, unknown values from mid to high, and twos after high. Every iteration shrinks the unknown region.",
+    "approach": "Maintain four regions: zeroes before low, ones from low to mid-1, unknown values from mid through high, and twos after high. Inspect only the first unknown value at mid.\n\nA zero swaps into low; advance low and mid. A one is already in its middle region; advance mid. A two swaps with high; move high left but leave mid where it is. The incoming value from high has not been checked yet. Stop when the unknown region is empty.",
     "steps": [
       "For zero, swap with low and advance both low and mid.",
       "For one, advance mid.",
@@ -2131,7 +2177,14 @@
       "int[] a={2,0,2,1,1,0};sortColors(a);assert Arrays.equals(a,new int[]{0,0,1,1,2,2});",
       "int[] b={2,2,0};sortColors(b);assert Arrays.equals(b,new int[]{0,2,2});",
       "Random r=new Random(54);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(30)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(3);int[] b=a.clone();Arrays.sort(b);sortColors(a);assert Arrays.equals(a,b);}"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/sort-array-0s-1s-2s",
+      "title": "Sort an Array of 0s, 1s and 2s",
+      "checkedOn": "2026-10-29",
+      "approach": "Dutch National Flag partition with low, mid and high.",
+      "adaptation": "Public optimal Java checked. The incoming value after a swap from the right is inspected again."
+    }
   },
   "55": {
     "problem": "Find a value appearing more than half the time, if one exists.",
@@ -2142,13 +2195,13 @@
       "explanation": "Cancelling unlike pairs leaves 2 as the candidate. A second pass counts four copies, exceeding 7/2."
     },
     "baseline": "Count frequencies in a hash map using O(n) space.",
-    "approach": "Boyer–Moore voting cancels pairs of different values. Removing such a pair cannot eliminate a strict majority from the remaining multiset. The survivor is only a candidate unless existence is guaranteed.",
+    "approach": "Think of removing one copy of two different values. A value occurring more than half the time cannot disappear through all such cancellations, because there are not enough other values to cancel all its copies.\n\nThe balance counter simulates that cancellation. At balance zero, pick the current value as candidate. A matching value adds one; a different value subtracts one. The linked problem guarantees a majority. The extra verification pass in majority also makes the helper safe for arrays where none exists.",
     "steps": [
       "Choose a new candidate whenever balance becomes zero.",
       "Increase balance for a match and decrease it otherwise.",
       "Verify that the final candidate occurs more than n/2 times."
     ],
-    "java": "static OptionalInt majority(int[] a) {\n    int candidate=0,balance=0;\n    for(int x:a) { if(balance==0)candidate=x; balance += x==candidate?1:-1; }\n    int count=0;for(int x:a)if(x==candidate)count++;\n    return count>a.length/2 ? OptionalInt.of(candidate) : OptionalInt.empty();\n}",
+    "java": "static OptionalInt majority(int[] a) {\n    int candidate=0,balance=0;\n    for(int x:a) { if(balance==0)candidate=x; balance += x==candidate?1:-1; }\n    int count=0;for(int x:a)if(x==candidate)count++;\n    return count>a.length/2 ? OptionalInt.of(candidate) : OptionalInt.empty();\n}\nstatic int majorityElement(int[] nums) { return majority(nums).orElseThrow(); }\n",
     "time": "O(n), including verification.",
     "space": "O(1).",
     "pitfalls": [
@@ -2158,8 +2211,16 @@
     "tests": [
       "assert majority(new int[]{2,2,1,1,1,2,2}).orElseThrow()==2;",
       "assert majority(new int[]{1,2}).isEmpty();",
-      "assert majority(new int[]{}).isEmpty();"
-    ]
+      "assert majority(new int[]{}).isEmpty();",
+      "Random r=new Random(55);for(int t=0;t<800;t++){int[] a=new int[r.nextInt(30)];Map<Integer,Integer> counts=new HashMap<>();for(int i=0;i<a.length;i++){a[i]=r.nextInt(5)-2;counts.merge(a[i],1,Integer::sum);}OptionalInt expected=OptionalInt.empty();for(var entry:counts.entrySet())if(entry.getValue()>a.length/2)expected=OptionalInt.of(entry.getKey());assert majority(a).equals(expected);if(expected.isPresent())assert majorityElement(a)==expected.getAsInt();}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/majority-element-n-by-2",
+      "title": "Majority Element",
+      "checkedOn": "2026-10-29",
+      "approach": "Cancel unlike values with Boyer-Moore voting.",
+      "adaptation": "Public optimal Java checked. The source guarantees a majority; majorityElement returns it. The reusable majority helper additionally verifies the candidate and can report absence."
+    }
   },
   "56": {
     "problem": "Return the maximum sum among nonempty contiguous subarrays.",
@@ -2170,7 +2231,7 @@
       "explanation": "The best segment is [4,-1,2,1]. Its sum is 6; carrying the earlier negative prefix into it would only reduce that sum."
     },
     "baseline": "Enumerate starts and ends with running sums in O(n²) time.",
-    "approach": "Kadane’s recurrence says the best subarray ending here either starts here or extends the best subarray ending immediately before. If that previous sum is negative, starting afresh is better.",
+    "approach": "At each position, choose between starting a new subarray here and extending the best subarray ending immediately before it. If the previous sum is negative, carrying it forward would make the new sum smaller, so start fresh.\n\nKeep a separate overall best because the best segment may end before the array ends. Initialize both sums from the first value, not zero: the problem requires a nonempty segment, so an all-negative array must return its least negative value.",
     "steps": [
       "Initialize ending and best from the first element.",
       "Set ending to max(current, ending + current).",
@@ -2188,7 +2249,14 @@
       "assert maxSum(new int[]{-8,-3,-5})==-3;",
       "assert maxSum(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE})==4294967294L;",
       "Random r=new Random(56);for(int run=0;run<100;run++){int[] a=new int[1+r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(21)-10;long best=Long.MIN_VALUE;for(int i=0;i<a.length;i++){long s=0;for(int j=i;j<a.length;j++){s+=a[j];best=Math.max(best,s);}}assert maxSum(a)==best;}"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/kadane's-algorithm",
+      "title": "Kadane’s Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep the best sum ending at each index; restart after a negative previous sum.",
+      "adaptation": "Public statement and both hints checked. Full solution Java was not inspected. The range-tracking version is an original extension of the same recurrence, matching the pinned Print Subarray title."
+    }
   },
   "57": {
     "problem": "Return the boundaries of a maximum-sum nonempty subarray.",
@@ -2199,13 +2267,13 @@
       "explanation": "At index 3, extending the previous negative sum loses to starting at 4. The running segment then reaches sum 6 at index 6."
     },
     "baseline": "Enumerate every interval and remember the best boundaries in O(n²) time.",
-    "approach": "Extend Kadane’s algorithm with a candidate start. Whenever the best sum ending here restarts, move that start to the current index. Copy both boundaries only when the overall best improves.",
+    "approach": "Use the same running-sum choice as Kadane’s algorithm, but remember where the current segment began. When the previous ending sum is negative, start a new segment at the current index. Otherwise extend the existing one.\n\nOnly copy the segment’s boundaries when its sum improves the overall answer. A later restart must not erase an earlier best segment. The returned end is exclusive, so [3,7] means indices 3,4,5,6. bestSubarray copies those values if you want the actual array.",
     "steps": [
       "Track the start of the current candidate.",
       "Restart when the previous ending sum is negative.",
       "On a new best, save candidate start and current index plus one."
     ],
-    "java": "static int[] bestRange(int[] a) {\n    if(a.length==0)throw new IllegalArgumentException();\n    long ending=a[0],best=ending;\n    int start=0,lo=0,hi=1;\n    for(int i=1;i<a.length;i++) {\n        if(ending<0){ending=a[i];start=i;}else ending+=a[i];\n        if(ending>best){best=ending;lo=start;hi=i+1;}\n    }\n    return new int[]{lo,hi};\n}",
+    "java": "static int[] bestRange(int[] a) {\n    if(a.length==0)throw new IllegalArgumentException();\n    long ending=a[0],best=ending;\n    int start=0,lo=0,hi=1;\n    for(int i=1;i<a.length;i++) {\n        if(ending<0){ending=a[i];start=i;}else ending+=a[i];\n        if(ending>best){best=ending;lo=start;hi=i+1;}\n    }\n    return new int[]{lo,hi};\n}\nstatic int[] bestSubarray(int[] a) { int[] range=bestRange(a); return Arrays.copyOfRange(a, range[0], range[1]); }\n",
     "time": "O(n).",
     "space": "O(1); copying the selected segment separately costs O(length).",
     "pitfalls": [
@@ -2215,8 +2283,16 @@
     "tests": [
       "assert Arrays.equals(bestRange(new int[]{-2,1,-3,4,-1,2,1,-5,4}),new int[]{3,7});",
       "assert Arrays.equals(bestRange(new int[]{-5,-2,-9}),new int[]{1,2});",
-      "assert Arrays.equals(bestRange(new int[]{4}),new int[]{0,1});"
-    ]
+      "assert Arrays.equals(bestRange(new int[]{4}),new int[]{0,1});",
+      "Random r=new Random(57);for(int t=0;t<600;t++){int[] a=new int[1+r.nextInt(15)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(15)-7;long expected=Long.MIN_VALUE;for(int i=0;i<a.length;i++){long sum=0;for(int j=i;j<a.length;j++){sum+=a[j];expected=Math.max(expected,sum);}}int[] range=bestRange(a);assert range[0]>=0&&range[0]<range[1]&&range[1]<=a.length;long actual=0;for(int i=range[0];i<range[1];i++)actual+=a[i];assert actual==expected;assert Arrays.equals(bestSubarray(a),Arrays.copyOfRange(a,range[0],range[1]));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/kadane's-algorithm",
+      "title": "Kadane’s Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep the best sum ending at each index; restart after a negative previous sum.",
+      "adaptation": "Public statement and both hints checked. Full solution Java was not inspected. The range-tracking version is an original extension of the same recurrence, matching the pinned Print Subarray title."
+    }
   },
   "58": {
     "problem": "Choose at most one purchase and one later sale to maximize profit. You may choose no trade and earn zero.",
