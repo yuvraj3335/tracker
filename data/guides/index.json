@@ -13166,5 +13166,85 @@
       "approach": "Count traversal starts, using the neighbor representation supplied by the problem.",
       "adaptation": "The linked public task takes an edge list despite the pinned matrix title. Both contracts are covered; the matrix method was checked against the public Number of Provinces Java article."
     }
+  },
+  "338": {
+    "problem": "Find how many minutes it takes for every fresh orange to become rotten, or return −1 if some can never be reached.",
+    "assumptions": "0 is empty, 1 is fresh, and 2 is rotten. Rot spreads up, down, left, and right. All initially rotten oranges start together. This implementation changes reachable fresh cells to 2 in the input grid. An empty grid returns 0.",
+    "example": {
+      "input": "[[2,1,1,1,2]]",
+      "output": "2",
+      "explanation": "At minute 1, rot reaches the second and fourth cells from opposite ends. At minute 2, it reaches the middle. Starting from only one end would give the wrong time."
+    },
+    "baseline": "Scan the whole grid once per minute. Mark newly affected cells with temporary value 3 so they cannot spread during the same minute, then turn all 3s into 2s. If a round changes nothing while fresh cells remain, return −1.",
+    "approach": "Put every initially rotten orange into one queue and count the fresh oranges. The initial queue is minute 0. Process exactly the queue’s current size for one minute; newly rotten cells are added behind that layer and spread in the next round.\n\nMark a fresh neighbor as rotten before adding it. Two nearby rotten cells may both reach it, but it should enter the queue and reduce the fresh count only once.\n\nStop as soon as the fresh count reaches zero. If the queue empties first, a fresh cell is separated from every source by empty cells, so the answer is −1.",
+    "steps": [
+      "Collect all rotten sources and count fresh cells.",
+      "Process one fixed queue layer per minute.",
+      "Change fresh neighbors to rotten as they enter the queue.",
+      "Return elapsed minutes if none remain fresh; otherwise return −1."
+    ],
+    "java": "static final int[][] DIRECTIONS = {{-1,0},{1,0},{0,-1},{0,1}};\n\nstatic int orangesRotting(int[][] grid) {\n    if (grid.length == 0 || grid[0].length == 0) return 0;\n    int rows = grid.length, cols = grid[0].length, fresh = 0, minutes = 0;\n    Deque<int[]> queue = new ArrayDeque<>();\n    for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {\n        if (grid[r][c] == 2) queue.add(new int[]{r,c});\n        else if (grid[r][c] == 1) fresh++;\n    }\n    while (fresh > 0 && !queue.isEmpty()) {\n        int layerSize = queue.size();\n        for (int i = 0; i < layerSize; i++) {\n            int[] cell = queue.remove();\n            for (int[] direction : DIRECTIONS) {\n                int r = cell[0] + direction[0], c = cell[1] + direction[1];\n                if (r >= 0 && r < rows && c >= 0 && c < cols && grid[r][c] == 1) {\n                    grid[r][c] = 2;\n                    fresh--;\n                    queue.add(new int[]{r,c});\n                }\n            }\n        }\n        minutes++;\n    }\n    return fresh == 0 ? minutes : -1;\n}",
+    "time": "O(R × C).",
+    "space": "O(R × C) queue space in the worst case.",
+    "pitfalls": [
+      "Newly rotten oranges must wait until the next minute to spread.",
+      "Start from every rotten source simultaneously.",
+      "No fresh oranges means zero minutes, even if there are no rotten oranges either.",
+      "Empty cells block the spread; diagonal contact does not help."
+    ],
+    "tests": [
+      "assert orangesRotting(new int[][]{{2,1,1,1,2}})==2;assert orangesRotting(new int[][]{{2,0,1}})==-1;assert orangesRotting(new int[][]{{0,2}})==0;assert orangesRotting(new int[0][])==0;",
+      "for(int mask=0;mask<729;mask++){\n int[][]original=new int[2][3];int number=mask;for(int i=0;i<6;i++){original[i/3][i%3]=number%3;number/=3;}\n int[][]d=new int[6][6];for(int i=0;i<6;i++){Arrays.fill(d[i],1000);d[i][i]=0;for(int j=0;j<6;j++)if(original[i/3][i%3]>0&&original[j/3][j%3]>0&&Math.abs(i/3-j/3)+Math.abs(i%3-j%3)==1)d[i][j]=1;}\n for(int k=0;k<6;k++)for(int i=0;i<6;i++)for(int j=0;j<6;j++)d[i][j]=Math.min(d[i][j],d[i][k]+d[k][j]);\n int expected=0;int[][]after=new int[2][3];for(int r=0;r<2;r++)after[r]=original[r].clone();\n for(int i=0;i<6;i++)if(original[i/3][i%3]==1){int best=1000;for(int j=0;j<6;j++)if(original[j/3][j%3]==2)best=Math.min(best,d[i][j]);expected=Math.max(expected,best);if(best<1000)after[i/3][i%3]=2;}\n if(expected>=1000)expected=-1;\n int[][]a={original[0].clone(),original[1].clone()},b={original[0].clone(),original[1].clone()};\n assert orangesRotting(a)==expected;assert simulateRotting(b)==expected;assert Arrays.deepEquals(a,after);assert Arrays.deepEquals(b,after);\n}",
+      "int[][]a=new int[1][100000];Arrays.fill(a[0],1);a[0][0]=2;assert orangesRotting(a)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/rotting-oranges",
+      "title": "Rotting Oranges: Minimum Time to Rot All Oranges",
+      "checkedOn": "2026-10-29",
+      "approach": "Minute-by-minute simulation, then multi-source BFS layers.",
+      "adaptation": "Both public Java methods were checked. The same marking and layer logic is used with ArrayDeque and an explicit empty-grid guard."
+    },
+    "baselineJava": "static int simulateRotting(int[][] grid) {\n    if (grid.length == 0 || grid[0].length == 0) return 0;\n    int rows = grid.length, cols = grid[0].length, fresh = 0, minutes = 0;\n    for (int[] row : grid) for (int cell : row) if (cell == 1) fresh++;\n    while (fresh > 0) {\n        boolean changed = false;\n        for (int r = 0; r < rows; r++) for (int c = 0; c < cols; c++) {\n            if (grid[r][c] != 2) continue;\n            for (int[] direction : DIRECTIONS) {\n                int nr = r + direction[0], nc = c + direction[1];\n                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] == 1) {\n                    grid[nr][nc] = 3;\n                    fresh--;\n                    changed = true;\n                }\n            }\n        }\n        if (!changed) return -1;\n        for (int[] row : grid) for (int c = 0; c < cols; c++) if (row[c] == 3) row[c] = 2;\n        minutes++;\n    }\n    return minutes;\n}",
+    "baselineTime": "O((R × C)²) worst-case time and O(1) extra space."
+  },
+  "339": {
+    "problem": "Recolor the connected region containing a chosen starting pixel.",
+    "assumptions": "The image is a nonempty rectangular matrix and the starting coordinate is valid. Only cells with the starting cell’s original color qualify, using four-direction movement. The returned matrix is the same input object, modified in place.",
+    "example": {
+      "input": "image = [[4,4,0],[4,0,4]]; start = (0,0); new color = 7",
+      "output": "[[7,7,0],[7,0,4]]",
+      "explanation": "The lower-right 4 is disconnected from the start. Matching color alone is not enough; there must be a path through cells of that color."
+    },
+    "baseline": "Recursive DFS recolors the current cell, then calls itself on its four neighbors. It visits the same region as BFS, but can overflow Java’s call stack on a large region.",
+    "approach": "Save the starting color before changing any cell. If the new color is identical, return immediately: recoloring would not mark cells as visited.\n\nOtherwise recolor the start and add it to a queue. For each removed cell, inspect its four neighbors. Recolor and enqueue any in-bounds neighbor that still has the old color.\n\nRecoloring serves two purposes: it produces the answer and marks the cell as processed. We need no separate visited matrix, because an already recolored cell no longer matches the old color.",
+    "steps": [
+      "Remember the old color and return early if it equals the new one.",
+      "Recolor the starting cell before enqueuing it.",
+      "Expand only through four-direction neighbors still holding the old color.",
+      "Return the same modified image."
+    ],
+    "java": "static final int[][] DIRECTIONS = {{-1,0},{1,0},{0,-1},{0,1}};\n\nstatic int[][] floodFill(int[][] image, int startRow, int startCol, int color) {\n    int oldColor = image[startRow][startCol];\n    if (oldColor == color) return image;\n    int rows = image.length, cols = image[0].length;\n    Deque<int[]> queue = new ArrayDeque<>();\n    image[startRow][startCol] = color;\n    queue.add(new int[]{startRow,startCol});\n    while (!queue.isEmpty()) {\n        int[] cell = queue.remove();\n        for (int[] direction : DIRECTIONS) {\n            int r = cell[0] + direction[0], c = cell[1] + direction[1];\n            if (r >= 0 && r < rows && c >= 0 && c < cols && image[r][c] == oldColor) {\n                image[r][c] = color;\n                queue.add(new int[]{r,c});\n            }\n        }\n    }\n    return image;\n}",
+    "time": "O(K) for K cells in the starting region, at most O(R × C); O(1) if colors match.",
+    "space": "O(K) worst-case queue space.",
+    "pitfalls": [
+      "Changing every matching color in the image would also change disconnected regions.",
+      "Check oldColor == newColor before traversal.",
+      "Diagonal cells do not connect in this problem.",
+      "Copy the image first if the caller needs to preserve the original."
+    ],
+    "tests": [
+      "int[][]a={{4,4,0},{4,0,4}};assert floodFill(a,0,0,7)==a;assert Arrays.deepEquals(a,new int[][]{{7,7,0},{7,0,4}});assert floodFill(a,0,0,7)==a;",
+      "for(int mask=0;mask<512;mask++){\n int[][]original=new int[3][3];for(int i=0;i<9;i++)original[i/3][i%3]=(mask>>i)&1;\n boolean[][]reach=new boolean[9][9];for(int i=0;i<9;i++)for(int j=0;j<9;j++)reach[i][j]=i==j||(original[i/3][i%3]==original[j/3][j%3]&&Math.abs(i/3-j/3)+Math.abs(i%3-j%3)==1);\n for(int k=0;k<9;k++)for(int i=0;i<9;i++)for(int j=0;j<9;j++)reach[i][j]|=reach[i][k]&&reach[k][j];\n for(int start=0;start<9;start++)for(int color=0;color<=2;color++){\n  int[][]a=new int[3][],b=new int[3][],expected=new int[3][];for(int r=0;r<3;r++){a[r]=original[r].clone();b[r]=original[r].clone();expected[r]=original[r].clone();}\n  for(int i=0;i<9;i++)if(reach[start][i])expected[i/3][i%3]=color;\n  assert floodFill(a,start/3,start%3,color)==a;assert Arrays.deepEquals(a,expected);assert fillRecursive(b,start/3,start%3,color)==b;assert Arrays.deepEquals(b,expected);\n }\n}",
+      "int[][]a=new int[1][100000];floodFill(a,0,0,-1);for(int v:a[0])assert v==-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/flood-fill-algorithm",
+      "title": "Flood Fill Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Recolor-before-expanding with recursive DFS or a BFS queue.",
+      "adaptation": "Both public Java approaches were checked. The same old-color guard and four-direction logic are retained; ArrayDeque replaces LinkedList."
+    },
+    "baselineJava": "static int[][] fillRecursive(int[][] image, int row, int col, int color) {\n    int oldColor = image[row][col];\n    if (oldColor != color) recolor(image, row, col, oldColor, color);\n    return image;\n}\nstatic void recolor(int[][] image, int row, int col, int oldColor, int color) {\n    if (row < 0 || row >= image.length || col < 0 || col >= image[0].length\n            || image[row][col] != oldColor) return;\n    image[row][col] = color;\n    for (int[] direction : DIRECTIONS) recolor(image, row + direction[0], col + direction[1], oldColor, color);\n}",
+    "baselineTime": "O(K) time and up to O(K) recursive stack, where K is the region size."
   }
 }
