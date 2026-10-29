@@ -16473,5 +16473,72 @@
         ]
       ]
     }
+  },
+  "409": {
+    "problem": "Return one longest common subsequence itself, rather than only its length. Print the returned string if the exercise asks for console output.",
+    "assumptions": "The tracker title asks to print an LCS, but its saved TUF link asks only for the length. The primary printLcs method returns a sequence for the lesson. The lcs wrapper returns the length for the saved practice link. Strings use lowercase English letters. Several different longest answers may be valid; no lexicographic ordering is required.",
+    "example": {
+      "input": "first = \"plane\", second = \"panel\"",
+      "output": "\"pane\"",
+      "explanation": "Read p, a, n and e in that order in each string. The skipped l appears in different positions, so all five characters cannot be shared in order."
+    },
+    "baseline": "Enumerate every subsequence of the first string and test whether it also appears in order in the second. Keep a longest valid candidate. This produces an actual sequence but has exponentially many candidates, so it is only useful on short strings.",
+    "approach": "First build the previous lesson’s complete LCS-length table. dp[i][j] describes the two prefixes ending just before indices i and j. The final cell tells us how many characters the answer needs.\n\nNow walk backward from that cell. If the two ending characters match, keep that character and move diagonally to both shorter prefixes. If they differ, move to a neighboring prefix state with the larger LCS length: up drops a character from the first string; left drops one from the second.\n\nWhen up and left have the same length, either path can still produce an optimal answer. This code chooses up so its result is deterministic, but that does not promise the alphabetically smallest LCS.\n\nWalking backward collects characters in reverse order. Reverse the builder once at the end. Avoid repeatedly adding a character at the front of a String, which would keep copying the growing answer.",
+    "steps": [
+      "Build the full prefix-length table.",
+      "Start at i = first.length and j = second.length.",
+      "On a character match, append it and move diagonally.",
+      "On a mismatch, move toward the neighbor with the larger stored length; choose up on a tie.",
+      "Stop when either prefix is empty.",
+      "Reverse the collected characters and return the string."
+    ],
+    "java": "static int[][] lcsLengths(String first, String second) {\n    int[][] dp = new int[first.length()+1][second.length()+1];\n    for (int i = 1; i <= first.length(); i++) for (int j = 1; j <= second.length(); j++) {\n        if (first.charAt(i-1) == second.charAt(j-1)) dp[i][j] = 1+dp[i-1][j-1];\n        else dp[i][j] = Math.max(dp[i-1][j],dp[i][j-1]);\n    }\n    return dp;\n}\nstatic String printLcs(String first, String second) {\n    int[][] dp = lcsLengths(first,second);\n    int i = first.length(), j = second.length();\n    StringBuilder reversed = new StringBuilder(dp[i][j]);\n    while (i > 0 && j > 0) {\n        if (first.charAt(i-1) == second.charAt(j-1)) {\n            reversed.append(first.charAt(i-1));\n            i--; j--;\n        } else if (dp[i-1][j] >= dp[i][j-1]) i--;\n        else j--;\n    }\n    return reversed.reverse().toString();\n}\nstatic int lcs(String first, String second) {\n    int[][] dp = lcsLengths(first,second);\n    return dp[first.length()][second.length()];\n}",
+    "time": "O(n × m) to fill the table and O(n + m) to walk it.",
+    "space": "O((n + 1) × (m + 1)) for the table and O(L) for an answer of length L.",
+    "pitfalls": [
+      "A correct answer must be a subsequence of both strings, not merely have the expected length.",
+      "Move diagonally only when the ending characters match.",
+      "Different tie choices can produce different valid longest subsequences.",
+      "Two rolling rows alone do not preserve the ordinary backtracking path.",
+      "The saved judge expects an integer length. Use the lcs wrapper there, not the returned sequence."
+    ],
+    "tests": [
+      "assert printLcs(\"plane\",\"panel\").equals(\"pane\");assert printLcs(\"ab\",\"ba\").equals(\"a\");assert printLcs(\"\",\"abc\").equals(\"\");assert printLcs(\"aaa\",\"aa\").equals(\"aa\");",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=5;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nfor(String a:words)for(String b:words){String expected=enumerateLcs(a,b),actual=printLcs(a,b);assert actual.length()==expected.length();assert lcs(a,b)==expected.length();for(String text:List.of(a,b)){int matched=0;for(int i=0;i<text.length()&&matched<actual.length();i++)if(text.charAt(i)==actual.charAt(matched))matched++;assert matched==actual.length();}}",
+      "String text=\"ab\".repeat(500);assert printLcs(text,text).equals(text);assert lcs(\"a\".repeat(1000),\"b\".repeat(1000))==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-common-subsequence",
+      "title": "Longest common subsequence — length source with reconstruction extension",
+      "checkedOn": "2026-10-29",
+      "approach": "Build prefix LCS lengths, then recover a sequence by following matching diagonals and optimal skip decisions.",
+      "adaptation": "The saved link’s public statement and prefix-state hints were checked; it asks for length, while this Codolio lesson asks for a printed sequence. Its full Java solution requires sign-in and was not inspected. This original reconstruction follows the checked recurrence. The length wrapper and returned-sequence method are named separately so the linked judge and lesson cannot be confused."
+    },
+    "baselineJava": "static String enumerateLcs(String first, String second) {\n    if (first.length() > 20) throw new IllegalArgumentException(\"Enumeration is only for short examples\");\n    String best = \"\";\n    for (int mask = 0; mask < (1 << first.length()); mask++) {\n        StringBuilder candidate = new StringBuilder();\n        for (int i = 0; i < first.length(); i++) {\n            if ((mask & (1 << i)) != 0) candidate.append(first.charAt(i));\n        }\n        int matched = 0;\n        for (int j = 0; j < second.length() && matched < candidate.length(); j++) {\n            if (second.charAt(j) == candidate.charAt(matched)) matched++;\n        }\n        if (matched == candidate.length() && matched > best.length()) best = candidate.toString();\n    }\n    return best;\n}",
+    "baselineTime": "O(2^n × (n + m)) time and O(n) working space. The demonstration explicitly limits the first string to 20 characters.",
+    "trace": {
+      "columns": [
+        "State for first=\"ab\", second=\"acb\"",
+        "Decision"
+      ],
+      "rows": [
+        [
+          "i=2, j=3; b matches b",
+          "Keep b; move to i=1, j=2"
+        ],
+        [
+          "i=1, j=2; a differs from c",
+          "Left has length 1 and up has 0; move left"
+        ],
+        [
+          "i=1, j=1; a matches a",
+          "Keep a; both prefixes become empty"
+        ],
+        [
+          "Collected \"ba\"",
+          "Reverse once to obtain \"ab\""
+        ]
+      ]
+    }
   }
 }
