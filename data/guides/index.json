@@ -12027,5 +12027,173 @@
     },
     "baselineJava": "static TreeNode buildPostByScan(int[] inorder, int[] postorder) {\n    return scanPost(inorder, postorder, new int[]{postorder.length - 1}, 0, inorder.length - 1);\n}\nstatic TreeNode scanPost(int[] inorder, int[] postorder, int[] next, int low, int high) {\n    if (low > high) return null;\n    int value = postorder[next[0]--];\n    int split = low;\n    while (split <= high && inorder[split] != value) split++;\n    TreeNode root = new TreeNode(value);\n    root.right = scanPost(inorder, postorder, next, split + 1, high);\n    root.left = scanPost(inorder, postorder, next, low, split - 1);\n    return root;\n}",
     "baselineTime": "O(n²) worst-case time and O(h) recursive space, excluding the new tree. Assumes valid, distinct traversal arrays."
+  },
+  "310": {
+    "problem": "Convert a binary tree to a string and reconstruct a new tree with exactly the same values and child positions.",
+    "assumptions": "This guide’s primary codec uses level order, commas between tokens, and # for every missing child. There is no trailing comma; an empty tree is exactly #. Negative and duplicate values are allowed. The preorder alternative uses a different token order, so each serializer must be paired with its own decoder.",
+    "example": {
+      "input": "root 8; left child 4; right child 9; 4.right = −2",
+      "output": "8,4,9,#,-2,#,#,#,#",
+      "explanation": "The first # says 4 has no left child. Without that marker, −2 would be attached on the wrong side."
+    },
+    "baseline": "Use preorder with a marker for every null child. Write root, left subtree, then right subtree; read tokens in the same recursive order to rebuild the tree. This is O(n), but a very deep tree can overflow the call stack.",
+    "approach": "A value-only traversal loses shape. For example, a root with one left child and a root with one right child can have the same preorder values. Null markers keep those two shapes distinct.\n\nFor level-order serialization, queue both child positions of each real node. Record # for an empty position and do not expand it further. For decoding, create the root, then take the next two tokens for each queued parent: left first, right second. Queue any children that were actually created.\n\nA tree with n real nodes has n + 1 null child positions, so the complete format has 2n + 1 tokens. The decoder below rejects missing or extra tokens rather than silently returning a partial tree.",
+    "steps": [
+      "Serialize each queued position as its value or #.",
+      "For a real node, queue both child positions, including nulls.",
+      "Decode the root, then consume two child tokens per real parent.",
+      "Finish only when all parents and all tokens are consumed."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic String serialize(TreeNode root) {\n    if (root == null) return \"#\";\n    StringBuilder data = new StringBuilder();\n    Queue<TreeNode> queue = new LinkedList<>(); // This queue must accept null positions.\n    queue.offer(root);\n    while (!queue.isEmpty()) {\n        TreeNode node = queue.poll();\n        if (node == null) data.append(\"#,\");\n        else {\n            data.append(node.val).append(',');\n            queue.offer(node.left);\n            queue.offer(node.right);\n        }\n    }\n    data.setLength(data.length() - 1);\n    return data.toString();\n}\nstatic TreeNode decodeValue(String token) {\n    return token.equals(\"#\") ? null : new TreeNode(Integer.parseInt(token));\n}\nstatic TreeNode deserialize(String data) {\n    if (data.equals(\"#\")) return null;\n    String[] tokens = data.split(\",\", -1);\n    TreeNode root = decodeValue(tokens[0]);\n    if (root == null) throw new IllegalArgumentException(\"Extra tokens after empty tree\");\n    Queue<TreeNode> queue = new ArrayDeque<>();\n    queue.offer(root);\n    int next = 1;\n    while (!queue.isEmpty()) {\n        if (next + 1 >= tokens.length) throw new IllegalArgumentException(\"Missing child tokens\");\n        TreeNode parent = queue.poll();\n        parent.left = decodeValue(tokens[next++]);\n        parent.right = decodeValue(tokens[next++]);\n        if (parent.left != null) queue.offer(parent.left);\n        if (parent.right != null) queue.offer(parent.right);\n    }\n    if (next != tokens.length) throw new IllegalArgumentException(\"Extra tokens\");\n    return root;\n}",
+    "time": "O(n) for int-valued nodes; equivalently O(L) in serialized text length L.",
+    "space": "O(w) traversal queue. The serializer builds O(L) output; the decoder also allocates O(L) split tokens and O(n) new nodes.",
+    "pitfalls": [
+      "Preserve missing positions; do not serialize values alone.",
+      "ArrayDeque rejects null, so the serializer uses LinkedList for queued empty positions.",
+      "Do not decode preorder text with the level-order decoder.",
+      "Do not claim constant total memory: the text, split tokens, and reconstructed tree all occupy space."
+    ],
+    "tests": [
+      "assert serialize(null).equals(\"#\");assert deserialize(\"#\")==null;TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(-2);assert serialize(r).equals(\"8,4,9,#,-2,#,#,#,#\");assert serializePre(r).equals(\"8,4,#,-2,#,#,9,#,#\");assert serializePre(null).equals(\"#\");assert deserializePre(\"#\")==null;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<String,Integer>expected=new HashMap<>();for(TreeNode x:paths.keySet())expected.put(paths.get(x),x.val);String encoded=serialize(root);assert encoded.split(\",\",-1).length==2*paths.size()+1;assert !encoded.endsWith(\",\");TreeNode[]rebuilt={deserialize(encoded),deserializePre(serializePre(root))};for(TreeNode copy:rebuilt){Map<TreeNode,String>position=new IdentityHashMap<>();position.put(copy,\"\");Queue<TreeNode>q=new ArrayDeque<>();q.offer(copy);Map<String,Integer>actual=new HashMap<>();while(!q.isEmpty()){TreeNode x=q.poll();String path=position.get(x);assert !paths.containsKey(x);actual.put(path,x.val);if(x.left!=null){position.put(x.left,path+\"L\");q.offer(x.left);}if(x.right!=null){position.put(x.right,path+\"R\");q.offer(x.right);}}assert actual.equals(expected);}}",
+      "for(String invalid:new String[]{\"\",\"1\",\"1,#\",\"1,#,#,#\",\"#,#\",\"1,#,#,\",\"word,#,#\",\"2147483648,#,#\"}){boolean rejected=false;try{deserialize(invalid);}catch(IllegalArgumentException e){rejected=true;}assert rejected;rejected=false;try{deserializePre(invalid);}catch(IllegalArgumentException e){rejected=true;}assert rejected;}",
+      "TreeNode r=new TreeNode(Integer.MIN_VALUE);r.right=new TreeNode(Integer.MAX_VALUE);TreeNode copy=deserialize(serialize(r));assert copy.val==Integer.MIN_VALUE&&copy.left==null&&copy.right.val==Integer.MAX_VALUE;",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}TreeNode copy=deserialize(serialize(r));for(int i=0;i<100000;i++){assert copy!=null&&copy.val==i&&copy.left==null;copy=copy.right;}assert copy==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/serialize-and-deserialize-a-binary-tree",
+      "title": "Serialize and Deserialize a Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Preserve null positions in preorder or level-order text and rebuild in the same order.",
+      "adaptation": "Both public Java codecs were checked. The source prose promises no trailing comma, but its Java appends one; this version consistently emits no trailing comma and # for an empty tree. Both decoders add strict token-count validation. Space accounting includes Java’s split-token array."
+    },
+    "baselineJava": "static String serializePre(TreeNode root) {\n    StringBuilder data = new StringBuilder();\n    writePre(root, data);\n    return data.toString();\n}\nstatic void writePre(TreeNode node, StringBuilder data) {\n    if (data.length() > 0) data.append(',');\n    if (node == null) { data.append('#'); return; }\n    data.append(node.val);\n    writePre(node.left, data);\n    writePre(node.right, data);\n}\nstatic TreeNode deserializePre(String data) {\n    String[] tokens = data.split(\",\", -1);\n    int[] next = {0};\n    TreeNode root = readPre(tokens, next);\n    if (next[0] != tokens.length) throw new IllegalArgumentException(\"Extra tokens\");\n    return root;\n}\nstatic TreeNode readPre(String[] tokens, int[] next) {\n    if (next[0] == tokens.length) throw new IllegalArgumentException(\"Missing token\");\n    TreeNode node = decodeValue(tokens[next[0]++]);\n    if (node == null) return null;\n    node.left = readPre(tokens, next);\n    node.right = readPre(tokens, next);\n    return node;\n}",
+    "baselineTime": "O(n) time, O(h) recursive stack, and O(n) serialized/split-token storage for int values."
+  },
+  "311": {
+    "problem": "Produce preorder traversal (Root → Left → Right) using constant auxiliary space and restore the tree before finishing.",
+    "assumptions": "The input is an ordinary mutable tree with no cycles. Duplicate values are allowed. Every temporary link must be removed before the method returns. The output list is separate from the O(1) traversal workspace. The pinned old-sheet practice link points to inorder, despite this row’s preorder title; this page teaches preorder, matching the current Striver preorder article. The next row covers inorder.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 6",
+      "output": "[8, 4, 6, 9]",
+      "explanation": "The root is recorded before entering the left subtree. The temporary return link from 6 to 8 is removed before completion."
+    },
+    "baseline": "A recursive traversal follows the required order directly, but uses O(h) call-stack space. An explicit stack has the same space bound. Morris traversal stores return links temporarily inside the tree instead.",
+    "approach": "When a node has a left subtree, find that subtree’s rightmost node, called the inorder predecessor. Its empty right reference can temporarily point back to the current node. This thread remembers where to return without a stack.\n\nOn the first encounter, create the thread and move left. On the second encounter, the predecessor already points to current: remove that thread and move right. Stop the predecessor search when it sees current, or it could follow the temporary cycle forever.\n\nFor preorder, record the current value on the first encounter, before moving left. Do not record it again when removing the thread. A node without a left child is recorded immediately.\n\nAlthough predecessor searching is nested inside the loop, each relevant edge is followed only a constant number of times overall. Total work is O(n).",
+    "steps": [
+      "If current has no left child, record it and move right.",
+      "Otherwise find its predecessor, stopping at null or a right reference back to current.",
+      "On first encounter, record current, create the thread and move left.",
+      "On second encounter, remove the thread, and move right."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> morrisPreorder(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    TreeNode current = root;\n    while (current != null) {\n        if (current.left == null) {\n            answer.add(current.val);\n            current = current.right;\n        } else {\n            TreeNode predecessor = current.left;\n            while (predecessor.right != null && predecessor.right != current)\n                predecessor = predecessor.right;\n            if (predecessor.right == null) {\n                answer.add(current.val);\n                predecessor.right = current;\n                current = current.left;\n            } else {\n                predecessor.right = null;\n                current = current.right;\n            }\n        }\n    }\n    return answer;\n}",
+    "time": "O(n).",
+    "space": "O(1) auxiliary traversal space, plus O(n) for the returned values.",
+    "pitfalls": [
+      "Compare node references when detecting a thread, not node values.",
+      "Restore predecessor.right to null on the second encounter.",
+      "Do not return early after creating threads; unfinished cleanup can leave cycles.",
+      "Use a stack-based traversal when temporary mutation or concurrent access is not acceptable."
+    ],
+    "tests": [
+      "assert morrisPreorder(null).isEmpty();TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert morrisPreorder(r).equals(List.of(8,4,6,9));assert r.left.right.right==null&&r.left.val==4&&r.right.val==9;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<TreeNode,TreeNode[]>before=new IdentityHashMap<>();for(TreeNode x:paths.keySet())before.put(x,new TreeNode[]{x.left,x.right});List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert morrisPreorder(root).equals(want);for(TreeNode x:before.keySet())assert x.left==before.get(x)[0]&&x.right==before.get(x)[1];assert morrisPreorder(root).equals(want);for(TreeNode x:before.keySet())assert x.left==before.get(x)[0]&&x.right==before.get(x)[1];assert ordinaryTraversal(root).equals(want);}",
+      "TreeNode[]nodes=new TreeNode[100000];for(int i=0;i<nodes.length;i++){nodes[i]=new TreeNode(i);if(i>0)nodes[i-1].left=nodes[i];}List<Integer>a=morrisPreorder(nodes[0]);assert a.size()==nodes.length;for(int i=0;i<nodes.length;i++){assert a.get(i)==i;assert nodes[i].right==null;assert nodes[i].left==(i+1<nodes.length?nodes[i+1]:null);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/morris-preorder-traversal",
+      "title": "Morris Preorder Traversal: Binary Tree Traversal in O(1) Space",
+      "checkedOn": "2026-10-29",
+      "approach": "Use predecessor threads and visit before entering the left subtree.",
+      "adaptation": "The complete current public lesson and dry run were checked. It has no Java tab, so this is an authored Java implementation of its threading steps. Tests verify both traversal order and restoration of every original child reference."
+    },
+    "baselineJava": "static List<Integer> ordinaryTraversal(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    ordinaryVisit(root, answer);\n    return answer;\n}\nstatic void ordinaryVisit(TreeNode node, List<Integer> answer) {\n    if (node == null) return;\n    answer.add(node.val);\n    ordinaryVisit(node.left, answer);\n    ordinaryVisit(node.right, answer);\n}",
+    "baselineTime": "O(n) time and O(h) call-stack space, plus the output."
+  },
+  "312": {
+    "problem": "Produce inorder traversal (Left → Root → Right) using constant auxiliary space and restore the tree before finishing.",
+    "assumptions": "The input is an ordinary mutable tree with no cycles. Duplicate values are allowed. Every temporary link must be removed before the method returns. The output list is separate from the O(1) traversal workspace.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 6",
+      "output": "[4, 6, 8, 9]",
+      "explanation": "The root is recorded after returning from the left subtree. The temporary return link from 6 to 8 is removed before completion."
+    },
+    "baseline": "A recursive traversal follows the required order directly, but uses O(h) call-stack space. An explicit stack has the same space bound. Morris traversal stores return links temporarily inside the tree instead.",
+    "approach": "When a node has a left subtree, find that subtree’s rightmost node, called the inorder predecessor. Its empty right reference can temporarily point back to the current node. This thread remembers where to return without a stack.\n\nOn the first encounter, create the thread and move left. On the second encounter, the predecessor already points to current: remove that thread and move right. Stop the predecessor search when it sees current, or it could follow the temporary cycle forever.\n\nFor inorder, wait to record the current value until the second encounter, after its left subtree is complete and its thread is removed. A node without a left child is recorded immediately.\n\nAlthough predecessor searching is nested inside the loop, each relevant edge is followed only a constant number of times overall. Total work is O(n).",
+    "steps": [
+      "If current has no left child, record it and move right.",
+      "Otherwise find its predecessor, stopping at null or a right reference back to current.",
+      "On first encounter, create the thread and move left.",
+      "On second encounter, remove the thread, record current, and move right."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> morrisInorder(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    TreeNode current = root;\n    while (current != null) {\n        if (current.left == null) {\n            answer.add(current.val);\n            current = current.right;\n        } else {\n            TreeNode predecessor = current.left;\n            while (predecessor.right != null && predecessor.right != current)\n                predecessor = predecessor.right;\n            if (predecessor.right == null) {\n                predecessor.right = current;\n                current = current.left;\n            } else {\n                predecessor.right = null;\n                answer.add(current.val);\n                current = current.right;\n            }\n        }\n    }\n    return answer;\n}",
+    "time": "O(n).",
+    "space": "O(1) auxiliary traversal space, plus O(n) for the returned values.",
+    "pitfalls": [
+      "Compare node references when detecting a thread, not node values.",
+      "Restore predecessor.right to null on the second encounter.",
+      "Do not return early after creating threads; unfinished cleanup can leave cycles.",
+      "Use a stack-based traversal when temporary mutation or concurrent access is not acceptable."
+    ],
+    "tests": [
+      "assert morrisInorder(null).isEmpty();TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert morrisInorder(r).equals(List.of(4,6,8,9));assert r.left.right.right==null&&r.left.val==4&&r.right.val==9;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}Map<TreeNode,TreeNode[]>before=new IdentityHashMap<>();for(TreeNode x:paths.keySet())before.put(x,new TreeNode[]{x.left,x.right});List<TreeNode>ordered=new ArrayList<>(paths.keySet());ordered.sort(Comparator.comparing(x->paths.get(x)+\"M\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert morrisInorder(root).equals(want);for(TreeNode x:before.keySet())assert x.left==before.get(x)[0]&&x.right==before.get(x)[1];assert morrisInorder(root).equals(want);for(TreeNode x:before.keySet())assert x.left==before.get(x)[0]&&x.right==before.get(x)[1];assert ordinaryTraversal(root).equals(want);}",
+      "TreeNode[]nodes=new TreeNode[100000];for(int i=0;i<nodes.length;i++){nodes[i]=new TreeNode(i);if(i>0)nodes[i-1].left=nodes[i];}List<Integer>a=morrisInorder(nodes[0]);assert a.size()==nodes.length;for(int i=0;i<nodes.length;i++){assert a.get(i)==nodes.length-1-i;assert nodes[i].right==null;assert nodes[i].left==(i+1<nodes.length?nodes[i+1]:null);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/morris-inorder-traversal",
+      "title": "Morris Inorder Traversal: Binary Tree Traversal in O(1) Space",
+      "checkedOn": "2026-10-29",
+      "approach": "Use predecessor threads and visit after returning from the left subtree.",
+      "adaptation": "The complete current public lesson and dry run were checked. It has no Java tab, so this is an authored Java implementation of its threading steps. Tests verify both traversal order and restoration of every original child reference."
+    },
+    "baselineJava": "static List<Integer> ordinaryTraversal(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    ordinaryVisit(root, answer);\n    return answer;\n}\nstatic void ordinaryVisit(TreeNode node, List<Integer> answer) {\n    if (node == null) return;\n    ordinaryVisit(node.left, answer);\n    answer.add(node.val);\n    ordinaryVisit(node.right, answer);\n}",
+    "baselineTime": "O(n) time and O(h) call-stack space, plus the output."
+  },
+  "313": {
+    "problem": "Flatten a binary tree in place into a right-child chain following its original preorder. Reuse the existing nodes and set every left reference to null.",
+    "assumptions": "The pinned LeetCode method returns void and modifies the supplied tree. The source article returns the same root; the pointer operations are identical. This operation permanently changes the tree, unlike Morris traversal’s temporary threads. Empty input needs no work.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 6; 6.left = 5",
+      "output": "8 → 4 → 6 → 5 → 9 through right references; every left is null",
+      "explanation": "The original left subtree comes before the original right subtree. Node 5 must remain before 9 even though the first splice point is node 6."
+    },
+    "baseline": "Save all node references in preorder, then reconnect consecutive references through right and clear every left reference. This is easy to check but needs O(n) storage for the saved list.",
+    "approach": "At the current node, preorder needs the whole left subtree before the original right subtree. If a left child exists, find the rightmost node along that left subtree’s right-child chain. Attach the original right subtree there, move the left subtree to current.right, and clear current.left. Then advance right.\n\nThe splice point is not necessarily the last node in final preorder: it may have a left subtree of its own. When traversal reaches it, the same rewiring rule moves that left subtree ahead of its saved right continuation. This is why no nodes are skipped or lost.\n\nThe method uses only two moving references and finishes with the original nodes connected in preorder.",
+    "steps": [
+      "Start current at the root.",
+      "If a left subtree exists, find its rightmost node.",
+      "Attach current.right there before moving current.left to current.right.",
+      "Clear current.left and advance to current.right."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic void flatten(TreeNode root) {\n    TreeNode current = root;\n    while (current != null) {\n        if (current.left != null) {\n            TreeNode rightmost = current.left;\n            while (rightmost.right != null) rightmost = rightmost.right;\n            rightmost.right = current.right;\n            current.right = current.left;\n            current.left = null;\n        }\n        current = current.right;\n    }\n}",
+    "time": "O(n): predecessor searches and forward traversal together follow each relevant link only a constant number of times.",
+    "space": "O(1) auxiliary space. No new tree nodes are created.",
+    "pitfalls": [
+      "Preserve the original right subtree before replacing current.right.",
+      "Clear every left reference.",
+      "The rightmost splice node can have a left subtree; it is not always the final preorder node.",
+      "For reverse-recursive flattening, reset previous for each call so separate trees do not become connected."
+    ],
+    "tests": [
+      "flatten(null);TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);r.left.right.left=new TreeNode(5);TreeNode[]want={r,r.left,r.left.right,r.left.right.left,r.right};flatten(r);TreeNode x=r;for(TreeNode node:want){assert x==node&&x.left==null;x=x.right;}assert x==null;flatten(r);x=r;for(TreeNode node:want){assert x==node;x=x.right;}assert x==null;",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>order=new ArrayList<>(paths.keySet());order.sort(Comparator.comparing(paths::get));for(int variant=0;variant<3;variant++){Map<TreeNode,TreeNode>copy=new IdentityHashMap<>();for(TreeNode x:paths.keySet())copy.put(x,new TreeNode(x.val));for(TreeNode x:paths.keySet()){copy.get(x).left=copy.get(x.left);copy.get(x).right=copy.get(x.right);}TreeNode rebuilt=copy.get(root);if(variant==0)flatten(rebuilt);else if(variant==1)flattenWithList(rebuilt);else flattenReverse(rebuilt);TreeNode x=rebuilt;for(TreeNode original:order){assert x==copy.get(original)&&x.left==null;x=x.right;}assert x==null;}}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.left=new TreeNode(i);p=p.left;}flatten(r);for(int i=0;i<100000;i++){assert r!=null&&r.val==i&&r.left==null;r=r.right;}assert r==null;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/flatten-binary-tree-to-linked-list",
+      "title": "Flatten Binary Tree to Linked List",
+      "checkedOn": "2026-10-29",
+      "approach": "Store preorder references, build backward recursively, or splice left subtrees into the right chain in place.",
+      "adaptation": "All three public Java methods were checked. The main code keeps the source’s constant-space rewiring, with void return for the pinned LeetCode interface. The explanation clarifies that a rightmost splice node may still have a left subtree. Recursive previous state is local to each call."
+    },
+    "baselineJava": "static void flattenWithList(TreeNode root) {\n    List<TreeNode> nodes = new ArrayList<>();\n    collectPreorderNodes(root, nodes);\n    for (int i = 0; i < nodes.size(); i++) {\n        nodes.get(i).left = null;\n        nodes.get(i).right = i + 1 < nodes.size() ? nodes.get(i + 1) : null;\n    }\n}\nstatic void collectPreorderNodes(TreeNode node, List<TreeNode> nodes) {\n    if (node == null) return;\n    nodes.add(node);\n    collectPreorderNodes(node.left, nodes);\n    collectPreorderNodes(node.right, nodes);\n}",
+    "baselineTime": "O(n) time and O(n) stored references, plus O(h) recursive stack.",
+    "better": {
+      "explanation": "Build the chain backward. Process right, then left, then the current node. previous is the already-built continuation: point current.right to it, clear current.left, then move previous to current. This avoids the full reference list but still uses recursion.",
+      "java": "static void flattenReverse(TreeNode root) {\n    reversePreorder(root, new TreeNode[]{null});\n}\nstatic void reversePreorder(TreeNode node, TreeNode[] previous) {\n    if (node == null) return;\n    reversePreorder(node.right, previous);\n    reversePreorder(node.left, previous);\n    node.right = previous[0];\n    node.left = null;\n    previous[0] = node;\n}",
+      "time": "O(n).",
+      "space": "O(h) call stack; a very deep tree can overflow it."
+    }
   }
 }
