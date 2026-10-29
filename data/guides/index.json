@@ -18190,5 +18190,130 @@
         ]
       ]
     }
+  },
+  "433": {
+    "problem": "Make all requested cuts in a stick, choosing their order to minimize the total cutting cost.",
+    "assumptions": "Cut positions are unique and strictly inside a stick from 0 to n. Each cut costs the current piece’s length, not the position of the cut. All requested cuts are mandatory. The code sorts a copy and also handles an empty cut list. This is different from rod-cutting revenue and from merging separate sticks.",
+    "example": {
+      "input": "n = 9, cuts = [2,4,7]",
+      "output": "18",
+      "explanation": "Cut at 4 first: cost 9. Then cut the left piece at 2 for cost 4, and the right piece at 7 for cost 5. Total 18. Starting at 2 instead leaves a longer right piece and costs more."
+    },
+    "baseline": "Try every cutting order. After each cut, find the current piece containing that cut and pay its length. There are m! orders for m cuts, so this is useful only for small checks.",
+    "approach": "Add 0 and n to the sorted cut positions. They mark the two original ends but are not cuts we need to pay for. Define cost(left,right) as the minimum work needed between those two fixed boundaries.\n\nChoose the first cut inside that piece. It immediately costs points[right]−points[left], regardless of which interior position we choose. Once this cut is made, the left and right pieces are separate. Their remaining cuts can be solved independently.\n\nTry each interior split and add the two smaller costs. If the boundaries are adjacent in the sorted list, there is no requested cut inside and the cost is zero. Fill intervals from narrow to wide so both pieces are ready before the containing piece. Sorting helps us identify pieces; it does not force us to cut from left to right.",
+    "steps": [
+      "Copy the cut positions and add the boundaries 0 and n.",
+      "Sort the positions.",
+      "Treat adjacent boundaries as zero-cost intervals.",
+      "For each wider interval, try every interior position as its first cut.",
+      "Add the current piece length and both subpiece costs; keep the minimum."
+    ],
+    "java": "static int[] cutPoints(int n, int[] cuts) {\n    int[] points=new int[cuts.length+2];\n    System.arraycopy(cuts,0,points,1,cuts.length);\n    points[points.length-1]=n;\n    Arrays.sort(points);\n    return points;\n}\n\nstatic long minimumCutCost(int n, int[] cuts) {\n    int[] points=cutPoints(n,cuts);\n    int count=points.length;\n    long[][] dp=new long[count][count];\n    for(int gap=2;gap<count;gap++) {\n        for(int left=0;left+gap<count;left++) {\n            int right=left+gap;\n            long best=Long.MAX_VALUE;\n            for(int split=left+1;split<right;split++) {\n                long candidate=(long)points[right]-points[left]+dp[left][split]+dp[split][right];\n                best=Math.min(best,candidate);\n            }\n            dp[left][right]=best;\n        }\n    }\n    return dp[0][count-1];\n}\nstatic int minCost(int n, int[] cuts) { return Math.toIntExact(minimumCutCost(n,cuts)); }",
+    "time": "O(m³), where m is the number of requested cuts. Sorting adds O(m log m).",
+    "space": "O(m²) for the table and O(m) for positions.",
+    "pitfalls": [
+      "The current piece length is the distance between its boundaries, not the number of cuts inside it.",
+      "Boundary markers 0 and n are not paid cuts.",
+      "Always sort the positions before treating an index interval as a physical piece.",
+      "The cheapest immediate cut is not a useful greedy rule: every first cut on the same piece costs the same amount."
+    ],
+    "tests": [
+      "assert minCost(9,new int[]{2,4,7})==18;assert minCost(20,new int[]{7})==20;assert minCost(20,new int[]{})==0;",
+      "class CutOrders {\n    long cheapest(int n,int[] cuts,boolean[] used,TreeSet<Integer> borders,int remaining){\n        if(remaining==0)return 0;long best=Long.MAX_VALUE;\n        for(int i=0;i<cuts.length;i++)if(!used[i]){int x=cuts[i],low=borders.lower(x),high=borders.higher(x);used[i]=true;borders.add(x);best=Math.min(best,(long)high-low+cheapest(n,cuts,used,borders,remaining-1));borders.remove(x);used[i]=false;}\n        return best;\n    }\n}\nRandom random=new Random(433);CutOrders oracle=new CutOrders();for(int trial=0;trial<400;trial++){int n=10+random.nextInt(20),m=random.nextInt(8);int[] cuts=new int[m];Set<Integer> chosen=new HashSet<>();for(int i=0;i<m;i++){int x;do{x=1+random.nextInt(n-1);}while(!chosen.add(x));cuts[i]=x;}int[] saved=cuts.clone();TreeSet<Integer> borders=new TreeSet<>(List.of(0,n));long expected=oracle.cheapest(n,cuts,new boolean[m],borders,m);assert minimumCutCost(n,cuts)==expected;assert cutMemo(n,cuts)==expected;assert Arrays.equals(cuts,saved);}",
+      "int[] cuts=new int[100];for(int i=0;i<cuts.length;i++)cuts[i]=(i+1)*9999;long value=minimumCutCost(1000000,cuts);assert value>=1000000&&value<=100000000;assert value==cutMemo(1000000,cuts);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-cost-to-cut-the-stick",
+      "title": "Minimum cost to cut the stick",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort cuts with boundary markers; choose the first cut in each interval and add the costs of the two independent pieces.",
+      "adaptation": "The statement, both public hints, and sorting FAQ were checked. The Solution panel requires sign-in, so no full source Java was inspected. The Java uses the published boundary-interval recurrence with long costs and a judge-compatible int wrapper."
+    },
+    "better": {
+      "explanation": "The same interval question can be answered on demand with memoization. A −1 marker is separate from a legitimate zero cost. The base case is two adjacent boundary markers, with no requested cut between them.",
+      "java": "static long cutMemo(int n,int[] cuts) {\n    int[] points=cutPoints(n,cuts);\n    long[][] saved=new long[points.length][points.length];\n    for(long[] row:saved) Arrays.fill(row,-1);\n    return cutAt(points,0,points.length-1,saved);\n}\nstatic long cutAt(int[] points,int left,int right,long[][] saved) {\n    if(right-left<=1) return 0;\n    if(saved[left][right]!=-1) return saved[left][right];\n    long best=Long.MAX_VALUE;\n    for(int split=left+1;split<right;split++)\n        best=Math.min(best,(long)points[right]-points[left]\n            +cutAt(points,left,split,saved)+cutAt(points,split,right,saved));\n    return saved[left][right]=best;\n}",
+      "time": "O(m³).",
+      "space": "O(m²) memo table and O(m) stack."
+    },
+    "trace": {
+      "columns": [
+        "First cut",
+        "Current piece cost",
+        "Best left cost",
+        "Best right cost",
+        "Total"
+      ],
+      "rows": [
+        [
+          "2",
+          "9",
+          "0",
+          "12",
+          "21"
+        ],
+        [
+          "4",
+          "9",
+          "4",
+          "5",
+          "18"
+        ],
+        [
+          "7",
+          "9",
+          "11",
+          "0",
+          "20"
+        ]
+      ]
+    }
+  },
+  "434": {
+    "problem": "Burst every balloon in an order that gives the largest total coin count. A burst uses the values of its currently surviving neighbors.",
+    "assumptions": "An absent neighbor contributes 1. The pinned LeetCode problem allows zero-valued balloons, while the current TUF page lists positive values; this code supports both. The original order is fixed, and the input array is not changed. Empty input returns zero.",
+    "example": {
+      "input": "nums = [2,4,3]",
+      "output": "33",
+      "explanation": "Burst 4 first for 2×4×3 = 24. Then burst 2 for 1×2×3 = 6. Finally burst 3 for 1×3×1 = 3. The total is 33."
+    },
+    "baseline": "Actually remove each possible next balloon, calculate its current neighbors, and recurse on the shorter list. This explores all n! orders and is useful for checking small cases, but not for large inputs.",
+    "approach": "Choosing the first balloon to burst does not split the problem cleanly: the two sides become neighbors and still affect one another. Instead, choose the last balloon to burst inside an interval.\n\nImagine the two balloons just outside the interval stay in place until this interval is finished. If k is last, every other balloon inside has already gone. Its final reward is values[left−1]×values[k]×values[right+1]. Those outside neighbors are now known.\n\nWhile k remains, it separates the two smaller intervals. Solve left..k−1 and k+1..right, add their rewards, then add k’s final burst reward. Try every possible last balloon and keep the largest total. Pad the original array with a 1 at each end to make the edge cases follow the same rule.\n\nFill short intervals before long ones. Empty intervals contribute zero. The padding balloons are boundaries only; they are never burst.",
+    "steps": [
+      "Copy the values between two boundary 1s.",
+      "Fill intervals by increasing number of real balloons.",
+      "Try each balloon in the interval as the last one to burst.",
+      "Add the two subinterval rewards and the reward using the fixed outside neighbors.",
+      "Return the best reward for all real balloons."
+    ],
+    "java": "static int[] paddedBalloons(int[] nums) {\n    int[] values=new int[nums.length+2];\n    values[0]=values[values.length-1]=1;\n    System.arraycopy(nums,0,values,1,nums.length);\n    return values;\n}\n\nstatic long balloonProfit(int[] nums) {\n    int[] values=paddedBalloons(nums);\n    int n=nums.length;\n    long[][] dp=new long[n+2][n+2];\n    for(int length=1;length<=n;length++) {\n        for(int left=1;left+length-1<=n;left++) {\n            int right=left+length-1;\n            for(int last=left;last<=right;last++) {\n                long reward=(long)values[left-1]*values[last]*values[right+1];\n                dp[left][right]=Math.max(dp[left][right],\n                    dp[left][last-1]+dp[last+1][right]+reward);\n            }\n        }\n    }\n    return dp[1][n];\n}\nstatic int maxCoins(int[] nums) { return Math.toIntExact(balloonProfit(nums)); }",
+    "time": "O(n³).",
+    "space": "O(n²) table and O(n) padded values.",
+    "pitfalls": [
+      "The chosen split balloon is last in this interval, not first.",
+      "Use the fixed boundaries left−1 and right+1 for the final reward, not the original immediate neighbors of last.",
+      "Do not sort: neighboring positions matter.",
+      "Zero-valued balloons are legal in the pinned problem and must still be accounted for.",
+      "All real balloons must be burst; boundary 1s are never burst."
+    ],
+    "tests": [
+      "assert maxCoins(new int[]{2,4,3})==33;assert maxCoins(new int[]{0,2,0})==2;assert maxCoins(new int[]{})==0;assert maxCoins(new int[]{7})==7;",
+      "Random random=new Random(434);for(int trial=0;trial<350;trial++){int n=random.nextInt(8);int[] nums=new int[n];List<Integer> live=new ArrayList<>();for(int i=0;i<n;i++){nums[i]=random.nextInt(7);live.add(nums[i]);}long expected=burstByRemoval(live);assert balloonProfit(nums)==expected;assert balloonMemo(nums)==expected;}",
+      "int[] nums=new int[300];Arrays.fill(nums,100);assert maxCoins(nums)==298010100;Arrays.fill(nums,0);assert maxCoins(nums)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/burst-balloons",
+      "title": "Burst balloons",
+      "checkedOn": "2026-10-29",
+      "approach": "Choose the last balloon in an interval, then combine the two independent subintervals with its fixed-boundary reward.",
+      "adaptation": "The statement, both public hints, and last-burst FAQ were checked. The Solution panel is sign-in gated, so no complete source Java was inspected. The Java follows that interval recurrence, preserves the original input, and includes zeros allowed by the pinned LeetCode variant."
+    },
+    "baselineJava": "static long burstByRemoval(List<Integer> live) {\n    long best=0;\n    for(int i=0;i<live.size();i++) {\n        long left=i==0?1:live.get(i-1);\n        long right=i+1==live.size()?1:live.get(i+1);\n        long reward=left*live.get(i)*right;\n        List<Integer> next=new ArrayList<>(live);\n        next.remove(i);\n        best=Math.max(best,reward+burstByRemoval(next));\n    }\n    return best;\n}",
+    "baselineTime": "O(n·n!) conservative time bound with list copying; up to O(n²) simultaneously retained list/stack storage. Small inputs only.",
+    "better": {
+      "explanation": "Memoization asks the same fixed-boundary interval question recursively. A −1 marker is necessary because zero is a valid optimum when balloon values are zero.",
+      "java": "static long balloonMemo(int[] nums) {\n    int[] values=paddedBalloons(nums);\n    long[][] memo=new long[values.length][values.length];\n    for(long[] row:memo) Arrays.fill(row,-1);\n    return balloonAt(values,1,nums.length,memo);\n}\nstatic long balloonAt(int[] values,int left,int right,long[][] memo) {\n    if(left>right) return 0;\n    if(memo[left][right]!=-1) return memo[left][right];\n    long best=0;\n    for(int last=left;last<=right;last++) {\n        long reward=(long)values[left-1]*values[last]*values[right+1];\n        best=Math.max(best,reward+balloonAt(values,left,last-1,memo)\n            +balloonAt(values,last+1,right,memo));\n    }\n    return memo[left][right]=best;\n}",
+      "time": "O(n³).",
+      "space": "O(n²) memo table plus O(n) recursion stack."
+    }
   }
 }
