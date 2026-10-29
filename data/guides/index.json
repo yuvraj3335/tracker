@@ -4768,15 +4768,15 @@
       "explanation": "The two primitive components are (()()) and (()). Removing each outer pair leaves ()() and ()."
     },
     "baseline": "Split the input into primitive substrings, trim each, and concatenate, requiring storage for intermediate pieces.",
-    "approach": "Track nesting depth. An opening parenthesis is outermost exactly when depth is zero before it. A closing parenthesis is outermost exactly when depth becomes zero after it.",
+    "approach": "Imagine keeping a count of the pairs you are currently inside. Before the first opening bracket of a group, that count is zero. That opening bracket is an outer bracket, so skip it. Any opening bracket seen at a positive depth belongs inside the group, so keep it.\n\nFor a closing bracket, reduce the depth first. If it becomes zero, we have closed the whole group, so skip that bracket. Otherwise keep it. Returning to zero also means the next group starts fresh; no separate splitting step is needed.",
     "steps": [
       "For an opening parenthesis, append only if the previous depth was positive, then increment depth.",
       "For a closing parenthesis, decrement depth first and append only if the new depth is positive.",
       "Use a StringBuilder to avoid repeated immutable-string copying."
     ],
-    "java": "static String removeOuter(String s){\n    StringBuilder out=new StringBuilder();int depth=0;\n    for(char ch:s.toCharArray()){\n        if(ch=='('){if(depth>0)out.append(ch);depth++;}\n        else{depth--;if(depth>0)out.append(ch);}\n    }\n    return out.toString();\n}",
+    "java": "static String removeOuter(String s) {\n    StringBuilder result = new StringBuilder();\n    int depth = 0;\n    for (int i = 0; i < s.length(); i++) {\n        char bracket = s.charAt(i);\n        if (bracket == '(') {\n            if (depth > 0) result.append(bracket);\n            depth++;\n        } else {\n            depth--;\n            if (depth > 0) result.append(bracket);\n        }\n    }\n    return result.toString();\n}",
     "time": "O(n).",
-    "space": "O(n) for output; O(1) conceptual scan state, plus toCharArray’s O(n) copy.",
+    "space": "O(n) for the result and O(1) extra scan state.",
     "pitfalls": [
       "Incrementing/decrementing at the wrong moment keeps or removes the wrong pair.",
       "This version assumes valid parentheses rather than validating malformed input."
@@ -4785,8 +4785,16 @@
       "assert removeOuter(\"(()())(())\").equals(\"()()()\");",
       "assert removeOuter(\"()()\").isEmpty();",
       "assert removeOuter(\"((()))\").equals(\"(())\");",
-      "assert removeOuter(\"\").isEmpty();"
-    ]
+      "assert removeOuter(\"\").isEmpty();",
+      "for(int n=0;n<=7;n++)for(int mask=0;mask<(1<<(2*n));mask++){StringBuilder s=new StringBuilder(),expected=new StringBuilder();int depth=0,start=0;boolean valid=true;for(int i=0;i<2*n;i++){char ch=(mask&(1<<i))==0?'(':')';s.append(ch);depth+=ch=='('?1:-1;if(depth<0){valid=false;break;}if(depth==0){expected.append(s.substring(start+1,i));start=i+1;}}if(valid&&depth==0)assert removeOuter(s.toString()).equals(expected.toString());}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/remove-outermost-parentheses",
+      "title": "Remove Outermost Parentheses",
+      "checkedOn": "2026-10-29",
+      "approach": "Track depth and omit the opening and closing brackets at the outside of each group.",
+      "adaptation": "The public current statement was checked. Full solution Java was not accessible; this is independently written Java for the stated task. "
+    }
   },
   "112": {
     "problem": "Reverse the order of words, removing leading/trailing spaces and collapsing runs of spaces to one.",
@@ -4797,13 +4805,13 @@
       "explanation": "Read complete words from right to left. Append each extracted word after a single separator, so its letters remain in their original order."
     },
     "baseline": "Split into a list of words, reverse the list, and join. This is straightforward but creates intermediate word objects.",
-    "approach": "Scan backward to find the last nonspace character, then the start of that word. Append that interval and repeat. This directly emits the required order without reversing characters within a word.",
+    "approach": "Start at the right end of the string and skip spaces. The next character is the last letter of a word. Keep moving left until you reach its beginning, then copy that whole word into the answer. Its spelling stays unchanged.\n\nRepeat for the earlier words. Add a space only when the answer already contains a word. This single rule removes leading, trailing, and repeated spaces from the output.\n\nThe title also mentions a palindrome check. The separate helper compares the first and last characters, then moves inward. One mismatch is enough to return false.",
     "steps": [
       "Skip spaces from the right.",
       "Locate the preceding word boundary.",
       "Append that word, inserting one space only between output words."
     ],
-    "java": "static String reverseWords(String s){\n    StringBuilder out=new StringBuilder();int i=s.length()-1;\n    while(i>=0){while(i>=0&&s.charAt(i)==' ')i--;if(i<0)break;int end=i+1;\n        while(i>=0&&s.charAt(i)!=' ')i--;if(out.length()>0)out.append(' ');out.append(s,i+1,end);\n    }\n    return out.toString();\n}\nstatic boolean exactPalindrome(String s){\n    for(int l=0,r=s.length()-1;l<r;l++,r--)if(s.charAt(l)!=s.charAt(r))return false;\n    return true;\n}",
+    "java": "static String reverseWords(String s) {\n    StringBuilder result = new StringBuilder();\n    int i = s.length() - 1;\n    while (i >= 0) {\n        while (i >= 0 && s.charAt(i) == ' ') i--;\n        if (i < 0) break;\n        int end = i + 1;\n        while (i >= 0 && s.charAt(i) != ' ') i--;\n        if (result.length() > 0) result.append(' ');\n        result.append(s, i + 1, end);\n    }\n    return result.toString();\n}\n\nstatic boolean exactPalindrome(String s) {\n    for (int left = 0, right = s.length() - 1; left < right; left++, right--) {\n        if (s.charAt(left) != s.charAt(right)) return false;\n    }\n    return true;\n}",
     "time": "O(n) for either operation.",
     "space": "O(n) output for word reversal; O(1) for palindrome checking.",
     "pitfalls": [
@@ -4815,36 +4823,54 @@
       "assert reverseWords(\"  the sky   is blue  \").equals(\"blue is sky the\");",
       "assert reverseWords(\"   \").isEmpty();",
       "assert reverseWords(\"Java\").equals(\"Java\");",
-      "assert exactPalindrome(\"racecar\");assert !exactPalindrome(\"Racecar\");"
-    ]
+      "assert exactPalindrome(\"racecar\");assert !exactPalindrome(\"Racecar\");",
+      "Random random=new Random(112);for(int run=0;run<1000;run++){StringBuilder s=new StringBuilder();for(int i=0,n=random.nextInt(80);i<n;i++)s.append(\"abc   \".charAt(random.nextInt(6)));String trimmed=s.toString().trim();List<String> words=new ArrayList<>();if(!trimmed.isEmpty())words.addAll(Arrays.asList(trimmed.split(\" +\")));Collections.reverse(words);assert reverseWords(s.toString()).equals(String.join(\" \",words));assert exactPalindrome(s.toString())==s.toString().equals(s.reverse().toString());}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/reverse-every-word-in-a-string",
+      "title": "Reverse every word in a string — current sheet variant",
+      "checkedOn": "2026-10-29",
+      "approach": "Read complete words backward and join them with one space.",
+      "adaptation": "The pinned public statement was checked. The current Striver article named Reverse every word instead reverses letters within each word. This guide keeps the pinned word-order task; guide 125 explains both variants. Java is independently written, and the palindrome helper covers the second half of the pinned title."
+    }
   },
   "113": {
     "problem": "Return the largest-valued odd substring of a decimal digit string.",
-    "assumptions": "The input contains decimal digits. Return an empty string if no odd digit exists; do not convert the potentially huge value to an integer.",
+    "assumptions": "The pinned LeetCode problem supplies a digit string with no leading zeroes. The current Striver variant permits leading zeroes but requires removing them from the answer. This helper supports both and returns an empty string when there is no odd digit.",
     "example": {
       "input": "\"35420\"",
       "output": "\"35\"",
       "explanation": "The rightmost odd digit is 5. Every odd candidate must end at an odd digit, and keeping all earlier digits gives the largest available prefix value."
     },
     "baseline": "Enumerate substrings, identify odd ones, and compare their numeric values or lengths, doing unnecessary quadratic work.",
-    "approach": "An integer is odd exactly when its final digit is odd. End at the rightmost odd digit and retain the full prefix: removing earlier nonnegative decimal digits cannot make the value larger. This also handles values far beyond machine integer ranges.",
+    "approach": "Only the last digit decides whether a decimal number is odd. Start at the right and stop at the first odd digit. Any substring ending farther right is even, so it cannot be the answer.\n\nKeep every earlier digit up to that point: keeping more leading digits cannot reduce the number. In Striver’s current variant, skip zeroes at the very beginning because the answer must not have leading zeroes. There is no need to parse the number, so even a very long digit string is safe.",
     "steps": [
-      "Scan digits from right to left.",
-      "Stop at the first odd digit.",
-      "Return the prefix through that position, or empty when none exists."
+      "Find the rightmost odd digit.",
+      "If none exists, return an empty string.",
+      "Skip leading zeroes and return the slice ending at that odd digit."
     ],
-    "java": "static String largestOdd(String digits){\n    for(int i=digits.length()-1;i>=0;i--)if((digits.charAt(i)-'0')%2==1)return digits.substring(0,i+1);\n    return \"\";\n}",
+    "java": "static String largestOdd(String digits) {\n    int end = digits.length() - 1;\n    while (end >= 0 && (digits.charAt(end) - '0') % 2 == 0) end--;\n    if (end < 0) return \"\";\n    int start = 0;\n    while (digits.charAt(start) == '0') start++;\n    return digits.substring(start, end + 1);\n}",
     "time": "O(n).",
     "space": "O(n) for the returned substring in modern Java; O(1) scan state.",
     "pitfalls": [
-      "The answer is a prefix, not just the largest odd single digit.",
-      "Integer.parseInt or Long.parseLong can overflow on valid long inputs."
+      "The answer can contain many digits; it is not just the largest odd digit.",
+      "Do not parse the full number into int or long.",
+      "The current Striver variant allows leading zeroes; its answer must remove them."
     ],
     "tests": [
       "assert largestOdd(\"35420\").equals(\"35\");",
       "assert largestOdd(\"4206\").isEmpty();",
-      "assert largestOdd(\"987654321987654321\").equals(\"987654321987654321\");"
-    ]
+      "assert largestOdd(\"987654321987654321\").equals(\"987654321987654321\");",
+      "assert largestOdd(\"00035120\").equals(\"351\");assert largestOdd(\"0000\").isEmpty();",
+      "Random random=new Random(113);for(int run=0;run<1000;run++){StringBuilder s=new StringBuilder();for(int i=0,n=1+random.nextInt(12);i<n;i++)s.append(random.nextInt(10));BigInteger best=BigInteger.ZERO;for(int left=0;left<s.length();left++)for(int right=left+1;right<=s.length();right++){BigInteger value=new BigInteger(s.substring(left,right));if(value.testBit(0)&&value.compareTo(best)>0)best=value;}assert largestOdd(s.toString()).equals(best.signum()==0?\"\":best.toString());}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/largest-odd-number-in-a-string",
+      "title": "Largest Odd Number in a String",
+      "checkedOn": "2026-10-29",
+      "approach": "Find the last odd digit and remove leading zeroes.",
+      "adaptation": "The public current statement was checked. Full solution Java was not accessible; this is independently written Java for the stated task. The leading-zero difference from the pinned LeetCode input was retained explicitly."
+    }
   },
   "114": {
     "problem": "Return the longest prefix shared by every string in an array.",
@@ -4855,13 +4881,13 @@
       "explanation": "All strings share f and l. At the third position, o differs from i, so the shared prefix stops before that position."
     },
     "baseline": "Sort the strings and compare only the first and last; sorting performs work unrelated to the needed prefix.",
-    "approach": "The prefix can only shrink as strings are considered. Compare the current common-prefix length against each next string, reducing it at the first mismatch.",
+    "approach": "Start by treating the first word as the possible answer. Compare it with the next word from left to right. The first mismatch tells you where the shared prefix ends. A shorter word can also end the prefix.\n\nRemember only the prefix length, then repeat with each remaining word. The answer can shrink but never grow: a later word cannot undo an earlier mismatch. If the length reaches zero, stop because no shared prefix remains.",
     "steps": [
       "Initialize the possible length to the first string’s length.",
       "For each remaining string, compare only up to the current possible length.",
       "Return the corresponding prefix of the first string."
     ],
-    "java": "static String commonPrefix(String[] words){\n    if(words.length==0)return \"\";int length=words[0].length();\n    for(int i=1;i<words.length&&length>0;i++){\n        int j=0;while(j<length&&j<words[i].length()&&words[0].charAt(j)==words[i].charAt(j))j++;length=j;\n    }\n    return words[0].substring(0,length);\n}",
+    "java": "static String commonPrefix(String[] words) {\n    if (words.length == 0) return \"\";\n    int length = words[0].length();\n    for (int i = 1; i < words.length && length > 0; i++) {\n        int matched = 0;\n        while (matched < length && matched < words[i].length()\n                && words[0].charAt(matched) == words[i].charAt(matched)) {\n            matched++;\n        }\n        length = matched;\n    }\n    return words[0].substring(0, length);\n}",
     "time": "O(S), where S is the total number of input characters examined; at most total input size.",
     "space": "O(p) for the returned prefix, O(1) auxiliary state.",
     "pitfalls": [
@@ -4872,8 +4898,16 @@
       "assert commonPrefix(new String[]{\"flower\",\"flow\",\"flight\"}).equals(\"fl\");",
       "assert commonPrefix(new String[]{\"dog\",\"racecar\",\"car\"}).isEmpty();",
       "assert commonPrefix(new String[]{}).isEmpty();",
-      "assert commonPrefix(new String[]{\"ab\",\"\"}).isEmpty();"
-    ]
+      "assert commonPrefix(new String[]{\"ab\",\"\"}).isEmpty();",
+      "Random random=new Random(114);for(int run=0;run<1000;run++){String[] words=new String[random.nextInt(8)];for(int i=0;i<words.length;i++){StringBuilder word=new StringBuilder();for(int j=0,n=random.nextInt(10);j<n;j++)word.append((char)('a'+random.nextInt(3)));words[i]=word.toString();}String expected=\"\";if(words.length>0)for(int length=1;length<=words[0].length();length++){String candidate=words[0].substring(0,length);boolean shared=true;for(String word:words)shared&=word.startsWith(candidate);if(shared)expected=candidate;else break;}assert commonPrefix(words).equals(expected);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-common-prefix",
+      "title": "Longest Common Prefix",
+      "checkedOn": "2026-10-29",
+      "approach": "Shrink the common prefix while comparing each word.",
+      "adaptation": "The public current statement was checked. Full solution Java was not accessible; this is independently written Java for the stated task. "
+    }
   },
   "115": {
     "problem": "Check whether two strings have the same character-repetition structure under a one-to-one renaming.",
@@ -4884,13 +4918,13 @@
       "explanation": "e maps to a and g maps to d. Both occurrences of g use the same mapping, and the two source characters remain distinct."
     },
     "baseline": "Compare equality relationships for every pair of positions, costing O(n²) time.",
-    "approach": "Maintain mappings in both directions. The forward map enforces consistency; the reverse map enforces injectivity. Together they establish a bijection between the characters actually used.",
+    "approach": "Read the strings together, one position at a time. When a source letter first appears, remember which target letter it must become. When it appears again, it must use that same target letter.\n\nWe also need the reverse check. If a already maps to x, b cannot map to x too. Keep a second map from target letters back to source letters to catch this case. For example, ab and xx fail even though each source letter could have a consistent forward mapping.",
     "steps": [
       "Reject unequal lengths.",
       "For each aligned pair, verify any existing forward and reverse mappings.",
       "Store both directions if the pair is consistent."
     ],
-    "java": "static boolean isomorphic(String a,String b){\n    if(a.length()!=b.length())return false;Map<Character,Character> forward=new HashMap<>(),backward=new HashMap<>();\n    for(int i=0;i<a.length();i++){char x=a.charAt(i),y=b.charAt(i);\n        if(forward.containsKey(x)&&forward.get(x)!=y)return false;\n        if(backward.containsKey(y)&&backward.get(y)!=x)return false;\n        forward.put(x,y);backward.put(y,x);\n    }\n    return true;\n}",
+    "java": "static boolean isomorphic(String source, String target) {\n    if (source.length() != target.length()) return false;\n    Map<Character, Character> forward = new HashMap<>();\n    Map<Character, Character> backward = new HashMap<>();\n    for (int i = 0; i < source.length(); i++) {\n        char from = source.charAt(i);\n        char to = target.charAt(i);\n        if (forward.containsKey(from) && forward.get(from) != to) return false;\n        if (backward.containsKey(to) && backward.get(to) != from) return false;\n        forward.put(from, to);\n        backward.put(to, from);\n    }\n    return true;\n}",
     "time": "Expected O(n).",
     "space": "O(d) for distinct characters.",
     "pitfalls": [
@@ -4902,8 +4936,16 @@
       "assert !isomorphic(\"foo\",\"bar\");",
       "assert !isomorphic(\"ab\",\"aa\");",
       "assert isomorphic(\"paper\",\"title\");",
-      "assert isomorphic(\"\",\"\");"
-    ]
+      "assert isomorphic(\"\",\"\");",
+      "Random random=new Random(115);for(int run=0;run<2000;run++){StringBuilder a=new StringBuilder(),b=new StringBuilder();for(int i=0,n=random.nextInt(12);i<n;i++){a.append((char)('a'+random.nextInt(4)));b.append((char)('x'+random.nextInt(3)));}boolean expected=true;for(int i=0;i<a.length();i++)for(int j=0;j<a.length();j++)if((a.charAt(i)==a.charAt(j))!=(b.charAt(i)==b.charAt(j)))expected=false;assert isomorphic(a.toString(),b.toString())==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/isomorphic-string",
+      "title": "Isomorphic Strings",
+      "checkedOn": "2026-10-29",
+      "approach": "Keep a consistent one-to-one mapping in both directions.",
+      "adaptation": "The public current statement was checked. Full solution Java was not accessible; this is independently written Java for the stated task. "
+    }
   },
   "116": {
     "problem": "Determine whether one string can be obtained by cyclically rotating another.",
@@ -4914,13 +4956,13 @@
       "explanation": "Starting at position 2 of \"abcdeabcde\" gives \"cdeab\", representing a two-place left rotation."
     },
     "baseline": "Construct and compare all n rotations, requiring O(n²) character work.",
-    "approach": "Every rotation appears as a length-n substring of two copies of the original string. Conversely, such a substring follows the same cyclic order, so equal length plus containment is sufficient.",
+    "approach": "Write the source twice in a row. For abcde, this gives abcdeabcde. Starting at any of the first five positions and reading five characters gives one rotation: abcde, bcdea, cdeab, deabc, or eabcd.\n\nSo first require equal lengths, then look for the goal inside the doubled source. The length check matters: bc appears inside abcabc, but it is not a rotation of the three-letter string abc.",
     "steps": [
       "Reject different lengths.",
       "Concatenate the original string with itself.",
       "Check whether the candidate occurs in that doubled string."
     ],
-    "java": "static boolean rotation(String source,String goal){\n    return source.length()==goal.length()&&(source+source).contains(goal);\n}",
+    "java": "static boolean rotation(String source, String goal) {\n    if (source.length() != goal.length()) return false;\n    String doubled = source + source;\n    return doubled.contains(goal);\n}",
     "time": "Conservative O(n²) worst-case substring-search bound. A KMP search over the doubled string gives O(n) worst-case time.",
     "space": "O(n) for the doubled string.",
     "pitfalls": [
@@ -4931,27 +4973,35 @@
       "assert rotation(\"abcde\",\"cdeab\");",
       "assert !rotation(\"abcde\",\"abced\");",
       "assert !rotation(\"abc\",\"bc\");",
-      "assert rotation(\"\",\"\");"
-    ]
+      "assert rotation(\"\",\"\");",
+      "Random random=new Random(116);for(int run=0;run<2000;run++){StringBuilder a=new StringBuilder(),b=new StringBuilder();for(int i=0,n=random.nextInt(15);i<n;i++){a.append((char)('a'+random.nextInt(3)));b.append((char)('a'+random.nextInt(3)));}boolean expected=a.length()==0;for(int shift=0;shift<a.length();shift++){boolean match=true;for(int i=0;i<a.length();i++)match&=a.charAt((i+shift)%a.length())==b.charAt(i);expected|=match;}assert rotation(a.toString(),b.toString())==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/rotate-string",
+      "title": "Rotate String",
+      "checkedOn": "2026-10-29",
+      "approach": "Look for an equal-length goal inside two copies of the source.",
+      "adaptation": "The public current statement was checked. Full solution Java was not accessible; this is independently written Java for the stated task. "
+    }
   },
   "117": {
     "problem": "Check whether two strings contain exactly the same characters with the same multiplicities.",
-    "assumptions": "This implementation counts Unicode code points, is case-sensitive, and does not normalize canonically equivalent Unicode forms.",
+    "assumptions": "The main method follows Striver’s lowercase-English-letter version. The separate anagramUnicode helper covers Unicode code points, including emoji. Both are case-sensitive; neither normalizes different Unicode spellings of the same visible character.",
     "example": {
       "input": "\"anagram\", \"nagaram\"",
       "output": "true",
       "explanation": "Both strings contain three a characters and one each of n,g,r,m. Their order differs but their frequency tables agree."
     },
     "baseline": "Sort both code-point arrays and compare them in O(n log n) time.",
-    "approach": "Increment counts for the first string and decrement them for the second. Matching multisets leave every count zero. Missing or exhausted counts can reject early.",
+    "approach": "Order does not matter here, but the number of copies does. For example, aab and abb contain the same two letters but are not anagrams: one has two a characters and the other has two b characters.\n\nUse one counter per lowercase letter. Add one for each letter in the first string, then subtract one for each letter in the second. If every counter finishes at zero, all copies matched. A nonzero counter identifies a letter with too many or too few copies. Check the lengths first to reject an obvious mismatch.",
     "steps": [
-      "Convert each string into Unicode code points.",
-      "Reject different code-point counts.",
-      "Build the first frequency map and consume it with the second string."
+      "Reject different lengths.",
+      "Add the first string’s letters to the counters and subtract the second string’s letters.",
+      "Return true only if every counter is zero. Use the separate map-based helper for Unicode."
     ],
-    "java": "static boolean anagram(String a,String b){\n    int[] x=a.codePoints().toArray(),y=b.codePoints().toArray();if(x.length!=y.length)return false;\n    Map<Integer,Integer> counts=new HashMap<>();for(int c:x)counts.merge(c,1,Integer::sum);\n    for(int c:y){int count=counts.getOrDefault(c,0);if(count==0)return false;if(count==1)counts.remove(c);else counts.put(c,count-1);}\n    return counts.isEmpty();\n}",
-    "time": "Expected O(n+m).",
-    "space": "O(n+m) for code-point arrays, plus O(d) counts.",
+    "java": "static boolean anagram(String first, String second) {\n    if (first.length() != second.length()) return false;\n    int[] counts = new int[26];\n    for (int i = 0; i < first.length(); i++) counts[first.charAt(i) - 'a']++;\n    for (int i = 0; i < second.length(); i++) counts[second.charAt(i) - 'a']--;\n    for (int count : counts) {\n        if (count != 0) return false;\n    }\n    return true;\n}\n\nstatic boolean anagramUnicode(String first, String second) {\n    int[] a = first.codePoints().toArray();\n    int[] b = second.codePoints().toArray();\n    if (a.length != b.length) return false;\n    Map<Integer, Integer> counts = new HashMap<>();\n    for (int value : a) counts.merge(value, 1, Integer::sum);\n    for (int value : b) {\n        int count = counts.getOrDefault(value, 0);\n        if (count == 0) return false;\n        if (count == 1) counts.remove(value);\n        else counts.put(value, count - 1);\n    }\n    return counts.isEmpty();\n}",
+    "time": "O(n + m) for the lowercase version; expected O(n + m) for the Unicode helper.",
+    "space": "O(26), or O(1), for the lowercase counters. The Unicode helper uses O(n + m) for its code-point arrays and counts.",
     "pitfalls": [
       "A set loses multiplicities: \"aab\" and \"abb\" use the same set but are not anagrams.",
       "Unicode normalization is separate from frequency equality."
@@ -4959,38 +5009,54 @@
     "tests": [
       "assert anagram(\"anagram\",\"nagaram\");",
       "assert !anagram(\"aab\",\"abb\");",
-      "assert anagram(\"😀a\",\"a😀\");",
-      "assert anagram(\"\",\"\");"
-    ]
+      "assert anagramUnicode(\"😀a\",\"a😀\");",
+      "assert anagram(\"\",\"\");",
+      "Random random=new Random(117);for(int run=0;run<2000;run++){StringBuilder a=new StringBuilder(),b=new StringBuilder();for(int i=0,n=random.nextInt(30);i<n;i++)a.append((char)('a'+random.nextInt(5)));for(int i=0,n=random.nextInt(30);i<n;i++)b.append((char)('a'+random.nextInt(5)));char[] x=a.toString().toCharArray(),y=b.toString().toCharArray();Arrays.sort(x);Arrays.sort(y);boolean expected=Arrays.equals(x,y);assert anagram(a.toString(),b.toString())==expected;assert anagramUnicode(a.toString(),b.toString())==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/check-if-two-strings-are-anagrams",
+      "title": "Check if two strings are anagrams",
+      "checkedOn": "2026-10-29",
+      "approach": "Use 26 frequency counters, adding the first string and subtracting the second.",
+      "adaptation": "The public optimal Java was checked. The main method follows its frequency-array algorithm. The independently written Unicode helper is an explicit extension, not the source’s lowercase-only implementation."
+    }
   },
   "118": {
     "problem": "Group characters in descending order of frequency.",
-    "assumptions": "This implementation counts Unicode code points. Ties are broken by ascending code point for deterministic output; any tie order may be accepted by a practice platform.",
+    "assumptions": "The pinned problem uses English letters and digits, treating uppercase and lowercase as different characters. Equal-frequency groups may appear in any order. This version follows the source’s first-appearance tie order.",
     "example": {
-      "input": "\"tree\"",
-      "output": "\"eert\"",
-      "explanation": "e appears twice, so both copies come first. r and t appear once; the chosen tie rule puts r before t."
+      "input": "\"banana\"",
+      "output": "\"aaannb\"",
+      "explanation": "a appears three times, n appears twice, and b appears once. Each letter is repeated in one block, with larger counts first."
     },
-    "baseline": "Sort every character using its precomputed frequency as a comparator, costing O(n log n).",
-    "approach": "Count frequencies, sort only the distinct characters, then emit each character as many times as it occurred. Sorting d distinct keys is cheaper than sorting n repeated entries when d is small.",
+    "baseline": "Count the letters, sort the distinct letters by frequency, then repeat each letter. This takes O(n + d log d) expected time for d distinct letters. Sorting all n copies would do even more comparisons.",
+    "approach": "First count how many times each character appears. A count can only be between 1 and the string length, so we can use the count as a bucket number. Put each distinct character in its bucket once.\n\nRead the buckets from largest count to smallest. In bucket 3, write each stored character three times; in bucket 2, write it twice; and so on. Each output character is written exactly once, so no comparison sort is needed.\n\nThe source also remembers the order in which distinct characters first appeared. That makes ties predictable without adding a sort: for cccaaa, both counts are three, and c stays before a.",
     "steps": [
-      "Count code-point frequencies.",
-      "Sort keys by descending count, then ascending key.",
-      "Append each key its recorded number of times."
+      "Count frequencies and record each distinct character on its first appearance.",
+      "Put each distinct character in the bucket numbered by its frequency.",
+      "Visit buckets from n down to 1 and repeat each character that many times."
     ],
-    "java": "static String frequencySort(String s){\n    Map<Integer,Integer> counts=new HashMap<>();s.codePoints().forEach(c->counts.merge(c,1,Integer::sum));\n    List<Integer> keys=new ArrayList<>(counts.keySet());\n    keys.sort((a,b)->{int cmp=Integer.compare(counts.get(b),counts.get(a));return cmp!=0?cmp:Integer.compare(a,b);});\n    StringBuilder out=new StringBuilder();for(int c:keys)for(int i=0;i<counts.get(c);i++)out.appendCodePoint(c);\n    return out.toString();\n}",
-    "time": "Expected O(n+d log d), where d is the number of distinct code points.",
-    "space": "O(n+d), including output.",
+    "java": "static String frequencySort(String s) {\n    Map<Character, Integer> counts = new HashMap<>();\n    List<Character> order = new ArrayList<>();\n    for (int i = 0; i < s.length(); i++) {\n        char character = s.charAt(i);\n        if (!counts.containsKey(character)) order.add(character);\n        counts.merge(character, 1, Integer::sum);\n    }\n    List<List<Character>> buckets = new ArrayList<>();\n    for (int count = 0; count <= s.length(); count++) buckets.add(new ArrayList<>());\n    for (char character : order) buckets.get(counts.get(character)).add(character);\n    StringBuilder result = new StringBuilder(s.length());\n    for (int count = s.length(); count > 0; count--) {\n        for (char character : buckets.get(count)) {\n            for (int copy = 0; copy < count; copy++) result.append(character);\n        }\n    }\n    return result.toString();\n}",
+    "time": "Expected O(n): count n characters, place d distinct characters, scan n buckets, and write n output characters.",
+    "space": "O(n + d), or O(n), including the buckets and output.",
     "pitfalls": [
-      "Frequency sorting is different from ordinary alphabetic sorting.",
-      "A comparator that returns zero for equal frequencies is valid, but output may then depend on iteration order."
+      "Put each distinct character into its bucket once; putting every occurrence there would repeat it too many times.",
+      "Equal frequencies do not require alphabetical order. The source uses first appearance.",
+      "The character-based method matches the English-letter and digit contract; it does not treat emoji surrogate pairs as a single character."
     ],
     "tests": [
-      "assert frequencySort(\"tree\").equals(\"eert\");",
-      "assert frequencySort(\"cccaaa\").equals(\"aaaccc\");",
-      "assert frequencySort(\"😀a😀\").equals(\"😀😀a\");",
-      "assert frequencySort(\"\").isEmpty();"
-    ]
+      "assert frequencySort(\"banana\").equals(\"aaannb\");",
+      "assert frequencySort(\"tree\").equals(\"eetr\");assert frequencySort(\"cccaaa\").equals(\"cccaaa\");",
+      "assert frequencySort(\"Aabb\").equals(\"bbAa\");assert frequencySort(\"\").isEmpty();",
+      "Random random=new Random(118);for(int run=0;run<2000;run++){StringBuilder s=new StringBuilder();int[] count=new int[128],first=new int[128];Arrays.fill(first,Integer.MAX_VALUE);for(int i=0,n=random.nextInt(100);i<n;i++){char ch=\"aAbB01\".charAt(random.nextInt(6));s.append(ch);count[ch]++;first[ch]=Math.min(first[ch],i);}List<Character> keys=new ArrayList<>();for(int ch=0;ch<128;ch++)if(count[ch]>0)keys.add((char)ch);keys.sort((x,y)->count[x]!=count[y]?Integer.compare(count[y],count[x]):Integer.compare(first[x],first[y]));StringBuilder expected=new StringBuilder();for(char ch:keys)expected.append(String.valueOf(ch).repeat(count[ch]));assert frequencySort(s.toString()).equals(expected.toString());}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/sort-characters-by-frequency",
+      "title": "Sort Characters by Frequency",
+      "checkedOn": "2026-10-29",
+      "approach": "Frequency buckets, visited in descending count order.",
+      "adaptation": "The public optimal Java was checked. This version follows its buckets and first-appearance tie order, with shorter standalone helpers and English-letter/digit assumptions matching the pinned problem."
+    }
   },
   "119": {
     "problem": "Find the greatest number of simultaneously open parentheses in an expression.",
@@ -5001,13 +5067,13 @@
       "explanation": "Inside ((8)/4), three opening parentheses are active at once when including the outer expression parenthesis."
     },
     "baseline": "Use an explicit stack and record its maximum size, requiring O(n) space.",
-    "approach": "For a single bracket type, only the count of unmatched opens matters. Increment on an opening bracket, decrement on a closing bracket, and retain the largest count.",
+    "approach": "Depth means how many opening brackets have not yet been closed. An opening bracket adds one layer; a closing bracket removes one. Remember the largest depth seen after an opening bracket.\n\nFor ()(), the depth returns to zero between the two pairs, so the answer is one. For (()), the second opening bracket arrives before the first one closes, so the answer is two. Digits and operators do not change depth.",
     "steps": [
       "Start depth and maximum at zero.",
       "Update depth on each parenthesis and detect negative depth.",
       "After scanning, require depth zero."
     ],
-    "java": "static int maxDepth(String s){\n    int depth=0,best=0;\n    for(int i=0;i<s.length();i++){char c=s.charAt(i);if(c=='(')best=Math.max(best,++depth);else if(c==')'&&--depth<0)throw new IllegalArgumentException();}\n    if(depth!=0)throw new IllegalArgumentException();return best;\n}",
+    "java": "static int maxDepth(String s) {\n    int depth = 0;\n    int best = 0;\n    for (int i = 0; i < s.length(); i++) {\n        char character = s.charAt(i);\n        if (character == '(') {\n            depth++;\n            best = Math.max(best, depth);\n        } else if (character == ')') {\n            depth--;\n            if (depth < 0) throw new IllegalArgumentException();\n        }\n    }\n    if (depth != 0) throw new IllegalArgumentException();\n    return best;\n}",
     "time": "O(n).",
     "space": "O(1).",
     "pitfalls": [
@@ -5018,8 +5084,16 @@
       "assert maxDepth(\"(1+(2*3)+((8)/4))+1\")==3;",
       "assert maxDepth(\"()()\") ==1;",
       "assert maxDepth(\"123\")==0;",
-      "boolean rejected=false;try{maxDepth(\")(\");}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
-    ]
+      "boolean rejected=false;try{maxDepth(\")(\");}catch(IllegalArgumentException e){rejected=true;}assert rejected;",
+      "for(int n=0;n<=7;n++)for(int mask=0;mask<(1<<(2*n));mask++){StringBuilder s=new StringBuilder();Deque<Character> stack=new ArrayDeque<>();int expected=0;boolean valid=true;for(int i=0;i<2*n;i++){if((mask&(1<<i))==0){stack.push('(');s.append('(');expected=Math.max(expected,stack.size());}else{if(stack.isEmpty()){valid=false;break;}stack.pop();s.append(')');}}if(valid&&stack.isEmpty())assert maxDepth(s.toString())==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/maximum-nesting-depth-of-the-parentheses",
+      "title": "Maximum Nesting Depth of the Parentheses",
+      "checkedOn": "2026-10-29",
+      "approach": "Count unmatched opening parentheses and save the maximum.",
+      "adaptation": "The public statement was checked. Full solution Java was not accessible. This independent implementation also rejects unbalanced inputs; the platform guarantees balanced input."
+    }
   },
   "120": {
     "problem": "Convert between canonical Roman numerals and integers.",
@@ -5030,13 +5104,13 @@
       "explanation": "M contributes 1000, CM contributes 900, XC contributes 90, and IV contributes 4."
     },
     "baseline": "For decoding, separately recognize each subtractive pair; for encoding, repeatedly choose a symbol value, including those pairs.",
-    "approach": "A Roman symbol smaller than the next symbol is subtracted; otherwise it is added. Encoding greedily uses the ordered table including 900,400,90,40,9,4. Re-encoding the decoded value verifies canonical notation.",
+    "approach": "Read the numeral from left to right. Usually a symbol adds its value. The exception is a smaller symbol immediately before a larger one: in IV, subtract I and add V, giving −1 + 5 = 4. In VI, both symbols add, giving 5 + 1 = 6.\n\nFor the reverse direction, keep a list of numeral pieces from largest to smallest, including CM, CD, XC, XL, IX, and IV. Repeatedly take the largest piece that fits the remaining number. For 44, take XL, then IV.\n\nThe platform guarantees valid Roman input. This helper additionally checks it by converting the result back to Roman and comparing it with the original. That rejects forms such as IL, which a subtraction-only scan would otherwise accept.",
     "steps": [
       "Decode with the next-symbol comparison.",
       "Encode by repeatedly consuming the largest available table value.",
       "For strict parsing, require the encoded result to equal the original input."
     ],
-    "java": "static int romanValue(char c){\n    return switch(c){case 'I'->1;case 'V'->5;case 'X'->10;case 'L'->50;case 'C'->100;case 'D'->500;case 'M'->1000;default->throw new IllegalArgumentException();};\n}\nstatic int fromRoman(String s){\n    int total=0;for(int i=0;i<s.length();i++){int value=romanValue(s.charAt(i));total+=i+1<s.length()&&value<romanValue(s.charAt(i+1))?-value:value;}\n    if(total<1||total>3999||!toRoman(total).equals(s))throw new IllegalArgumentException();return total;\n}\nstatic String toRoman(int number){\n    if(number<1||number>3999)throw new IllegalArgumentException();\n    int[] values={1000,900,500,400,100,90,50,40,10,9,5,4,1};\n    String[] symbols={\"M\",\"CM\",\"D\",\"CD\",\"C\",\"XC\",\"L\",\"XL\",\"X\",\"IX\",\"V\",\"IV\",\"I\"};\n    StringBuilder out=new StringBuilder();for(int i=0;i<values.length;i++)while(number>=values[i]){out.append(symbols[i]);number-=values[i];}return out.toString();\n}",
+    "java": "static int romanValue(char symbol) {\n    return switch (symbol) {\n        case 'I' -> 1;\n        case 'V' -> 5;\n        case 'X' -> 10;\n        case 'L' -> 50;\n        case 'C' -> 100;\n        case 'D' -> 500;\n        case 'M' -> 1000;\n        default -> throw new IllegalArgumentException();\n    };\n}\n\nstatic int fromRoman(String s) {\n    if (s.isEmpty() || s.length() > 15) throw new IllegalArgumentException();\n    int total = 0;\n    for (int i = 0; i < s.length(); i++) {\n        int value = romanValue(s.charAt(i));\n        if (i + 1 < s.length() && value < romanValue(s.charAt(i + 1))) total -= value;\n        else total += value;\n    }\n    if (total < 1 || total > 3999 || !toRoman(total).equals(s)) {\n        throw new IllegalArgumentException();\n    }\n    return total;\n}\n\nstatic String toRoman(int number) {\n    if (number < 1 || number > 3999) throw new IllegalArgumentException();\n    int[] values = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};\n    String[] symbols = {\"M\", \"CM\", \"D\", \"CD\", \"C\", \"XC\", \"L\", \"XL\", \"X\", \"IX\", \"V\", \"IV\", \"I\"};\n    StringBuilder result = new StringBuilder();\n    for (int i = 0; i < values.length; i++) {\n        while (number >= values[i]) {\n            result.append(symbols[i]);\n            number -= values[i];\n        }\n    }\n    return result.toString();\n}",
     "time": "O(L) for input/output length; the canonical 1…3999 domain has bounded output length.",
     "space": "O(L) output; O(1) fixed lookup tables and scan state.",
     "pitfalls": [
@@ -5046,8 +5120,17 @@
     "tests": [
       "assert fromRoman(\"MCMXCIV\")==1994;assert toRoman(1994).equals(\"MCMXCIV\");",
       "for(int n=1;n<=3999;n++)assert fromRoman(toRoman(n))==n;",
-      "boolean rejected=false;try{fromRoman(\"IL\");}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
-    ]
+      "boolean rejected=false;try{fromRoman(\"IL\");}catch(IllegalArgumentException e){rejected=true;}assert rejected;",
+      "String[] thousands={\"\",\"M\",\"MM\",\"MMM\"},hundreds={\"\",\"C\",\"CC\",\"CCC\",\"CD\",\"D\",\"DC\",\"DCC\",\"DCCC\",\"CM\"},tens={\"\",\"X\",\"XX\",\"XXX\",\"XL\",\"L\",\"LX\",\"LXX\",\"LXXX\",\"XC\"},ones={\"\",\"I\",\"II\",\"III\",\"IV\",\"V\",\"VI\",\"VII\",\"VIII\",\"IX\"};for(int n=1;n<=3999;n++){String expected=thousands[n/1000]+hundreds[n/100%10]+tens[n/10%10]+ones[n%10];assert toRoman(n).equals(expected);assert fromRoman(expected)==n;}",
+      "for(String invalid:new String[]{\"\",\"IIII\",\"IC\",\"VX\",\"MMMM\",\"iv\"}){boolean rejected=false;try{fromRoman(invalid);}catch(IllegalArgumentException exception){rejected=true;}assert rejected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/roman-to-integer",
+      "title": "Roman to Integer",
+      "checkedOn": "2026-10-29",
+      "approach": "Add symbol values, subtracting a symbol when the next one is larger.",
+      "adaptation": "The public statement and allowed subtractive pairs were checked. Full solution Java was not accessible. The independent encoder and strict validation cover the pinned title’s additional reverse-conversion requirement."
+    }
   },
   "121": {
     "problem": "Parse an initial signed decimal integer from a string, clamping overflow to the 32-bit signed range.",
@@ -5058,13 +5141,13 @@
       "explanation": "Skip three spaces, consume the minus sign, read 4 and 2, then stop at the next space."
     },
     "baseline": "Using parseInt on the entire trimmed string rejects valid trailing text and throws rather than clamping overflow.",
-    "approach": "Build the magnitude one digit at a time. Before multiplying by ten, compare it against (limit−digit)/10. Use magnitude limit 2147483648 for negative results because the negative int range has one extra value.",
+    "approach": "Follow the input rules in order. Skip spaces at the beginning, read one optional sign, then collect digits until the first other character. Once digit reading stops, do not start again later in the string.\n\nEach new digit changes value to value × 10 + digit. Before doing that, ask whether it would exceed the allowed magnitude. The positive limit is 2,147,483,647; the negative side allows one extra, 2,147,483,648. Comparing value with (limit − digit) / 10 lets us detect overflow before it happens.\n\nIf the next step is too large, return the appropriate limit immediately. Otherwise apply the sign after the digit scan. No digits means the accumulated value stays zero.",
     "steps": [
       "Skip spaces and read a possible sign.",
       "Accumulate consecutive digits while checking the next step for overflow.",
       "Clamp immediately on overflow; otherwise apply the sign."
     ],
-    "java": "static int atoi(String s){\n    int i=0,sign=1;while(i<s.length()&&s.charAt(i)==' ')i++;\n    if(i<s.length()&&(s.charAt(i)=='+'||s.charAt(i)=='-')){if(s.charAt(i)=='-')sign=-1;i++;}\n    long value=0,limit=sign<0?2147483648L:2147483647L;\n    while(i<s.length()&&s.charAt(i)>='0'&&s.charAt(i)<='9'){\n        int digit=s.charAt(i++)-'0';if(value>(limit-digit)/10)return sign<0?Integer.MIN_VALUE:Integer.MAX_VALUE;\n        value=value*10+digit;\n    }\n    return (int)(sign*value);\n}",
+    "java": "static int atoi(String s) {\n    int i = 0;\n    int sign = 1;\n    while (i < s.length() && s.charAt(i) == ' ') i++;\n    if (i < s.length() && (s.charAt(i) == '+' || s.charAt(i) == '-')) {\n        if (s.charAt(i) == '-') sign = -1;\n        i++;\n    }\n    long value = 0;\n    long limit = sign < 0 ? 2147483648L : 2147483647L;\n    while (i < s.length() && s.charAt(i) >= '0' && s.charAt(i) <= '9') {\n        int digit = s.charAt(i++) - '0';\n        if (value > (limit - digit) / 10) {\n            return sign < 0 ? Integer.MIN_VALUE : Integer.MAX_VALUE;\n        }\n        value = value * 10 + digit;\n    }\n    return (int) (sign * value);\n}",
     "time": "O(n) worst case.",
     "space": "O(1).",
     "pitfalls": [
@@ -5078,8 +5161,17 @@
       "assert atoi(\"words and 987\")==0;",
       "assert atoi(\"-91283472332\")==Integer.MIN_VALUE;",
       "assert atoi(\"2147483648\")==Integer.MAX_VALUE;",
-      "assert atoi(\"+-12\")==0;assert atoi(\"\")==0;assert atoi(\"-2147483648\")==Integer.MIN_VALUE;"
-    ]
+      "assert atoi(\"+-12\")==0;assert atoi(\"\")==0;assert atoi(\"-2147483648\")==Integer.MIN_VALUE;",
+      "Random random=new Random(121);for(int run=0;run<2000;run++){StringBuilder s=new StringBuilder(\" \".repeat(random.nextInt(4)));if(random.nextBoolean())s.append(random.nextBoolean()?'+':'-');for(int i=0,n=random.nextInt(40);i<n;i++)s.append(random.nextInt(10));s.append(\"x12\");java.util.regex.Matcher matcher=java.util.regex.Pattern.compile(\"^ *([+-]?[0-9]+)\").matcher(s);int expected=0;if(matcher.find()){BigInteger value=new BigInteger(matcher.group(1));expected=value.max(BigInteger.valueOf(Integer.MIN_VALUE)).min(BigInteger.valueOf(Integer.MAX_VALUE)).intValue();}assert atoi(s.toString())==expected;}",
+      "assert atoi(\"12abc34\")==12;assert atoi(\"42.3\")==42;assert atoi(\"- 42\")==0;assert atoi(\"+000\")==0;assert atoi(\"0-1\")==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/string-to-integer-atoi",
+      "title": "String to Integer (atoi)",
+      "checkedOn": "2026-10-29",
+      "approach": "Scan spaces, sign, and digits in order; check overflow before appending a digit.",
+      "adaptation": "The public statement and overflow hint were checked. Full solution Java was not accessible. This independent Java uses long for the bounded magnitude and clamps to the required int range."
+    }
   },
   "122": {
     "problem": "Count contiguous ranges containing exactly k distinct values; apply the same method to substrings.",
