@@ -16871,5 +16871,53 @@
         ]
       ]
     }
+  },
+  "416": {
+    "problem": "Turn the first string into the second using the fewest single-character insertions, deletions and replacements.",
+    "assumptions": "Each operation costs one. The pinned LeetCode problem uses lowercase English letters and lengths from zero to 500. The source allows lengths up to 1000; the same algorithm applies. Swapping adjacent characters is not a single allowed operation.",
+    "example": {
+      "input": "first = \"cat\", second = \"cut\"",
+      "output": "1",
+      "explanation": "Replace a with u. In the earlier insertion/deletion-only lesson this would cost two operations; here replacement is explicitly allowed."
+    },
+    "baseline": "Compare the final characters of two prefixes. If they match, recurse on both shorter prefixes without adding cost. Otherwise try inserting, deleting or replacing a character, add one, and take the smallest cost. The same prefix pairs recur many times.",
+    "approach": "Let dp[i][j] be the fewest edits needed to turn the first i characters into the first j target characters. Turning a prefix into an empty string needs i deletions. Building a target prefix from empty text needs j insertions.\n\nMatching end characters can be kept, so copy the diagonal answer. On a mismatch, compare three possibilities. Delete the source ending character: use dp[i − 1][j]. Insert the target ending character after fixing the rest: use dp[i][j − 1]. Replace the source ending character with the target ending character: use dp[i − 1][j − 1]. Add one for the chosen edit.\n\nFill prefix lengths in increasing order. Two rows are enough because the cell needs only above, left and diagonal. The unit-cost distance is symmetric, so putting the shorter string in the columns reduces memory without changing the answer.",
+    "steps": [
+      "Place the shorter string in the columns.",
+      "Initialize the empty-source row with insertion counts 0, 1, 2, … .",
+      "At each new row, set its first entry to the number of source characters deleted.",
+      "Copy the diagonal for a match; otherwise add one to the smallest insert/delete/replace predecessor.",
+      "Return the final cell after all rows."
+    ],
+    "java": "static int minDistance(String first, String second) {\n    if (second.length() > first.length()) {\n        String swap = first; first = second; second = swap;\n    }\n    int[] previous = new int[second.length()+1];\n    for (int j = 0; j <= second.length(); j++) previous[j] = j;\n    for (int i = 1; i <= first.length(); i++) {\n        int[] current = new int[second.length()+1];\n        current[0] = i;\n        for (int j = 1; j <= second.length(); j++) {\n            if (first.charAt(i-1) == second.charAt(j-1)) current[j] = previous[j-1];\n            else current[j] = 1+Math.min(previous[j-1],Math.min(previous[j],current[j-1]));\n        }\n        previous = current;\n    }\n    return previous[second.length()];\n}\nstatic int editDistance(String first, String second) {\n    return minDistance(first,second);\n}",
+    "time": "O(n × m), with O(n + m) boundary work for empty inputs.",
+    "space": "O(min(n,m) + 1).",
+    "pitfalls": [
+      "A match costs zero; do not add one on every diagonal move.",
+      "The empty-prefix boundaries contain their lengths, not zeroes.",
+      "Unlike the earlier conversion lesson, a mismatch may use a one-cost replacement.",
+      "Transposing two characters is not a single edit here: \"ab\" to \"ba\" costs 2.",
+      "The smaller-column swap relies on equal insertion and deletion costs; reconsider it if the cost rules change."
+    ],
+    "tests": [
+      "assert minDistance(\"cat\",\"cut\")==1;assert editDistance(\"a\",\"b\")==1;assert minDistance(\"ab\",\"ba\")==2;assert minDistance(\"\",\"abc\")==3;assert minDistance(\"abc\",\"\")==3;",
+      "List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=4;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nfor(String start:words){Map<String,Integer> distance=new HashMap<>();distance.put(start,0);ArrayDeque<String> queue=new ArrayDeque<>();queue.add(start);while(!queue.isEmpty()){String word=queue.remove();Set<String> next=new HashSet<>();for(int i=0;i<word.length();i++){next.add(word.substring(0,i)+word.substring(i+1));for(char ch:new char[]{'a','b'})next.add(word.substring(0,i)+ch+word.substring(i+1));}if(word.length()<4)for(int i=0;i<=word.length();i++)for(char ch:new char[]{'a','b'})next.add(word.substring(0,i)+ch+word.substring(i));for(String changed:next)if(!distance.containsKey(changed)){distance.put(changed,distance.get(word)+1);queue.add(changed);}}\n for(String target:words){int expected=distance.get(target);assert minDistance(start,target)==expected;assert editTable(start,target)==expected;assert editMemoized(start,target)==expected;assert editRecursive(start,target,start.length(),target.length())==expected;}}",
+      "assert minDistance(\"a\".repeat(500),\"b\".repeat(500))==500;assert minDistance(\"ab\".repeat(250),\"ba\".repeat(250))==2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/edit-distance",
+      "title": "Edit distance",
+      "checkedOn": "2026-10-29",
+      "approach": "Prefix edit costs with three mismatch choices: insertion, deletion and replacement.",
+      "adaptation": "The public operation rules and both prefix-state hints were checked. The full solution requires sign-in, so its Java was not inspected. This original Java implements the three transitions and reduces the table to two rows. Small exhaustive checks use breadth-first search over actual edited strings rather than the DP recurrence."
+    },
+    "baselineJava": "static int editRecursive(String first, String second, int i, int j) {\n    if (i == 0) return j;\n    if (j == 0) return i;\n    if (first.charAt(i-1) == second.charAt(j-1)) return editRecursive(first,second,i-1,j-1);\n    return 1+Math.min(editRecursive(first,second,i-1,j-1),\n             Math.min(editRecursive(first,second,i-1,j),editRecursive(first,second,i,j-1)));\n}",
+    "baselineTime": "O(3^(n + m)) calls as a loose upper bound and O(n + m) stack depth.",
+    "better": {
+      "explanation": "Memoization keeps the recursive prefix questions and saves each answer. The full table exposes all three neighbors before reducing storage. Both use the same nonzero empty-prefix boundaries.",
+      "java": "static int editMemoized(String first, String second) {\n    int[][] memo = new int[first.length()+1][second.length()+1];\n    for (int[] row : memo) Arrays.fill(row,-1);\n    return editMemo(first,second,first.length(),second.length(),memo);\n}\nstatic int editMemo(String a, String b, int i, int j, int[][] memo) {\n    if (i == 0) return j;\n    if (j == 0) return i;\n    if (memo[i][j] != -1) return memo[i][j];\n    if (a.charAt(i-1) == b.charAt(j-1)) return memo[i][j] = editMemo(a,b,i-1,j-1,memo);\n    return memo[i][j] = 1+Math.min(editMemo(a,b,i-1,j-1,memo),\n                              Math.min(editMemo(a,b,i-1,j,memo),editMemo(a,b,i,j-1,memo)));\n}\nstatic int editTable(String first, String second) {\n    int[][] dp = new int[first.length()+1][second.length()+1];\n    for (int i = 0; i <= first.length(); i++) dp[i][0] = i;\n    for (int j = 0; j <= second.length(); j++) dp[0][j] = j;\n    for (int i = 1; i <= first.length(); i++) for (int j = 1; j <= second.length(); j++) {\n        if (first.charAt(i-1) == second.charAt(j-1)) dp[i][j] = dp[i-1][j-1];\n        else dp[i][j] = 1+Math.min(dp[i-1][j-1],Math.min(dp[i-1][j],dp[i][j-1]));\n    }\n    return dp[first.length()][second.length()];\n}",
+      "time": "O(n × m).",
+      "space": "O((n + 1) × (m + 1)), plus O(n + m) stack depth for memoization."
+    }
   }
 }
