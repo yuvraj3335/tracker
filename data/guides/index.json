@@ -5175,20 +5175,20 @@
   },
   "122": {
     "problem": "Count contiguous ranges containing exactly k distinct values; apply the same method to substrings.",
-    "assumptions": "The saved title says substrings, but its link is Subarrays with K Different Integers. Both wrappers are provided. Substrings are counted by position, not deduplicated by text; the string wrapper uses Unicode code points.",
+    "assumptions": "The pinned tracker link is LeetCode’s Subarrays with K Different Integers. The string wrapper solves the corresponding exactly-k-distinct substring task. The current Striver page with the same title now asks about odd character frequencies, which is a different problem; this guide preserves the pinned task. Count ranges by position, even when their text repeats.",
     "example": {
       "input": "[1,2,1,2,3], k = 2; or \"pqpqs\", k = 2",
       "output": "7 in either example",
       "explanation": "For the integer example, the valid ranges are [1,2], [1,2,1], [1,2,1,2], [2,1], [2,1,2], [1,2], and [2,3], with repeated value sequences counted at their separate positions."
     },
     "baseline": "Enumerate starts and ends while tracking distinct values, taking O(n²) time.",
-    "approach": "Exactly k equals atMost(k) minus atMost(k−1). For an at-most window ending at right, every start from left through right is valid after shrinking, so that endpoint contributes right−left+1 ranges.",
+    "approach": "Counting exactly k directly is awkward because several starting positions can give a valid range ending at the same place. Count something easier first: ranges with at most k distinct values.\n\nKeep a window from left to right. Add the new right-hand value to a frequency map. If the map has too many distinct values, remove values from the left until it fits again. Now every start from left through right gives a valid range ending at right, so add right − left + 1.\n\nRun that count twice. The ranges with at most k distinct values include all ranges with fewer than k. Subtract the count with at most k − 1, and only the ranges with exactly k remain. The string wrapper treats each Unicode code point as one value.",
     "steps": [
       "Maintain frequencies inside a sliding window.",
       "Shrink until the number of distinct keys is at most the limit.",
       "Add the window length, then subtract the two at-most counts."
     ],
-    "java": "static long atMost(int[] a,int k){\n    if(k<0)return 0;Map<Integer,Integer> counts=new HashMap<>();int left=0;long answer=0;\n    for(int right=0;right<a.length;right++){\n        counts.merge(a[right],1,Integer::sum);\n        while(counts.size()>k){int x=a[left++],count=counts.get(x);if(count==1)counts.remove(x);else counts.put(x,count-1);}\n        answer+=right-left+1;\n    }\n    return answer;\n}\nstatic long exactlyK(int[] a,int k){return k<=0?0:atMost(a,k)-atMost(a,k-1);}\nstatic long distinctSubstrings(String s,int k){return exactlyK(s.codePoints().toArray(),k);}",
+    "java": "static long atMost(int[] values, int limit) {\n    if (limit < 0) return 0;\n    Map<Integer, Integer> counts = new HashMap<>();\n    int left = 0;\n    long answer = 0;\n    for (int right = 0; right < values.length; right++) {\n        counts.merge(values[right], 1, Integer::sum);\n        while (counts.size() > limit) {\n            int value = values[left++];\n            int count = counts.get(value);\n            if (count == 1) counts.remove(value);\n            else counts.put(value, count - 1);\n        }\n        answer += right - left + 1;\n    }\n    return answer;\n}\n\nstatic long exactlyK(int[] values, int k) {\n    if (k <= 0) return 0;\n    return atMost(values, k) - atMost(values, k - 1);\n}\n\nstatic long distinctSubstrings(String s, int k) {\n    return exactlyK(s.codePoints().toArray(), k);\n}",
     "time": "Expected O(n), since each pointer advances at most n times in each pass.",
     "space": "O(min(n,k+1)) window map; the string wrapper additionally allocates O(n) code points.",
     "pitfalls": [
@@ -5201,8 +5201,17 @@
       "assert distinctSubstrings(\"pqpqs\",2)==7;",
       "assert exactlyK(new int[]{1,1,1},1)==6;",
       "assert exactlyK(new int[]{1,2},0)==0;",
-      "Random r=new Random(122);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(4);for(int k=1;k<=4;k++){long expected=0;for(int i=0;i<a.length;i++){Set<Integer> set=new HashSet<>();for(int j=i;j<a.length;j++){set.add(a[j]);if(set.size()==k)expected++;}}assert exactlyK(a,k)==expected;}}"
-    ]
+      "Random r=new Random(122);for(int run=0;run<100;run++){int[] a=new int[r.nextInt(12)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(4);for(int k=1;k<=4;k++){long expected=0;for(int i=0;i<a.length;i++){Set<Integer> set=new HashSet<>();for(int j=i;j<a.length;j++){set.add(a[j]);if(set.size()==k)expected++;}}assert exactlyK(a,k)==expected;}}",
+      "for(int n=0;n<=7;n++){int possibilities=1;for(int i=0;i<n;i++)possibilities*=3;for(int encoded=0;encoded<possibilities;encoded++){int[] values=new int[n];int rest=encoded;for(int i=0;i<n;i++){values[i]=rest%3;rest/=3;}for(int k=0;k<=4;k++){long expected=0;for(int left=0;left<n;left++){Set<Integer> distinct=new HashSet<>();for(int right=left;right<n;right++){distinct.add(values[right]);if(distinct.size()==k)expected++;}}assert exactlyK(values,k)==expected;}}}",
+      "int[] values=new int[100000];assert exactlyK(values,1)==5000050000L;assert distinctSubstrings(\"😀a😀\",2)==3;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/count-number-of-substring",
+      "title": "Count Number of Substrings — current sheet differs",
+      "checkedOn": "2026-10-29",
+      "approach": "For the pinned exactly-k problem, subtract two at-most sliding-window counts.",
+      "adaptation": "The current Striver statement was checked and asks for at most one odd-frequency character, not exactly k distinct values. The pinned LeetCode 992 statement was also checked. This independent Java preserves the pinned problem and is not presented as code from the different current Striver task."
+    }
   },
   "123": {
     "problem": "Return a longest contiguous palindromic substring without dynamic programming.",
@@ -5213,13 +5222,13 @@
       "explanation": "Expanding around the central a at index 1 matches b on both sides and yields \"bab\". The later center yields another length-three answer."
     },
     "baseline": "Enumerate all substrings and check each palindrome in O(n³) time.",
-    "approach": "Every palindrome has either one central character or a gap between two characters. Expanding outward from all 2n−1 possible centers visits every candidate palindrome without storing a table.",
+    "approach": "A palindrome grows equally on both sides of its centre. For an odd length, the centre is a character, as in radar. For an even length, the centre is the gap between two characters, as in noon. We must try both kinds.\n\nStart two pointers at a centre and move them outward while the characters match. When they stop, the characters between the pointers form the largest palindrome for that centre. Remember its boundaries if it is longer than the best answer so far.\n\nTrying every centre is enough: every palindrome has one of these centres. We only save the best start and length, so no dynamic-programming table is needed. Updating only for a strictly longer answer keeps the earliest answer when lengths tie.",
     "steps": [
       "For each index, expand an odd center and an even center.",
       "Use the longer expansion to compute its start and length.",
       "Save the boundaries only when the best length improves."
     ],
-    "java": "static String longestPalindrome(String s){\n    int start=0,best=0;\n    for(int i=0;i<s.length();i++){\n        int length=Math.max(expand(s,i,i),expand(s,i,i+1));\n        if(length>best){best=length;start=i-(length-1)/2;}\n    }\n    return s.substring(start,start+best);\n}\nstatic int expand(String s,int left,int right){\n    while(left>=0&&right<s.length()&&s.charAt(left)==s.charAt(right)){left--;right++;}\n    return right-left-1;\n}",
+    "java": "static String longestPalindrome(String s) {\n    int bestStart = 0;\n    int bestLength = 0;\n    for (int centre = 0; centre < s.length(); centre++) {\n        int odd = expand(s, centre, centre);\n        int even = expand(s, centre, centre + 1);\n        int length = Math.max(odd, even);\n        if (length > bestLength) {\n            bestLength = length;\n            bestStart = centre - (length - 1) / 2;\n        }\n    }\n    return s.substring(bestStart, bestStart + bestLength);\n}\n\nstatic int expand(String s, int left, int right) {\n    while (left >= 0 && right < s.length() && s.charAt(left) == s.charAt(right)) {\n        left--;\n        right++;\n    }\n    return right - left - 1;\n}",
     "time": "O(n²) worst case, such as a string of identical characters. Manacher’s algorithm can achieve O(n), with more bookkeeping.",
     "space": "O(1) auxiliary state, plus O(answerLength) returned substring.",
     "pitfalls": [
@@ -5230,8 +5239,16 @@
       "assert longestPalindrome(\"babad\").equals(\"bab\");",
       "assert longestPalindrome(\"cbbd\").equals(\"bb\");",
       "assert longestPalindrome(\"\").isEmpty();",
-      "assert longestPalindrome(\"aaaa\").equals(\"aaaa\");"
-    ]
+      "assert longestPalindrome(\"aaaa\").equals(\"aaaa\");",
+      "for(int n=0;n<=9;n++){int possibilities=1;for(int i=0;i<n;i++)possibilities*=3;for(int encoded=0;encoded<possibilities;encoded++){StringBuilder text=new StringBuilder();int rest=encoded;for(int i=0;i<n;i++){text.append((char)('a'+rest%3));rest/=3;}String s=text.toString(),expected=\"\";for(int left=0;left<n;left++)for(int right=left+1;right<=n;right++){String candidate=s.substring(left,right);if(candidate.length()>expected.length()&&candidate.equals(new StringBuilder(candidate).reverse().toString()))expected=candidate;}assert longestPalindrome(s).equals(expected):s;}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/longest-palindromic-substring",
+      "title": "Longest Palindromic Substring",
+      "checkedOn": "2026-10-29",
+      "approach": "Expand around both character centres and gaps.",
+      "adaptation": "The public current statement was checked. Full solution Java was not accessible. This independent centre-expansion solution respects the pinned title’s explicit instruction to solve it without DP."
+    }
   },
   "124": {
     "problem": "Sum the beauty of every nonempty substring, where beauty is maximum character frequency minus minimum positive character frequency.",
@@ -5242,13 +5259,13 @@
       "explanation": "The positive-beauty substrings are \"aab\", \"aabc\", \"aabcb\", \"abcb\", and \"bcb\"; each has beauty one. All others contribute zero."
     },
     "baseline": "For each substring, rebuild its frequency table from scratch, taking O(n³) time.",
-    "approach": "Fix a start index and extend the end one character at a time, updating one frequency. Scan the 26 counters to obtain the maximum and the smallest nonzero count for each extension.",
+    "approach": "Choose a starting position and begin with an empty frequency table. Move the ending position right one character at a time. Each move creates one new substring and changes just one counter.\n\nFor that substring, scan the 26 counters. Find the largest count and the smallest count greater than zero, then add their difference to the answer. Ignore zero counts because those letters are not part of this substring. Start a fresh table when you move to the next starting position.\n\nFor example, in aabc the counts are a:2, b:1, c:1, so the beauty is 2 − 1 = 1. The other 23 absent letters do not make the minimum zero.",
     "steps": [
       "Start a fresh 26-counter array for each left boundary.",
       "Increment the newly included character at each right boundary.",
       "Add maxCount−minPositiveCount to a long total."
     ],
-    "java": "static long beautySum(String s){\n    long total=0;\n    for(int left=0;left<s.length();left++){\n        int[] counts=new int[26];\n        for(int right=left;right<s.length();right++){\n            counts[s.charAt(right)-'a']++;int high=0,low=Integer.MAX_VALUE;\n            for(int count:counts)if(count>0){high=Math.max(high,count);low=Math.min(low,count);}\n            total+=high-low;\n        }\n    }\n    return total;\n}",
+    "java": "static long beautySum(String s) {\n    long total = 0;\n    for (int left = 0; left < s.length(); left++) {\n        int[] counts = new int[26];\n        for (int right = left; right < s.length(); right++) {\n            counts[s.charAt(right) - 'a']++;\n            int most = 0;\n            int least = Integer.MAX_VALUE;\n            for (int count : counts) {\n                if (count > 0) {\n                    most = Math.max(most, count);\n                    least = Math.min(least, count);\n                }\n            }\n            total += most - least;\n        }\n    }\n    return total;\n}",
     "time": "O(26n²), or O(n²) for the fixed alphabet.",
     "space": "O(26), independent of n.",
     "pitfalls": [
@@ -5260,8 +5277,16 @@
       "assert beautySum(\"aab\")==1;",
       "assert beautySum(\"abc\")==0;",
       "assert beautySum(\"aaaa\")==0;",
-      "assert beautySum(\"\")==0;"
-    ]
+      "assert beautySum(\"\")==0;",
+      "Random random=new Random(124);for(int run=0;run<2000;run++){StringBuilder s=new StringBuilder();for(int i=0,n=random.nextInt(15);i<n;i++)s.append((char)('a'+random.nextInt(5)));long expected=0;for(int left=0;left<s.length();left++)for(int right=left+1;right<=s.length();right++){Map<Character,Integer> counts=new HashMap<>();for(int i=left;i<right;i++)counts.merge(s.charAt(i),1,Integer::sum);expected+=Collections.max(counts.values())-Collections.min(counts.values());}assert beautySum(s.toString())==expected;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/sum-of-beauty-of-all-substrings",
+      "title": "Sum of Beauty of All Substrings",
+      "checkedOn": "2026-10-29",
+      "approach": "Extend each substring start, update frequencies, and exclude zero counts from the minimum.",
+      "adaptation": "The public current statement was checked. Full solution Java was not accessible. This independently written Java follows the stated beauty definition and uses long for the accumulated answer."
+    }
   },
   "125": {
     "problem": "Distinguish reversing each word’s letters from reversing the order of the words.",
@@ -5272,13 +5297,13 @@
       "explanation": "Reversing within intervals changes spelling while keeping positions. Reading intervals from right to left instead preserves spelling and changes their order."
     },
     "baseline": "Split into tokens and rebuild the output, but naive splitting can lose the original spacing.",
-    "approach": "For the title’s variant, scan space-delimited intervals in a mutable character array and reverse each interval. For the linked variant, extract whole words backward and join them with single spaces.",
+    "approach": "For the title’s meaning, keep the words where they are and reverse only their letters. Spaces mark the boundaries. Find one word, swap its first and last letters, then move both pointers inward until they meet. Continue with the next word. A character array lets Java perform the swaps while leaving every space in place.\n\nThe saved LeetCode link asks for something different: reverse the order of whole words and use one space between them. The separate reverseWordOrder method reads words from right to left but copies each word in its original spelling. Use the method that matches the platform statement; the two outputs are not interchangeable.",
     "steps": [
       "Locate every maximal nonspace interval.",
       "Reverse its character positions using two pointers.",
       "Use the separate backward-word scan when solving the saved problem link."
     ],
-    "java": "static String reverseEachWord(String s){\n    char[] a=s.toCharArray();int start=0;\n    for(int end=0;end<=a.length;end++)if(end==a.length||a[end]==' '){\n        for(int l=start,r=end-1;l<r;l++,r--){char t=a[l];a[l]=a[r];a[r]=t;}start=end+1;\n    }\n    return new String(a);\n}\nstatic String reverseWordOrder(String s){\n    StringBuilder out=new StringBuilder();int i=s.length()-1;\n    while(i>=0){while(i>=0&&s.charAt(i)==' ')i--;if(i<0)break;int end=i+1;\n        while(i>=0&&s.charAt(i)!=' ')i--;if(out.length()>0)out.append(' ');out.append(s,i+1,end);\n    }\n    return out.toString();\n}",
+    "java": "static String reverseEachWord(String s) {\n    char[] letters = s.toCharArray();\n    int i = 0;\n    while (i < letters.length) {\n        if (letters[i] == ' ') {\n            i++;\n            continue;\n        }\n        int start = i;\n        while (i < letters.length && letters[i] != ' ') i++;\n        for (int left = start, right = i - 1; left < right; left++, right--) {\n            char temporary = letters[left];\n            letters[left] = letters[right];\n            letters[right] = temporary;\n        }\n    }\n    return new String(letters);\n}\n\nstatic String reverseWordOrder(String s) {\n    StringBuilder result = new StringBuilder();\n    int i = s.length() - 1;\n    while (i >= 0) {\n        while (i >= 0 && s.charAt(i) == ' ') i--;\n        if (i < 0) break;\n        int end = i + 1;\n        while (i >= 0 && s.charAt(i) != ' ') i--;\n        if (result.length() > 0) result.append(' ');\n        result.append(s, i + 1, end);\n    }\n    return result.toString();\n}",
     "time": "O(n) for either variant.",
     "space": "O(n) because Java strings are immutable and a new output is produced.",
     "pitfalls": [
@@ -5290,8 +5315,16 @@
       "assert reverseWordOrder(\"Java is fun\").equals(\"fun is Java\");",
       "assert reverseEachWord(\"  ab   cd \").equals(\"  ba   dc \");",
       "assert reverseWordOrder(\"  ab   cd \").equals(\"cd ab\");",
-      "assert reverseEachWord(\"\").isEmpty();"
-    ]
+      "assert reverseEachWord(\"\").isEmpty();",
+      "Random random=new Random(125);for(int run=0;run<2000;run++){StringBuilder s=new StringBuilder();for(int i=0,n=random.nextInt(80);i<n;i++)s.append(\"abc   \".charAt(random.nextInt(6)));String[] parts=s.toString().split(\" \",-1);for(int i=0;i<parts.length;i++)parts[i]=new StringBuilder(parts[i]).reverse().toString();assert reverseEachWord(s.toString()).equals(String.join(\" \",parts));List<String> words=new ArrayList<>();String trimmed=s.toString().trim();if(!trimmed.isEmpty())words.addAll(Arrays.asList(trimmed.split(\" +\")));Collections.reverse(words);assert reverseWordOrder(s.toString()).equals(String.join(\" \",words));}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/reverse-every-word-in-a-string",
+      "title": "Reverse every word in a string",
+      "checkedOn": "2026-10-29",
+      "approach": "Find each word’s boundaries and reverse that range with two pointers.",
+      "adaptation": "The public current Java was checked: it reverses each word’s letters and preserves spaces. The pinned LeetCode 151 statement instead reverses word order. Both are provided; the second helper is independently written for that linked variant."
+    }
   },
   "126": {
     "problem": "Represent a singly linked list in Java, build it from an array, and read its values from head to tail.",
