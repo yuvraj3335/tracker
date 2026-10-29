@@ -17100,5 +17100,269 @@
         ]
       ]
     }
+  },
+  "419": {
+    "problem": "Find the largest profit from any number of completed stock trades. Hold at most one share at a time.",
+    "assumptions": "Prices are nonnegative. There is no transaction fee, cooldown, or limit on the number of trades. You may skip every trade. The helper uses long, like the current source; maxProfit adapts the result to the pinned judge’s int signature.",
+    "example": {
+      "input": "prices = [6,2,5,1,7]",
+      "output": "9",
+      "explanation": "Buy at 2 and sell at 5 for 3. Then buy at 1 and sell at 7 for 6. These trades do not overlap, so the total is 9."
+    },
+    "baseline": "At each day, try both legal choices. With no share, buy or wait. With a share, sell or keep it. The same day and holding state appear in many branches, so direct recursion can take O(2ⁿ) time.",
+    "approach": "Ask a smaller question: starting today, how much more can I earn if my hand is empty? And how much more can I earn if I already hold a share? These are different situations, so keep two answers. The held-share answer does not subtract the old purchase again; that cost was paid when we entered this state.\n\nWith an empty hand, buying costs today’s price and gives tomorrow’s held-share answer. Waiting gives tomorrow’s empty-hand answer. With a share, selling earns today’s price and gives tomorrow’s empty-hand answer. Holding gives tomorrow’s held-share answer. Take the better choice in each case.\n\nWork backward because today reads tomorrow. Both answers after the last day are zero, as in Striver’s recurrence. An unfinished purchase cannot improve the final result when prices are nonnegative: skipping that purchase is at least as good. Calculate both current answers before replacing either tomorrow value.\n\nFor this particular problem, adding every positive adjacent increase also works. A rise from 2 to 5 to 7 can be earned as one trade (7−2) or split into (5−2)+(7−5). The totals agree. This shortcut stops being valid when fees, cooldowns, or trade limits are introduced.",
+    "steps": [
+      "Start the two next-day answers at zero.",
+      "Walk backward through the prices.",
+      "Calculate the best empty-hand answer by comparing buy and wait.",
+      "Calculate the best held-share answer by comparing sell and hold.",
+      "Replace both next-day answers together. Return the empty-hand answer for day 0."
+    ],
+    "java": "static long unlimitedProfit(int[] prices) {\n    long nextEmpty = 0, nextHolding = 0;\n    for (int day = prices.length-1; day >= 0; day--) {\n        long empty = Math.max(nextEmpty, -(long)prices[day]+nextHolding);\n        long holding = Math.max(nextHolding, (long)prices[day]+nextEmpty);\n        nextEmpty = empty;\n        nextHolding = holding;\n    }\n    return nextEmpty;\n}\nstatic int maxProfit(int[] prices) {\n    return Math.toIntExact(unlimitedProfit(prices));\n}",
+    "time": "O(n).",
+    "space": "O(1) for the main implementation.",
+    "pitfalls": [
+      "Do not buy a second share while still holding the first.",
+      "Use the unchanged next-day pair for both transitions.",
+      "A held-state answer is future cash received after the purchase cost was already paid; it is not the final profit by itself.",
+      "Summing rises is specific to unlimited trades without extra restrictions."
+    ],
+    "tests": [
+      "assert maxProfit(new int[]{6,2,5,1,7})==9;assert maxProfit(new int[]{8,5,1})==0;assert maxProfit(new int[]{})==0;",
+      "for(int n=0;n<=7;n++){int count=1<<(2*n);for(int code=0;code<count;code++){int[] prices=new int[n];int digits=code;for(int i=0;i<n;i++){prices[i]=digits%4;digits/=4;}long expected=0;for(int i=1;i<n;i++)expected+=Math.max(0,prices[i]-prices[i-1]);assert unlimitedProfit(prices)==expected;assert unlimitedMemo(prices)==expected;assert unlimitedTable(prices)==expected;assert unlimitedRecursive(prices,0,false)==expected;assert sumRises(prices)==expected;}}",
+      "int[] prices=new int[10000];for(int i=0;i<prices.length;i++)prices[i]=(i%2)*10000;assert maxProfit(prices)==50000000;assert unlimitedProfit(new int[]{0,Integer.MAX_VALUE,0,Integer.MAX_VALUE})==4294967294L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/best-time-to-buy-and-sell-stock-ii",
+      "title": "Best Time to Buy and Sell Stock II: Unlimited Transactions",
+      "checkedOn": "2026-10-29",
+      "approach": "Two daily states (empty hand or holding); recursion, memoization, tabulation, and constant-space backward DP.",
+      "adaptation": "All four complete public Java implementations were checked. This version gives the states descriptive names and preserves the source’s long arithmetic and simultaneous next-day updates. A separate greedy helper explains the no-fee unlimited-trade shortcut."
+    },
+    "baselineJava": "static long unlimitedRecursive(int[] prices, int day, boolean holding) {\n    if (day == prices.length) return 0;\n    long wait = unlimitedRecursive(prices, day+1, holding);\n    long act = (holding ? (long)prices[day] : -(long)prices[day])\n        + unlimitedRecursive(prices, day+1, !holding);\n    return Math.max(wait,act);\n}",
+    "baselineTime": "O(2ⁿ) time and O(n) stack; use only for small teaching examples.",
+    "better": {
+      "explanation": "Save each day/holding answer to avoid repeating it. The boolean visited table separates an uncomputed state from a valid zero answer. Recursion still uses a stack, so use the iterative version on long inputs.\n\nKeep every day’s pair in a table. Column 0 means an empty hand; column 1 means holding. The extra final row represents no remaining days.\n\nFor unlimited trades with no fee or cooldown, collect every positive adjacent price difference. Consecutive rises add to the same gain as one longer trade.",
+      "java": "static long unlimitedMemo(int[] prices) {\n    return stockMemo(prices,0,0,new long[prices.length][2],new boolean[prices.length][2]);\n}\nstatic long stockMemo(int[] p, int day, int holding, long[][] memo, boolean[][] seen) {\n    if (day == p.length) return 0;\n    if (seen[day][holding]) return memo[day][holding];\n    long wait = stockMemo(p,day+1,holding,memo,seen);\n    long act = (holding==1 ? (long)p[day] : -(long)p[day])\n        + stockMemo(p,day+1,1-holding,memo,seen);\n    seen[day][holding] = true;\n    return memo[day][holding] = Math.max(wait,act);\n}\n\nstatic long unlimitedTable(int[] prices) {\n    long[][] dp = new long[prices.length+1][2];\n    for (int day=prices.length-1;day>=0;day--) {\n        dp[day][0] = Math.max(dp[day+1][0],-(long)prices[day]+dp[day+1][1]);\n        dp[day][1] = Math.max(dp[day+1][1],(long)prices[day]+dp[day+1][0]);\n    }\n    return dp[0][0];\n}\n\nstatic long sumRises(int[] prices) {\n    long profit = 0;\n    for(int i=1;i<prices.length;i++)\n        profit += Math.max(0L,(long)prices[i]-prices[i-1]);\n    return profit;\n}",
+      "time": "O(n) for each method.",
+      "space": "Memoization: O(n) table and stack. Tabulation: O(n). Sum of rises: O(1)."
+    },
+    "trace": {
+      "columns": [
+        "Day price (backward)",
+        "Empty hand",
+        "Holding a share"
+      ],
+      "rows": [
+        [
+          "After final day",
+          "0",
+          "0"
+        ],
+        [
+          "7",
+          "0",
+          "7"
+        ],
+        [
+          "1",
+          "6",
+          "7"
+        ],
+        [
+          "5",
+          "6",
+          "11"
+        ],
+        [
+          "2",
+          "9",
+          "11"
+        ],
+        [
+          "6",
+          "9",
+          "15"
+        ]
+      ]
+    }
+  },
+  "420": {
+    "problem": "Find the largest profit using at most two completed stock trades. You may hold only one share at a time.",
+    "assumptions": "Prices are nonnegative and trading is optional. There is no fee or cooldown. This is Stock III: the cap is always two. The long helper avoids overflowing intermediate profit; the int wrapper matches the pinned judge. Empty input returns zero.",
+    "example": {
+      "input": "prices = [4,1,6,2,8]",
+      "output": "11",
+      "explanation": "Buy at 1 and sell at 6 for 5, then buy at 2 and sell at 8 for 6. One trade could earn only 7. The two trades together earn 11."
+    },
+    "baseline": "Try buying or waiting when the hand is empty, and selling or holding when it contains a share. Carry the number of trades still allowed. Decrease that number only when selling. Direct recursion repeats the same day, holding state, and limit many times.",
+    "approach": "The empty-hand/holding state from Stock II is still needed. We now also need left: how many sales can still be completed. A person with one sale left and a person with two sales left may make different choices at the same price.\n\nFor an empty hand, compare waiting with paying today’s price and entering tomorrow’s held state with the same left value. For a held share, compare waiting with receiving today’s price and entering tomorrow’s empty state with left−1. The sale closes one complete buy/sell pair, so that is where the counter changes.\n\nWith no days left, or no sales left, the answer is zero. Work backward through the days. A whole day reads only the next day, so keep two small layers instead of the full table. Column 0 means an empty hand in this code; column 1 means holding.\n\nThe cap is an upper limit, not a target. We can stop after one profitable trade or make no trade at all. Picking the largest individual trades independently is unsafe because their buy/sell intervals may overlap. The DP keeps their order legal.",
+    "steps": [
+      "Start from an empty hand with 2 sales available.",
+      "Keep a zero answer for every state with no sales left.",
+      "For each day in reverse, fill both holding states for every positive remaining cap.",
+      "Subtract the price when buying; add it and reduce the cap when selling.",
+      "Finish the whole current layer before making it the next layer.",
+      "Read the empty-hand state with the full cap."
+    ],
+    "java": "static long cappedProfit(int k, int[] prices) {\n    if (k <= 0 || prices.length < 2) return 0;\n    int cap = Math.min(k,prices.length/2);\n    long[][] next = new long[2][cap+1];\n    for (int day=prices.length-1;day>=0;day--) {\n        long[][] current = new long[2][cap+1];\n        for (int left=1;left<=cap;left++) {\n            current[0][left] = Math.max(next[0][left],-(long)prices[day]+next[1][left]);\n            current[1][left] = Math.max(next[1][left],(long)prices[day]+next[0][left-1]);\n        }\n        next = current;\n    }\n    return next[0][cap];\n}\n\nstatic int maxProfit(int[] prices) {\n    return Math.toIntExact(cappedProfit(2,prices));\n}",
+    "time": "O(n) because the cap is fixed at two.",
+    "space": "O(1) working space: each layer has two states and at most three cap entries.",
+    "pitfalls": [
+      "Decrease the cap on a sale, not on both a buy and a sale.",
+      "At most two/k trades does not mean exactly two/k trades.",
+      "A new purchase must follow the preceding sale.",
+      "Zero terminal values are safe for the overall starting state with nonnegative prices: an unfinished purchase cannot beat skipping it.",
+      "For large k, at most floor(n/2) profitable non-overlapping trades are needed. Capping k avoids oversized arrays; the unlimited-trade shortcut can further reduce that special case to O(n)."
+    ],
+    "tests": [
+      "assert maxProfit(new int[]{4,1,6,2,8})==11;",
+      "Random random=new Random(420);for(int trial=0;trial<900;trial++){int n=random.nextInt(11);int[] prices=new int[n];for(int i=0;i<n;i++)prices[i]=random.nextInt(16);for(int cap=0;cap<=3;cap++){long expected=0;for(int mask=0;mask<(1<<n);mask++){int used=Integer.bitCount(mask);if((used&1)!=0||used>2*cap)continue;long cash=0;boolean selling=false;for(int day=0;day<n;day++)if((mask&(1<<day))!=0){cash+=selling?prices[day]:-prices[day];selling=!selling;}expected=Math.max(expected,cash);}assert cappedProfit(cap,prices)==expected;assert cappedMemo(cap,prices)==expected;assert cappedTable(cap,prices)==expected;assert cappedRecursive(prices,0,false,cap)==expected;}}",
+      "assert cappedProfit(2,new int[]{0,Integer.MAX_VALUE,0,Integer.MAX_VALUE})==4294967294L;assert cappedProfit(Integer.MAX_VALUE,new int[]{1,4})==3;assert cappedProfit(2,new int[]{})==0;",
+      "int[] prices=new int[100000];for(int i=0;i<prices.length;i++)prices[i]=(i%2)*100000;assert maxProfit(prices)==200000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/best-time-to-buy-and-sell-stock-iii",
+      "title": "Best Time to Buy and Sell Stock III: At Most Two Transactions",
+      "checkedOn": "2026-10-29",
+      "approach": "Add a remaining-sales dimension to the two ownership states; recursion, memoization, full table, then two-layer DP.",
+      "adaptation": "All four complete public Java implementations were checked. This adaptation names the holding states directly, widens arithmetic to long, and caps allocated capacity at floor(n/2). The judge wrapper keeps its expected int signature."
+    },
+    "baselineJava": "static long cappedRecursive(int[] prices, int day, boolean holding, int left) {\n    if (day==prices.length || left==0) return 0;\n    long wait = cappedRecursive(prices,day+1,holding,left);\n    long act = (holding ? (long)prices[day] : -(long)prices[day])\n        + cappedRecursive(prices,day+1,!holding,left-(holding ? 1 : 0));\n    return Math.max(wait,act);\n}",
+    "baselineTime": "O(2ⁿ) upper bound and O(n) stack. Only use on small examples.",
+    "better": {
+      "explanation": "Memoization saves answers for (day, held, left). A −1 marker is safe because every future-profit state may choose to wait and earn zero. Tabulation fills the same states backward with no recursion. Both are shown so the two-layer version can be understood as removing the day dimension, not changing the choices.",
+      "java": "static long cappedMemo(int k, int[] prices) {\n    if (k<=0 || prices.length<2) return 0;\n    int cap = Math.min(k,prices.length/2);\n    long[][][] memo = new long[prices.length][2][cap+1];\n    for(long[][] day:memo) for(long[] state:day) Arrays.fill(state,-1);\n    return cappedMemoAt(prices,0,0,cap,memo);\n}\nstatic long cappedMemoAt(int[] p, int day, int held, int left, long[][][] memo) {\n    if (day==p.length || left==0) return 0;\n    if (memo[day][held][left]!=-1) return memo[day][held][left];\n    long wait = cappedMemoAt(p,day+1,held,left,memo);\n    long act = (held==1 ? (long)p[day] : -(long)p[day])\n        + cappedMemoAt(p,day+1,1-held,left-held,memo);\n    return memo[day][held][left] = Math.max(wait,act);\n}\nstatic long cappedTable(int k, int[] p) {\n    if (k<=0 || p.length<2) return 0;\n    int cap = Math.min(k,p.length/2);\n    long[][][] dp = new long[p.length+1][2][cap+1];\n    for(int day=p.length-1;day>=0;day--) {\n        for(int left=1;left<=cap;left++) {\n            dp[day][0][left] = Math.max(dp[day+1][0][left],-(long)p[day]+dp[day+1][1][left]);\n            dp[day][1][left] = Math.max(dp[day+1][1][left],(long)p[day]+dp[day+1][0][left-1]);\n        }\n    }\n    return dp[0][0][cap];\n}",
+      "time": "O(n) with fixed cap two; O(nc) for a general cap c.",
+      "space": "O(nc) table; memoization also uses an O(n) call stack."
+    },
+    "trace": {
+      "columns": [
+        "Choice",
+        "Cash change",
+        "Sales left"
+      ],
+      "rows": [
+        [
+          "Start",
+          "0",
+          "2"
+        ],
+        [
+          "Buy at 1",
+          "−1",
+          "2"
+        ],
+        [
+          "Sell at 6",
+          "+6",
+          "1"
+        ],
+        [
+          "Buy at 2",
+          "−2",
+          "1"
+        ],
+        [
+          "Sell at 8",
+          "+8",
+          "0"
+        ],
+        [
+          "Total",
+          "11",
+          "0"
+        ]
+      ]
+    }
+  },
+  "421": {
+    "problem": "Find the largest profit using at most k completed stock trades. You may hold only one share at a time.",
+    "assumptions": "Prices are nonnegative and trading is optional. There is no fee or cooldown. This is Stock IV: k is an input, and k = 0 permits no trade. The long helper avoids overflowing intermediate profit; the int wrapper matches the pinned judge. Empty input returns zero.",
+    "example": {
+      "input": "prices = [4,1,6,2,8], k = 2",
+      "output": "11",
+      "explanation": "Buy at 1 and sell at 6 for 5, then buy at 2 and sell at 8 for 6. One trade could earn only 7. The two trades together earn 11."
+    },
+    "baseline": "Try buying or waiting when the hand is empty, and selling or holding when it contains a share. Carry the number of trades still allowed. Decrease that number only when selling. Direct recursion repeats the same day, holding state, and limit many times.",
+    "approach": "The empty-hand/holding state from Stock II is still needed. We now also need left: how many sales can still be completed. A person with one sale left and a person with two sales left may make different choices at the same price.\n\nFor an empty hand, compare waiting with paying today’s price and entering tomorrow’s held state with the same left value. For a held share, compare waiting with receiving today’s price and entering tomorrow’s empty state with left−1. The sale closes one complete buy/sell pair, so that is where the counter changes.\n\nWith no days left, or no sales left, the answer is zero. Work backward through the days. A whole day reads only the next day, so keep two small layers instead of the full table. Column 0 means an empty hand in this code; column 1 means holding.\n\nThe cap is an upper limit, not a target. We can stop after one profitable trade or make no trade at all. Picking the largest individual trades independently is unsafe because their buy/sell intervals may overlap. The DP keeps their order legal.",
+    "steps": [
+      "Start from an empty hand with k sales available.",
+      "Keep a zero answer for every state with no sales left.",
+      "For each day in reverse, fill both holding states for every positive remaining cap.",
+      "Subtract the price when buying; add it and reduce the cap when selling.",
+      "Finish the whole current layer before making it the next layer.",
+      "Read the empty-hand state with the full cap."
+    ],
+    "java": "static long cappedProfit(int k, int[] prices) {\n    if (k <= 0 || prices.length < 2) return 0;\n    int cap = Math.min(k,prices.length/2);\n    long[][] next = new long[2][cap+1];\n    for (int day=prices.length-1;day>=0;day--) {\n        long[][] current = new long[2][cap+1];\n        for (int left=1;left<=cap;left++) {\n            current[0][left] = Math.max(next[0][left],-(long)prices[day]+next[1][left]);\n            current[1][left] = Math.max(next[1][left],(long)prices[day]+next[0][left-1]);\n        }\n        next = current;\n    }\n    return next[0][cap];\n}\n\nstatic int maxProfit(int k, int[] prices) {\n    return Math.toIntExact(cappedProfit(k,prices));\n}",
+    "time": "O(nc), where c = min(k, floor(n/2)).",
+    "space": "O(c), where c = min(k, floor(n/2)); the old layers become unused.",
+    "pitfalls": [
+      "Decrease the cap on a sale, not on both a buy and a sale.",
+      "At most two/k trades does not mean exactly two/k trades.",
+      "A new purchase must follow the preceding sale.",
+      "Zero terminal values are safe for the overall starting state with nonnegative prices: an unfinished purchase cannot beat skipping it.",
+      "For large k, at most floor(n/2) profitable non-overlapping trades are needed. Capping k avoids oversized arrays; the unlimited-trade shortcut can further reduce that special case to O(n)."
+    ],
+    "tests": [
+      "assert maxProfit(2,new int[]{4,1,6,2,8})==11;assert maxProfit(0,new int[]{1,9})==0;",
+      "Random random=new Random(420);for(int trial=0;trial<900;trial++){int n=random.nextInt(11);int[] prices=new int[n];for(int i=0;i<n;i++)prices[i]=random.nextInt(16);for(int cap=0;cap<=3;cap++){long expected=0;for(int mask=0;mask<(1<<n);mask++){int used=Integer.bitCount(mask);if((used&1)!=0||used>2*cap)continue;long cash=0;boolean selling=false;for(int day=0;day<n;day++)if((mask&(1<<day))!=0){cash+=selling?prices[day]:-prices[day];selling=!selling;}expected=Math.max(expected,cash);}assert cappedProfit(cap,prices)==expected;assert cappedMemo(cap,prices)==expected;assert cappedTable(cap,prices)==expected;assert cappedRecursive(prices,0,false,cap)==expected;}}",
+      "assert cappedProfit(2,new int[]{0,Integer.MAX_VALUE,0,Integer.MAX_VALUE})==4294967294L;assert cappedProfit(Integer.MAX_VALUE,new int[]{1,4})==3;assert cappedProfit(2,new int[]{})==0;",
+      "int[] prices=new int[1000];for(int i=0;i<prices.length;i++)prices[i]=(i%2)*1000;assert maxProfit(100,prices)==100000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/best-time-to-buy-and-sell-stock-iv",
+      "title": "Best Time to Buy and Sell Stock IV: At Most K Transactions",
+      "checkedOn": "2026-10-29",
+      "approach": "Add a remaining-sales dimension to the two ownership states; recursion, memoization, full table, then two-layer DP.",
+      "adaptation": "All four complete public Java implementations were checked. This adaptation names the holding states directly, widens arithmetic to long, and caps allocated capacity at floor(n/2). The judge wrapper keeps its expected int signature."
+    },
+    "baselineJava": "static long cappedRecursive(int[] prices, int day, boolean holding, int left) {\n    if (day==prices.length || left==0) return 0;\n    long wait = cappedRecursive(prices,day+1,holding,left);\n    long act = (holding ? (long)prices[day] : -(long)prices[day])\n        + cappedRecursive(prices,day+1,!holding,left-(holding ? 1 : 0));\n    return Math.max(wait,act);\n}",
+    "baselineTime": "O(2ⁿ) upper bound and O(n) stack. Only use on small examples.",
+    "better": {
+      "explanation": "Memoization saves answers for (day, held, left). A −1 marker is safe because every future-profit state may choose to wait and earn zero. Tabulation fills the same states backward with no recursion. Both are shown so the two-layer version can be understood as removing the day dimension, not changing the choices.",
+      "java": "static long cappedMemo(int k, int[] prices) {\n    if (k<=0 || prices.length<2) return 0;\n    int cap = Math.min(k,prices.length/2);\n    long[][][] memo = new long[prices.length][2][cap+1];\n    for(long[][] day:memo) for(long[] state:day) Arrays.fill(state,-1);\n    return cappedMemoAt(prices,0,0,cap,memo);\n}\nstatic long cappedMemoAt(int[] p, int day, int held, int left, long[][][] memo) {\n    if (day==p.length || left==0) return 0;\n    if (memo[day][held][left]!=-1) return memo[day][held][left];\n    long wait = cappedMemoAt(p,day+1,held,left,memo);\n    long act = (held==1 ? (long)p[day] : -(long)p[day])\n        + cappedMemoAt(p,day+1,1-held,left-held,memo);\n    return memo[day][held][left] = Math.max(wait,act);\n}\nstatic long cappedTable(int k, int[] p) {\n    if (k<=0 || p.length<2) return 0;\n    int cap = Math.min(k,p.length/2);\n    long[][][] dp = new long[p.length+1][2][cap+1];\n    for(int day=p.length-1;day>=0;day--) {\n        for(int left=1;left<=cap;left++) {\n            dp[day][0][left] = Math.max(dp[day+1][0][left],-(long)p[day]+dp[day+1][1][left]);\n            dp[day][1][left] = Math.max(dp[day+1][1][left],(long)p[day]+dp[day+1][0][left-1]);\n        }\n    }\n    return dp[0][0][cap];\n}",
+      "time": "O(n) with fixed cap two; O(nc) for a general cap c.",
+      "space": "O(nc) table; memoization also uses an O(n) call stack."
+    },
+    "trace": {
+      "columns": [
+        "Choice",
+        "Cash change",
+        "Sales left"
+      ],
+      "rows": [
+        [
+          "Start",
+          "0",
+          "2"
+        ],
+        [
+          "Buy at 1",
+          "−1",
+          "2"
+        ],
+        [
+          "Sell at 6",
+          "+6",
+          "1"
+        ],
+        [
+          "Buy at 2",
+          "−2",
+          "1"
+        ],
+        [
+          "Sell at 8",
+          "+8",
+          "0"
+        ],
+        [
+          "Total",
+          "11",
+          "0"
+        ]
+      ]
+    }
   }
 }
