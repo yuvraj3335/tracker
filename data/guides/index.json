@@ -3749,21 +3749,21 @@
     }
   },
   "92": {
-    "problem": "Return floor(sqrt(n)) without floating-point rounding.",
-    "assumptions": "n is a nonnegative long.",
+    "problem": "Find the whole-number square root: the largest x whose square is no greater than n.",
+    "assumptions": "Striver asks for 0 ≤ n ≤ Integer.MAX_VALUE. This helper also accepts larger nonnegative long values.",
     "example": {
       "input": "n = 28",
       "output": "5",
       "explanation": "5²=25 is at most 28, while 6²=36 exceeds it. The answer is the last integer whose square fits."
     },
     "baseline": "Try successive integers until the next square exceeds n, taking O(sqrt(n)) time.",
-    "approach": "Binary search the monotone predicate x²<=n. Test it as x<=n/x for positive x, avoiding overflow in the square.",
+    "approach": "For n = 28, 5 works because 25 ≤ 28, but 6 is too large because 36 > 28. We want the last number that works.\n\nTry the middle of the remaining range. If its square fits, smaller numbers fit too, so look to its right. If it is too large, larger numbers will also fail, so look to its left. When the range becomes empty, high is the last candidate that fit.\n\nThe code compares middle ≤ n / middle instead of multiplying middle by itself. That gives the same answer for positive integers and avoids overflowing long. The largest possible root of a long is 3,037,000,499, which explains the upper bound.",
     "steps": [
       "Handle zero separately.",
       "Search positive candidates up to min(n,3037000499).",
       "Keep the greatest candidate satisfying the division comparison."
     ],
-    "java": "static long floorSqrt(long n){\n    if(n<0)throw new IllegalArgumentException();if(n==0)return 0;\n    long lo=1,hi=Math.min(n,3037000499L);\n    while(lo<=hi){long mid=lo+(hi-lo)/2;if(mid<=n/mid)lo=mid+1;else hi=mid-1;}\n    return hi;\n}",
+    "java": "static long floorSqrt(long n) {\n    if (n < 0) throw new IllegalArgumentException();\n    if (n == 0) return 0;\n    long low = 1;\n    long high = Math.min(n, 3037000499L);\n    while (low <= high) {\n        long middle = low + (high - low) / 2;\n        if (middle <= n / middle) low = middle + 1;\n        else high = middle - 1;\n    }\n    return high;\n}",
     "time": "O(log n).",
     "space": "O(1).",
     "pitfalls": [
@@ -3775,8 +3775,16 @@
       "assert floorSqrt(0)==0;",
       "assert floorSqrt(1)==1;",
       "assert floorSqrt(Long.MAX_VALUE)==3037000499L;",
-      "for(long n=0;n<10000;n++){long r=floorSqrt(n);assert r*r<=n&&(r+1)*(r+1)>n;}"
-    ]
+      "for(long n=0;n<10000;n++){long r=floorSqrt(n);assert r*r<=n&&(r+1)*(r+1)>n;}",
+      "Random random=new Random(92);for(int run=0;run<10000;run++){long n=random.nextLong()&Long.MAX_VALUE;long root=floorSqrt(n);BigInteger value=BigInteger.valueOf(n),r=BigInteger.valueOf(root);assert r.multiply(r).compareTo(value)<=0;assert r.add(BigInteger.ONE).pow(2).compareTo(value)>0;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/find-square-root-of-a-number",
+      "title": "Find square root of a number",
+      "checkedOn": "2026-10-29",
+      "approach": "Binary search for the largest candidate whose square fits.",
+      "adaptation": "The public statement and both binary-search hints were checked. Full solution Java is not publicly visible without signing in. This independently written helper extends the input to long and uses division to avoid overflow."
+    }
   },
   "93": {
     "problem": "Find an integer x such that xⁿ equals m, or report that no exact nonnegative root exists.",
@@ -3787,13 +3795,13 @@
       "explanation": "The cubes below 3 are too small, 3³ equals 27, and larger positive candidates have larger cubes."
     },
     "baseline": "Try roots in increasing order, repeatedly multiplying to compare with m.",
-    "approach": "For nonnegative roots, xⁿ is monotone. Binary search x and stop multiplication as soon as the next product would exceed m. Division detects that condition without overflowing long.",
+    "approach": "If we are looking for a cube root, increasing the candidate also increases its cube: 2³ = 8, 3³ = 27, 4³ = 64. This lets us discard half the candidates after each comparison.\n\nMultiply the candidate by itself n times. If the next multiplication would exceed m, stop: we already know the candidate is too large. Otherwise compare the finished power with m. An equal value gives the answer; a smaller value sends the search right; a larger value sends it left. Unlike square-root rounding, this problem accepts only an exact root.\n\nFor n ≥ 2, a root cannot exceed the largest square root that fits in long. The early returns handle zero and n = 1 before using that bound.",
     "steps": [
       "Handle m=0 and n=1 directly.",
       "Compare each candidate power to m using bounded multiplication.",
       "Move left or right based on the comparison; return only on exact equality."
     ],
-    "java": "static long nthRoot(int n,long m){\n    if(n<=0||m<0)throw new IllegalArgumentException();if(m==0||n==1)return m;\n    long lo=1,hi=Math.min(m,3037000499L);\n    while(lo<=hi){long mid=lo+(hi-lo)/2;int comparison=powerCompare(mid,n,m);\n        if(comparison==0)return mid;if(comparison<0)lo=mid+1;else hi=mid-1;\n    }\n    return -1;\n}\nstatic int powerCompare(long base,int n,long target){\n    if(base==1)return Long.compare(1,target);\n    long product=1;\n    for(int i=0;i<n;i++){if(product>target/base)return 1;product*=base;}\n    return Long.compare(product,target);\n}",
+    "java": "static long nthRoot(int n, long m) {\n    if (n <= 0 || m < 0) throw new IllegalArgumentException();\n    if (m == 0 || n == 1) return m;\n    long low = 1;\n    long high = Math.min(m, 3037000499L);\n    while (low <= high) {\n        long middle = low + (high - low) / 2;\n        int comparison = powerCompare(middle, n, m);\n        if (comparison == 0) return middle;\n        if (comparison < 0) low = middle + 1;\n        else high = middle - 1;\n    }\n    return -1;\n}\n\nstatic int powerCompare(long base, int n, long target) {\n    if (base == 1) return Long.compare(1, target);\n    long product = 1;\n    for (int i = 0; i < n; i++) {\n        if (product > target / base) return 1;\n        product *= base;\n    }\n    return Long.compare(product, target);\n}",
     "time": "O(n log m) upper bound; comparisons stop early once the target is exceeded.",
     "space": "O(1).",
     "pitfalls": [
@@ -3806,8 +3814,17 @@
       "assert nthRoot(2,0)==0;",
       "assert nthRoot(1,Long.MAX_VALUE)==Long.MAX_VALUE;",
       "assert nthRoot(Integer.MAX_VALUE,1)==1;",
-      "assert nthRoot(2,9223372030926249001L)==3037000499L;"
-    ]
+      "assert nthRoot(2,9223372030926249001L)==3037000499L;",
+      "for(int n=1;n<=10;n++)for(long m=0;m<=300;m++){long expected=-1;for(long x=0;x<=m;x++){int comparison=BigInteger.valueOf(x).pow(n).compareTo(BigInteger.valueOf(m));if(comparison==0){expected=x;break;}if(comparison>0)break;}assert nthRoot(n,m)==expected:n+\":\"+m;}",
+      "for(int n=2;n<=62;n++)for(long x=1;x<=20;x++){BigInteger power=BigInteger.valueOf(x).pow(n);if(power.bitLength()<64)assert nthRoot(n,power.longValue())==x;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/find-nth-root-of-a-number",
+      "title": "Find Nth root of a number",
+      "checkedOn": "2026-10-29",
+      "approach": "Binary search candidates and compare their Nth powers with M.",
+      "adaptation": "The public statement and binary-search hint were checked; full solution Java was not accessible. This independent Java extends M to nonnegative long values and stops before a product can overflow."
+    }
   },
   "94": {
     "problem": "Find the smallest integer eating speed that finishes all banana piles within h hours.",
@@ -4023,13 +4040,13 @@
       "explanation": "The missing positives are 1,5,6,8,9,… . Before value 7 at index 3, exactly 7−(3+1)=3 positives are missing."
     },
     "baseline": "Walk through positive integers, advancing through array entries and counting absent values.",
-    "approach": "At index i, a[i]−(i+1) counts missing positives before a[i]. This count is nondecreasing. Find the first index with at least k missing values; if that index is p, the answer is p+k because exactly p supplied values precede it.",
+    "approach": "In a list with no missing positive numbers, index 0 holds 1, index 1 holds 2, and index i holds i + 1. If our value at index i is larger, the difference tells us how many numbers are missing before it. For [2,3,4,7,11], these counts are [1,1,1,3,6].\n\nFind the first index p whose missing count reaches k. The kth missing number must lie before that array value, with exactly p supplied numbers before it. Its value is therefore k + p. If no index reaches k, use p = array length: the answer comes after the array.\n\nThe counts never decrease, so binary search finds this boundary. The search keeps high as an excluded boundary; when low equals high, that position is p.",
     "steps": [
       "Binary search the missing-count predicate.",
       "Move left when a[mid]−mid−1 >=k.",
       "Return the insertion boundary plus k."
     ],
-    "java": "static long kthMissing(int[] a,long k){\n    if(k<=0)throw new IllegalArgumentException();int lo=0,hi=a.length;\n    while(lo<hi){int mid=lo+(hi-lo)/2;long missing=(long)a[mid]-mid-1;if(missing>=k)hi=mid;else lo=mid+1;}\n    return Math.addExact(k,lo);\n}",
+    "java": "static long kthMissing(int[] values, long k) {\n    if (k <= 0) throw new IllegalArgumentException();\n    int low = 0;\n    int high = values.length;\n    while (low < high) {\n        int middle = low + (high - low) / 2;\n        long missing = (long) values[middle] - middle - 1;\n        if (missing >= k) high = middle;\n        else low = middle + 1;\n    }\n    return Math.addExact(k, low);\n}",
     "time": "O(log n).",
     "space": "O(1).",
     "pitfalls": [
@@ -4040,8 +4057,17 @@
       "assert kthMissing(new int[]{2,3,4,7,11},5)==9;",
       "assert kthMissing(new int[]{1,2,3,4},2)==6;",
       "assert kthMissing(new int[]{},7)==7;",
-      "assert kthMissing(new int[]{2},1)==1;"
-    ]
+      "assert kthMissing(new int[]{2},1)==1;",
+      "for(int mask=0;mask<(1<<10);mask++){int[] values=new int[Integer.bitCount(mask)];int at=0;for(int x=1;x<=10;x++)if((mask&(1<<(x-1)))!=0)values[at++]=x;for(int k=1;k<=15;k++){int missing=0,expected=0;while(missing<k){expected++;if(Arrays.binarySearch(values,expected)<0)missing++;}assert kthMissing(values,k)==expected;}}",
+      "assert kthMissing(new int[]{1,2,3},Integer.MAX_VALUE)==2147483650L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/kth-missing-positive-number",
+      "title": "Kth Missing Positive Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Search the boundary in the number of missing positives.",
+      "adaptation": "The current public statement was checked. Its Solution tab requires sign-in, so this is independently written binary-search Java, not a claim that the gated source code was inspected. The result uses long."
+    }
   },
   "99": {
     "problem": "Place cows in stalls to maximize the minimum distance between any two placed cows.",
@@ -4159,32 +4185,44 @@
     }
   },
   "102": {
-    "problem": "Assign consecutive boards to painters to minimize the completion time when all painters work at the same rate.",
-    "assumptions": "Board lengths are nonnegative and cannot be split. Each painter handles at most one contiguous block; painters may be idle. One length unit takes one time unit.",
+    "problem": "Divide consecutive boards among painters so the slowest painter finishes as early as possible. Include the supplied time per unit, then return the result modulo 10,000,003.",
+    "assumptions": "No board may be split, and each painter gets at most one consecutive group. Extra painters may be idle. Striver supplies painters A, time per length unit B, and board lengths C. paintTime returns the minimum maximum workload; paint returns the required time modulo 10,000,003.",
     "example": {
-      "input": "boards = [10,20,30,40], painters = 2",
-      "output": "60",
-      "explanation": "Assign [10,20,30] to one painter and [40] to the other. The slower block finishes at time 60."
+      "input": "painters = 2, time per unit = 3, boards = [10,20,30,40]",
+      "output": "180",
+      "explanation": "One painter gets [10,20,30] and the other gets [40]. Their workloads are 60 and 40, so the finish time is 60 × 3 = 180."
     },
     "baseline": "Try every set of contiguous partition boundaries, or use O(p n²) prefix dynamic programming.",
-    "approach": "A proposed finishing time is a capacity limit for each painter. Greedily assign the longest possible prefix to each painter. More available time never increases the required painter count, enabling binary search.",
+    "approach": "First work in board-length units. A painter must be able to handle the longest board, and one painter could handle the sum of all boards. These give the search limits.\n\nFor a guessed limit, give a painter boards from left to right until the next board would exceed the limit. Then start another painter. Taking as much as possible cannot increase the number of painters needed: ending a block earlier only leaves more work for the remaining painters.\n\nIf this scan needs too many painters, the limit is too small. Otherwise keep it as a possible answer and try a smaller one. After finding the smallest workload, multiply by the time per unit and take the modulus. Do not take the modulus during binary search: it would destroy the ordering of workloads.",
     "steps": [
-      "Search from the largest board to the total length.",
-      "Count painters needed by a greedy scan.",
-      "Accept a time if it uses no more than the available painters."
+      "Search workloads between the longest board and the total length.",
+      "For each middle workload, greedily count the painters needed.",
+      "If the count fits, move the upper boundary down; otherwise move the lower boundary up.",
+      "Multiply the final workload by B modulo 10,000,003."
     ],
-    "java": "static long paintTime(int[] boards,int painters){\n    if(painters<=0)throw new IllegalArgumentException();long lo=0,hi=0;\n    for(int x:boards){lo=Math.max(lo,x);hi+=x;}\n    while(lo<hi){long mid=lo+(hi-lo)/2,sum=0;int needed=1;\n        for(int x:boards){if(sum+x>mid){needed++;sum=0;}sum+=x;}\n        if(needed<=painters)hi=mid;else lo=mid+1;\n    }\n    return lo;\n}",
+    "java": "static long paintTime(int[] boards, int painters) {\n    if (painters <= 0) throw new IllegalArgumentException();\n    long low = 0;\n    long high = 0;\n    for (int board : boards) {\n        if (board < 0) throw new IllegalArgumentException();\n        low = Math.max(low, board);\n        high += board;\n    }\n    while (low < high) {\n        long middle = low + (high - low) / 2;\n        long workload = 0;\n        int needed = 1;\n        for (int board : boards) {\n            if (workload + board > middle) {\n                needed++;\n                workload = 0;\n            }\n            workload += board;\n        }\n        if (needed <= painters) high = middle;\n        else low = middle + 1;\n    }\n    return low;\n}\n\nstatic int paint(int painters, int timePerUnit, int[] boards) {\n    if (timePerUnit < 0) throw new IllegalArgumentException();\n    long modulo = 10000003L;\n    long workload = paintTime(boards, painters);\n    return (int) ((workload % modulo) * (timePerUnit % modulo) % modulo);\n}",
     "time": "O(n log(totalLength−maxLength+1)).",
     "space": "O(1).",
     "pitfalls": [
-      "Extra painters may remain idle; painters>boards is not an impossibility.",
-      "If a platform supplies a per-unit rate or output modulus, apply those to the resulting workload according to that platform’s contract."
+      "A painter cannot skip a board and resume later; each assignment must be consecutive.",
+      "Extra painters may be idle. More painters than boards is valid.",
+      "Find the workload before applying the rate and modulus. A wrapped result is not a valid binary-search comparison."
     ],
     "tests": [
       "assert paintTime(new int[]{10,20,30,40},2)==60;",
       "assert paintTime(new int[]{10,20},5)==20;",
-      "assert paintTime(new int[]{},3)==0;"
-    ]
+      "assert paintTime(new int[]{},3)==0;",
+      "assert paint(2,5,new int[]{1,10})==50;assert paint(10,1,new int[]{1,8,11,3})==11;assert paint(2,3,new int[]{10,20,30,40})==180;",
+      "Random random=new Random(102);for(int run=0;run<500;run++){int[] boards=new int[1+random.nextInt(9)];for(int i=0;i<boards.length;i++)boards[i]=random.nextInt(21);int painters=1+random.nextInt(12);long expected=Long.MAX_VALUE;for(int cuts=0;cuts<(1<<(boards.length-1));cuts++){if(Integer.bitCount(cuts)+1>painters)continue;long part=0,worst=0;for(int i=0;i<boards.length;i++){part+=boards[i];if(i==boards.length-1||(cuts&(1<<i))!=0){worst=Math.max(worst,part);part=0;}}expected=Math.min(expected,worst);}assert paintTime(boards,painters)==expected;int rate=1+random.nextInt(1000000);assert paint(painters,rate,boards)==BigInteger.valueOf(expected).multiply(BigInteger.valueOf(rate)).mod(BigInteger.valueOf(10000003)).intValue();}",
+      "int[] boards=new int[100000];Arrays.fill(boards,1000000);assert paint(1,1000000,boards)==BigInteger.TEN.pow(17).mod(BigInteger.valueOf(10000003)).intValue();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/painters-partition",
+      "title": "Painter's Partition",
+      "checkedOn": "2026-10-29",
+      "approach": "Binary search the maximum workload with a greedy painter count; apply the rate and modulus afterward.",
+      "adaptation": "The public current statement was checked: it explicitly supplies B and requires modulo 10,000,003. Full solution Java was not accessible. The independently written Java includes that contract as well as the unit-workload helper."
+    }
   },
   "103": {
     "problem": "Insert at most k gas stations to minimize the largest distance between adjacent stations.",
