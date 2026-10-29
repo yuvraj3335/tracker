@@ -9700,5 +9700,122 @@
       "time": "O(M log(D + 1)), with D ≤ 26 distinct labels.",
       "space": "O(D + 26), effectively constant for this alphabet."
     }
+  },
+  "252": {
+    "problem": "Decide whether every card can be placed into groups of exactly groupSize consecutive integer values.",
+    "assumptions": "Use every card once. Equal values may belong to different groups but cannot replace different consecutive values within one group. groupSize must be positive. The linked task uses non-negative values; this implementation also handles the full int range safely.",
+    "example": {
+      "input": "hand = [2,3,4,3,4,5], groupSize = 3",
+      "output": "true",
+      "explanation": "Use [2,3,4] and [3,4,5]. The two copies of 3 and 4 belong to different groups."
+    },
+    "baseline": "Try possible groups and recursively partition the remaining cards. This can become exponential because there are many ways to choose groups. We can avoid those choices by always considering the smallest unused card.",
+    "approach": "The smallest unused value must begin a group. It cannot appear later in a group because that would require an even smaller unused value before it. This forces the next group to contain start, start + 1, and so on through groupSize − 1.\n\nUse a TreeMap to keep counts in sorted order. Take its first key as start and consume one copy of each required consecutive value. If any value is missing, no rearrangement can succeed. Remove zero-count keys and repeat with the new smallest unused value. This uses an ordered map because we need both the smallest value and counts for specific values.",
+    "steps": [
+      "Reject a non-positive group size or a card count not divisible by it.",
+      "Count values in a TreeMap.",
+      "Start each group at the smallest remaining key.",
+      "Consume one copy of every required consecutive value, failing on a missing value.",
+      "Return true once all counts are consumed."
+    ],
+    "java": "static boolean isNStraightHand(int[] hand, int groupSize) {\n    if (groupSize <= 0 || hand.length % groupSize != 0) return false;\n    TreeMap<Integer, Integer> counts = new TreeMap<>();\n    for (int value : hand) counts.merge(value, 1, Integer::sum);\n    while (!counts.isEmpty()) {\n        int start = counts.firstKey();\n        for (int offset = 0; offset < groupSize; offset++) {\n            long required = (long) start + offset;\n            if (required > Integer.MAX_VALUE) return false;\n            int value = (int) required;\n            Integer count = counts.get(value);\n            if (count == null) return false;\n            if (count == 1) counts.remove(value);\n            else counts.put(value, count - 1);\n        }\n    }\n    return true;\n}",
+    "time": "O(n log(D + 1)), where D is the number of distinct values. Each successful inner step consumes one card.",
+    "space": "O(D).",
+    "pitfalls": [
+      "Divisibility is necessary but not sufficient; required intermediate values may be missing.",
+      "Do not skip a missing value to use a later card.",
+      "Duplicates need frequency counts, not a set.",
+      "Do not allow integer overflow to turn a value after Integer.MAX_VALUE into Integer.MIN_VALUE."
+    ],
+    "tests": [
+      "assert isNStraightHand(new int[]{2,3,4,3,4,5},3);assert isNStraightHand(new int[]{1,2,3,6,2,3,4,7,8},3);assert !isNStraightHand(new int[]{1,2,4,5,6,7},3);assert isNStraightHand(new int[]{9,9,9},1);",
+      "class Search{Map<Integer,Boolean>memo=new HashMap<>();boolean solve(int[]a,int size,int used){if(used==(1<<a.length)-1)return true;if(memo.containsKey(used))return memo.get(used);int first=0;while((used&(1<<first))!=0)first++;for(int subset=1;subset<(1<<a.length);subset++){if((subset&used)!=0||(subset&(1<<first))==0||Integer.bitCount(subset)!=size)continue;int[]group=new int[size];int j=0;for(int i=0;i<a.length;i++)if((subset&(1<<i))!=0)group[j++]=a[i];Arrays.sort(group);boolean consecutive=true;for(int i=1;i<size;i++)if((long)group[i]-group[i-1]!=1)consecutive=false;if(consecutive&&solve(a,size,used|subset)){memo.put(used,true);return true;}}memo.put(used,false);return false;}}Random r=new Random(252);for(int trial=0;trial<700;trial++){int[]a=new int[r.nextInt(10)];for(int i=0;i<a.length;i++)a[i]=r.nextInt(7)-3;for(int size=1;size<=4;size++){boolean expected=a.length%size==0&&new Search().solve(a,size,0);assert isNStraightHand(a,size)==expected;}}",
+      "assert !isNStraightHand(new int[]{Integer.MAX_VALUE,Integer.MIN_VALUE},2);assert isNStraightHand(new int[]{Integer.MAX_VALUE-1,Integer.MAX_VALUE},2);assert !isNStraightHand(new int[]{1},0);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/hand-of-straights",
+      "title": "Hand of Straights",
+      "checkedOn": "2026-10-29",
+      "approach": "Start a forced consecutive group at the smallest unused card and consume value counts.",
+      "adaptation": "The public specification and constraints were checked. It exposes a starter method rather than a Java editorial. This authored TreeMap implementation keeps the greedy choice explicit and checks full-int overflow as an extension."
+    }
+  },
+  "253": {
+    "problem": "Implement the practice problem’s simplified Twitter class: post tweets, follow or unfollow users, and return up to 10 newest visible tweet IDs.",
+    "assumptions": "Each tweet ID is unique, but IDs do not encode time. A user sees their own posts plus posts by currently followed users, including posts written before the follow. This is an in-memory algorithm exercise. Self-follow is ignored, and repeated follow/unfollow calls are harmless extensions.",
+    "example": {
+      "input": "postTweet(1,90), postTweet(2,5), follow(1,2), getNewsFeed(1)",
+      "output": "[5,90]",
+      "explanation": "Tweet 5 was posted later, so it comes first even though its ID is smaller. After unfollow(1,2), user 1 sees [90]."
+    },
+    "baseline": "Collect all posts from the user and their followees, sort by posting time, and take the first ten. A simple reference can instead keep a global posting log and scan it backward, selecting visible posts until ten are found.",
+    "approach": "Each user’s own posts are already ordered by time. Store them as a chain with the newest post at the head. A global increasing counter gives every post a distinct ordering time.\n\nFinding the newest visible posts is a merge of sorted lists. Put the newest post from each relevant user into a max-heap ordered by time. Poll the newest post, add its ID to the result, and offer that post’s older neighbour. Stop after ten results or when the heap empties. Follow relationships are stored separately, so changing a follow affects visibility without deleting any posts.",
+    "steps": [
+      "Map each user to their newest tweet, linked to older tweets.",
+      "Map each follower to a set of followees.",
+      "For a feed, offer the current user’s newest tweet and each followee’s newest tweet.",
+      "Repeatedly take the newest candidate and offer its older neighbour, up to ten times.",
+      "Keep the user’s own posts visible independently of the follow set."
+    ],
+    "java": "static class Twitter {\n    private static class Tweet {\n        final int id;\n        final long time;\n        final Tweet older;\n        Tweet(int id, long time, Tweet older) { this.id = id; this.time = time; this.older = older; }\n    }\n    private long clock = 0;\n    private final Map<Integer, Tweet> newest = new HashMap<>();\n    private final Map<Integer, Set<Integer>> follows = new HashMap<>();\n\n    public void postTweet(int userId, int tweetId) {\n        newest.put(userId, new Tweet(tweetId, clock++, newest.get(userId)));\n    }\n\n    public List<Integer> getNewsFeed(int userId) {\n        PriorityQueue<Tweet> heap = new PriorityQueue<>((a, b) -> Long.compare(b.time, a.time));\n        Tweet own = newest.get(userId);\n        if (own != null) heap.offer(own);\n        for (int followee : follows.getOrDefault(userId, Collections.emptySet())) {\n            Tweet head = newest.get(followee);\n            if (head != null) heap.offer(head);\n        }\n        List<Integer> result = new ArrayList<>();\n        while (result.size() < 10 && !heap.isEmpty()) {\n            Tweet tweet = heap.poll();\n            result.add(tweet.id);\n            if (tweet.older != null) heap.offer(tweet.older);\n        }\n        return result;\n    }\n\n    public void follow(int followerId, int followeeId) {\n        if (followerId != followeeId) follows.computeIfAbsent(followerId, ignored -> new HashSet<>()).add(followeeId);\n    }\n\n    public void unfollow(int followerId, int followeeId) {\n        Set<Integer> users = follows.get(followerId);\n        if (users != null) {\n            users.remove(followeeId);\n            if (users.isEmpty()) follows.remove(followerId);\n        }\n    }\n}",
+    "time": "Posting/follow/unfollow take average O(1). For F followees, this feed implementation takes O(F + (F + 11) log(F + 2)), including individual heap insertions and at most ten removals.",
+    "space": "O(P + R + U) retained storage for posts, follow relations and users. A feed uses O(F + 1) working heap space and at most ten result IDs.",
+    "pitfalls": [
+      "Sort by posting time, not tweet ID.",
+      "Include the user’s own posts exactly once.",
+      "Unfollowing changes visibility; it must not delete the followee’s posts.",
+      "Do not consume or modify stored post chains when reading a feed.",
+      "Use a set so repeated follow calls cannot duplicate feed entries."
+    ],
+    "tests": [
+      "Twitter t=new Twitter();assert t.getNewsFeed(1).isEmpty();t.postTweet(1,90);t.postTweet(2,5);t.follow(1,2);assert t.getNewsFeed(1).equals(List.of(5,90));t.unfollow(1,2);assert t.getNewsFeed(1).equals(List.of(90));t.follow(1,1);assert t.getNewsFeed(1).equals(List.of(90));",
+      "Twitter t=new Twitter();for(int i=0;i<20;i++)t.postTweet(1,100-i);assert t.getNewsFeed(1).equals(List.of(81,82,83,84,85,86,87,88,89,90));assert t.getNewsFeed(1).equals(t.getNewsFeed(1));t.follow(2,1);t.follow(2,1);assert t.getNewsFeed(2).equals(t.getNewsFeed(1));",
+      "Twitter t=new Twitter();Map<Integer,Set<Integer>>follows=new HashMap<>();List<int[]>log=new ArrayList<>();Random r=new Random(253);int id=100000;for(int step=0;step<5000;step++){int user=r.nextInt(8),other=r.nextInt(8),op=r.nextInt(4);if(op==0){t.postTweet(user,id);log.add(new int[]{user,id--});}else if(op==1){t.follow(user,other);if(user!=other)follows.computeIfAbsent(user,x->new HashSet<>()).add(other);}else if(op==2){t.unfollow(user,other);if(follows.containsKey(user))follows.get(user).remove(other);}else{List<Integer>expected=new ArrayList<>();for(int i=log.size()-1;i>=0&&expected.size()<10;i--){int[]post=log.get(i);if(post[0]==user||follows.getOrDefault(user,Collections.emptySet()).contains(post[0]))expected.add(post[1]);}assert t.getNewsFeed(user).equals(expected);}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/design-twitter",
+      "title": "Design Twitter",
+      "checkedOn": "2026-10-29",
+      "approach": "Merge newest-first post chains with a heap, using follow sets to choose visible sources.",
+      "adaptation": "The current public class contract, ten-post limit and posting-time order were checked. It exposes a starter class rather than a public Java editorial. This is an authored heap-merge design tested against a global-log reference."
+    }
+  },
+  "254": {
+    "problem": "Connect all ropes into one. Joining lengths a and b costs a + b and creates a new rope of that combined length. Return the smallest possible total cost.",
+    "assumptions": "The tracker calls them ropes; the linked current TUF task calls them sticks. They have the same cost rule and positive lengths. A single rope needs no join, so its cost is 0. This implementation returns long and also accepts an empty array.",
+    "example": {
+      "input": "lengths = [3,5,7,9]",
+      "output": "47",
+      "explanation": "Join 3+5 for 8, then 7+8 for 15, then 9+15 for 24. The total is 8+15+24 = 47."
+    },
+    "baseline": "Try every possible pair to join, recurse on the shortened list, and keep the cheapest total. This explores many merge orders and is only practical for tiny cases.",
+    "approach": "Join the two shortest available ropes first. A rope that is merged early may be included in later joins, so its length can be charged several times. Keeping those repeatedly charged pieces small lowers the total.\n\nOne way to justify the choice is to look at a complete merge tree. The deepest two sibling leaves are charged the same number of times. Moving the two smallest original lengths into those positions cannot increase the total, because smaller lengths are then charged more often. Therefore some optimal solution joins those two first. Treat their combined rope as one item and repeat.\n\nA min-heap supplies the two shortest current lengths. Add their sum to the answer and put the combined length back, because it may be joined again.",
+    "steps": [
+      "Offer all lengths into a min-heap.",
+      "While at least two ropes remain, poll two minima.",
+      "Add their sum to total cost and offer the sum back.",
+      "Return the accumulated cost."
+    ],
+    "java": "static long connectSticks(int[] lengths) {\n    PriorityQueue<Long> heap = new PriorityQueue<>();\n    for (int length : lengths) heap.offer((long) length);\n    long cost = 0;\n    while (heap.size() > 1) {\n        long merged = heap.poll() + heap.poll();\n        cost += merged;\n        heap.offer(merged);\n    }\n    return cost;\n}",
+    "time": "O(n log(n + 1)) time, with n − 1 joins for a non-empty input.",
+    "space": "O(n) heap storage.",
+    "pitfalls": [
+      "Add every intermediate join cost, not only the final rope length.",
+      "Put the combined rope back in the heap before choosing the next pair.",
+      "One rope costs zero because there is no joining operation.",
+      "Use long for both merged lengths and the accumulated cost when extending beyond the practice bounds."
+    ],
+    "tests": [
+      "assert connectSticks(new int[]{3,5,7,9})==47;assert connectSticks(new int[]{2,4,3})==14;assert connectSticks(new int[]{8})==0;assert connectSticks(new int[]{})==0;",
+      "class Search{Map<String,Long>memo=new HashMap<>();long solve(List<Long>a){if(a.size()<2)return 0;Collections.sort(a);String key=a.toString();if(memo.containsKey(key))return memo.get(key);long best=Long.MAX_VALUE;for(int i=0;i<a.size();i++)for(int j=i+1;j<a.size();j++){long sum=a.get(i)+a.get(j);List<Long>b=new ArrayList<>();for(int x=0;x<a.size();x++)if(x!=i&&x!=j)b.add(a.get(x));b.add(sum);best=Math.min(best,sum+solve(b));}memo.put(key,best);return best;}}Random r=new Random(254);for(int trial=0;trial<120;trial++){int[]a=new int[r.nextInt(7)];List<Long>values=new ArrayList<>();for(int i=0;i<a.length;i++){a[i]=1+r.nextInt(8);values.add((long)a[i]);}assert connectSticks(a)==new Search().solve(values);}",
+      "assert connectSticks(new int[]{Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE})==10737418235L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/minimum-cost-to-connect-sticks",
+      "title": "Minimum Cost to Connect Sticks",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeatedly merge the two smallest lengths with a min-heap.",
+      "adaptation": "The public stick-joining cost rule and min-heap prompts were checked. The tracker’s ropes terminology is equivalent. No public Java editorial is exposed; this authored solution returns long to cover larger lengths than the current int-returning practice stub."
+    }
   }
 }
