@@ -15301,5 +15301,102 @@
       "time": "O(n) for both versions.",
       "space": "O(n) for the table; memoization also has O(n) recursion depth."
     }
+  },
+  "386": {
+    "problem": "Find the least total energy needed to reach the final stair when each jump advances one or two indices and costs the absolute height difference.",
+    "assumptions": "The heights array is nonempty. Starting at index 0 costs nothing. The core returns long and casts before subtracting heights; the int frogJump wrapper matches the source and pinned judge’s bounded result.",
+    "example": {
+      "input": "heights = [1, 0, 3, 4]",
+      "output": "3",
+      "explanation": "Jump from index 0 to 2 for cost 2, then to 3 for cost 1. The cheapest immediate first jump goes to index 1, but that route costs at least 5 overall."
+    },
+    "baseline": "Work backward from the last stair. Try arriving from the preceding stair or from two stairs earlier, add the final jump’s cost, and take the smaller total. Direct recursion repeats earlier states.",
+    "approach": "Let dp[i] mean the minimum energy needed to reach index i. Its last jump must come from i − 1 or i − 2. Add the corresponding height difference to the minimum energy for that earlier index, then take the smaller total. At index 0, the answer is 0.\n\nMemoization saves each index’s answer. Tabulation fills indices from left to right because both possible predecessors are earlier. Neither method chooses by the final jump alone; each comparison includes the cost of reaching the predecessor.\n\nOnly the previous two DP answers are needed, so the primary version stores them in two variables. Compute the new answer first, then shift the old values forward.",
+    "steps": [
+      "Start the energy at index 0 at zero.",
+      "For every later index, calculate the total cost through the previous index.",
+      "When i > 1, also calculate the total cost through i − 2.",
+      "Take the smaller cost and shift the previous two answers.",
+      "Return the final energy."
+    ],
+    "java": "static long frogEnergy(int[] heights) {\n    long twoBack = 0, oneBack = 0;\n    for (int i = 1; i < heights.length; i++) {\n        long one = oneBack + Math.abs((long)heights[i]-heights[i-1]);\n        long two = i > 1 ? twoBack + Math.abs((long)heights[i]-heights[i-2]) : Long.MAX_VALUE;\n        long current = Math.min(one,two);\n        twoBack = oneBack;\n        oneBack = current;\n    }\n    return oneBack;\n}\nstatic int frogJump(int[] heights) { return Math.toIntExact(frogEnergy(heights)); }",
+    "time": "O(n) time.",
+    "space": "O(1) extra space in the primary version.",
+    "pitfalls": [
+      "Minimize total energy, not the next jump’s cost or the number of jumps.",
+      "The two-step option is unavailable at index 1.",
+      "Use Math.abs((long)a - b); int subtraction can overflow before Math.abs runs.",
+      "Memoization avoids repeated work but still has a deep recursion stack on long inputs.",
+      "Keep the old previous answer until current is computed."
+    ],
+    "tests": [
+      "int[]h={1,0,3,4};assert frogJump(h)==3;assert frogRecursive(h,h.length-1)==3;assert frogMemoized(h)==3;assert frogTabulated(h)==3;assert frogJump(new int[]{8})==0;assert frogJump(new int[]{5,99,5})==0;",
+      "Random random=new Random(386);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(12);int[]h=new int[n];for(int i=0;i<n;i++)h[i]=random.nextInt(101)-50;\n long[][]d=new long[n][n];for(int i=0;i<n;i++){Arrays.fill(d[i],Long.MAX_VALUE);d[i][i]=0;for(int j=i+1;j<n&&j<=i+2;j++)d[i][j]=Math.abs((long)h[i]-h[j]);}\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(d[i][k]!=Long.MAX_VALUE&&d[k][j]!=Long.MAX_VALUE)d[i][j]=Math.min(d[i][j],d[i][k]+d[k][j]);\n long expected=d[0][n-1];assert frogEnergy(h)==expected;assert frogMemoized(h)==expected;assert frogTabulated(h)==expected;assert frogRecursive(h,n-1)==expected;\n}",
+      "int[]h={Integer.MIN_VALUE,Integer.MAX_VALUE};assert frogEnergy(h)==4294967295L;assert frogMemoized(h)==4294967295L;assert frogTabulated(h)==4294967295L;int[]longPath=new int[100000];for(int i=0;i<longPath.length;i++)longPath[i]=i;assert frogEnergy(longPath)==99999;assert frogTabulated(longPath)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/frog-jump-minimum-energy",
+      "title": "Frog Jump: Minimum Energy Using Dynamic Programming",
+      "checkedOn": "2026-10-29",
+      "approach": "Recursion, memoization, tabulation, and the previous-two-state optimization.",
+      "adaptation": "All four complete public Java methods were checked. The adaptation preserves the recurrence, uses long before subtraction and for accumulated energy, and adds a checked int wrapper. The explanation includes a small counterexample to the cheapest-next-jump rule."
+    },
+    "baselineJava": "static long frogRecursive(int[] heights, int index) {\n    if (index == 0) return 0;\n    long one = frogRecursive(heights,index-1) + Math.abs((long)heights[index]-heights[index-1]);\n    long two = Long.MAX_VALUE;\n    if (index > 1) two = frogRecursive(heights,index-2) + Math.abs((long)heights[index]-heights[index-2]);\n    return Math.min(one,two);\n}",
+    "baselineTime": "O(2^n) time as an upper bound and O(n) recursion space.",
+    "better": {
+      "explanation": "Memoization keeps the recursive state and caches it. Tabulation stores the same answers in increasing index order. Both make the DP state visible; the iterative table also avoids recursion depth. The primary version then removes table entries older than two steps.",
+      "java": "static long frogMemoized(int[] heights) {\n    long[] memo = new long[heights.length];\n    Arrays.fill(memo,-1);\n    return frogMemo(heights,heights.length-1,memo);\n}\nstatic long frogMemo(int[] heights, int index, long[] memo) {\n    if (index == 0) return 0;\n    if (memo[index] != -1) return memo[index];\n    long one = frogMemo(heights,index-1,memo) + Math.abs((long)heights[index]-heights[index-1]);\n    long two = Long.MAX_VALUE;\n    if (index > 1) two = frogMemo(heights,index-2,memo) + Math.abs((long)heights[index]-heights[index-2]);\n    return memo[index] = Math.min(one,two);\n}\nstatic long frogTabulated(int[] heights) {\n    long[] dp = new long[heights.length];\n    for (int i = 1; i < heights.length; i++) {\n        long one = dp[i-1] + Math.abs((long)heights[i]-heights[i-1]);\n        long two = i > 1 ? dp[i-2] + Math.abs((long)heights[i]-heights[i-2]) : Long.MAX_VALUE;\n        dp[i] = Math.min(one,two);\n    }\n    return dp[heights.length-1];\n}",
+      "time": "O(n) for each version.",
+      "space": "O(n) for either table; memoization also needs O(n) recursion depth."
+    }
+  },
+  "387": {
+    "problem": "Find the least total energy to reach the final stone when a jump may advance any distance from 1 through k.",
+    "assumptions": "heights is nonempty and k ≥ 1. A jump costs the absolute difference of endpoint heights. k may exceed the array length. The long core protects height differences and totals; frogJump returns the checked int judge result.",
+    "example": {
+      "input": "heights = [4, 10, 7, 8], k = 3",
+      "output": "4",
+      "explanation": "A direct jump from index 0 to 3 costs |4 − 8| = 4. No route can beat the absolute difference between the start and finish heights."
+    },
+    "baseline": "Recursively try every valid previous stone within distance k. The state is still the minimum energy to reach one index, but there are now up to k choices instead of two. Repeated states make direct recursion expensive.",
+    "approach": "For index i, the last jump can come from i − 1, i − 2, …, i − k, stopping before a negative index. For each predecessor j, the complete route costs dp[j] + |heights[i] − heights[j]|. The minimum of those totals becomes dp[i].\n\nFill the table left to right. There are n states and at most min(k,n − 1) choices per state, giving O(n × min(k,n)) time. Do not replace the minimum with a sum: we want the cheapest route, not the number of routes.\n\nA circular buffer can retain only the recent answers. The alternative below uses min(k,n − 1) + 1 slots, reads every predecessor before writing the current result, and avoids allocating a huge buffer when k exceeds n.",
+    "steps": [
+      "Set dp[0] = 0.",
+      "For each later index, start its best cost at infinity.",
+      "Try jump lengths 1 through min(k,index).",
+      "Combine each earlier DP value with that jump’s height difference.",
+      "Store the minimum and return the final table entry."
+    ],
+    "java": "static long frogKEnergy(int[] heights, int k) {\n    long[] dp = new long[heights.length];\n    for (int i = 1; i < heights.length; i++) {\n        long best = Long.MAX_VALUE;\n        for (int jump = 1; jump <= k && jump <= i; jump++) {\n            int previous = i-jump;\n            long candidate = dp[previous] + Math.abs((long)heights[i]-heights[previous]);\n            best = Math.min(best,candidate);\n        }\n        dp[i] = best;\n    }\n    return dp[heights.length-1];\n}\nstatic int frogJump(int[] heights, int k) { return Math.toIntExact(frogKEnergy(heights,k)); }",
+    "time": "O(n × min(k,n)) time.",
+    "space": "O(n) for the primary table.",
+    "pitfalls": [
+      "Try every allowed predecessor; the locally cheapest jump can be globally worse.",
+      "Clip jumps at the start of the array.",
+      "Two variables are insufficient when k > 2.",
+      "In a circular buffer, calculate current fully before overwriting its slot.",
+      "Cast before subtracting heights.",
+      "Memoization can still overflow the call stack on a long path. Use an iterative version for large n."
+    ],
+    "tests": [
+      "int[]h={4,10,7,8};assert frogJump(h,3)==4;assert frogKRecursive(h,3,h.length-1)==4;assert frogKMemoized(h,3)==4;assert frogKWindow(h,3)==4;assert frogKEnergy(new int[]{5,99,5},1)==188;assert frogKEnergy(new int[]{5,99,5},2)==0;",
+      "Random random=new Random(387);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(10),k=1+random.nextInt(15);int[]h=new int[n];for(int i=0;i<n;i++)h[i]=random.nextInt(101)-50;\n long[][]d=new long[n][n];for(int i=0;i<n;i++){Arrays.fill(d[i],Long.MAX_VALUE);d[i][i]=0;for(int j=i+1;j<n&&j<=i+k;j++)d[i][j]=Math.abs((long)h[i]-h[j]);}\n for(int middle=0;middle<n;middle++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)if(d[i][middle]!=Long.MAX_VALUE&&d[middle][j]!=Long.MAX_VALUE)d[i][j]=Math.min(d[i][j],d[i][middle]+d[middle][j]);\n long expected=d[0][n-1];assert frogKEnergy(h,k)==expected;assert frogKRecursive(h,k,n-1)==expected;assert frogKMemoized(h,k)==expected;assert frogKWindow(h,k)==expected;\n}",
+      "int[]h={Integer.MIN_VALUE,Integer.MAX_VALUE,Integer.MIN_VALUE};assert frogKEnergy(h,1)==8589934590L;assert frogKMemoized(h,1)==8589934590L;assert frogKWindow(h,1)==8589934590L;assert frogKWindow(h,Integer.MAX_VALUE)==0;assert frogKEnergy(h,Integer.MAX_VALUE)==0;int[]path=new int[100000];for(int i=0;i<path.length;i++)path[i]=i;assert frogKEnergy(path,5)==99999;assert frogKWindow(path,5)==99999;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/frog-jump-with-k-distances",
+      "title": "Frog Jump with K Distances: Minimum Energy",
+      "checkedOn": "2026-10-29",
+      "approach": "Recursion, memoization, tabulation, and a circular buffer holding recent states.",
+      "adaptation": "All four complete public Java methods were checked. The adaptation uses long arithmetic, stops predecessor loops at index 0, and caps the circular window at the available number of states rather than blindly allocating k + 1 slots."
+    },
+    "baselineJava": "static long frogKRecursive(int[] heights, int k, int index) {\n    if (index == 0) return 0;\n    long best = Long.MAX_VALUE;\n    for (int jump = 1; jump <= k && jump <= index; jump++)\n        best = Math.min(best,frogKRecursive(heights,k,index-jump) + Math.abs((long)heights[index]-heights[index-jump]));\n    return best;\n}",
+    "baselineTime": "Exponential for k ≥ 2 (O(k^n) is a coarse upper bound); O(n) when k = 1. O(n) recursion space.",
+    "better": {
+      "explanation": "The memoized version caches each index and still uses recursion. The circular-buffer version follows the same left-to-right table order while keeping only recent states. Its window is capped at n, and all reads happen before the current slot is replaced.",
+      "java": "static long frogKMemoized(int[] heights, int k) {\n    long[] memo = new long[heights.length];\n    Arrays.fill(memo,-1);\n    return frogKMemo(heights,k,heights.length-1,memo);\n}\nstatic long frogKMemo(int[] heights, int k, int index, long[] memo) {\n    if (index == 0) return 0;\n    if (memo[index] != -1) return memo[index];\n    long best = Long.MAX_VALUE;\n    for (int jump = 1; jump <= k && jump <= index; jump++)\n        best = Math.min(best,frogKMemo(heights,k,index-jump,memo) + Math.abs((long)heights[index]-heights[index-jump]));\n    return memo[index] = best;\n}\nstatic long frogKWindow(int[] heights, int k) {\n    int windowSize = Math.min(k,heights.length-1)+1;\n    long[] window = new long[windowSize];\n    for (int i = 1; i < heights.length; i++) {\n        long current = Long.MAX_VALUE;\n        for (int jump = 1; jump <= k && jump <= i; jump++) {\n            int previous = i-jump;\n            current = Math.min(current,window[previous%windowSize] + Math.abs((long)heights[i]-heights[previous]));\n        }\n        window[i%windowSize] = current;\n    }\n    return window[(heights.length-1)%windowSize];\n}",
+      "time": "O(n × min(k,n)) for either version.",
+      "space": "O(n) including recursion for memoization; O(min(k,n)) for the circular buffer."
+    }
   }
 }
