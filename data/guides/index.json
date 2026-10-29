@@ -16017,5 +16017,100 @@
       "time": "O(length × (S + 1)) under the source’s bounded total S.",
       "space": "O(S + 1)."
     }
+  },
+  "400": {
+    "problem": "Count selections of array positions whose values add up to the target. Equal values at different positions are separate choices.",
+    "assumptions": "The tracker links to counting nonempty subsequences with positive values, positive target, and at most 20 positions. Its exact count is at most 2^20, so the source’s modulo 1,000,000,007 does not change the answer. countSubsets also supports zero values and includes the empty subset at target zero; the named judge wrapper excludes that empty choice.",
+    "example": {
+      "input": "values = [1,2,2,3], target = 3",
+      "output": "3",
+      "explanation": "Choose the value 3 alone, or choose 1 with either of the two positions holding 2. Those are three different position selections."
+    },
+    "baseline": "For each position, count the selections that skip it and the selections that take it. Add the two counts. They cannot overlap because one group contains the current position and the other does not. Stop after every position has been considered.",
+    "approach": "The boolean subset-sum lesson asked whether a sum was possible. Now store how many position selections make it. Before reading any value, there is one way to make zero: choose nothing. Every positive sum has zero ways.\n\nFor a new value x, the number of ways to make s is the old number for s, plus the old number for s − x when x fits. Both terms come from the previous row, so x is used at most once. Keep counts modulo 1,000,000,007.\n\nZeros show why counting needs more care than existence. If x is zero, taking it and skipping it preserve the same sum but give different position selections. Every count doubles. Therefore the loop includes sum zero, and the recursive versions wait until no positions remain before deciding whether a selection is complete.\n\nFor the pinned positive-target problem, every matching selection is already nonempty. The wrapper also handles target zero by subtracting the single empty selection from the more general helper.",
+    "steps": [
+      "Set the empty-prefix count at sum zero to 1.",
+      "For each position, allocate a new row of counts.",
+      "For every sum including zero, add skip and fitting take counts from the previous row.",
+      "Apply the modulus and then replace the previous row.",
+      "Read the target count; exclude the empty selection only when the nonempty contract asks for it."
+    ],
+    "java": "static int countSubsets(int[] values, int target) {\n    int mod = 1_000_000_007;\n    int[] previous = new int[target+1];\n    previous[0] = 1;\n    for (int value : values) {\n        int[] current = new int[target+1];\n        for (int sum = 0; sum <= target; sum++) {\n            int take = value <= sum ? previous[sum-value] : 0;\n            current[sum] = (previous[sum] + take) % mod;\n        }\n        previous = current;\n    }\n    return previous[target];\n}\nstatic int countSubsequenceWithTargetSum(int[] values, int target) {\n    int count = countSubsets(values,target);\n    return target == 0 ? (count+1_000_000_006)%1_000_000_007 : count;\n}",
+    "time": "O(n × (target + 1)).",
+    "space": "O(target + 1).",
+    "pitfalls": [
+      "Do not merge equal values into one item: positions are distinct choices.",
+      "Do not return 1 immediately at remaining sum zero when unprocessed zero values may remain.",
+      "An upward in-place update would allow repeated use of the current position. The two-row version avoids that issue.",
+      "A subsequence need not be contiguous; keeping selected positions in their original order gives one subsequence per position selection."
+    ],
+    "tests": [
+      "assert countSubsequenceWithTargetSum(new int[]{1,2,2,3},4)==2;assert countSubsets(new int[]{0,0,3},3)==4;assert countSubsets(new int[]{0,0},0)==4;assert countSubsequenceWithTargetSum(new int[]{0,0},0)==3;assert countSubsets(new int[]{},0)==1;",
+      "Random random=new Random(400);\nfor(int trial=0;trial<700;trial++){\n int n=random.nextInt(13);int[] values=new int[n];int total=0;for(int i=0;i<n;i++){values[i]=random.nextInt(7);total+=values[i];}int[] expected=new int[total+2];\n for(int mask=0;mask<(1<<n);mask++){int sum=0;for(int i=0;i<n;i++)if((mask&(1<<i))!=0)sum+=values[i];expected[sum]++;}\n for(int target=0;target<expected.length;target++){assert countSubsets(values,target)==expected[target];assert subsetCountMemoized(values,target)==expected[target];assert subsetCountTable(values,target)==expected[target];if(n<=8)assert subsetCountRecursive(values,n-1,target)==expected[target];assert countSubsequenceWithTargetSum(values,target)==expected[target]-(target==0?1:0);}\n}",
+      "int[] zeros=new int[100];int expected=BigInteger.TWO.pow(100).mod(BigInteger.valueOf(1000000007)).intValue();assert countSubsets(zeros,0)==expected;assert subsetCountMemoized(zeros,0)==expected;int[] ones=new int[100];Arrays.fill(ones,1);BigInteger choose=BigInteger.ONE;for(int i=1;i<=50;i++)choose=choose.multiply(BigInteger.valueOf(101-i)).divide(BigInteger.valueOf(i));assert countSubsets(ones,50)==choose.mod(BigInteger.valueOf(1000000007)).intValue();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-subsets-with-sum-k",
+      "title": "Count Subsets with Sum K Using Dynamic Programming",
+      "checkedOn": "2026-10-29",
+      "approach": "Add take and skip counts, then save prefix-and-sum states and retain two rows.",
+      "adaptation": "All four complete public Java methods were checked. The article assumes strictly positive values. This version extends the base cases to zero values and empty prefixes, matching the zero-aware reasoning in the next checked partition-count lesson. The pinned nonempty-subsequence bounds were verified; its small exact counts agree with the modular result."
+    },
+    "baselineJava": "static int subsetCountRecursive(int[] values, int index, int remaining) {\n    if (index < 0) return remaining == 0 ? 1 : 0;\n    int skip = subsetCountRecursive(values,index-1,remaining);\n    int take = values[index] <= remaining\n        ? subsetCountRecursive(values,index-1,remaining-values[index]) : 0;\n    return (skip+take)%1_000_000_007;\n}",
+    "baselineTime": "O(2^n) time and O(n) stack space.",
+    "better": {
+      "explanation": "Memoization saves counts by remaining prefix and sum. The full table starts with one empty-prefix way to make zero and processes sum zero like any other column; this lets zero values double the counts naturally.",
+      "java": "static int subsetCountMemoized(int[] values, int target) {\n    int[][] memo = new int[values.length][target+1];\n    for (int[] row : memo) Arrays.fill(row,-1);\n    return subsetCountMemo(values,values.length-1,target,memo);\n}\nstatic int subsetCountMemo(int[] a, int index, int remaining, int[][] memo) {\n    if (index < 0) return remaining == 0 ? 1 : 0;\n    if (memo[index][remaining] != -1) return memo[index][remaining];\n    int skip = subsetCountMemo(a,index-1,remaining,memo);\n    int take = a[index] <= remaining ? subsetCountMemo(a,index-1,remaining-a[index],memo) : 0;\n    return memo[index][remaining] = (skip+take)%1_000_000_007;\n}\nstatic int subsetCountTable(int[] values, int target) {\n    int[][] dp = new int[values.length+1][target+1];\n    dp[0][0] = 1;\n    for (int used = 1; used <= values.length; used++) {\n        int value = values[used-1];\n        for (int sum = 0; sum <= target; sum++) {\n            int take = value <= sum ? dp[used-1][sum-value] : 0;\n            dp[used][sum] = (dp[used-1][sum]+take)%1_000_000_007;\n        }\n    }\n    return dp[values.length][target];\n}",
+      "time": "O(n × (target + 1)).",
+      "space": "O(n × (target + 1)), plus O(n) stack space for memoization."
+    }
+  },
+  "401": {
+    "problem": "Assign every array position to group S1 or group S2 and count assignments with sum(S1) − sum(S2) equal to the given nonnegative difference.",
+    "assumptions": "Values and the difference are nonnegative. Equal-valued positions are distinct choices. The source counts assignments to the named groups; for difference zero, swapping the groups is still a separate assignment when it changes membership. Return the count modulo 1,000,000,007. As in the source, the total sum must be small enough for a sum-indexed DP table.",
+    "example": {
+      "input": "values = [0,1,2,3], difference = 2",
+      "output": "2",
+      "explanation": "The total is 6, so S2 must sum to 2. Put the value 2 in S2; its zero may be placed in either group. S1 then sums to 4 in both assignments."
+    },
+    "baseline": "Recursively place each value in S1 or S2. At the end, count the assignment if the signed difference equals the requested difference. This directly follows the definition but explores up to 2^n assignments.",
+    "approach": "The group sums satisfy two equations: S1 + S2 = total and S1 − S2 = difference. Subtract the second equation from the first: 2 × S2 = total − difference. So we only need to count subsets with sum (total − difference)/2. All unselected positions automatically form S1.\n\nIf total − difference is negative or odd, there is no valid integer subset sum. Return zero before creating the table. Otherwise use the previous lesson’s take-or-skip counting method, including its handling of zeros.\n\nFor every value, each old subset either skips that position or includes it. Read both counts from the old row and add them into the new row. A zero fits even when the target is zero, and taking or skipping it are different assignments. This is why zero entries must be processed instead of returning early.\n\nDo not divide the answer by two when the difference is zero. The source’s S1/S2 convention counts which indexed positions belong to S2, including its complementary choice.",
+    "steps": [
+      "Compute total − difference.",
+      "Return zero if that quantity is negative or odd.",
+      "Use half of it as the required S2 sum.",
+      "Count indexed subsets with that sum, processing zero values normally.",
+      "Return the modular count; the complement of each selected subset is S1."
+    ],
+    "java": "static int countPartitions(int[] values, int difference) {\n    int target = partitionTarget(values,difference);\n    return target < 0 ? 0 : countSubsets(values,target);\n}\nstatic int partitionTarget(int[] values, int difference) {\n    long total = 0;\n    for (int value : values) total += value;\n    long remaining = total-difference;\n    if (remaining < 0 || (remaining & 1) != 0) return -1;\n    return Math.toIntExact(remaining/2);\n}\n\nstatic int countSubsets(int[] values, int target) {\n    int mod = 1_000_000_007;\n    int[] previous = new int[target+1];\n    previous[0] = 1;\n    for (int value : values) {\n        int[] current = new int[target+1];\n        for (int sum = 0; sum <= target; sum++) {\n            int take = value <= sum ? previous[sum-value] : 0;\n            current[sum] = (previous[sum] + take) % mod;\n        }\n        previous = current;\n    }\n    return previous[target];\n}",
+    "time": "O(n × (target + 1)), where target = (total − difference)/2. Impossible cases take O(n).",
+    "space": "O(target + 1).",
+    "pitfalls": [
+      "Use the signed difference S1 − S2, not an absolute-value test that would count both orientations for a positive difference.",
+      "Reject odd total − difference before integer division.",
+      "Zeros belong to one of the two groups and create distinct choices even though they do not change a sum.",
+      "For [1,1] and difference 0, the source convention returns 2, not 1.",
+      "The total-to-target conversion uses long, but this DP still needs a reasonably small target to allocate memory."
+    ],
+    "tests": [
+      "assert countPartitions(new int[]{0,1,2,3},2)==2;assert countPartitions(new int[]{1,1},0)==2;assert countPartitions(new int[]{1,2},2)==0;assert countPartitions(new int[]{1,2},4)==0;assert countPartitions(new int[]{0,0},0)==4;",
+      "Random random=new Random(401);\nfor(int trial=0;trial<600;trial++){\n int n=1+random.nextInt(12);int[] values=new int[n];int total=0;for(int i=0;i<n;i++){values[i]=random.nextInt(6);total+=values[i];}int[] expected=new int[total+3];\n for(int mask=0;mask<(1<<n);mask++){int first=0,second=0;for(int i=0;i<n;i++){if((mask&(1<<i))!=0)first+=values[i];else second+=values[i];}if(first>=second)expected[first-second]++;}\n for(int difference=0;difference<expected.length;difference++){assert countPartitions(values,difference)==expected[difference];assert partitionsMemoized(values,difference)==expected[difference];if(n<=8)assert partitionsRecursive(values,0,0,difference)==expected[difference];}\n}",
+      "int[] zeros=new int[100];int expected=BigInteger.TWO.pow(100).mod(BigInteger.valueOf(1000000007)).intValue();assert countPartitions(zeros,0)==expected;assert partitionsMemoized(zeros,0)==expected;assert countPartitions(zeros,1)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-partitions-with-a-given-difference",
+      "title": "Count Partitions with a Given Difference",
+      "checkedOn": "2026-10-29",
+      "approach": "Reduce to the smaller-group target, then use zero-aware subset counting with memoization and rolling rows.",
+      "adaptation": "All four complete public Java methods were checked. The same reduction and named-group counting convention are preserved. Starting from an empty prefix makes leading and later zeros behave uniformly instead of special-casing the first value. A long total is used for the arithmetic before conversion to the bounded DP index."
+    },
+    "baselineJava": "static int partitionsRecursive(int[] values, int index, int signedSum, int difference) {\n    if (index == values.length) return signedSum == difference ? 1 : 0;\n    int first = partitionsRecursive(values,index+1,signedSum+values[index],difference);\n    int second = partitionsRecursive(values,index+1,signedSum-values[index],difference);\n    return (first+second)%1_000_000_007;\n}",
+    "baselineTime": "O(2^n) time and O(n) stack space; signed sums fit int under the source’s bounded total.",
+    "better": {
+      "explanation": "Use the same transformed target, then memoize take-or-skip counts. The stopping condition is an exhausted prefix, so all zero positions are considered. This uses partitionTarget from the primary code.",
+      "java": "static int partitionsMemoized(int[] values, int difference) {\n    int target = partitionTarget(values,difference);\n    if (target < 0) return 0;\n    int[][] memo = new int[values.length][target+1];\n    for (int[] row : memo) Arrays.fill(row,-1);\n    return partitionCountMemo(values,values.length-1,target,memo);\n}\nstatic int partitionCountMemo(int[] values, int index, int remaining, int[][] memo) {\n    if (index < 0) return remaining == 0 ? 1 : 0;\n    if (memo[index][remaining] != -1) return memo[index][remaining];\n    int skip = partitionCountMemo(values,index-1,remaining,memo);\n    int take = values[index] <= remaining\n        ? partitionCountMemo(values,index-1,remaining-values[index],memo) : 0;\n    return memo[index][remaining] = (skip+take)%1_000_000_007;\n}",
+      "time": "O(n × (target + 1)).",
+      "space": "O(n × (target + 1)) for the table and O(n) for recursion."
+    }
   }
 }
