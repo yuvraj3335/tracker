@@ -14969,5 +14969,52 @@
       "time": "O(n²) time.",
       "space": "O(n²) for the queue and area map; the grid itself stores labels."
     }
+  },
+  "380": {
+    "problem": "Find the earliest water level at which you can move from the top-left to the bottom-right cell through four-directional neighbors.",
+    "assumptions": "The pinned n × n grid contains every distinct elevation from 0 through n² − 1. At time t, only cells of elevation at most t can be used. Movement takes no time; the answer is the largest elevation needed along the best route.",
+    "example": {
+      "input": "grid = [[0,2], [3,1]]",
+      "output": "2",
+      "explanation": "At water level 1, the start and destination are both available but disconnected. Level 2 opens the top-right cell, giving the route 0→2→1."
+    },
+    "baseline": "Try water levels 0, 1, 2, … and run BFS using only cells at or below that level. The first successful level is the answer. This is a direct simulation but repeatedly scans the grid.",
+    "approach": "Imagine the water rising one level at a time. When a cell becomes available, it forms a new flooded component. Join it to every already-available neighbor. As soon as the start and destination belong to the same component, there is a usable route between them.\n\nBecause the elevations are distinct and cover 0 through n² − 1, an array can tell us which cell opens at each time. No sorting is needed. Keep an active flag because a DSU slot for a cell exists even before the water reaches it.\n\nThis solves a minimum-maximum path problem: we minimize the highest cell on the route. We do not add elevations or count steps.",
+    "steps": [
+      "Build positionAtHeight so each water level identifies the newly available cell.",
+      "Activate that cell and union it with its active four-directional neighbors.",
+      "Check that both endpoints are active and share a root.",
+      "Return the first level for which they are connected."
+    ],
+    "java": "static class DSU {\n    final int[] parent, size;\n    DSU(int n) {\n        parent = new int[n]; size = new int[n];\n        for (int i = 0; i < n; i++) { parent[i] = i; size[i] = 1; }\n    }\n    int root(int node) {\n        if (parent[node] != node) parent[node] = root(parent[node]);\n        return parent[node];\n    }\n    boolean unite(int a, int b) {\n        a = root(a); b = root(b);\n        if (a == b) return false;\n        if (size[a] < size[b]) { int temp = a; a = b; b = temp; }\n        parent[b] = a;\n        size[a] += size[b];\n        return true;\n    }\n}\n\nstatic int swimInWater(int[][] grid) {\n    int n = grid.length, total = n*n;\n    int[] positionAtHeight = new int[total];\n    for (int r = 0; r < n; r++) for (int c = 0; c < n; c++) positionAtHeight[grid[r][c]] = r*n+c;\n    DSU dsu = new DSU(total);\n    boolean[] active = new boolean[total];\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    for (int level = 0; level < total; level++) {\n        int id = positionAtHeight[level], r = id/n, c = id%n;\n        active[id] = true;\n        for (int d = 0; d < 4; d++) {\n            int nr = r+dr[d], nc = c+dc[d];\n            if (nr >= 0 && nr < n && nc >= 0 && nc < n && active[nr*n+nc]) dsu.unite(id,nr*n+nc);\n        }\n        if (active[0] && active[total-1] && dsu.root(0) == dsu.root(total-1)) return level;\n    }\n    throw new IllegalStateException(\"All cells are active but endpoints are disconnected\");\n}",
+    "time": "O(n²α(n²)) time under the pinned distinct 0…n²−1 elevation constraint.",
+    "space": "O(n²) for positions, active flags, and DSU arrays.",
+    "pitfalls": [
+      "Include the start cell’s elevation in the required water level.",
+      "Having both endpoints underwater is not enough; they must be connected.",
+      "The route cost is its maximum elevation, not a sum or a difference between adjacent heights.",
+      "Only active cells may be unioned.",
+      "The direct position array relies on the pinned elevation permutation. For arbitrary elevations, sort cells by height or use the heap alternative."
+    ],
+    "tests": [
+      "assert swimInWater(new int[][]{{0,2},{3,1}})==2;assert swimByHeap(new int[][]{{0,2},{3,1}})==2;assert swimByLevels(new int[][]{{0,2},{3,1}})==2;assert swimInWater(new int[][]{{3,0},{2,1}})==3;assert swimInWater(new int[][]{{0}})==0;",
+      "Random random=new Random(380);\nfor(int trial=0;trial<1200;trial++){\n int n=1+random.nextInt(5),total=n*n;int[]values=new int[total];for(int i=0;i<total;i++)values[i]=i;for(int i=total-1;i>0;i--){int j=random.nextInt(i+1),t=values[i];values[i]=values[j];values[j]=t;}\n int[][]grid=new int[n][n];for(int i=0;i<total;i++)grid[i/n][i%n]=values[i];int[][]d=new int[total][total];for(int i=0;i<total;i++){Arrays.fill(d[i],100000);d[i][i]=values[i];for(int j=0;j<total;j++)if(Math.abs(i/n-j/n)+Math.abs(i%n-j%n)==1)d[i][j]=Math.max(values[i],values[j]);}\n for(int k=0;k<total;k++)for(int i=0;i<total;i++)for(int j=0;j<total;j++)d[i][j]=Math.min(d[i][j],Math.max(d[i][k],d[k][j]));\n int expected=d[0][total-1];assert swimInWater(grid)==expected;assert swimByHeap(grid)==expected;assert swimByLevels(grid)==expected;\n}",
+      "int[][]grid=new int[50][50];for(int i=0;i<2500;i++)grid[i/50][i%50]=i;assert swimInWater(grid)==2499;assert swimByHeap(grid)==2499;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/swim-in-rising-water",
+      "title": "Swim in Rising Water",
+      "checkedOn": "2026-10-29",
+      "approach": "Activate cells in elevation order and detect endpoint connectivity; alternatively minimize the largest elevation along a path.",
+      "adaptation": "The public problem statement and its distinct-elevation constraints were checked. The solution requires sign-in and the older tutorial URL returns Page Not Found. These are authored, tested implementations using the checked public DSU and minimax-path patterns, not a claim that unavailable source Java was inspected."
+    },
+    "baselineJava": "static int swimByLevels(int[][] grid) {\n    for (int level = 0; level < grid.length*grid.length; level++)\n        if (canSwim(grid,level)) return level;\n    throw new IllegalStateException(\"No route\");\n}\nstatic boolean canSwim(int[][] grid, int level) {\n    int n = grid.length;\n    if (grid[0][0] > level) return false;\n    boolean[][] seen = new boolean[n][n];\n    Queue<Integer> queue = new ArrayDeque<>();\n    seen[0][0] = true; queue.offer(0);\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    while (!queue.isEmpty()) {\n        int id = queue.poll();\n        if (id == n*n-1) return true;\n        for (int d = 0; d < 4; d++) {\n            int nr = id/n+dr[d], nc = id%n+dc[d];\n            if (nr >= 0 && nr < n && nc >= 0 && nc < n && !seen[nr][nc] && grid[nr][nc] <= level) {\n                seen[nr][nc] = true; queue.offer(nr*n+nc);\n            }\n        }\n    }\n    return false;\n}",
+    "baselineTime": "O(n⁴) time and O(n²) space. Binary search over levels reduces the repeated-search time to O(n² log(n²)).",
+    "better": {
+      "explanation": "A heap can also track the least water level needed to reach each cell. Moving to a neighbor changes the route cost to max(current level, neighbor height). Start with grid[0][0], and return when the destination’s current entry is removed. This works for arbitrary nonnegative elevations too; it does not need the permutation constraint used by the DSU position array.",
+      "java": "static int swimByHeap(int[][] grid) {\n    int n = grid.length;\n    int[][] best = new int[n][n];\n    for (int[] row : best) Arrays.fill(row,Integer.MAX_VALUE);\n    PriorityQueue<int[]> heap = new PriorityQueue<>(Comparator.comparingInt(a -> a[0]));\n    best[0][0] = grid[0][0]; heap.offer(new int[]{grid[0][0],0,0});\n    int[] dr = {-1,0,1,0}, dc = {0,1,0,-1};\n    while (!heap.isEmpty()) {\n        int[] entry = heap.poll();\n        int level = entry[0], r = entry[1], c = entry[2];\n        if (level != best[r][c]) continue;\n        if (r == n-1 && c == n-1) return level;\n        for (int d = 0; d < 4; d++) {\n            int nr = r+dr[d], nc = c+dc[d];\n            if (nr < 0 || nr >= n || nc < 0 || nc >= n) continue;\n            int candidate = Math.max(level,grid[nr][nc]);\n            if (candidate < best[nr][nc]) {\n                best[nr][nc] = candidate; heap.offer(new int[]{candidate,nr,nc});\n            }\n        }\n    }\n    throw new IllegalStateException(\"No route\");\n}",
+      "time": "O(n² log(n²)).",
+      "space": "O(n²) for best levels and the heap."
+    }
   }
 }
