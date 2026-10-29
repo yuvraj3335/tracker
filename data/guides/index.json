@@ -873,40 +873,178 @@
     }
   },
   "10": {
-    "problem": "Build a text pattern by identifying what each row contains.",
-    "assumptions": "Codolio groups pattern practice into one entry. This example covers a centered pyramid of height n; the same row/column reasoning extends to other shapes.",
+    "problem": "Draw all 22 patterns from the current Striver sheet by working out one row at a time.",
+    "assumptions": "Codolio groups pattern practice into one tracker entry. This page covers Patterns 1–22 without adding or reordering tracker questions. Rows and columns below start at zero. Use n ≥ 0; letter patterns use n ≤ 26. Helpers return text instead of printing it, omit trailing spaces and the final newline, and use Java 11 String.repeat. Internal spaces match the shown pattern; 11, 13, 18 and 22 separate values with one space.",
     "example": {
-      "input": "n = 3",
-      "output": "\"  *\n ***\n*****\"",
-      "explanation": "Row r, starting at zero, has n−r−1 leading spaces and 2r+1 stars. For n=3 those counts are (2,1), (1,3), and (0,5)."
+      "input": "Pattern 7, n = 3",
+      "output": "  *\n ***\n*****",
+      "explanation": "The three rows need 2, 1, 0 leading spaces and 1, 3, 5 stars. The methods below cover the other 21 shapes as well."
     },
-    "baseline": "Hardcoding each row works for one height only and hides the rule that generates the shape.",
-    "approach": "Draw three rows before writing the loop. For height 3, the leading spaces are 2, 1, 0 and the stars are 1, 3, 5. Number rows from zero. Then row r needs n-r-1 spaces and 2r+1 stars.\n\nBuild one row from those two counts, then move to the next row. The output needs newlines between rows, but this version does not add trailing spaces or a final newline. For another pattern, derive its row rules again: the pyramid formula is not a solution to all 22 exercises in the current sheet.",
+    "baseline": "Hardcoding a drawing works for only one size. Copying one pattern’s loop into another without changing the row rule often gives the wrong height, spacing, or centre.",
+    "approach": "First count the rows. Then describe a single row in plain words: what comes before the symbols, how many symbols there are, and what comes after them. Only then turn those counts into loops.\n\nFor example, Pattern 7 becomes wider by two stars per row and loses one leading space. Pattern 8 does the reverse. Joining those two complete shapes makes Pattern 9, which repeats the widest row. Pattern 10 has a different rule: its widest row appears only once.\n\nThe row rules below correspond directly to the numbered Java methods. Start with one method and its example rather than trying to memorize all 22. The number-ring pattern uses distance to the nearest edge: the outer ring has distance zero and value n, the next ring has distance one and value n − 1, and the centre reaches 1.",
     "steps": [
-      "For row r, append n−r−1 spaces.",
-      "Append 2r+1 stars.",
-      "Separate rows with newlines, avoiding an extra newline after the last row."
+      "Pattern 1: Square: every row has n stars.",
+      "Pattern 2: Growing triangle: row r has r + 1 stars.",
+      "Pattern 3: Growing numbers: row r prints 1 through r + 1.",
+      "Pattern 4: Repeated row number: row r prints r + 1, exactly r + 1 times.",
+      "Pattern 5: Shrinking triangle: row r has n − r stars.",
+      "Pattern 6: Shrinking numbers: row r prints 1 through n − r.",
+      "Pattern 7: Pyramid: n − r − 1 leading spaces, then 2r + 1 stars.",
+      "Pattern 8: Upside-down pyramid: r leading spaces, then 2(n − r) − 1 stars.",
+      "Pattern 9: Diamond: put Pattern 7 above Pattern 8. Both middle rows stay, so there are 2n rows.",
+      "Pattern 10: Side triangle: star counts grow from 1 to n, then shrink from n − 1 to 1. There are 2n − 1 rows.",
+      "Pattern 11: Binary triangle: print 1 when r + c is even, otherwise 0; separate values with spaces.",
+      "Pattern 12: Mirrored numbers: print 1 through r + 1, then 2(n − r − 1) spaces, then r + 1 down to 1.",
+      "Pattern 13: Continuous numbers: keep one counter outside the row loop. Print r + 1 values per row, separated by spaces.",
+      "Pattern 14: Growing letters: print A through the letter at offset r.",
+      "Pattern 15: Shrinking letters: print n − r letters starting at A.",
+      "Pattern 16: Repeated row letter: repeat the letter at offset r exactly r + 1 times.",
+      "Pattern 17: Letter pyramid: pad with n − r − 1 spaces; go from A up to the row letter, then back to A without repeating the peak.",
+      "Pattern 18: Ending at the same letter: row r starts at letter offset n − r − 1 and ends at n − 1. Separate the letters with spaces.",
+      "Pattern 19: Inward wings: each side shrinks from n stars to 1, then grows from 1 to n. The middle two rows repeat. Fill the middle with spaces to keep width 2n.",
+      "Pattern 20: Butterfly: each side grows from 1 star to n, then shrinks to 1. The widest row appears once. Fill the middle with spaces to keep width 2n.",
+      "Pattern 21: Hollow square: print a star on the first/last row or first/last column, and a space elsewhere.",
+      "Pattern 22: Number rings: use a (2n − 1)-square grid. A cell’s distance to its nearest edge is its ring number; print n minus that distance."
     ],
-    "java": "static String pyramid(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    StringBuilder result = new StringBuilder();\n    for (int r = 0; r < n; r++) {\n        if (r > 0) result.append('\\n');\n        result.append(\" \".repeat(n - r - 1));\n        result.append(\"*\".repeat(2 * r + 1));\n    }\n    return result.toString();\n}",
-    "time": "Θ(n²), proportional to the number of output characters.",
-    "space": "Θ(n²) for the returned text.",
+    "java": "static String pattern1(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) rows.add(\"*\".repeat(n));\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern2(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) rows.add(\"*\".repeat(row + 1));\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern3(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringBuilder line = new StringBuilder();\n        for (int value = 1; value <= row + 1; value++) line.append(value);\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern4(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) rows.add(String.valueOf(row + 1).repeat(row + 1));\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern5(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) rows.add(\"*\".repeat(n - row));\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern6(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringBuilder line = new StringBuilder();\n        for (int value = 1; value <= n - row; value++) line.append(value);\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern7(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        rows.add(\" \".repeat(n - row - 1) + \"*\".repeat(2 * row + 1));\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern8(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        rows.add(\" \".repeat(row) + \"*\".repeat(2 * (n - row) - 1));\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern9(int n) {\n    if (n == 0) return \"\";\n    return pattern7(n) + \"\\n\" + pattern8(n);\n}\n\nstatic String pattern10(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < 2 * n - 1; row++) {\n        int stars = row < n ? row + 1 : 2 * n - row - 1;\n        rows.add(\"*\".repeat(stars));\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern11(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringJoiner line = new StringJoiner(\" \");\n        for (int column = 0; column <= row; column++) {\n            line.add((row + column) % 2 == 0 ? \"1\" : \"0\");\n        }\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern12(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringBuilder line = new StringBuilder();\n        for (int value = 1; value <= row + 1; value++) line.append(value);\n        line.append(\" \".repeat(2 * (n - row - 1)));\n        for (int value = row + 1; value >= 1; value--) line.append(value);\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern13(int n) {\n    List<String> rows = new ArrayList<>();\n    int value = 1;\n    for (int row = 0; row < n; row++) {\n        StringJoiner line = new StringJoiner(\" \");\n        for (int column = 0; column <= row; column++) line.add(String.valueOf(value++));\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern14(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringBuilder line = new StringBuilder();\n        for (int column = 0; column <= row; column++) line.append((char) ('A' + column));\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern15(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringBuilder line = new StringBuilder();\n        for (int column = 0; column < n - row; column++) line.append((char) ('A' + column));\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern16(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) rows.add(String.valueOf((char) ('A' + row)).repeat(row + 1));\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern17(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringBuilder line = new StringBuilder(\" \".repeat(n - row - 1));\n        for (int column = 0; column <= row; column++) line.append((char) ('A' + column));\n        for (int column = row - 1; column >= 0; column--) line.append((char) ('A' + column));\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern18(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringJoiner line = new StringJoiner(\" \");\n        for (int letter = n - row - 1; letter < n; letter++) {\n            line.add(String.valueOf((char) ('A' + letter)));\n        }\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern19(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < 2 * n; row++) {\n        int stars = row < n ? n - row : row - n + 1;\n        rows.add(\"*\".repeat(stars) + \" \".repeat(2 * (n - stars)) + \"*\".repeat(stars));\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern20(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < 2 * n - 1; row++) {\n        int stars = row < n ? row + 1 : 2 * n - row - 1;\n        rows.add(\"*\".repeat(stars) + \" \".repeat(2 * (n - stars)) + \"*\".repeat(stars));\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern21(int n) {\n    List<String> rows = new ArrayList<>();\n    for (int row = 0; row < n; row++) {\n        StringBuilder line = new StringBuilder();\n        for (int column = 0; column < n; column++) {\n            boolean border = row == 0 || row == n - 1 || column == 0 || column == n - 1;\n            line.append(border ? '*' : ' ');\n        }\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}\n\nstatic String pattern22(int n) {\n    List<String> rows = new ArrayList<>();\n    int side = 2 * n - 1;\n    for (int row = 0; row < side; row++) {\n        StringJoiner line = new StringJoiner(\" \");\n        for (int column = 0; column < side; column++) {\n            int edgeDistance = Math.min(Math.min(row, column), Math.min(side - 1 - row, side - 1 - column));\n            line.add(String.valueOf(n - edgeDistance));\n        }\n        rows.add(line.toString());\n    }\n    return String.join(\"\\n\", rows);\n}",
+    "time": "O(output length). Star and letter patterns produce Θ(n²) characters; number patterns may take Θ(n² log n) characters when values have multiple digits.",
+    "space": "O(output length) because these helpers return the entire drawing. Printing each row directly can reduce the retained output storage.",
     "pitfalls": [
-      "Inspect spaces as well as visible symbols; formatting is part of the answer.",
-      "One pattern entry can contain many exercises; derive each shape rather than treating this pyramid as every possible pattern.",
-      "String.repeat requires Java 11 or newer."
+      "Spaces are part of a pattern. Do not remove leading or internal spaces.",
+      "Patterns 9 and 19 repeat their middle row; Patterns 10 and 20 do not.",
+      "Keep the running number outside the outer loop for Pattern 13.",
+      "For letter patterns, cast the sum to char; otherwise Java prints its numeric character value.",
+      "These are independently written row-loop implementations. The public pattern statements were inspected; the gated solution Java was not."
     ],
     "tests": [
-      "assert pyramid(3).equals(\"  *\\n ***\\n*****\");",
-      "assert pyramid(0).equals(\"\");",
-      "assert pyramid(1).equals(\"*\");",
-      "boolean rejected=false;try{pyramid(-1);}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+      "assert pattern1(3).equals(\"***\\n***\\n***\");assert pattern1(1).equals(\"*\");assert pattern1(0).isEmpty();",
+      "assert pattern2(3).equals(\"*\\n**\\n***\");assert pattern2(1).equals(\"*\");assert pattern2(0).isEmpty();",
+      "assert pattern3(3).equals(\"1\\n12\\n123\");assert pattern3(1).equals(\"1\");assert pattern3(0).isEmpty();",
+      "assert pattern4(3).equals(\"1\\n22\\n333\");assert pattern4(1).equals(\"1\");assert pattern4(0).isEmpty();",
+      "assert pattern5(3).equals(\"***\\n**\\n*\");assert pattern5(1).equals(\"*\");assert pattern5(0).isEmpty();",
+      "assert pattern6(3).equals(\"123\\n12\\n1\");assert pattern6(1).equals(\"1\");assert pattern6(0).isEmpty();",
+      "assert pattern7(3).equals(\"  *\\n ***\\n*****\");assert pattern7(1).equals(\"*\");assert pattern7(0).isEmpty();",
+      "assert pattern8(3).equals(\"*****\\n ***\\n  *\");assert pattern8(1).equals(\"*\");assert pattern8(0).isEmpty();",
+      "assert pattern9(3).equals(\"  *\\n ***\\n*****\\n*****\\n ***\\n  *\");assert pattern9(1).equals(\"*\\n*\");assert pattern9(0).isEmpty();",
+      "assert pattern10(3).equals(\"*\\n**\\n***\\n**\\n*\");assert pattern10(1).equals(\"*\");assert pattern10(0).isEmpty();",
+      "assert pattern11(3).equals(\"1\\n0 1\\n1 0 1\");assert pattern11(1).equals(\"1\");assert pattern11(0).isEmpty();",
+      "assert pattern12(3).equals(\"1    1\\n12  21\\n123321\");assert pattern12(1).equals(\"11\");assert pattern12(0).isEmpty();",
+      "assert pattern13(3).equals(\"1\\n2 3\\n4 5 6\");assert pattern13(1).equals(\"1\");assert pattern13(0).isEmpty();",
+      "assert pattern14(3).equals(\"A\\nAB\\nABC\");assert pattern14(1).equals(\"A\");assert pattern14(0).isEmpty();",
+      "assert pattern15(3).equals(\"ABC\\nAB\\nA\");assert pattern15(1).equals(\"A\");assert pattern15(0).isEmpty();",
+      "assert pattern16(3).equals(\"A\\nBB\\nCCC\");assert pattern16(1).equals(\"A\");assert pattern16(0).isEmpty();",
+      "assert pattern17(3).equals(\"  A\\n ABA\\nABCBA\");assert pattern17(1).equals(\"A\");assert pattern17(0).isEmpty();",
+      "assert pattern18(3).equals(\"C\\nB C\\nA B C\");assert pattern18(1).equals(\"A\");assert pattern18(0).isEmpty();",
+      "assert pattern19(3).equals(\"******\\n**  **\\n*    *\\n*    *\\n**  **\\n******\");assert pattern19(1).equals(\"**\\n**\");assert pattern19(0).isEmpty();",
+      "assert pattern20(3).equals(\"*    *\\n**  **\\n******\\n**  **\\n*    *\");assert pattern20(1).equals(\"**\");assert pattern20(0).isEmpty();",
+      "assert pattern21(3).equals(\"***\\n* *\\n***\");assert pattern21(1).equals(\"*\");assert pattern21(0).isEmpty();",
+      "assert pattern22(3).equals(\"3 3 3 3 3\\n3 2 2 2 3\\n3 2 1 2 3\\n3 2 2 2 3\\n3 3 3 3 3\");assert pattern22(1).equals(\"1\");assert pattern22(0).isEmpty();",
+      "for(int n=1;n<=20;n++){String[] square=pattern21(n).split(\"\\n\");assert square.length==n;for(int row=0;row<n;row++){assert square[row].length()==n;for(int col=0;col<n;col++)assert square[row].charAt(col)==((row==0||row==n-1||col==0||col==n-1)?'*':' ');}String[] rings=pattern22(n).split(\"\\n\");int side=2*n-1;assert rings.length==side;for(int row=0;row<side;row++){String[] cells=rings[row].split(\" \");assert cells.length==side;for(int col=0;col<side;col++)assert Integer.parseInt(cells[col])==1+Math.max(Math.abs(row-(n-1)),Math.abs(col-(n-1)));}}",
+      "for(int n=1;n<=26;n++){String[] diamond=pattern9(n).split(\"\\n\"),butterfly=pattern20(n).split(\"\\n\"),wings=pattern19(n).split(\"\\n\");assert diamond.length==2*n&&butterfly.length==2*n-1&&wings.length==2*n;for(int i=0;i<diamond.length;i++)assert diamond[i].equals(diamond[diamond.length-1-i]);for(int i=0;i<butterfly.length;i++){assert butterfly[i].length()==2*n;assert butterfly[i].equals(butterfly[butterfly.length-1-i]);}for(int i=0;i<wings.length;i++){assert wings[i].length()==2*n;assert wings[i].equals(wings[wings.length-1-i]);}}",
+      "assert pattern13(5).endsWith(\"11 12 13 14 15\");assert pattern18(26).startsWith(\"Z\\nY Z\");assert pattern14(26).endsWith(\"ABCDEFGHIJKLMNOPQRSTUVWXYZ\");"
     ],
     "reference": {
-      "url": "https://takeuforward.org/practice/dsa/pattern-7",
-      "title": "Pattern 7",
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z — Patterns 1–22",
       "checkedOn": "2026-10-29",
-      "approach": "Row r contains n-r-1 leading spaces and 2r+1 stars.",
-      "adaptation": "The current sheet splits patterns into 22 exercises; the pinned Codolio sheet groups them. This representative pyramid matches Pattern 7. Its public statement was checked; the Solution panel requires login. The Java returns text for testing instead of printing each row."
+      "approach": "Derive each row’s symbol counts, spaces, or distance from the edge.",
+      "adaptation": "All 22 public pattern-N statements were inspected. Each has a separate saved Java method and exact-output checks. Full solution Java requires sign-in; these are independent implementations of the displayed shapes, returning strings for testing and omitting trailing whitespace."
+    },
+    "trace": {
+      "columns": [
+        "Pattern",
+        "n = 3 output"
+      ],
+      "rows": [
+        [
+          "1",
+          "***\n***\n***"
+        ],
+        [
+          "2",
+          "*\n**\n***"
+        ],
+        [
+          "3",
+          "1\n12\n123"
+        ],
+        [
+          "4",
+          "1\n22\n333"
+        ],
+        [
+          "5",
+          "***\n**\n*"
+        ],
+        [
+          "6",
+          "123\n12\n1"
+        ],
+        [
+          "7",
+          "  *\n ***\n*****"
+        ],
+        [
+          "8",
+          "*****\n ***\n  *"
+        ],
+        [
+          "9",
+          "  *\n ***\n*****\n*****\n ***\n  *"
+        ],
+        [
+          "10",
+          "*\n**\n***\n**\n*"
+        ],
+        [
+          "11",
+          "1\n0 1\n1 0 1"
+        ],
+        [
+          "12",
+          "1    1\n12  21\n123321"
+        ],
+        [
+          "13",
+          "1\n2 3\n4 5 6"
+        ],
+        [
+          "14",
+          "A\nAB\nABC"
+        ],
+        [
+          "15",
+          "ABC\nAB\nA"
+        ],
+        [
+          "16",
+          "A\nBB\nCCC"
+        ],
+        [
+          "17",
+          "  A\n ABA\nABCBA"
+        ],
+        [
+          "18",
+          "C\nB C\nA B C"
+        ],
+        [
+          "19",
+          "******\n**  **\n*    *\n*    *\n**  **\n******"
+        ],
+        [
+          "20",
+          "*    *\n**  **\n******\n**  **\n*    *"
+        ],
+        [
+          "21",
+          "***\n* *\n***"
+        ],
+        [
+          "22",
+          "3 3 3 3 3\n3 2 2 2 3\n3 2 1 2 3\n3 2 2 2 3\n3 3 3 3 3"
+        ]
+      ]
     }
   },
   "11": {
@@ -5425,7 +5563,14 @@
       "Node head=new Node(8),target=new Node(3),next=new Node(6),tail=new Node(1);head.next=target;target.next=next;next.next=tail;deleteGivenNode(target);assert head.next==target&&target.data==6&&target.next==tail;",
       "Node head=new Node(2);head.next=new Node(4);deleteGivenNode(head);assert head.data==4&&head.next==null;",
       "boolean rejected=false;try{deleteGivenNode(new Node(5));}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/deletion-of-the-head-of-ll",
+      "title": "Deletion of the head of LL — linked variant differs",
+      "checkedOn": "2026-10-29",
+      "approach": "For the pinned non-tail-node task, copy the next value and skip the next node.",
+      "adaptation": "The current TUF page deletes the head, but its external LeetCode link and this pinned tracker item ask for deletion without a head reference. The guide preserves that non-tail-node contract. This Java is independently written; it is not presented as the current head-deletion solution."
+    }
   },
   "129": {
     "problem": "Count how many nodes are in a singly linked list.",
@@ -7072,7 +7217,14 @@
       "assert distinctSubseqII(\"a\".repeat(2000))==2000;assert subsequencesByPosition(\"aa\").size()==4;"
     ],
     "baselineJava": "static List<String> subsequencesByPosition(String s) {\n    List<String> answer = new ArrayList<>();\n    subsequenceChoices(s, 0, new StringBuilder(), answer);\n    return answer;\n}\n\nstatic void subsequenceChoices(String s, int index, StringBuilder current,\n                               List<String> answer) {\n    if (index == s.length()) {\n        answer.add(current.toString());\n        return;\n    }\n    subsequenceChoices(s, index + 1, current, answer);\n    current.append(s.charAt(index));\n    subsequenceChoices(s, index + 1, current, answer);\n    current.deleteCharAt(current.length() - 1);\n}",
-    "baselineTime": "O(n × 2^n) time and stored output; O(n) recursive working space. This demonstrates the theory title, not an efficient submission for the linked problem."
+    "baselineTime": "O(n × 2^n) time and stored output; O(n) recursive working space. This demonstrates the theory title, not an efficient submission for the linked problem.",
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Learn All Patterns of Subsequences (Theory)",
+      "checkedOn": "2026-10-29",
+      "approach": "Take/skip recursion for the theory lesson; replacement of last-character counts for the pinned Distinct Subsequences II problem.",
+      "adaptation": "The current sheet lists this theory row without a public article or practice solution link. The pinned Codolio link is a different distinct-string-counting task. Both are explained with independent Java; no public Striver Java source is claimed for that DP extension."
+    }
   },
   "166": {
     "problem": "Count the non-empty subsequences whose values add to k.",
@@ -8232,7 +8384,14 @@
       "assert countPrimes(0)==0;assert countPrimes(1)==0;assert countPrimes(2)==0;assert countPrimes(3)==1;assert countPrimes(11)==4;assert countPrimes(12)==5;",
       "int expected=0;for(int n=0;n<=3000;n++){assert countPrimes(n)==expected;if(n>=2){boolean prime=true;for(int d=2;d<=n/d;d++)if(n%d==0){prime=false;break;}if(prime)expected++;}}",
       "assert countPrimes(100000)==9592;assert countPrimes(5000000)==348513;"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/count-of-prime-numbers-till-n",
+      "title": "Count of Prime Numbers till N — endpoint differs",
+      "checkedOn": "2026-10-29",
+      "approach": "Mark prime multiples from p squared; count the remaining unmarked values.",
+      "adaptation": "The public current statement includes n. The pinned LeetCode Count Primes task excludes n; this independently written sieve keeps the pinned exclusive endpoint. Full current solution Java was not accessible."
+    }
   },
   "198": {
     "problem": "Precompute the smallest prime factor of every number up to the largest query, then factor each query quickly.",
@@ -10335,7 +10494,7 @@
   },
   "248": {
     "problem": "Sort a k-sorted array: every occurrence is at most k positions away from its position in sorted order.",
-    "assumptions": "The pinned title is Sort K sorted array, but its link opens Merge K Sorted Lists, which is the next tracker topic. This guide covers the nearly-sorted single-array meaning of the title. k is non-negative, and the displacement guarantee is a precondition. No matching current public TUF Java editorial was found for this pinned item.",
+    "assumptions": "The pinned title is Sort K sorted array, but its link opens Merge K Sorted Lists, which is the next tracker topic. This guide covers the nearly-sorted single-array meaning of the title. k is non-negative, and the displacement guarantee is a precondition. The current TUF Sort a K-Sorted Array statement confirms the title’s meaning; its full solution Java was not accessible.",
     "example": {
       "input": "nums = [3, 1, 2, 6, 4, 5], k = 2",
       "output": "[1,2,3,4,5,6]",
@@ -10363,7 +10522,14 @@
       "int[]a={3,1,2,6,4,5};assert sortKSorted(a,2)==a;assert Arrays.equals(a,new int[]{1,2,3,4,5,6});assert Arrays.equals(sortKSorted(new int[]{-2,0,3},0),new int[]{-2,0,3});",
       "Random r=new Random(248);for(int n=0;n<80;n++)for(int k=0;k<=n+2;k++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(50)-25;Arrays.sort(a);int[]expected=a.clone();for(int start=0;start<n;start+=k+1){int end=Math.min(n,start+k+1);for(int i=end-1;i>start;i--){int j=start+r.nextInt(i-start+1);int tmp=a[i];a[i]=a[j];a[j]=tmp;}}assert Arrays.equals(sortKSorted(a,k),expected);}",
       "assert Arrays.equals(sortKSorted(new int[]{4,1,3,2},Integer.MAX_VALUE),new int[]{1,2,3,4});assert sortKSorted(new int[]{},0).length==0;"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/sort-a-k-sorted-array",
+      "title": "Sort a K-Sorted Array",
+      "checkedOn": "2026-10-29",
+      "approach": "Choose the next output from a min-heap of at most k + 1 candidates.",
+      "adaptation": "The current public statement was checked. The pinned external link points to Merge K Sorted Lists, which the next tracker guide covers. This independent Java solves the title’s nearly-sorted-array task; full source Java was not accessible."
+    }
   },
   "249": {
     "problem": "Merge all nodes from k sorted singly linked lists into one sorted list and return its head.",
