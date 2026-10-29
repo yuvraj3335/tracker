@@ -72,7 +72,7 @@
       "explanation": "The first 4 creates a count of one. Each later 4 increments that entry. The final table has three keys even though the input has six values."
     },
     "baseline": "You can count each distinct value by scanning the whole array again, using O(n²) time in the worst case. A map remembers previous work.",
-    "approach": "Use ArrayList for indexed sequences, HashSet for membership, HashMap for key/value associations, ArrayDeque for stacks and queues, and PriorityQueue for smallest-first extraction. A TreeMap provides sorted keys at O(log d) per operation. For frequency counting, increment one map entry per element.",
+    "approach": "A frequency map answers: how many times have I seen this value? Start with an empty HashMap. On the first 4, store 4 → 1. On the next 4, replace its count with 2. merge(value, 1, Integer::sum) does both cases.\n\nThe map stores one entry per distinct value, not one per array position. HashMap does not promise key order. If you want the displayed keys in increasing order, copy the result into a TreeMap. Use a HashSet when you only need yes/no membership; use a map when each key needs an associated value such as a count.",
     "steps": [
       "Create an empty map.",
       "For every value, combine one with the existing count.",
@@ -89,8 +89,16 @@
     ],
     "tests": [
       "assert frequencies(new int[]{4,2,4,3,2,4}).equals(Map.of(2,2,3,1,4,3));",
-      "assert frequencies(new int[]{}).isEmpty();"
-    ]
+      "assert frequencies(new int[]{}).isEmpty();",
+      "assert frequencies(new int[]{Integer.MIN_VALUE,-2,Integer.MIN_VALUE,Integer.MAX_VALUE}).equals(Map.of(Integer.MIN_VALUE,2,-2,1,Integer.MAX_VALUE,1));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: language and complexity foundations",
+      "checkedOn": "2026-10-29",
+      "approach": "Language fundamentals before arrays and algorithms.",
+      "adaptation": "The current sheet groups these older Codolio lessons under language/theory headings without public article or solution links. This is an original Java teaching example, not a claim that Striver publishes this exact code."
+    }
   },
   "13": {
     "problem": "Count the decimal digits of an integer, ignoring its sign.",
@@ -101,7 +109,7 @@
       "explanation": "The absolute value becomes 12040. Repeated divisions by ten leave 1204, 120, 12, 1, then 0, so five digits were removed."
     },
     "baseline": "Converting the magnitude to a string and taking its length works, but creates an extra character representation.",
-    "approach": "Each integer division by ten removes the least significant decimal digit. A do-while loop counts zero correctly without a special return.",
+    "approach": "Dividing a positive integer by 10 removes its last decimal digit. For 12040, the remaining values are 1204, 120, 12, 1 and 0. Count how many removals happen.\n\nZero needs one digit even though there is nothing to remove. A do-while runs once before checking the condition, so it gives zero a count of one. The minus sign is not a digit. Convert to long before taking the absolute value, because the positive magnitude of Integer.MIN_VALUE does not fit in int.",
     "steps": [
       "Promote to long before taking the absolute value.",
       "Increment the count once for each division by ten.",
@@ -117,8 +125,16 @@
     "tests": [
       "assert digits(-12040)==5;",
       "assert digits(0)==1;",
-      "assert digits(Integer.MIN_VALUE)==10;"
-    ]
+      "assert digits(Integer.MIN_VALUE)==10;",
+      "for(int n=-10000;n<=10000;n++)assert digits(n)==Long.toString(Math.abs((long)n)).length();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-digits-in-a-number",
+      "title": "Count Digits in a Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Repeated division by 10.",
+      "adaptation": "Public Java checked. A do-while replaces the explicit zero case."
+    }
   },
   "14": {
     "problem": "Reverse the decimal digits of a signed 32-bit integer. Return zero if the reversed value cannot fit in an int.",
@@ -129,25 +145,34 @@
       "explanation": "The remainders are 0, -2, and -1 in Java. Building result = result * 10 + remainder gives 0, -2, then -21."
     },
     "baseline": "Reverse a string representation and parse it, taking special care with the sign and overflow.",
-    "approach": "Remove digits with division and append them to a long accumulator. There are at most ten digits, so the accumulator fits in long; check the int bounds before returning.",
+    "approach": "Build the reversed number one digit at a time. For 120, take 0, then 2, then 1. The accumulated values become 0, 2 and 21. Multiplying the old result by 10 makes room for the next digit.\n\nThe pinned problem requires an int result and returns 0 if reversal overflows. Check before multiplying: result must stay between MIN_VALUE / 10 and MAX_VALUE / 10. At those exact boundaries, the final digit must be at least -8 or at most 7. Java’s negative remainders let the same loop preserve a negative sign without taking abs.",
     "steps": [
       "Take n % 10 as the next digit.",
-      "Append it to the accumulator and divide n by ten.",
-      "Check the final value against the signed int range."
+      "Check whether multiplying result by 10 and adding the digit would exceed either int boundary. Return 0 if so.",
+      "Append the digit and remove it from n. Return the finished result."
     ],
-    "java": "static int reverse(int n) {\n    long result = 0;\n    while (n != 0) { result = result * 10 + n % 10; n /= 10; }\n    return result < Integer.MIN_VALUE || result > Integer.MAX_VALUE ? 0 : (int) result;\n}",
+    "java": "static int reverse(int n) {\n    int result = 0;\n    while (n != 0) {\n        int digit = n % 10;\n        if (result > Integer.MAX_VALUE / 10 ||\n            (result == Integer.MAX_VALUE / 10 && digit > 7)) return 0;\n        if (result < Integer.MIN_VALUE / 10 ||\n            (result == Integer.MIN_VALUE / 10 && digit < -8)) return 0;\n        result = result * 10 + digit;\n        n /= 10;\n    }\n    return result;\n}",
     "time": "O(d).",
     "space": "O(1).",
     "pitfalls": [
-      "Do not multiply an int accumulator before checking overflow.",
-      "Reversing 120 gives 21, not 021 as a numeric value."
+      "Check overflow before multiplication; a wrapped result cannot be repaired afterward.",
+      "Do not take Math.abs(int) of Integer.MIN_VALUE. The signed loop avoids that operation.",
+      "The source article’s wider return and the pinned judge’s overflow-to-zero return are different contracts."
     ],
     "tests": [
       "assert reverse(-120)==-21;",
       "assert reverse(0)==0;",
       "assert reverse(1534236469)==0;",
-      "assert reverse(123)==321;"
-    ]
+      "assert reverse(123)==321;",
+      "Random r=new Random(14);for(int k=0;k<10000;k++){int n=r.nextInt();long v=Long.parseLong(new StringBuilder(Long.toString(Math.abs((long)n))).reverse().toString())*(n<0?-1:1);assert reverse(n)==(v<Integer.MIN_VALUE||v>Integer.MAX_VALUE?0:(int)v);}assert reverse(1463847412)==2147483641;assert reverse(-1563847412)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/reverse-digits-of-a-number",
+      "title": "Reverse Digits of a Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Extract a digit with remainder and append it after multiplying the result by 10.",
+      "adaptation": "Both public Java approaches checked. The article returns a wide reversal; the pinned LeetCode problem returns 0 on int overflow and disallows a 64-bit accumulator, so the primary method checks bounds before each int operation. The article’s string version can throw on a large reversal or Integer.MIN_VALUE; it is not used here."
+    }
   },
   "15": {
     "problem": "Decide whether an integer reads the same from left to right and right to left in decimal.",
@@ -158,13 +183,13 @@
       "explanation": "Reversing its digits produces 1221 again, equal to the original number."
     },
     "baseline": "Convert to a string and compare characters from both ends, using O(d) space for the string.",
-    "approach": "Reject negatives, then construct the reversed number in long and compare it with the original. A long safely holds the reverse of any nonnegative int.",
+    "approach": "A palindrome has matching halves, so reversing every digit is more work than we need. Move digits from the right side into reversedHalf until the remaining left side is no larger than it. For 1221, the pairs become (122,1), then (12,12). Those halves match.\n\nFor 12321, the final pair is (12,123). Drop the middle digit from reversedHalf and compare 12 with 12. Reject negative numbers first. Also reject a nonzero number ending in zero: its reversal would need a leading zero, which an integer does not keep.",
     "steps": [
-      "Save the original value.",
-      "Reverse its digits into a long accumulator.",
-      "Return whether both numbers are equal."
+      "Reject negatives and nonzero values ending in zero.",
+      "Move one rightmost digit into reversedHalf while n > reversedHalf.",
+      "Compare both halves; for odd length, remove the middle digit from reversedHalf."
     ],
-    "java": "static boolean palindrome(int n) {\n    if (n < 0) return false;\n    int remaining = n;\n    long reversed = 0;\n    while (remaining > 0) { reversed = reversed * 10 + remaining % 10; remaining /= 10; }\n    return reversed == n;\n}",
+    "java": "static boolean palindrome(int n) {\n    if (n < 0 || (n != 0 && n % 10 == 0)) return false;\n    int reversedHalf = 0;\n    while (n > reversedHalf) {\n        reversedHalf = reversedHalf * 10 + n % 10;\n        n /= 10;\n    }\n    return n == reversedHalf || n == reversedHalf / 10;\n}",
     "time": "O(d).",
     "space": "O(1).",
     "pitfalls": [
@@ -175,8 +200,22 @@
       "assert palindrome(1221);",
       "assert palindrome(0);",
       "assert !palindrome(-121);",
-      "assert !palindrome(10);"
-    ]
+      "assert !palindrome(10);",
+      "for(int n=-100;n<=100000;n++){String s=Integer.toString(n);boolean want=s.equals(new StringBuilder(s).reverse().toString());assert palindrome(n)==want;assert palindromeFull(n)==want;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/check-whether-a-number-is-a-palindrome",
+      "title": "Palindrome Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Reverse only the second half, then compare the two halves.",
+      "adaptation": "All three public Java methods checked. The full-reversal method is kept as an intermediate approach."
+    },
+    "better": {
+      "explanation": "Reverse the whole number in a long, then compare it to the original. This is the article’s intermediate method and also handles ten-digit ints safely.",
+      "java": "static boolean palindromeFull(int n) {\n    if (n < 0) return false;\n    int remaining = n;\n    long reversed = 0;\n    while (remaining > 0) { reversed = reversed * 10 + remaining % 10; remaining /= 10; }\n    return reversed == n;\n}",
+      "time": "O(d).",
+      "space": "O(1)."
+    }
   },
   "16": {
     "problem": "Find the greatest common divisor of two integers.",
@@ -187,7 +226,7 @@
       "explanation": "Euclid transforms (48,18) into (18,12), then (12,6), then (6,0). The final nonzero value is 6."
     },
     "baseline": "Try every positive divisor up to the smaller magnitude. This can take linear time in that magnitude.",
-    "approach": "The common divisors of a and b are exactly the common divisors of b and a % b. Repeating that reduction preserves the answer while rapidly shrinking the inputs.",
+    "approach": "Suppose a divisor divides both 48 and 18. It also divides 48 - 2×18 = 12. Going backward, a divisor of 18 and 12 also divides 48. The common divisors therefore stay the same when (48,18) becomes (18,12).\n\nRemainder performs those repeated subtractions in one operation. Keep replacing (x,y) with (y,x%y). When the second number reaches zero, the first is the answer because every number divides zero. Normalize signs first; this implementation returns 0 for the special input (0,0).",
     "steps": [
       "Normalize magnitudes after promoting to long.",
       "Replace (a,b) with (b,a%b) until b is zero.",
@@ -204,8 +243,16 @@
       "assert gcd(48,18)==6;",
       "assert gcd(-12,18)==6;",
       "assert gcd(0,0)==0;",
-      "assert gcd(Integer.MIN_VALUE,0)==2147483648L;"
-    ]
+      "assert gcd(Integer.MIN_VALUE,0)==2147483648L;",
+      "for(int a=-60;a<=60;a++)for(int b=-60;b<=60;b++)assert gcd(a,b)==BigInteger.valueOf(a).gcd(BigInteger.valueOf(b)).longValueExact();"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/gcd-euclidean-algorithm",
+      "title": "GCD Using the Euclidean Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Replace (a,b) by (b,a%b).",
+      "adaptation": "Both public Java methods checked. Inputs are promoted before abs to handle Integer.MIN_VALUE, which the article’s int absolute-value code does not cover."
+    }
   },
   "17": {
     "problem": "Check whether a nonnegative integer equals the sum of each decimal digit raised to the number of digits.",
@@ -215,15 +262,15 @@
       "output": "true",
       "explanation": "There are three digits: 1³ + 5³ + 3³ = 1 + 125 + 27 = 153."
     },
-    "baseline": "Extract the digits as a string and raise each digit to the string length. That works but needs extra storage.",
-    "approach": "Count the digits, then scan them again. Compute each small integer power with multiplication to avoid floating-point rounding.",
+    "baseline": "Count the digits, then calculate each digit power with d multiplications. This direct version costs O(d²) time and uses O(1) space.",
+    "approach": "First count the digits. For 9474 there are four, so test 9⁴ + 4⁴ + 7⁴ + 4⁴, not the sum of cubes. Keep the original number because the digit-extraction loop will reduce its working copy to zero.\n\nThe simple method multiplies each digit by itself d times. The faster method builds its power by squaring: to calculate 3⁵, use 3×3⁴, where 3²=9 and 3⁴=81. Read the exponent’s bits to decide which powers to multiply into the answer. For Java ints d is at most ten, but both methods show the same definition.",
     "steps": [
-      "Count digits with zero treated as one digit.",
-      "For each digit, multiply it by itself d times.",
-      "Sum using long and compare with the original."
+      "Count digits, treating zero as one digit.",
+      "For each digit, compute digit^d by repeated squaring.",
+      "Add the powers in long and compare with the original value."
     ],
-    "java": "static boolean armstrong(int n) {\n    if (n < 0) return false;\n    int d = 0, x = n;\n    do { d++; x /= 10; } while (x > 0);\n    long sum = 0; x = n;\n    do {\n        int digit = x % 10;\n        long power = 1;\n        for (int i = 0; i < d; i++) power *= digit;\n        sum += power; x /= 10;\n    } while (x > 0);\n    return sum == n;\n}",
-    "time": "O(d²) with the small repeated-multiplication power calculation.",
+    "java": "static long digitPower(int base, int exponent) {\n    long result = 1, factor = base;\n    while (exponent > 0) {\n        if ((exponent & 1) != 0) result *= factor;\n        exponent >>= 1;\n        if (exponent > 0) factor *= factor;\n    }\n    return result;\n}\nstatic boolean armstrong(int n) {\n    if (n < 0) return false;\n    int digits = 0, remaining = n;\n    do { digits++; remaining /= 10; } while (remaining != 0);\n    long total = 0;\n    remaining = n;\n    do {\n        total += digitPower(remaining % 10, digits);\n        remaining /= 10;\n    } while (remaining != 0);\n    return total == n;\n}",
+    "time": "O(d log(d+1)) for d decimal digits; the direct alternative takes O(d²).",
     "space": "O(1).",
     "pitfalls": [
       "Do not assume every input has three digits.",
@@ -234,8 +281,18 @@
       "assert armstrong(9474);",
       "assert armstrong(0);",
       "assert !armstrong(154);",
-      "assert !armstrong(-153);"
-    ]
+      "assert !armstrong(-153);",
+      "int[] values={0,1,9,10,153,370,371,407,9474,54748,548834,1741725,912985153,Integer.MAX_VALUE};for(int n:values){String s=Integer.toString(n);BigInteger total=BigInteger.ZERO;for(char digit:s.toCharArray())total=total.add(BigInteger.valueOf(digit-'0').pow(s.length()));boolean want=total.equals(BigInteger.valueOf(n));assert armstrong(n)==want;assert armstrongRepeated(n)==want;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/armstrong-number",
+      "title": "Armstrong Number",
+      "checkedOn": "2026-10-29",
+      "approach": "Count digits, then sum digit powers using repeated squaring.",
+      "adaptation": "Both public Java methods checked. This uses long for the powers and sum to avoid int overflow. The prose says initialize base to 1, but the actual Java correctly starts with the digit; this guide follows the code."
+    },
+    "baselineJava": "static boolean armstrongRepeated(int n) {\n    if (n < 0) return false;\n    int d = 0, x = n;\n    do { d++; x /= 10; } while (x > 0);\n    long sum = 0; x = n;\n    do {\n        int digit = x % 10;\n        long power = 1;\n        for (int i = 0; i < d; i++) power *= digit;\n        sum += power; x /= 10;\n    } while (x > 0);\n    return sum == n;\n}",
+    "baselineTime": "O(d²)."
   },
   "18": {
     "problem": "Return all positive divisors of a positive integer in ascending order.",
@@ -246,7 +303,7 @@
       "explanation": "Pairs (1,36), (2,18), (3,12), (4,9), and (6,6) cover every divisor. Include the square-root divisor only once."
     },
     "baseline": "Check every value from 1 through n, requiring O(n) divisibility tests.",
-    "approach": "Every divisor below the square root has a partner above it. Collect the smaller partners in increasing order and the larger partners in decreasing order, then reverse the larger list.",
+    "approach": "If 3 divides 36, you immediately know that 12 does too, because 3×12=36. Search only the smaller side of each pair. Once i exceeds √n, every pair has already appeared in the opposite order.\n\nThe small divisors arrive in increasing order. Their large partners arrive in decreasing order, so save those separately and append them backward. For a square, the middle pair is (6,6); add that value once. This returns a sorted list without sorting afterward.",
     "steps": [
       "Loop while i <= n / i to avoid squaring overflow.",
       "When divisible, add i and add n/i only if it differs.",
@@ -262,8 +319,16 @@
     "tests": [
       "assert divisors(36).equals(List.of(1,2,3,4,6,9,12,18,36));",
       "assert divisors(1).equals(List.of(1));",
-      "assert divisors(7).equals(List.of(1,7));"
-    ]
+      "assert divisors(7).equals(List.of(1,7));",
+      "for(int n=1;n<=1000;n++){List<Integer> want=new ArrayList<>();for(int d=1;d<=n;d++)if(n%d==0)want.add(d);assert divisors(n).equals(want);}assert divisors(Integer.MAX_VALUE).equals(List.of(1,Integer.MAX_VALUE));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-divisors",
+      "title": "Count Divisors",
+      "checkedOn": "2026-10-29",
+      "approach": "Find paired divisors up to the square root.",
+      "adaptation": "Both public Java methods checked. The current article counts divisors; the pinned item asks to list them. We collect the pairs in sorted order and use i <= n/i to avoid overflow."
+    }
   },
   "19": {
     "problem": "Decide whether an integer is prime: it must be greater than one and have no positive divisor other than one and itself.",
@@ -274,7 +339,7 @@
       "explanation": "After excluding divisibility by 2, test 3 and 5. Neither divides 29, and any factor larger than √29 would need a smaller partner already tested."
     },
     "baseline": "Count divisors from 1 through n, which takes O(n) time.",
-    "approach": "A composite number has a divisor no larger than its square root. Handle 2 separately, reject other even values, and test only odd candidates.",
+    "approach": "A composite number has a factor pair. Both factors cannot be greater than √n, or their product would exceed n. Finding no factor up to √n therefore proves that no extra factor exists.\n\nFirst handle values below 2 and the prime 2. Every other even value is composite, so only odd divisors remain. Check the square-root boundary too: 49 is caught by divisor 7. Use d <= n/d instead of d*d <= n to avoid overflowing the multiplication.",
     "steps": [
       "Reject n < 2; accept 2.",
       "Reject even n.",
@@ -292,8 +357,16 @@
       "assert prime(2);",
       "assert !prime(1);",
       "assert !prime(49);",
-      "assert !prime(-7);"
-    ]
+      "assert !prime(-7);",
+      "for(int n=-10;n<=3000;n++){boolean want=n>=2;for(int d=2;d<n;d++)if(n%d==0){want=false;break;}assert prime(n)==want;}assert prime(Integer.MAX_VALUE);assert !prime(2147395600);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/check-whether-a-number-is-prime",
+      "title": "Check Whether a Number Is Prime",
+      "checkedOn": "2026-10-29",
+      "approach": "Reject even composites, then try odd divisors up to the square root.",
+      "adaptation": "Both public Java methods checked. The boundary d <= n/d avoids the article’s potentially overflowing int square."
+    }
   },
   "24": {
     "problem": "Compute the sum 1 + 2 + … + n.",
@@ -447,13 +520,13 @@
       "explanation": "Scanner reads the token 42 as an int; converting that value back to decimal gives the same text."
     },
     "baseline": "Hardcoding the example produces the right output for only one input. A solution must parse the supplied data.",
-    "approach": "Scanner is convenient for learning token-based input. For large inputs, BufferedReader plus tokenization avoids much of Scanner’s parsing overhead. Print only what the problem requests.",
+    "approach": "Start with the input format. If it says one integer, read one integer; if it says a whole line of text, read the line. Scanner splits input at whitespace by default, so spaces and newlines both separate integer tokens.\n\nFor a console program, use new Scanner(System.in), then System.out.println(value). printNumber() reads System.in and writes System.out. Its stream-based overload lets the test supply text and capture the output without typing at a terminal. A judge usually supplies the input, so do not print an extra prompt asking for it.",
     "steps": [
       "Create a reader for the input.",
       "Read a value using the correct type.",
       "Write the result without extra prompts on an online judge."
     ],
-    "java": "static String echo(String input) {\n    Scanner scanner = new Scanner(input);\n    return Integer.toString(scanner.nextInt());\n}",
+    "java": "static void printNumber(InputStream input, PrintStream output) {\n    Scanner scanner = new Scanner(input);\n    output.print(scanner.nextInt());\n}\nstatic void printNumber() {\n    printNumber(System.in, System.out);\n}\nstatic String echo(String input) {\n    ByteArrayOutputStream output = new ByteArrayOutputStream();\n    printNumber(new ByteArrayInputStream(input.getBytes(java.nio.charset.StandardCharsets.UTF_8)), new PrintStream(output));\n    return output.toString(java.nio.charset.StandardCharsets.UTF_8);\n}",
     "time": "O(L), where L is the input length examined by the parser.",
     "space": "O(L) for this String-based test helper; a stream-based program need not retain all input.",
     "pitfalls": [
@@ -464,7 +537,14 @@
     "tests": [
       "assert echo(\"42\").equals(\"42\");",
       "assert echo(\"  -7\\n\").equals(\"-7\");"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/input-output",
+      "title": "Input Output",
+      "checkedOn": "2026-10-29",
+      "approach": "Read an integer and print its value.",
+      "adaptation": "The pinned public statement was checked. The no-argument printNumber matches the exercise; stream parameters and echo are adapters for checking output. Full solution code was not inspected."
+    }
   },
   "2": {
     "problem": "Understand arrays as indexed collections and strings as text sequences. Practise reading every element without going outside the valid index range.",
@@ -475,7 +555,7 @@
       "explanation": "Read indices 0, 1, and 2. Accumulating 3 + 5 − 2 gives 6."
     },
     "baseline": "Separate variables work only for a fixed number of values. An array gives one uniform way to process an arbitrary-sized sequence.",
-    "approach": "Array indices run from zero through length−1. A traversal can use an enhanced for loop when the index itself is unnecessary. Strings use length() and charAt(index), while arrays use the length field.",
+    "approach": "Think of an array as numbered slots. An array with three items has slots 0, 1 and 2. Its length is 3, but slot 3 does not exist. To add the values, keep a running total and visit every slot once.\n\nThe enhanced for loop gives us each value without needing its index. For text, String uses length() and charAt(i); an array uses the length field. A String cannot be changed in place. If you need to build text character by character, use StringBuilder.",
     "steps": [
       "Initialize an accumulator.",
       "Read each array element once.",
@@ -493,7 +573,14 @@
       "assert sum(new int[]{3,5,-2})==6;",
       "assert sum(new int[]{})==0;",
       "assert sum(new int[]{Integer.MAX_VALUE,1})==2147483648L;"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/array-basics",
+      "title": "Array Basics",
+      "checkedOn": "2026-10-29",
+      "approach": "Zero-based indexing and a single left-to-right traversal.",
+      "adaptation": "The public article explains array operations without a Java code tab. This example applies its traversal rule to summing values; the String notes are Java-specific additions."
+    }
   },
   "3": {
     "problem": "Choose numeric types that can represent both the input and intermediate results.",
@@ -504,7 +591,7 @@
       "explanation": "The result exceeds Integer.MAX_VALUE. Promoting one operand before multiplication makes Java compute the product as a long."
     },
     "baseline": "Storing a*b into a long after int multiplication is too late: overflow has already happened.",
-    "approach": "The arithmetic type is decided from the operands, not the destination variable. Cast before the operation. Floating-point types represent approximations and should not replace exact integer arithmetic without a reason.",
+    "approach": "Choose a type for the largest value you will calculate, not just the values you read. Two inputs may each fit in int while their product does not: 50000 × 50000 is 2500000000.\n\nJava multiplies two ints as ints. Writing long answer = a * b therefore overflows before the answer reaches the long variable. Cast one operand first: (long) a * b. For ordinary DSA counts, start by considering int or long. Use double when an approximate fractional result is acceptable, boolean for a true/false choice, and char for one UTF-16 code unit.",
     "steps": [
       "Check the input range.",
       "Estimate the largest intermediate result.",
@@ -522,63 +609,82 @@
       "assert product(50000,50000)==2500000000L;",
       "assert product(-7,3)==-21;",
       "assert product(Integer.MIN_VALUE,Integer.MIN_VALUE)==4611686018427387904L;"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: language and complexity foundations",
+      "checkedOn": "2026-10-29",
+      "approach": "Language fundamentals before arrays and algorithms.",
+      "adaptation": "The current sheet groups these older Codolio lessons under language/theory headings without public article or solution links. This is an original Java teaching example, not a claim that Striver publishes this exact code."
+    }
   },
   "4": {
-    "problem": "Select exactly one branch according to whether an integer is negative, zero, or positive.",
-    "assumptions": "This lesson demonstrates mutually exclusive conditions.",
+    "problem": "Given marks from 0 to 100, print Grade A for at least 90, Grade B for at least 70, Grade C for at least 50, Grade D for at least 35, and Fail below 35.",
+    "assumptions": "These are the exact thresholds in the pinned If ElseIf exercise. studentGrade prints the result; grade returns the same text for testing.",
     "example": {
-      "input": "n = -3",
-      "output": "negative",
-      "explanation": "The first condition n<0 is true, so the later branches are skipped."
+      "input": "marks = 72",
+      "output": "Grade B",
+      "explanation": "72 is below 90 but at least 70. Stop at that branch; do not print Grade C or Grade D as well."
     },
-    "baseline": "Three independent if statements can work for disjoint tests, but they do not express that exactly one branch should run.",
-    "approach": "An if/else-if/else chain evaluates conditions in order and stops after the first match. Put narrow conditions before broader conditions that would otherwise swallow them.",
+    "baseline": "Separate if statements can print several grades because the conditions overlap. Use one chain so exactly one result is chosen.",
+    "approach": "Start with the highest threshold. If marks are at least 90, the answer is settled. Otherwise check 70, then 50, then 35. By the time a branch runs, all higher grades have already been ruled out.\n\nOrder matters: checking marks >= 35 first would catch a score of 98 too. Use >= at each boundary so 90 belongs to A, 70 to B, 50 to C and 35 to D. The final else handles the remaining marks.",
     "steps": [
-      "Test the first case.",
-      "Use else-if for the next mutually exclusive case.",
-      "Use else for the remaining inputs."
+      "Test >= 90 first.",
+      "Continue with >= 70, >= 50 and >= 35.",
+      "Return Fail if no threshold matches; print the chosen string."
     ],
-    "java": "static String sign(int n) {\n    if (n < 0) return \"negative\";\n    else if (n == 0) return \"zero\";\n    else return \"positive\";\n}",
-    "time": "O(1) for a fixed number of conditions.",
+    "java": "static String grade(int marks) {\n    if (marks < 0 || marks > 100) throw new IllegalArgumentException();\n    if (marks >= 90) return \"Grade A\";\n    else if (marks >= 70) return \"Grade B\";\n    else if (marks >= 50) return \"Grade C\";\n    else if (marks >= 35) return \"Grade D\";\n    else return \"Fail\";\n}\nstatic void studentGrade(int marks) { System.out.print(grade(marks)); }",
+    "time": "O(1).",
     "space": "O(1).",
     "pitfalls": [
-      "Use == for comparison and = for assignment.",
-      "Boundary values belong in exactly one branch; test zero and threshold values."
+      "A score of 90 satisfies all four conditions; the else-if chain ensures only Grade A is printed.",
+      "Match the capital letters and spaces in the required output."
     ],
     "tests": [
-      "assert sign(-3).equals(\"negative\");",
-      "assert sign(0).equals(\"zero\");",
-      "assert sign(5).equals(\"positive\");"
-    ]
+      "int[] limits={0,34,35,49,50,69,70,89,90,100};String[] expected={\"Fail\",\"Fail\",\"Grade D\",\"Grade D\",\"Grade C\",\"Grade C\",\"Grade B\",\"Grade B\",\"Grade A\",\"Grade A\"};for(int i=0;i<limits.length;i++)assert grade(limits[i]).equals(expected[i]);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/if-elseif",
+      "title": "If ElseIf",
+      "checkedOn": "2026-10-29",
+      "approach": "Check grade thresholds in descending order.",
+      "adaptation": "The pinned public statement and boundaries were checked. This original Java implements that contract; full source Java was not inspected."
+    }
   },
   "5": {
-    "problem": "Choose an operation from a small fixed set using switch.",
-    "assumptions": "The example supports integer addition and subtraction; arithmetic is promoted to long. Unknown operators are rejected.",
+    "problem": "Print the weekday for a day number: 1 means Monday and 7 means Sunday. Print Invalid outside 1 through 7.",
+    "assumptions": "The pinned Switch Case exercise uses Monday as the first day. Only the first letter of each weekday is capitalized.",
     "example": {
-      "input": "op = +, a = 8, b = 5",
-      "output": "13",
-      "explanation": "The + case returns the sum immediately. No other case runs."
+      "input": "day = 6",
+      "output": "Saturday",
+      "explanation": "Case 6 maps to Saturday. It is one-based numbering, so Monday is 1 rather than 0."
     },
-    "baseline": "An if/else chain is equivalent and useful for conditions that are not equality checks against fixed values.",
-    "approach": "Switch makes a finite set of discrete choices explicit. In a traditional switch, break or return prevents accidental fall-through. A default branch handles unsupported inputs.",
+    "baseline": "An if/else chain gives the same result. A switch is a convenient way to show a fixed mapping from each integer to its label.",
+    "approach": "Switch on the supplied day and return the text for that exact case. Returning exits immediately, so there is no fall-through into another weekday.\n\nThe default branch catches every value that is not 1 through 7. Do not wrap 8 around to Monday: the problem explicitly asks for Invalid. The whichWeekDay wrapper prints the helper’s returned text.",
     "steps": [
-      "Switch on the operator.",
-      "Return the result for each supported case.",
-      "Reject unsupported operators in default."
+      "Write cases 1 through 7 in weekday order.",
+      "Return from each case to prevent fall-through.",
+      "Use default for Invalid."
     ],
-    "java": "static long calculate(char op, int a, int b) {\n    switch (op) {\n        case '+': return (long) a + b;\n        case '-': return (long) a - b;\n        default: throw new IllegalArgumentException(\"Unsupported operator\");\n    }\n}",
-    "time": "O(1) for this fixed set of operators.",
+    "java": "static String weekday(int day) {\n    switch (day) {\n        case 1: return \"Monday\";\n        case 2: return \"Tuesday\";\n        case 3: return \"Wednesday\";\n        case 4: return \"Thursday\";\n        case 5: return \"Friday\";\n        case 6: return \"Saturday\";\n        case 7: return \"Sunday\";\n        default: return \"Invalid\";\n    }\n}\nstatic void whichWeekDay(int day) { System.out.print(weekday(day)); }",
+    "time": "O(1).",
     "space": "O(1).",
     "pitfalls": [
-      "Traditional cases can fall through without break or return.",
-      "If division is added, specify integer versus floating-point behavior and handle a zero divisor."
+      "Monday is day 1.",
+      "A traditional switch needs break or return to stop at one case.",
+      "Invalid days are not reduced modulo seven."
     ],
     "tests": [
-      "assert calculate('+',8,5)==13;",
-      "assert calculate('-',8,5)==3;",
-      "boolean failed=false; try { calculate('*',2,3); } catch(IllegalArgumentException e) { failed=true; } assert failed;"
-    ]
+      "String[] days={\"Monday\",\"Tuesday\",\"Wednesday\",\"Thursday\",\"Friday\",\"Saturday\",\"Sunday\"};for(int d=1;d<=7;d++)assert weekday(d).equals(days[d-1]);",
+      "for(int d:new int[]{Integer.MIN_VALUE,-1,0,8,50,Integer.MAX_VALUE})assert weekday(d).equals(\"Invalid\");"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/switch-case",
+      "title": "Switch Case",
+      "checkedOn": "2026-10-29",
+      "approach": "Select a weekday with seven switch cases and a default.",
+      "adaptation": "Public statement checked. This original Java follows its Monday-first mapping; full source Java was not inspected."
+    }
   },
   "6": {
     "problem": "Repeat a computation a known number of times with a for loop.",
@@ -586,26 +692,34 @@
     "example": {
       "input": "n = 4",
       "output": "[1, 2, 3, 4]",
-      "explanation": "The loop starts at 1, includes 4, and stops when the counter becomes 5."
+      "explanation": "Positions 0 through 3 append i + 1, giving 1 through 4. The condition fails when i reaches 4."
     },
     "baseline": "Writing one statement per item cannot adapt to a changing n.",
-    "approach": "A for loop groups initialization, continuation condition, and update in one place. The loop invariant here is that the list contains exactly 1 through i−1 before iteration i.",
+    "approach": "Read the for loop in three parts: start i at 0; keep going while i < n; add one to i after each pass. Inside the loop, append i + 1. Before the pass for i = 2, the list already contains 1 and 2.\n\nFor n = 4, the positions are 0, 1, 2 and 3, and we append 1, 2, 3 and 4. The next check sees i = 4 and stops. For n = 0, the first condition is false, so the list stays empty. Use i < array.length when visiting array indices, because those start at zero.",
     "steps": [
-      "Start the counter at one.",
-      "Continue while i <= n.",
-      "Append i and increment the counter."
+      "Start the zero-based position at 0.",
+      "Continue while i < n.",
+      "Append i + 1, the positive number at that position."
     ],
-    "java": "static List<Integer> firstNumbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    for (int i = 1; i <= n; i++) result.add(i);\n    return result;\n}",
+    "java": "static List<Integer> firstNumbers(int n) {\n    if (n < 0) throw new IllegalArgumentException();\n    List<Integer> result = new ArrayList<>();\n    for (int i = 0; i < n; i++) result.add(i + 1);\n    return result;\n}",
     "time": "O(n).",
     "space": "O(n) for the returned list; O(1) auxiliary state.",
     "pitfalls": [
-      "Distinguish < n from <= n.",
-      "Very large n can exceed memory and, at Integer.MAX_VALUE, an int loop counter can wrap; this educational list example assumes a feasible list size."
+      "Distinguish a position starting at 0 from a value starting at 1.",
+      "The returned list needs memory for n entries; only request a feasible list size."
     ],
     "tests": [
       "assert firstNumbers(4).equals(List.of(1,2,3,4));",
-      "assert firstNumbers(0).isEmpty();"
-    ]
+      "assert firstNumbers(0).isEmpty();",
+      "boolean rejected=false;try{firstNumbers(-1);}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: language and complexity foundations",
+      "checkedOn": "2026-10-29",
+      "approach": "Language fundamentals before arrays and algorithms.",
+      "adaptation": "The current sheet groups these older Codolio lessons under language/theory headings without public article or solution links. This is an original Java teaching example, not a claim that Striver publishes this exact code."
+    }
   },
   "7": {
     "problem": "Repeat while a condition remains true, updating the state so the loop eventually stops.",
@@ -616,7 +730,7 @@
       "explanation": "Extract 3, then 2, then 0, then 4. Their sum is 9."
     },
     "baseline": "Convert to text and iterate over characters, using an extra string representation.",
-    "approach": "A while loop is useful when the number of iterations follows from changing state. Dividing by ten makes the remaining value smaller on every iteration.",
+    "approach": "Use a while loop when the work itself changes the stopping condition. For 4023, n % 10 gives the last digit, 3. Add it to the total, then integer division n /= 10 leaves 402. Repeat until nothing remains.\n\nThe remaining values are 4023, 402, 40, 4 and 0. Each pass makes n smaller, which explains why the loop ends. Input zero skips the loop and correctly has digit sum zero. If a task must process zero as one digit, use do-while instead.",
     "steps": [
       "Initialize the sum to zero.",
       "While digits remain, add n % 10.",
@@ -632,8 +746,16 @@
     "tests": [
       "assert digitSum(4023)==9;",
       "assert digitSum(0)==0;",
-      "assert digitSum(999)==27;"
-    ]
+      "assert digitSum(999)==27;",
+      "boolean rejected=false;try{digitSum(-1);}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: language and complexity foundations",
+      "checkedOn": "2026-10-29",
+      "approach": "Language fundamentals before arrays and algorithms.",
+      "adaptation": "The current sheet groups these older Codolio lessons under language/theory headings without public article or solution links. This is an original Java teaching example, not a claim that Striver publishes this exact code."
+    }
   },
   "8": {
     "problem": "Understand Java’s pass-by-value semantics for primitives and object references.",
@@ -644,7 +766,7 @@
       "explanation": "The first assignment changes the shared array element. Reassigning the local parameter to a new array does not replace the caller’s reference, so the caller still sees [9]."
     },
     "baseline": "Trying to swap caller variables by reassigning two parameters does not work in Java, because only local copies change.",
-    "approach": "Distinguish changing an object from changing the variable that refers to it. Mutations through a copied reference affect the shared object; rebinding the parameter affects only the method.",
+    "approach": "Java always copies the argument value into the parameter. For an int, that copy is a number. For an array, that copy is a reference to the array. Both references initially point to the same object.\n\nIn change, values[0] = 9 changes that shared object, so the caller sees 9. The later values = new int[]{100} only redirects the local parameter. It leaves the caller pointing at the old array. To replace the caller’s array, return the new array and assign the return value in the caller.",
     "steps": [
       "Receive a copy of the caller’s reference.",
       "Mutate the referenced object to demonstrate shared state.",
@@ -660,7 +782,14 @@
     "tests": [
       "int[] a={1}; change(a); assert a[0]==9;",
       "int[] b={}; change(b); assert b.length==0;"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: language and complexity foundations",
+      "checkedOn": "2026-10-29",
+      "approach": "Language fundamentals before arrays and algorithms.",
+      "adaptation": "The current sheet groups these older Codolio lessons under language/theory headings without public article or solution links. This is an original Java teaching example, not a claim that Striver publishes this exact code."
+    }
   },
   "9": {
     "problem": "Analyze how the number of operations grows with input size rather than relying on a particular machine’s timing.",
@@ -671,7 +800,7 @@
       "explanation": "The outer iterations contribute 3, 2, 1, and 0 pairs. Their total is 6 = n(n−1)/2."
     },
     "baseline": "Measuring a few elapsed times can suggest a trend but does not establish a growth bound.",
-    "approach": "Count the inner-loop executions: (n−1)+(n−2)+…+1. This is a quadratic polynomial, so its dominant growth is Θ(n²), despite the changing inner-loop bound. A formula computes the same count in O(1), but does not enumerate the pairs.",
+    "approach": "Count how often the work runs. With n = 4, i = 0 pairs with three later indices, i = 1 with two, i = 2 with one, and i = 3 with none. For general n the total is n(n-1)/2, which grows quadratically.\n\nIgnore the fixed multiplier when describing growth: this loop is Θ(n²). It stores only counters, so its extra space is O(1). A loop that repeatedly halves n takes O(log n) passes. A loop visiting each element once takes O(n). Two nested loops are not automatically O(n²); count how far their counters can move.",
     "steps": [
       "Write the number of iterations for each outer-loop position.",
       "Add those counts as a sum.",
@@ -688,8 +817,17 @@
     "tests": [
       "assert countPairs(4)==6;",
       "assert countPairs(0)==0;",
-      "assert countPairs(1)==0;"
-    ]
+      "assert countPairs(1)==0;",
+      "boolean rejected=false;try{countPairs(-1);}catch(IllegalArgumentException e){rejected=true;}assert rejected;",
+      "for(int n=0;n<=100;n++)assert countPairs(n)==(long)n*(n-1)/2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: language and complexity foundations",
+      "checkedOn": "2026-10-29",
+      "approach": "Language fundamentals before arrays and algorithms.",
+      "adaptation": "The current sheet groups these older Codolio lessons under language/theory headings without public article or solution links. This is an original Java teaching example, not a claim that Striver publishes this exact code."
+    }
   },
   "10": {
     "problem": "Build a text pattern by identifying what each row contains.",
@@ -700,7 +838,7 @@
       "explanation": "Row r, starting at zero, has n−r−1 leading spaces and 2r+1 stars. For n=3 those counts are (2,1), (1,3), and (0,5)."
     },
     "baseline": "Hardcoding each row works for one height only and hides the rule that generates the shape.",
-    "approach": "Derive spaces and symbols separately before writing loops. Express both counts as functions of the row number, then build each row with those exact counts.",
+    "approach": "Draw three rows before writing the loop. For height 3, the leading spaces are 2, 1, 0 and the stars are 1, 3, 5. Number rows from zero. Then row r needs n-r-1 spaces and 2r+1 stars.\n\nBuild one row from those two counts, then move to the next row. The output needs newlines between rows, but this version does not add trailing spaces or a final newline. For another pattern, derive its row rules again: the pyramid formula is not a solution to all 22 exercises in the current sheet.",
     "steps": [
       "For row r, append n−r−1 spaces.",
       "Append 2r+1 stars.",
@@ -717,8 +855,16 @@
     "tests": [
       "assert pyramid(3).equals(\"  *\\n ***\\n*****\");",
       "assert pyramid(0).equals(\"\");",
-      "assert pyramid(1).equals(\"*\");"
-    ]
+      "assert pyramid(1).equals(\"*\");",
+      "boolean rejected=false;try{pyramid(-1);}catch(IllegalArgumentException e){rejected=true;}assert rejected;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/pattern-7",
+      "title": "Pattern 7",
+      "checkedOn": "2026-10-29",
+      "approach": "Row r contains n-r-1 leading spaces and 2r+1 stars.",
+      "adaptation": "The current sheet splits patterns into 22 exercises; the pinned Codolio sheet groups them. This representative pyramid matches Pattern 7. Its public statement was checked; the Solution panel requires login. The Java returns text for testing instead of printing each row."
+    }
   },
   "11": {
     "problem": "Translate common C++ STL roles into Java collections and utility methods.",
@@ -729,7 +875,7 @@
       "explanation": "Sorting places the duplicate ones first, then 3 and 4. The input is copied so the caller’s original order remains intact."
     },
     "baseline": "Implementing every container and sorting routine from scratch is useful for learning, but unnecessary for most problem-solving tasks.",
-    "approach": "Use ArrayList for a dynamic sequence, HashMap or TreeMap for dictionaries, HashSet or TreeSet for sets, ArrayDeque for stack/queue operations, and PriorityQueue for a heap. Arrays.sort handles arrays; List.sort handles lists.",
+    "approach": "Choose a collection by the work you need it to do. C++ vector roughly fills the role of Java ArrayList. An unordered_map corresponds to HashMap; a sorted map to TreeMap; a set to HashSet or TreeSet depending on whether sorted order is needed.\n\nFor a stack or queue, ArrayDeque supports both ends. For repeatedly taking the smallest value, use PriorityQueue. Java’s default queue removes the smallest item, while the usual C++ priority_queue removes the largest. The example below copies an array and sorts it with Arrays.sort, so the caller keeps the original order.",
     "steps": [
       "Choose the collection by its required operations and ordering.",
       "Copy the input if mutation is not allowed.",
@@ -746,7 +892,14 @@
     "tests": [
       "int[] a={4,1,3,1}; assert Arrays.equals(sortedCopy(a),new int[]{1,1,3,4}); assert a[0]==4;",
       "assert sortedCopy(new int[]{}).length==0;"
-    ]
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/prep-hub/strivers-a2z-dsa-sheet?page=sheet",
+      "title": "Striver A2Z: language and complexity foundations",
+      "checkedOn": "2026-10-29",
+      "approach": "Language fundamentals before arrays and algorithms.",
+      "adaptation": "The current sheet groups these older Codolio lessons under language/theory headings without public article or solution links. This is an original Java teaching example, not a claim that Striver publishes this exact code."
+    }
   },
   "20": {
     "problem": "Use recursion to produce a fixed message.",
