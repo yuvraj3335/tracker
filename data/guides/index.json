@@ -9985,5 +9985,195 @@
       "time": "O(n + U log(k + 1)) expected.",
       "space": "O(U + k)."
     }
+  },
+  "259": {
+    "problem": "Give at most one cookie to each child. A child is satisfied when the cookie size is at least that child’s requirement. Maximize the number of satisfied children.",
+    "assumptions": "Each cookie can be used once. Cookie sizes and requirements are positive. This version sorts copies, preserving both inputs.",
+    "example": {
+      "input": "requirements = [2,4,6], cookies = [1,3,5]",
+      "output": "2",
+      "explanation": "Give 3 to the child needing 2, and 5 to the child needing 4. The cookie of size 1 cannot help any child."
+    },
+    "baseline": "Sort both arrays. For each child, scan the cookie array from the beginning for the smallest unused cookie that fits. A used array prevents assigning a cookie twice. Repeated scans can take O(nm) time.",
+    "approach": "Start with the easiest child to satisfy and the smallest remaining cookie. If the cookie is too small, skip it: all other remaining children need at least as much. Otherwise, give it to this child and move to the next child.\n\nUsing the smallest cookie that fits leaves all larger cookies available. This cannot reduce the number of later matches. If another assignment used this cookie for a harder child and a larger cookie for the easier child, swapping those cookies would still satisfy both.",
+    "steps": [
+      "Sort requirements and cookie sizes.",
+      "Keep a pointer to the first unsatisfied child.",
+      "Scan cookies from smallest to largest.",
+      "Advance the child pointer only when the cookie fits.",
+      "Return the number of children passed."
+    ],
+    "java": "static int findContentChildren(int[] requirements, int[] sizes) {\n    int[] children = requirements.clone(), cookies = sizes.clone();\n    Arrays.sort(children);\n    Arrays.sort(cookies);\n    int child = 0;\n    for (int cookie : cookies) {\n        if (child == children.length) break;\n        if (cookie >= children[child]) child++;\n    }\n    return child;\n}",
+    "time": "O(n log n + m log m) for n children and m cookies.",
+    "space": "O(n + m) for the preserved-input copies. The matching scan itself uses O(1).",
+    "pitfalls": [
+      "Do not combine several small cookies for one child; each child gets at most one.",
+      "A cookie that is too small is skipped without skipping the child.",
+      "Sorting is part of the cost, even though the final scan is linear."
+    ],
+    "tests": [
+      "assert findContentChildren(new int[]{2,4,6},new int[]{1,3,5})==2;assert findContentChildren(new int[]{},new int[]{1})==0;assert findContentChildren(new int[]{1},new int[]{})==0;",
+      "class Oracle{int solve(int[]g,int[]s,int i,int used){if(i==g.length)return 0;int best=solve(g,s,i+1,used);for(int j=0;j<s.length;j++)if((used&(1<<j))==0&&s[j]>=g[i])best=Math.max(best,1+solve(g,s,i+1,used|(1<<j)));return best;}}Random r=new Random(259);Oracle o=new Oracle();for(int t=0;t<400;t++){int[]a=new int[r.nextInt(7)],b=new int[r.nextInt(7)];for(int i=0;i<a.length;i++)a[i]=1+r.nextInt(6);for(int i=0;i<b.length;i++)b[i]=1+r.nextInt(6);int[]ac=a.clone(),bc=b.clone();int want=o.solve(a,b,0,0);assert findContentChildren(a,b)==want;assert cookiesByScanning(a,b)==want;assert Arrays.equals(a,ac)&&Arrays.equals(b,bc);}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/assign-cookies",
+      "title": "Assign Cookies: Greedy Algorithm and Solution",
+      "checkedOn": "2026-10-29",
+      "approach": "Sort both arrays and match each child with the smallest remaining cookie that fits.",
+      "adaptation": "Both public Java methods were checked. The repeated-scan and two-pointer choices are preserved; these snippets clone arrays before sorting."
+    },
+    "baselineJava": "static int cookiesByScanning(int[] requirements, int[] sizes) {\n    int[] children = requirements.clone(), cookies = sizes.clone();\n    Arrays.sort(children);\n    Arrays.sort(cookies);\n    boolean[] used = new boolean[cookies.length];\n    int satisfied = 0;\n    for (int need : children) {\n        for (int j = 0; j < cookies.length; j++) {\n            if (!used[j] && cookies[j] >= need) {\n                used[j] = true;\n                satisfied++;\n                break;\n            }\n        }\n    }\n    return satisfied;\n}"
+  },
+  "260": {
+    "problem": "Fill a bag up to its weight capacity to get the greatest possible value. You may take a fraction of any item, but no more than the whole item.",
+    "assumptions": "Each item has a positive weight and value. The current TUF task allows up to 100000 items, weights and values up to 10000, and capacity up to 1000000000. Return a double; format it to six decimal places only when displaying it.",
+    "example": {
+      "input": "values = [18,20,28], weights = [3,5,7], capacity = 6",
+      "output": "30.000000",
+      "explanation": "The first item gives 6 value per unit of weight; the others give 4. Take the whole first item, then 3 units of either remaining item: 18 + 12 = 30."
+    },
+    "baseline": "Repeatedly scan unused items to find the highest value per unit of weight. Take as much of that item as fits, then repeat. This follows the same choice but finding each next item can take O(n²) time.",
+    "approach": "Compare items by value per unit of weight, not value alone. A unit of space spent on a higher ratio earns at least as much as the same space spent on a lower ratio. If a proposed solution used some lower-ratio weight while higher-ratio weight was still available, exchanging those portions could only improve its value.\n\nSort by decreasing ratio. Take whole items while they fit. When the next item is too heavy, take exactly the fraction that fills the remaining space and stop. This exchange works because fractions are allowed; it does not prove the same choice for 0/1 knapsack.",
+    "steps": [
+      "Keep each value paired with its weight.",
+      "Sort items by descending value-to-weight ratio.",
+      "Take a whole item if its weight fits.",
+      "Otherwise add remainingWeight × value / weight and stop."
+    ],
+    "java": "static double fractionalKnapsack(int[] values, int[] weights, int capacity) {\n    int n = values.length;\n    int[][] items = new int[n][2];\n    for (int i = 0; i < n; i++) {\n        items[i][0] = values[i];\n        items[i][1] = weights[i];\n    }\n    Arrays.sort(items, (a, b) -> Long.compare((long) b[0] * a[1], (long) a[0] * b[1]));\n    double total = 0;\n    int remaining = capacity;\n    for (int[] item : items) {\n        if (remaining == 0) break;\n        int taken = Math.min(remaining, item[1]);\n        total += (double) taken * item[0] / item[1];\n        remaining -= taken;\n    }\n    return total;\n}",
+    "time": "O(n log n).",
+    "space": "O(n) for paired items and object-array sorting; input arrays are preserved.",
+    "pitfalls": [
+      "Use floating-point division when taking a fraction.",
+      "Do not sort weights and values independently.",
+      "Choosing the largest value alone can waste capacity.",
+      "The ratio rule depends on divisibility. It is not a correct general solution to 0/1 knapsack.",
+      "Avoid rounding each contribution; round only the final displayed result."
+    ],
+    "tests": [
+      "assert Math.abs(fractionalKnapsack(new int[]{18,20,28},new int[]{3,5,7},6)-30)<1e-9;assert Math.abs(fractionalKnapsack(new int[]{60,100,120},new int[]{10,20,30},50)-240)<1e-9;assert Math.abs(fractionalKnapsack(new int[]{10},new int[]{3},1)-10.0/3)<1e-9;",
+      "class Oracle{double solve(int[]v,int[]w,int cap,int used){double best=0;for(int i=0;i<v.length;i++)if((used&(1<<i))==0){int take=Math.min(cap,w[i]);double value=(double)take*v[i]/w[i];if(take==w[i])value+=solve(v,w,cap-take,used|(1<<i));best=Math.max(best,value);}return best;}}Random r=new Random(260);Oracle o=new Oracle();for(int t=0;t<300;t++){int n=1+r.nextInt(7);int[]v=new int[n],w=new int[n];for(int i=0;i<n;i++){v[i]=1+r.nextInt(30);w[i]=1+r.nextInt(10);}int cap=r.nextInt(30);assert Math.abs(fractionalKnapsack(v,w,cap)-o.solve(v,w,cap,0))<1e-7;}",
+      "assert fractionalKnapsack(new int[]{5,8},new int[]{2,4},100)==13;assert fractionalKnapsack(new int[]{5},new int[]{2},0)==0;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/fractional-knapsack",
+      "title": "Fractional Knapsack",
+      "checkedOn": "2026-10-29",
+      "approach": "Take items in descending value-to-weight ratio, including a fraction of the final item.",
+      "adaptation": "The current public practice statement was checked. The older linked tutorial URL now returns Page Not Found, and no public Java editorial was available here. This authored ratio-based implementation is checked against exhaustive item orders."
+    }
+  },
+  "261": {
+    "problem": "Understand when taking the largest coin first is safe, and solve the actual linked task: find the fewest coins for an amount using arbitrary positive denominations.",
+    "assumptions": "The tracker title refers to a greedy lesson, but its current problem link accepts arbitrary denominations. Greedy needs a coin system for which its optimality has been established. coinChange below is the general solution; standardCurrencyCoins demonstrates the greedy lesson only for the fixed denominations shown. Unlimited copies are available. Amount 0 needs 0 coins.",
+    "example": {
+      "input": "coins = [1,3,4], amount = 6",
+      "output": "2",
+      "explanation": "Use 3 + 3. Taking the largest first would choose 4 + 1 + 1 and return 3, which is wrong for this input."
+    },
+    "baseline": "Try each possible first coin, recursively solve the remaining amount, and take the smallest successful result plus one. This explores the same remaining amounts repeatedly and takes exponential time.",
+    "approach": "For the fixed standard denominations in the lesson, scan from largest to smallest. Division tells you how many copies fit; remainder tells you what is still unpaid. That is the greedy method shown in the first function. Its restriction matters.\n\nFor the linked arbitrary-coin problem, save the answer for every amount instead. Let dp[x] mean the fewest coins needed for x. Start with dp[0] = 0. For each x, try every coin c ≤ x: if x − c is reachable, one more coin gives a candidate dp[x − c] + 1. Take the smallest candidate. Every valid payment has a last coin, so these candidates cover all possibilities.\n\nThe public lesson’s first recursive snippet uses a large sentinel for impossible amounts. This version converts that to −1 at the public method boundary, matching the linked problem.",
+    "steps": [
+      "Use the greedy helper only with its fixed denomination list.",
+      "For arbitrary coins, initialize dp[0] to 0 and other amounts to an unreachable sentinel.",
+      "Fill amounts from 1 upward, trying each usable last coin.",
+      "Return dp[amount], or −1 if it remains unreachable."
+    ],
+    "java": "static int standardCurrencyCoins(int amount) {\n    int[] denominations = {1000, 500, 100, 50, 20, 10, 5, 2, 1};\n    int count = 0;\n    for (int coin : denominations) {\n        count += amount / coin;\n        amount %= coin;\n    }\n    return count;\n}\n\nstatic int coinChange(int[] coins, int amount) {\n    int unreachable = amount + 1;\n    int[] dp = new int[amount + 1];\n    Arrays.fill(dp, unreachable);\n    dp[0] = 0;\n    for (int value = 1; value <= amount; value++) {\n        for (int coin : coins) {\n            if (coin <= value && dp[value - coin] != unreachable)\n                dp[value] = Math.min(dp[value], dp[value - coin] + 1);\n        }\n    }\n    return dp[amount] == unreachable ? -1 : dp[amount];\n}",
+    "time": "General solution: O(n × amount). The fixed nine-denomination greedy helper takes O(1).",
+    "space": "General solution: O(amount). Fixed greedy helper: O(1).",
+    "pitfalls": [
+      "Greedy can return a non-minimum count, or even say impossible when a different combination works.",
+      "All denominations must be positive; a zero coin would break recursive progress.",
+      "Do not return Integer.MAX_VALUE to represent failure in the public result.",
+      "This item and the later DP coin-change item share a problem link, but the greedy limitation is the teaching point here."
+    ],
+    "tests": [
+      "assert coinChange(new int[]{1,3,4},6)==2;assert coinChange(new int[]{3,4},6)==2;assert coinChange(new int[]{2,5},3)==-1;assert coinChange(new int[]{7},0)==0;assert standardCurrencyCoins(43)==4;",
+      "for(int mask=1;mask<64;mask++){List<Integer>list=new ArrayList<>();for(int i=0;i<6;i++)if((mask&(1<<i))!=0)list.add(i+1);int[]coins=list.stream().mapToInt(x->x).toArray();for(int amount=0;amount<=10;amount++)assert coinChange(coins,amount)==coinChangeRecursive(coins,amount);}",
+      "int[]coins={1,2,5,10,20,50,100,500,1000};int[]dp=new int[10001];Arrays.fill(dp,10001);dp[0]=0;for(int a=1;a<dp.length;a++)for(int coin:coins)if(coin<=a)dp[a]=Math.min(dp[a],dp[a-coin]+1);for(int a=0;a<dp.length;a++)assert standardCurrencyCoins(a)==dp[a];"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/minimum-number-of-coins",
+      "title": "Minimum Number of Coins",
+      "checkedOn": "2026-10-29",
+      "approach": "Largest-first division for suitable denominations, with a separate correct DP solution for the tracker’s arbitrary-coin link.",
+      "adaptation": "The public recursive and greedy Java were checked. The article explicitly warns that greedy fails for arbitrary denominations. Its first recursive snippet leaves impossible amounts as Integer.MAX_VALUE; the wrapper here returns −1. The general DP method is an authored addition required by the current problem link."
+    },
+    "baselineJava": "static int coinChangeRecursive(int[] coins, int amount) {\n    if (amount == 0) return 0;\n    int best = Integer.MAX_VALUE;\n    for (int coin : coins) {\n        if (coin <= amount) {\n            int rest = coinChangeRecursive(coins, amount - coin);\n            if (rest != -1) best = Math.min(best, rest + 1);\n        }\n    }\n    return best == Integer.MAX_VALUE ? -1 : best;\n}"
+  },
+  "262": {
+    "problem": "Sell each lemonade for 5 and give exact change to customers arriving in order with bills of 5, 10, or 20. Decide whether every customer can be served.",
+    "assumptions": "You start with no money. You cannot reorder customers or borrow bills from later customers. Each customer buys one lemonade.",
+    "example": {
+      "input": "bills = [5,5,10,5,20,10]",
+      "output": "true",
+      "explanation": "For the 20, give 10 + 5. This saves one 5 bill, which provides change for the final 10."
+    },
+    "baseline": "At each 20 bill, try both possible ways to give 15 in change and recursively check the rest of the queue. This explores unnecessary choices; keeping smaller bills gives a safe rule.",
+    "approach": "Track how many 5 and 10 bills you have. A 10 requires one 5 as change. A 20 requires either 10 + 5 or three 5s. Prefer 10 + 5 whenever it is available.\n\nThree 5s can do everything that a 10 and a 5 can do, and they can also serve separate customers paying 10. Saving those smaller bills therefore leaves at least as much flexibility. There is no need to track 20 bills because no required change exceeds 15.",
+    "steps": [
+      "For a 5 bill, keep it.",
+      "For a 10 bill, require one 5, then keep the 10.",
+      "For a 20 bill, use 10 + 5 if possible; otherwise use three 5s.",
+      "Fail immediately if exact change is unavailable."
+    ],
+    "java": "static boolean lemonadeChange(int[] bills) {\n    int five = 0, ten = 0;\n    for (int bill : bills) {\n        if (bill == 5) five++;\n        else if (bill == 10) {\n            if (five == 0) return false;\n            five--;\n            ten++;\n        } else {\n            if (ten > 0 && five > 0) {\n                ten--;\n                five--;\n            } else if (five >= 3) five -= 3;\n            else return false;\n        }\n    }\n    return true;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Process customers in their original order.",
+      "Having enough total money does not mean you have the right denominations.",
+      "For a 20, save the extra 5 bills when 10 + 5 is possible."
+    ],
+    "tests": [
+      "assert lemonadeChange(new int[]{5,5,10,5,20,10});assert !lemonadeChange(new int[]{5,5,10,10,20});assert !lemonadeChange(new int[]{10});assert !lemonadeChange(new int[]{20});",
+      "class Oracle{boolean solve(int[]a,int i,int f,int t){if(i==a.length)return true;if(a[i]==5)return solve(a,i+1,f+1,t);if(a[i]==10)return f>0&&solve(a,i+1,f-1,t+1);return (f>0&&t>0&&solve(a,i+1,f-1,t-1))||(f>=3&&solve(a,i+1,f-3,t));}}Oracle o=new Oracle();for(int n=0;n<=9;n++){int total=(int)Math.pow(3,n);for(int mask=0;mask<total;mask++){int x=mask;int[]a=new int[n];for(int i=0;i<n;i++){a[i]=new int[]{5,10,20}[x%3];x/=3;}assert lemonadeChange(a)==o.solve(a,0,0,0);}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/lemonade-change",
+      "title": "Lemonade Change: Greedy Algorithm and Solution",
+      "checkedOn": "2026-10-29",
+      "approach": "Count 5 and 10 bills and prefer 10 + 5 when giving change for 20.",
+      "adaptation": "The public Java method was checked. The same branch order is retained; exhaustive short queues are compared with a search that tries both change choices."
+    }
+  },
+  "263": {
+    "problem": "Decide whether a string of (, ), and * can become balanced parentheses. Each * may become (, ), or nothing.",
+    "assumptions": "Order matters: a closing parenthesis must have an opening parenthesis before it. This is the wildcard problem, not the earlier stack problem containing several bracket types. An empty string is accepted.",
+    "example": {
+      "input": "s = \"(*))\"",
+      "output": "true",
+      "explanation": "Treat * as (. The result is (()), which is balanced."
+    },
+    "baseline": "Try all three replacements for each star, rejecting any prefix with more closes than opens. With s stars there can be 3^s choices.",
+    "approach": "After each character, many counts of unmatched opening parentheses may be possible. Keep only the smallest and largest possible counts, low and high. The possible counts between them form a continuous range.\n\nAn opening parenthesis increases both bounds. A closing parenthesis decreases both. A star can decrease the count, keep it unchanged, or increase it, so low decreases and high increases. If high becomes negative, even the most generous interpretation has too many closes: return false. Clamp low to zero because a negative count is not a valid prefix.\n\nAt the end, zero must be a possible count. Since the lower bound never goes below zero, this is exactly low == 0.",
+    "steps": [
+      "Start low = high = 0.",
+      "Update both bounds for the next character.",
+      "Return false if high < 0.",
+      "Replace negative low with zero.",
+      "After the full string, return whether low is zero."
+    ],
+    "java": "static boolean checkValidString(String s) {\n    int low = 0, high = 0;\n    for (int i = 0; i < s.length(); i++) {\n        char ch = s.charAt(i);\n        if (ch == '(') {\n            low++;\n            high++;\n        } else if (ch == ')') {\n            low--;\n            high--;\n        } else {\n            low--;\n            high++;\n        }\n        if (high < 0) return false;\n        low = Math.max(low, 0);\n    }\n    return low == 0;\n}",
+    "time": "O(n).",
+    "space": "O(1).",
+    "pitfalls": [
+      "Equal total numbers of opens and closes are not enough; every prefix must remain possible.",
+      "A star may be empty, so do not force every star to become a bracket.",
+      "Check high before clamping low. Clamping both would hide an impossible prefix.",
+      "Return low == 0, not high == 0. Some valid interpretations may still leave unmatched opens."
+    ],
+    "tests": [
+      "assert checkValidString(\"(*))\");assert !checkValidString(\"*((\");assert !checkValidString(\")*\");assert checkValidString(\"***\");assert checkValidString(\"\");",
+      "class Oracle{boolean solve(String s,int i,int open){if(open<0)return false;if(i==s.length())return open==0;char c=s.charAt(i);if(c=='(')return solve(s,i+1,open+1);if(c==')')return solve(s,i+1,open-1);return solve(s,i+1,open)||solve(s,i+1,open-1)||solve(s,i+1,open+1);}}Oracle o=new Oracle();for(int n=0;n<=9;n++){int total=(int)Math.pow(3,n);for(int mask=0;mask<total;mask++){int x=mask;StringBuilder s=new StringBuilder();for(int i=0;i<n;i++){s.append(\"()*\".charAt(x%3));x/=3;}assert checkValidString(s.toString())==o.solve(s.toString(),0,0);}}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/valid-paranthesis-checker",
+      "title": "Valid Parenthesis Checker",
+      "checkedOn": "2026-10-29",
+      "approach": "Track the range of possible unmatched opening counts.",
+      "adaptation": "The current public statement and its low/high hint were checked. The page exposes a starter rather than a public Java editorial. This authored implementation is checked against all star replacements on short strings."
+    }
   }
 }
