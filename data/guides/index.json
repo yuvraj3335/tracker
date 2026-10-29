@@ -11404,5 +11404,91 @@
     },
     "baselineJava": "static List<Integer> boundaryByFlags(TreeNode root) {\n    List<Integer> result = new ArrayList<>();\n    if (root == null) return result;\n    result.add(root.val);\n    if (!boundaryLeaf(root)) {\n        boundaryDFS(root.left, true, false, result);\n        boundaryDFS(root.right, false, true, result);\n    }\n    return result;\n}\nstatic void boundaryDFS(TreeNode node, boolean left, boolean right, List<Integer> result) {\n    if (node == null) return;\n    if (boundaryLeaf(node)) {\n        result.add(node.val);\n        return;\n    }\n    if (left) result.add(node.val);\n    boundaryDFS(node.left, left, right && node.right == null, result);\n    boundaryDFS(node.right, left && node.left == null, right, result);\n    if (right) result.add(node.val);\n}",
     "baselineTime": "O(n) time and O(h) recursive stack space; deep chains can exhaust the Java call stack."
+  },
+  "295": {
+    "problem": "Group the nodes of a binary tree into vertical columns, from left to right. Within a column, list shallower nodes first. If two nodes share both row and column, list their values in ascending order.",
+    "assumptions": "The root is at row 0, column 0. A left child moves one row down and one column left; a right child moves one row down and one column right. Repeated values are kept. An empty tree returns an empty list.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 7; 9.left = 2",
+      "output": "[[4], [8, 2, 7], [9]]",
+      "explanation": "The nodes 7 and 2 both sit at row 2, column 0. Their values must be sorted, even though a left-to-right BFS visits 7 first."
+    },
+    "baseline": "Record every node as (column, row, value), sort by those three fields, and start a new output list whenever the column changes. This is a useful direct solution and already takes O(n log n) time.",
+    "approach": "Give every node a row and column. An outer TreeMap keeps columns in order. Inside each column, a second TreeMap keeps rows in order. At each exact position, a min-heap keeps values in order.\n\nWalk the tree with a queue and insert each value into its position’s heap. Then read the maps from left to right and top to bottom, removing the smallest value from each heap until it is empty. A heap can contain duplicate values, so no node disappears.\n\nBoth this method and sorting all records take O(n log n) time. The nested containers make the three ordering rules explicit; they do not improve the asymptotic bound.",
+    "steps": [
+      "Queue the root at (row 0, column 0).",
+      "Insert each value into the heap for its column and row.",
+      "Queue the left child at (row + 1, column − 1) and the right child at (row + 1, column + 1).",
+      "Read ordered columns and rows; poll each heap into its column’s output list."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class Position {\n    final TreeNode node;\n    final int row, column;\n    Position(TreeNode node, int row, int column) {\n        this.node = node; this.row = row; this.column = column;\n    }\n}\n\nstatic List<List<Integer>> verticalTraversal(TreeNode root) {\n    List<List<Integer>> answer = new ArrayList<>();\n    if (root == null) return answer;\n    TreeMap<Integer, TreeMap<Integer, PriorityQueue<Integer>>> columns = new TreeMap<>();\n    Queue<Position> queue = new ArrayDeque<>();\n    queue.offer(new Position(root, 0, 0));\n    while (!queue.isEmpty()) {\n        Position current = queue.poll();\n        columns.computeIfAbsent(current.column, key -> new TreeMap<>())\n               .computeIfAbsent(current.row, key -> new PriorityQueue<>())\n               .offer(current.node.val);\n        if (current.node.left != null)\n            queue.offer(new Position(current.node.left, current.row + 1, current.column - 1));\n        if (current.node.right != null)\n            queue.offer(new Position(current.node.right, current.row + 1, current.column + 1));\n    }\n    for (TreeMap<Integer, PriorityQueue<Integer>> rows : columns.values()) {\n        List<Integer> column = new ArrayList<>();\n        for (PriorityQueue<Integer> values : rows.values()) {\n            while (!values.isEmpty()) column.add(values.poll());\n        }\n        answer.add(column);\n    }\n    return answer;\n}",
+    "time": "O(n log n).",
+    "space": "O(n) for queued positions, ordered containers, and output.",
+    "pitfalls": [
+      "BFS order alone does not sort equal-position values.",
+      "A Set would lose duplicate node values. Use a PriorityQueue.",
+      "Iterating over a PriorityQueue does not give sorted order; repeatedly poll it.",
+      "Sort values only after column and row. A small deeper value must not move ahead of a shallower node."
+    ],
+    "tests": [
+      "assert verticalTraversal(null).isEmpty();TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(7);r.right.left=new TreeNode(2);assert verticalTraversal(r).equals(List.of(List.of(4),List.of(8,2,7),List.of(9)));r.left.right.val=Integer.MAX_VALUE;r.right.left.val=Integer.MIN_VALUE;assert verticalTraversal(r).get(1).equals(List.of(8,Integer.MIN_VALUE,Integer.MAX_VALUE));r.left.right.val=2;r.right.left.val=2;assert verticalTraversal(r).get(1).equals(List.of(8,2,2));",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}TreeMap<Integer,List<TreeNode>> groups=new TreeMap<>();for(TreeNode x:paths.keySet()){String path=paths.get(x);int col=0;for(char ch:path.toCharArray())col+=ch=='L'?-1:1;groups.computeIfAbsent(col,k->new ArrayList<>()).add(x);}List<List<Integer>> want=new ArrayList<>();for(List<TreeNode> group:groups.values()){group.sort(Comparator.<TreeNode>comparingInt(x->paths.get(x).length()).thenComparingInt(x->x.val));List<Integer> values=new ArrayList<>();for(TreeNode x:group)values.add(x.val);want.add(values);}assert verticalTraversal(root).equals(want);assert verticalBySorting(root).equals(want);}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<20000;i++){p.right=new TreeNode(i);p=p.right;}List<List<Integer>> a=verticalTraversal(r);assert a.size()==20000;assert a.get(19999).equals(List.of(19999));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/vertical-order-traversal-of-a-binary-tree",
+      "title": "Vertical Order Traversal of a Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Record and sort positions, or use ordered column/row maps with min-heaps for equal-position values.",
+      "adaptation": "Both public Java solutions were checked. The primary code keeps the source’s TreeMap → TreeMap → PriorityQueue structure. The sorting version uses an explicit stack instead of recursive DFS to collect records."
+    },
+    "baselineJava": "static List<List<Integer>> verticalBySorting(TreeNode root) {\n    List<List<Integer>> answer = new ArrayList<>();\n    if (root == null) return answer;\n    List<Position> records = new ArrayList<>();\n    Deque<Position> stack = new ArrayDeque<>();\n    stack.push(new Position(root, 0, 0));\n    while (!stack.isEmpty()) {\n        Position current = stack.pop();\n        records.add(current);\n        if (current.node.right != null)\n            stack.push(new Position(current.node.right, current.row + 1, current.column + 1));\n        if (current.node.left != null)\n            stack.push(new Position(current.node.left, current.row + 1, current.column - 1));\n    }\n    records.sort(Comparator.comparingInt((Position x) -> x.column)\n            .thenComparingInt(x -> x.row).thenComparingInt(x -> x.node.val));\n    Integer previous = null;\n    for (Position current : records) {\n        if (previous == null || current.column != previous) {\n            answer.add(new ArrayList<>());\n            previous = current.column;\n        }\n        answer.get(answer.size() - 1).add(current.node.val);\n    }\n    return answer;\n}"
+  },
+  "296": {
+    "problem": "Return the top view of a binary tree: one visible value per vertical column, ordered from the leftmost column to the rightmost.",
+    "assumptions": "The root has column 0. Left and right children have columns one lower and one higher. Keep the shallowest node in each column. For equal depth, keep the node encountered first in left-to-right level order. This tie rule follows the source Java.",
+    "example": {
+      "input": "root 8; children 4 and 9; 4.right = 7; 9.left = 2",
+      "output": "[4, 8, 9]",
+      "explanation": "Both 7 and 2 lie below 8 in column 0, so 8 hides them from above."
+    },
+    "baseline": "Collect every node with its column, depth, and BFS visit order. Sort by column, depth, then visit order. Take the first node in each column. This works but sorts more information than the answer needs.",
+    "approach": "Use BFS because it visits shallower nodes before deeper nodes. The first node seen in a column is therefore the one visible from above. Save it once and never replace it. Enqueue left before right so equal-depth ties follow the source’s left-to-right order.\n\nA HashMap stores the chosen value for each column. Also remember the smallest and largest column reached. Read that whole integer range to produce the answer. There cannot be a gap: reaching column 3 from column 0 requires passing through columns 1 and 2.",
+    "steps": [
+      "Queue the root at column 0.",
+      "For each node, save its value only if its column has no saved value.",
+      "Queue left before right, adjusting the column by −1 or +1.",
+      "Read saved values from the minimum column through the maximum column."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class Position {\n    final TreeNode node;\n    final int row, column;\n    Position(TreeNode node, int row, int column) {\n        this.node = node; this.row = row; this.column = column;\n    }\n}\n\nstatic List<Integer> topView(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    if (root == null) return answer;\n    Map<Integer, Integer> visible = new HashMap<>();\n    Queue<Position> queue = new ArrayDeque<>();\n    queue.offer(new Position(root, 0, 0));\n    int minimum = 0, maximum = 0;\n    while (!queue.isEmpty()) {\n        Position current = queue.poll();\n        visible.putIfAbsent(current.column, current.node.val);\n        minimum = Math.min(minimum, current.column);\n        maximum = Math.max(maximum, current.column);\n        if (current.node.left != null)\n            queue.offer(new Position(current.node.left, current.row + 1, current.column - 1));\n        if (current.node.right != null)\n            queue.offer(new Position(current.node.right, current.row + 1, current.column + 1));\n    }\n    for (int column = minimum; column <= maximum; column++) answer.add(visible.get(column));\n    return answer;\n}",
+    "time": "O(n) expected time with HashMap.",
+    "space": "O(n) for the queue, map, and output.",
+    "pitfalls": [
+      "Do not overwrite a saved column; that would move toward the bottom view.",
+      "DFS cannot safely keep the first node it visits. It may reach a deep node before a shallower one in another subtree.",
+      "Do not sort tied values as in vertical traversal. Top view uses visit order.",
+      "A column is a horizontal position, not a node’s depth."
+    ],
+    "tests": [
+      "assert topView(null).isEmpty();TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(7);r.right.left=new TreeNode(2);assert topView(r).equals(List.of(4,8,9));",
+      "Random random=new Random(288);for(int test=0;test<600;test++){int n=1+random.nextInt(80);TreeNode root=new TreeNode(random.nextInt(10));Map<TreeNode,String>paths=new IdentityHashMap<>();paths.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(random.nextInt(open.size())),child=new TreeNode(random.nextInt(10));boolean left=parent.left==null&&(parent.right!=null||random.nextBoolean());if(left)parent.left=child;else parent.right=child;paths.put(child,paths.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}TreeMap<Integer,List<TreeNode>> groups=new TreeMap<>();for(TreeNode x:paths.keySet()){int col=0;for(char ch:paths.get(x).toCharArray())col+=ch=='L'?-1:1;groups.computeIfAbsent(col,k->new ArrayList<>()).add(x);}List<Integer> want=new ArrayList<>();for(List<TreeNode> group:groups.values()){group.sort(Comparator.<TreeNode>comparingInt(x->paths.get(x).length()).thenComparing(x->paths.get(x)));want.add(group.get(0).val);}assert topView(root).equals(want);assert topBySorting(root).equals(want);assert topByDfs(root).equals(want);}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}List<Integer>a=topView(r);assert a.size()==100000&&a.get(99999)==99999;",
+      "TreeNode r=new TreeNode(0);r.left=new TreeNode(1);r.left.right=new TreeNode(2);r.left.right.right=new TreeNode(3);r.left.right.right.right=new TreeNode(99);r.right=new TreeNode(4);r.right.left=new TreeNode(5);r.right.left.right=new TreeNode(6);r.right.left.right.right=new TreeNode(-99);assert topView(r).equals(List.of(1,0,4,99));assert topByDfs(r).equals(topView(r));assert topBySorting(r).equals(topView(r));"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/top-view-of-binary-tree",
+      "title": "Top View of Binary Tree",
+      "checkedOn": "2026-10-29",
+      "approach": "Sorting records, DFS with minimum depth, and BFS keeping the first node per column.",
+      "adaptation": "All three public Java methods were checked. The main version follows the source’s HashMap, BFS, and minimum/maximum column range; ArrayDeque replaces LinkedList. Equal-depth ties retain the first left-to-right node."
+    },
+    "baselineJava": "static List<Integer> topBySorting(TreeNode root) {\n    List<Integer> answer = new ArrayList<>();\n    if (root == null) return answer;\n    List<int[]> records = new ArrayList<>();\n    Queue<Position> queue = new ArrayDeque<>();\n    queue.offer(new Position(root, 0, 0));\n    int order = 0;\n    while (!queue.isEmpty()) {\n        Position current = queue.poll();\n        records.add(new int[]{current.column, current.row, order++, current.node.val});\n        if (current.node.left != null)\n            queue.offer(new Position(current.node.left, current.row + 1, current.column - 1));\n        if (current.node.right != null)\n            queue.offer(new Position(current.node.right, current.row + 1, current.column + 1));\n    }\n    records.sort(Comparator.comparingInt((int[] x) -> x[0])\n            .thenComparingInt(x -> x[1]).thenComparingInt(x -> x[2]));\n    Integer previous = null;\n    for (int[] record : records) {\n        if (previous == null || record[0] != previous) {\n            answer.add(record[3]);\n            previous = record[0];\n        }\n    }\n    return answer;\n}",
+    "baselineTime": "O(n log n) time and O(n) space.",
+    "better": {
+      "explanation": "DFS can arrive at a deep node first, so remember the smallest depth seen for each column. Replace an entry only for a strictly smaller depth. Visit left before right to preserve the required tie rule. A TreeMap gives left-to-right output.",
+      "java": "static List<Integer> topByDfs(TreeNode root) {\n    TreeMap<Integer, int[]> columns = new TreeMap<>();\n    topDfs(root, 0, 0, columns);\n    List<Integer> answer = new ArrayList<>();\n    for (int[] entry : columns.values()) answer.add(entry[1]);\n    return answer;\n}\nstatic void topDfs(TreeNode node, int row, int column, TreeMap<Integer, int[]> columns) {\n    if (node == null) return;\n    int[] saved = columns.get(column);\n    if (saved == null || row < saved[0]) columns.put(column, new int[]{row, node.val});\n    topDfs(node.left, row + 1, column - 1, columns);\n    topDfs(node.right, row + 1, column + 1, columns);\n}",
+      "time": "O(n log n).",
+      "space": "O(n), including O(h) recursive stack space. A very deep tree can overflow Java’s call stack."
+    }
   }
 }
