@@ -15753,5 +15753,102 @@
         ]
       ]
     }
+  },
+  "395": {
+    "problem": "Choose any cell in the top row and move down one row at a time, either straight or diagonally by one column. Find the smallest total on reaching the bottom.",
+    "assumptions": "The tracker title mentions minimum/maximum, but its linked LeetCode 931 problem asks for the minimum. That is the implemented version. The linked matrix is square, at most 100 × 100, with values from −100 to 100. The methods also work for nonempty rectangular matrices within the same value and dimension bounds. The input is unchanged.",
+    "example": {
+      "input": "matrix = [[6,2,9], [4,-3,5], [7,1,8]]",
+      "output": "0",
+      "explanation": "Start at 2, move straight to −3, then straight to 1. The sum is 0. Both the starting and ending column are choices."
+    },
+    "baseline": "Try each top-row starting column. From every cell, recursively try the three next-row moves and choose the cheapest completion. Out-of-grid columns are invalid. Shared cells get recomputed many times.",
+    "approach": "Let the answer at (r,c) mean the cheapest sum from this cell to any cell in the last row. On the last row, this is just the cell’s value. Above it, compare the complete answers directly below, below-left and below-right. Add the current value after choosing the cheapest valid child.\n\nBuild these answers upward from the last row. Keep the child row unchanged while calculating the parent row: one child may be needed by several neighboring parents. After finishing the row, replace below with current.\n\nFinally take the minimum across the first row because the problem does not fix a starting column. For the maximum version mentioned in the title, the same state works with maximum comparisons; any invalid-move sentinel must then be very negative. Do not only change the final comparison and leave the transitions minimizing.",
+    "steps": [
+      "Copy the last row as the known remaining costs.",
+      "For each earlier cell, begin with the straight-down child, which always exists.",
+      "Compare the two diagonal children only when their columns exist.",
+      "Add the current cell value and save it in a fresh row.",
+      "Return the smallest result among all starting columns."
+    ],
+    "java": "static int minFallingPathSum(int[][] matrix) {\n    int cols = matrix[0].length;\n    int[] below = matrix[matrix.length-1].clone();\n    for (int r = matrix.length-2; r >= 0; r--) {\n        int[] current = new int[cols];\n        for (int col = 0; col < cols; col++) {\n            int best = below[col];\n            if (col > 0) best = Math.min(best,below[col-1]);\n            if (col+1 < cols) best = Math.min(best,below[col+1]);\n            current[col] = matrix[r][col] + best;\n        }\n        below = current;\n    }\n    int answer = below[0];\n    for (int value : below) answer = Math.min(answer,value);\n    return answer;\n}",
+    "time": "O(rows × cols), or O(n²) for the linked square matrix.",
+    "space": "O(cols) for two rows.",
+    "pitfalls": [
+      "A path must reach the last row; negative entries are allowed and do not justify stopping early.",
+      "Start from every first-row column, not only column zero.",
+      "Missing diagonals are invalid, not zero-cost routes.",
+      "An in-place left-to-right update would mix the child row with the parent row. Use fresh storage.",
+      "A valid result can be −1. Do not use −1 as an uncomputed marker without considering repeated recomputation."
+    ],
+    "tests": [
+      "assert minFallingPathSum(new int[][]{{6,2,9},{4,-3,5},{7,1,8}})==0;assert minFallingPathSum(new int[][]{{-8}})==-8;assert minFallingPathSum(new int[][]{{9,1},{8,7}})==8;",
+      "Random random=new Random(395);\nfor(int trial=0;trial<1000;trial++){\n int rows=1+random.nextInt(5),cols=1+random.nextInt(5);int[][] grid=new int[rows][cols],saved=new int[rows][cols];for(int r=0;r<rows;r++)for(int col=0;col<cols;col++)saved[r][col]=grid[r][col]=random.nextInt(201)-100;\n int choices=1;for(int r=1;r<rows;r++)choices*=3;int expected=Integer.MAX_VALUE;\n for(int start=0;start<cols;start++)for(int code=0;code<choices;code++){int col=start,sum=grid[0][col],moves=code;boolean valid=true;for(int r=1;r<rows;r++){col+=moves%3-1;moves/=3;if(col<0||col>=cols){valid=false;break;}sum+=grid[r][col];}if(valid)expected=Math.min(expected,sum);}\n assert minFallingPathSum(grid)==expected;assert fallingMemoized(grid)==expected;assert fallingTabulated(grid)==expected;int recursive=Integer.MAX_VALUE;for(int col=0;col<cols;col++)recursive=Math.min(recursive,fallingRecursive(grid,0,col));assert recursive==expected;assert Arrays.deepEquals(grid,saved);\n}",
+      "int[][] matrix=new int[100][100];for(int[] row:matrix)Arrays.fill(row,-100);assert minFallingPathSum(matrix)==-10000;assert fallingMemoized(matrix)==-10000;assert fallingTabulated(matrix)==-10000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/minimum-falling-path-sum",
+      "title": "Minimum Falling Path Sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Three downward choices; memoization, upward tabulation, and two rolling rows.",
+      "adaptation": "All four complete public Java methods were checked. This version retains the same state and row order. It checks valid children explicitly in iterative code instead of assigning large costs to absent diagonals, uses completion markers for memoization, and accepts rectangular input as a small extension. The pinned problem asks for minimum, not maximum."
+    },
+    "baselineJava": "static int fallingRecursive(int[][] matrix, int r, int col) {\n    if (col < 0 || col >= matrix[0].length) return 1_000_000_000;\n    if (r == matrix.length-1) return matrix[r][col];\n    int best = Math.min(fallingRecursive(matrix,r+1,col-1),\n               Math.min(fallingRecursive(matrix,r+1,col),fallingRecursive(matrix,r+1,col+1)));\n    return matrix[r][col] + best;\n}",
+    "baselineTime": "O(cols × 3^rows) time as an upper bound when trying every start; O(rows) stack space. The invalid-column cost is safely above every valid sum under the stated bounds.",
+    "better": {
+      "explanation": "The memoized version saves each cell’s cheapest remaining sum. A boolean table separates completed states from valid negative answers. The full table version makes the bottom-to-top dependency visible before reducing storage to two rows.",
+      "java": "static int fallingMemoized(int[][] matrix) {\n    int rows = matrix.length, cols = matrix[0].length;\n    int[][] memo = new int[rows][cols];\n    boolean[][] done = new boolean[rows][cols];\n    int answer = Integer.MAX_VALUE;\n    for (int col = 0; col < cols; col++) answer = Math.min(answer,fallingMemo(matrix,0,col,memo,done));\n    return answer;\n}\nstatic int fallingMemo(int[][] a, int r, int col, int[][] memo, boolean[][] done) {\n    if (r == a.length-1) return a[r][col];\n    if (done[r][col]) return memo[r][col];\n    int best = fallingMemo(a,r+1,col,memo,done);\n    if (col > 0) best = Math.min(best,fallingMemo(a,r+1,col-1,memo,done));\n    if (col+1 < a[0].length) best = Math.min(best,fallingMemo(a,r+1,col+1,memo,done));\n    done[r][col] = true;\n    return memo[r][col] = a[r][col] + best;\n}\nstatic int fallingTabulated(int[][] matrix) {\n    int rows = matrix.length, cols = matrix[0].length;\n    int[][] dp = new int[rows][cols];\n    dp[rows-1] = matrix[rows-1].clone();\n    for (int r = rows-2; r >= 0; r--) for (int col = 0; col < cols; col++) {\n        int best = dp[r+1][col];\n        if (col > 0) best = Math.min(best,dp[r+1][col-1]);\n        if (col+1 < cols) best = Math.min(best,dp[r+1][col+1]);\n        dp[r][col] = matrix[r][col] + best;\n    }\n    int answer = dp[0][0];\n    for (int value : dp[0]) answer = Math.min(answer,value);\n    return answer;\n}",
+      "time": "O(rows × cols).",
+      "space": "O(rows × cols), plus O(rows) stack space for memoization."
+    }
+  },
+  "396": {
+    "problem": "Two friends start at opposite ends of the top row. On each step both move to the next row, shifting their column by −1, 0 or 1. Maximize the chocolates collected, counting a shared cell once.",
+    "assumptions": "The pinned problem has 2 to 50 rows and columns, with 0 to 100 chocolates per cell. Both friends must finish in the bottom row. They may meet or cross; neither is required to stay left of the other. The methods also handle a single row or column. The grid is unchanged and the maximum total fits in int.",
+    "example": {
+      "input": "grid = [[4,0,3], [0,8,0], [5,0,6]]",
+      "output": "26",
+      "explanation": "Collect 4 + 3 at the start. Both can move to the middle cell in row 1, collecting its 8 once. Then move apart to collect 5 + 6. Total: 7 + 8 + 11 = 26."
+    },
+    "baseline": "Track the row and both columns. Recursively try each pair of next moves: three choices for one friend and three for the other, so at most nine pairs. Add the current row’s collection to the best valid continuation. Plain recursion repeats the same joint positions.",
+    "approach": "One cell position is not enough to describe this problem. The next answer depends on where both friends are, so use state (row, firstColumn, secondColumn). They always share the same row because both move down once per step.\n\nAt that state, collect grid[row][firstColumn]. Add the other cell only if the columns differ. Next, try all nine pairs of column changes and keep only pairs that stay inside the grid. Choose the largest remaining collection and add today’s collection to it.\n\nWork upward from the last row. A last-row state needs only its one or two cell values. Each earlier row reads a table of pairs from the row below. Store that completed table in below and write a fresh current table. The answer is the state whose columns are 0 and cols − 1 in row 0.\n\nThere is no need to remember previously visited cells: later moves always enter a new row. Overlap can happen only within the current pair, which is why comparing the two columns is enough.",
+    "steps": [
+      "Initialize every pair of columns in the last row, counting a shared cell once.",
+      "For each earlier row and pair of current columns, inspect the nine next-column pairs.",
+      "Discard pairs with either column outside the grid.",
+      "Add the current collection to the best valid next state.",
+      "Replace the lower-row table after the current table is complete.",
+      "Read the top-row state (0, cols − 1)."
+    ],
+    "java": "static int rowCollection(int[][] grid, int row, int first, int second) {\n    return grid[row][first] + (first == second ? 0 : grid[row][second]);\n}\nstatic int maxChocolates(int[][] grid) {\n    int rows = grid.length, cols = grid[0].length;\n    int[][] below = new int[cols][cols];\n    for (int a = 0; a < cols; a++) for (int b = 0; b < cols; b++) {\n        below[a][b] = rowCollection(grid,rows-1,a,b);\n    }\n    for (int r = rows-2; r >= 0; r--) {\n        int[][] current = new int[cols][cols];\n        for (int a = 0; a < cols; a++) for (int b = 0; b < cols; b++) {\n            int best = 0;\n            for (int da = -1; da <= 1; da++) for (int db = -1; db <= 1; db++) {\n                int nextA = a+da, nextB = b+db;\n                if (nextA >= 0 && nextA < cols && nextB >= 0 && nextB < cols) {\n                    best = Math.max(best,below[nextA][nextB]);\n                }\n            }\n            current[a][b] = rowCollection(grid,r,a,b) + best;\n        }\n        below = current;\n    }\n    return below[0][cols-1];\n}",
+    "time": "O(rows × cols² × 9), which is O(rows × cols²).",
+    "space": "O(cols²) for two tables of column pairs.",
+    "pitfalls": [
+      "Two separately optimized paths can double-count shared cells. Solve the two positions together.",
+      "When the columns match, count that cell once even on the first or last row.",
+      "The two moves are independent: inspect all nine combinations, not just matching shifts.",
+      "Starting best at zero relies on nonnegative chocolates. For negative rewards, start from an actual valid continuation or a sufficiently negative value.",
+      "Do not prevent the friends from meeting or crossing; the problem allows it."
+    ],
+    "tests": [
+      "int[][] grid={{4,0,3},{0,8,0},{5,0,6}};assert maxChocolates(grid)==26;assert friendsMemoized(grid)==26;assert friendsRecursive(grid,0,0,2)==26;assert maxChocolates(new int[][]{{5},{7},{2}})==14;assert maxChocolates(new int[][]{{2,9,3}})==5;",
+      "Random random=new Random(396);\nfor(int trial=0;trial<800;trial++){\n int rows=1+random.nextInt(4),cols=1+random.nextInt(4);int[][] grid=new int[rows][cols],copy=new int[rows][cols];for(int r=0;r<rows;r++)for(int col=0;col<cols;col++)copy[r][col]=grid[r][col]=random.nextInt(11);\n int codes=1;for(int r=1;r<rows;r++)codes*=3;\n List<int[]> left=new ArrayList<>(),right=new ArrayList<>();\n for(int side=0;side<2;side++)for(int code=0;code<codes;code++){int[] route=new int[rows];route[0]=side==0?0:cols-1;int moves=code;boolean valid=true;for(int r=1;r<rows;r++){route[r]=route[r-1]+moves%3-1;moves/=3;if(route[r]<0||route[r]>=cols){valid=false;break;}}if(valid)(side==0?left:right).add(route);}\n int expected=0;for(int[] a:left)for(int[] b:right){int sum=0;for(int r=0;r<rows;r++){Set<Integer> visited=new HashSet<>();visited.add(a[r]);visited.add(b[r]);for(int col:visited)sum+=grid[r][col];}expected=Math.max(expected,sum);}\n assert maxChocolates(grid)==expected;assert friendsMemoized(grid)==expected;assert friendsRecursive(grid,0,0,cols-1)==expected;assert Arrays.deepEquals(copy,grid);\n}",
+      "int[][] grid=new int[50][50];for(int[] row:grid)Arrays.fill(row,100);assert maxChocolates(grid)==10000;assert friendsMemoized(grid)==10000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/ninja-and-his-friends",
+      "title": "Ninja and his Friends",
+      "checkedOn": "2026-10-29",
+      "approach": "Joint row-and-two-columns state, memoization, and bottom-up row tables.",
+      "adaptation": "The pinned public statement and bounds were checked. The current sheet calls the same movement problem Cherry Pickup II; its public hints recommend memoizing both positions and then working upward. The pinned solution requires sign-in and the old DP-13 tutorial is unavailable, so their Java was not inspected. This is an original implementation of the stated joint-position method, checked against pairs of complete routes."
+    },
+    "baselineJava": "static int friendsRecursive(int[][] grid, int row, int a, int b) {\n    int collected = rowCollection(grid,row,a,b);\n    if (row == grid.length-1) return collected;\n    int best = 0, cols = grid[0].length;\n    for (int da = -1; da <= 1; da++) for (int db = -1; db <= 1; db++) {\n        int nextA = a+da, nextB = b+db;\n        if (nextA >= 0 && nextA < cols && nextB >= 0 && nextB < cols) {\n            best = Math.max(best,friendsRecursive(grid,row+1,nextA,nextB));\n        }\n    }\n    return collected + best;\n}",
+    "baselineTime": "O(9^rows) time as an upper bound and O(rows) stack space. Uses rowCollection from the main code.",
+    "better": {
+      "explanation": "Memoization asks the same question recursively and saves each row-and-two-columns answer. A value of −1 means uncomputed because all valid collections are nonnegative. This version uses rowCollection from the main code.",
+      "java": "static int friendsMemoized(int[][] grid) {\n    int rows = grid.length, cols = grid[0].length;\n    int[][][] memo = new int[rows][cols][cols];\n    for (int[][] layer : memo) for (int[] row : layer) Arrays.fill(row,-1);\n    return friendsMemo(grid,0,0,cols-1,memo);\n}\nstatic int friendsMemo(int[][] grid, int row, int a, int b, int[][][] memo) {\n    if (memo[row][a][b] != -1) return memo[row][a][b];\n    int collected = rowCollection(grid,row,a,b);\n    if (row == grid.length-1) return memo[row][a][b] = collected;\n    int best = 0, cols = grid[0].length;\n    for (int da = -1; da <= 1; da++) for (int db = -1; db <= 1; db++) {\n        int nextA = a+da, nextB = b+db;\n        if (nextA >= 0 && nextA < cols && nextB >= 0 && nextB < cols) {\n            best = Math.max(best,friendsMemo(grid,row+1,nextA,nextB,memo));\n        }\n    }\n    return memo[row][a][b] = collected + best;\n}",
+      "time": "O(rows × cols²).",
+      "space": "O(rows × cols²) for saved answers and O(rows) for recursion."
+    }
   }
 }
