@@ -18016,5 +18016,179 @@
         ]
       ]
     }
+  },
+  "431": {
+    "problem": "Choose parentheses for a fixed chain of matrices so the number of scalar multiplications is as small as possible.",
+    "assumptions": "A dimensions array of length n describes n−1 matrices: matrix i has dimensions[i−1] rows and dimensions[i] columns. Matrix order cannot change. The source has n <= 100 and positive dimensions <= 100. A single matrix costs zero because nothing needs multiplying. The helpers also return zero for no matrices.",
+    "example": {
+      "input": "dimensions = [5,2,6,3]",
+      "output": "66",
+      "explanation": "(A1A2)A3 costs 5×2×6 + 5×6×3 = 150. A1(A2A3) costs 2×6×3 + 5×2×3 = 66. The matrices stay in the same order; only the grouping changes."
+    },
+    "baseline": "Try every final split recursively. Solve both subchains, then multiply their results. Without caching, the same intervals are solved many times, giving exponential work.",
+    "approach": "Think about the last multiplication, not the first. It must join two consecutive groups: matrices first..split and split+1..last. Try every possible split between first and last.\n\nThe left group produces a matrix with dimensions[first−1] rows and dimensions[split] columns. The right group produces dimensions[split] rows and dimensions[last] columns. Multiplying these results costs the product of those three numbers. Add the best cost of making each result.\n\nThe interval endpoints fully describe the remaining problem; earlier choices do not matter once those endpoints are fixed. Cache the minimum for each (first,last) pair. There are O(n²) intervals, and each tries at most O(n) splits.\n\nThis is why choosing the cheapest-looking immediate multiplication is unsafe: that choice also changes the dimensions of the intermediate matrix used later.",
+    "steps": [
+      "Use matrix indices 1 through dimensions.length−1.",
+      "Return zero when an interval has at most one matrix.",
+      "Reuse a cached cost when available.",
+      "Try every final split and include both child costs plus the merge cost.",
+      "Cache the minimum for this interval."
+    ],
+    "java": "static long matrixMemo(int[] dimensions) {\n    if(dimensions.length<2) return 0;\n    long[][] saved=new long[dimensions.length][dimensions.length];\n    for(long[] row:saved) Arrays.fill(row,-1);\n    return matrixAt(dimensions,1,dimensions.length-1,saved);\n}\nstatic long matrixAt(int[] d, int first, int last, long[][] saved) {\n    if(first>=last) return 0;\n    if(saved[first][last]!=-1) return saved[first][last];\n    long best=Long.MAX_VALUE;\n    for(int split=first;split<last;split++) {\n        long merge=(long)d[first-1]*d[split]*d[last];\n        long cost=matrixAt(d,first,split,saved)+matrixAt(d,split+1,last,saved)+merge;\n        best=Math.min(best,cost);\n    }\n    return saved[first][last]=best;\n}\n\nstatic int matrixMultiplication(int[] dimensions) { return Math.toIntExact(matrixMemo(dimensions)); }",
+    "time": "O(n³), where n is the number of dimensions.",
+    "space": "O(n²) table. Recursion also uses O(n) stack.",
+    "pitfalls": [
+      "n dimensions describe n−1 matrices, not n matrices.",
+      "The split ranges from first to last−1, so neither subchain is empty.",
+      "Include the costs inside both subchains as well as the final merge.",
+      "Do not sort dimensions or reorder matrices; multiplication is associative but not commutative.",
+      "Cast before multiplying dimensions so the multiplication occurs in long arithmetic."
+    ],
+    "tests": [
+      "assert matrixMultiplication(new int[]{5,2,6,3})==66;assert matrixMultiplication(new int[]{8,9})==0;assert matrixMultiplication(new int[]{})==0;assert matrixMemo(new int[]{100000,100000,100000})==1000000000000000L;",
+      "class MergeOrders {\n    long cheapest(List<long[]> matrices) {\n        if(matrices.size()<=1) return 0;\n        long answer=Long.MAX_VALUE;\n        for(int i=0;i+1<matrices.size();i++) {\n            long[] a=matrices.get(i),b=matrices.get(i+1);\n            List<long[]> next=new ArrayList<>(matrices);\n            next.set(i,new long[]{a[0],b[1]});next.remove(i+1);\n            answer=Math.min(answer,a[0]*a[1]*b[1]+cheapest(next));\n        }\n        return answer;\n    }\n}\nMergeOrders oracle=new MergeOrders();Random random=new Random(431);\nfor(int trial=0;trial<600;trial++){int m=1+random.nextInt(7);int[] d=new int[m+1];for(int i=0;i<d.length;i++)d[i]=1+random.nextInt(12);List<long[]> matrices=new ArrayList<>();for(int i=0;i<m;i++)matrices.add(new long[]{d[i],d[i+1]});long expected=oracle.cheapest(matrices);assert matrixMemo(d)==expected;assert matrixTable(d)==expected;assert matrixRecursive(d,1,m)==expected;}",
+      "int[] d=new int[100];Arrays.fill(d,100);assert matrixMultiplication(d)==98000000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/matrix-chain-multiplication",
+      "title": "Matrix chain multiplication",
+      "checkedOn": "2026-10-29",
+      "approach": "Interval DP: try each final split and add the left cost, right cost, and dimensions[first−1] × dimensions[split] × dimensions[last].",
+      "adaptation": "The current statement, both public hints, and dimension-product FAQ were checked. The Solution panel requires sign-in, so no complete source Java was inspected. These Java implementations express the published recurrence as memoization and increasing-interval-length tabulation. Costs use long internally and the source-compatible wrapper returns int."
+    },
+    "baselineJava": "static long matrixRecursive(int[] dimensions, int first, int last) {\n    if(first>=last) return 0;\n    long best=Long.MAX_VALUE;\n    for(int split=first;split<last;split++) {\n        long merge=(long)dimensions[first-1]*dimensions[split]*dimensions[last];\n        long cost=matrixRecursive(dimensions,first,split)\n            + matrixRecursive(dimensions,split+1,last)+merge;\n        best=Math.min(best,cost);\n    }\n    return best;\n}",
+    "baselineTime": "Exponential time without memoization; O(n) call stack.",
+    "better": {
+      "explanation": "The bottom-up version evaluates intervals by increasing length. Both parts of every split are already filled, so no recursive calls are needed.",
+      "java": "static long matrixTable(int[] d) {\n    int matrices=d.length-1;\n    if(matrices<=1) return 0;\n    long[][] dp=new long[matrices+1][matrices+1];\n    for(int length=2;length<=matrices;length++) {\n        for(int first=1;first+length-1<=matrices;first++) {\n            int last=first+length-1;\n            dp[first][last]=Long.MAX_VALUE;\n            for(int split=first;split<last;split++) {\n                long merge=(long)d[first-1]*d[split]*d[last];\n                long cost=dp[first][split]+dp[split+1][last]+merge;\n                dp[first][last]=Math.min(dp[first][last],cost);\n            }\n        }\n    }\n    return dp[1][matrices];\n}",
+      "time": "O(n³).",
+      "space": "O(n²); memoization also uses O(n) stack."
+    },
+    "trace": {
+      "columns": [
+        "Interval",
+        "Dimensions of result",
+        "Minimum cost"
+      ],
+      "rows": [
+        [
+          "A1",
+          "5×2",
+          "0"
+        ],
+        [
+          "A2",
+          "2×6",
+          "0"
+        ],
+        [
+          "A3",
+          "6×3",
+          "0"
+        ],
+        [
+          "A1A2",
+          "5×6",
+          "60"
+        ],
+        [
+          "A2A3",
+          "2×3",
+          "36"
+        ],
+        [
+          "A1A2A3",
+          "5×3",
+          "min(0+36+30, 60+0+90) = 66"
+        ]
+      ]
+    }
+  },
+  "432": {
+    "problem": "Choose parentheses for a fixed chain of matrices so the number of scalar multiplications is as small as possible.",
+    "assumptions": "A dimensions array of length n describes n−1 matrices: matrix i has dimensions[i−1] rows and dimensions[i] columns. Matrix order cannot change. The source has n <= 100 and positive dimensions <= 100. A single matrix costs zero because nothing needs multiplying. The helpers also return zero for no matrices.",
+    "example": {
+      "input": "dimensions = [5,2,6,3]",
+      "output": "66",
+      "explanation": "(A1A2)A3 costs 5×2×6 + 5×6×3 = 150. A1(A2A3) costs 2×6×3 + 5×2×3 = 66. The matrices stay in the same order; only the grouping changes."
+    },
+    "baseline": "Try every final split recursively. Solve both subchains, then multiply their results. Without caching, the same intervals are solved many times, giving exponential work.",
+    "approach": "The memoized lesson defined cost(first,last) for a whole interval of matrices. To remove recursion, fill the same intervals from short to long. Single matrices are the base cases: their cost is zero.\n\nThe left group produces a matrix with dimensions[first−1] rows and dimensions[split] columns. The right group produces dimensions[split] rows and dimensions[last] columns. Multiplying these results costs the product of those three numbers. Add the best cost of making each result.\n\nFor an interval of length L, both sides of every split are shorter than L. Filling by increasing length guarantees that both costs are already known. Initialize each nontrivial interval to a large value and minimize over all split points. The answer spans matrices 1 through n−1.\n\nThis table stores costs, not matrix entries. We never perform the actual matrix multiplication.",
+    "steps": [
+      "Create a zero-filled cost table; diagonal entries represent single matrices.",
+      "Fill intervals of length two, then three, and so on.",
+      "For each interval, try every split before its final matrix.",
+      "Add the two smaller interval costs and the cost of merging their results.",
+      "Return the cost of the complete chain."
+    ],
+    "java": "static long matrixTable(int[] d) {\n    int matrices=d.length-1;\n    if(matrices<=1) return 0;\n    long[][] dp=new long[matrices+1][matrices+1];\n    for(int length=2;length<=matrices;length++) {\n        for(int first=1;first+length-1<=matrices;first++) {\n            int last=first+length-1;\n            dp[first][last]=Long.MAX_VALUE;\n            for(int split=first;split<last;split++) {\n                long merge=(long)d[first-1]*d[split]*d[last];\n                long cost=dp[first][split]+dp[split+1][last]+merge;\n                dp[first][last]=Math.min(dp[first][last],cost);\n            }\n        }\n    }\n    return dp[1][matrices];\n}\n\nstatic int matrixMultiplication(int[] dimensions) { return Math.toIntExact(matrixTable(dimensions)); }",
+    "time": "O(n³), where n is the number of dimensions.",
+    "space": "O(n²) table.",
+    "pitfalls": [
+      "n dimensions describe n−1 matrices, not n matrices.",
+      "The split ranges from first to last−1, so neither subchain is empty.",
+      "Include the costs inside both subchains as well as the final merge.",
+      "Do not sort dimensions or reorder matrices; multiplication is associative but not commutative.",
+      "Cast before multiplying dimensions so the multiplication occurs in long arithmetic."
+    ],
+    "tests": [
+      "assert matrixMultiplication(new int[]{5,2,6,3})==66;assert matrixMultiplication(new int[]{8,9})==0;assert matrixMultiplication(new int[]{})==0;assert matrixMemo(new int[]{100000,100000,100000})==1000000000000000L;",
+      "class MergeOrders {\n    long cheapest(List<long[]> matrices) {\n        if(matrices.size()<=1) return 0;\n        long answer=Long.MAX_VALUE;\n        for(int i=0;i+1<matrices.size();i++) {\n            long[] a=matrices.get(i),b=matrices.get(i+1);\n            List<long[]> next=new ArrayList<>(matrices);\n            next.set(i,new long[]{a[0],b[1]});next.remove(i+1);\n            answer=Math.min(answer,a[0]*a[1]*b[1]+cheapest(next));\n        }\n        return answer;\n    }\n}\nMergeOrders oracle=new MergeOrders();Random random=new Random(431);\nfor(int trial=0;trial<600;trial++){int m=1+random.nextInt(7);int[] d=new int[m+1];for(int i=0;i<d.length;i++)d[i]=1+random.nextInt(12);List<long[]> matrices=new ArrayList<>();for(int i=0;i<m;i++)matrices.add(new long[]{d[i],d[i+1]});long expected=oracle.cheapest(matrices);assert matrixMemo(d)==expected;assert matrixTable(d)==expected;assert matrixRecursive(d,1,m)==expected;}",
+      "int[] d=new int[100];Arrays.fill(d,100);assert matrixMultiplication(d)==98000000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/matrix-chain-multiplication",
+      "title": "Matrix chain multiplication",
+      "checkedOn": "2026-10-29",
+      "approach": "Interval DP: try each final split and add the left cost, right cost, and dimensions[first−1] × dimensions[split] × dimensions[last].",
+      "adaptation": "The current statement, both public hints, and dimension-product FAQ were checked. The Solution panel requires sign-in, so no complete source Java was inspected. These Java implementations express the published recurrence as memoization and increasing-interval-length tabulation. Costs use long internally and the source-compatible wrapper returns int."
+    },
+    "baselineJava": "static long matrixRecursive(int[] dimensions, int first, int last) {\n    if(first>=last) return 0;\n    long best=Long.MAX_VALUE;\n    for(int split=first;split<last;split++) {\n        long merge=(long)dimensions[first-1]*dimensions[split]*dimensions[last];\n        long cost=matrixRecursive(dimensions,first,split)\n            + matrixRecursive(dimensions,split+1,last)+merge;\n        best=Math.min(best,cost);\n    }\n    return best;\n}",
+    "baselineTime": "Exponential time without memoization; O(n) call stack.",
+    "better": {
+      "explanation": "The memoized version starts from the full interval and solves only needed smaller intervals. It has the same recurrence; the difference is evaluation order and the recursion stack.",
+      "java": "static long matrixMemo(int[] dimensions) {\n    if(dimensions.length<2) return 0;\n    long[][] saved=new long[dimensions.length][dimensions.length];\n    for(long[] row:saved) Arrays.fill(row,-1);\n    return matrixAt(dimensions,1,dimensions.length-1,saved);\n}\nstatic long matrixAt(int[] d, int first, int last, long[][] saved) {\n    if(first>=last) return 0;\n    if(saved[first][last]!=-1) return saved[first][last];\n    long best=Long.MAX_VALUE;\n    for(int split=first;split<last;split++) {\n        long merge=(long)d[first-1]*d[split]*d[last];\n        long cost=matrixAt(d,first,split,saved)+matrixAt(d,split+1,last,saved)+merge;\n        best=Math.min(best,cost);\n    }\n    return saved[first][last]=best;\n}",
+      "time": "O(n³).",
+      "space": "O(n²); memoization also uses O(n) stack."
+    },
+    "trace": {
+      "columns": [
+        "Interval",
+        "Dimensions of result",
+        "Minimum cost"
+      ],
+      "rows": [
+        [
+          "A1",
+          "5×2",
+          "0"
+        ],
+        [
+          "A2",
+          "2×6",
+          "0"
+        ],
+        [
+          "A3",
+          "6×3",
+          "0"
+        ],
+        [
+          "A1A2",
+          "5×6",
+          "60"
+        ],
+        [
+          "A2A3",
+          "2×3",
+          "36"
+        ],
+        [
+          "A1A2A3",
+          "5×3",
+          "min(0+36+30, 60+0+90) = 66"
+        ]
+      ]
+    }
   }
 }
