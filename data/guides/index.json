@@ -16726,5 +16726,48 @@
       "time": "O(n × m).",
       "space": "O((n + 1) × (m + 1))."
     }
+  },
+  "414": {
+    "problem": "Return a shortest string that contains both input strings as subsequences. Every original character must remain in order, but the shared characters can be represented once.",
+    "assumptions": "The inputs contain lowercase English letters and have length at most 1000. Any shortest valid answer is accepted; it need not be lexicographically smallest. Empty inputs are also handled.",
+    "example": {
+      "input": "first = \"ab\", second = \"bc\"",
+      "output": "\"abc\"",
+      "explanation": "The b is shared. The result contains a then b from the first input and b then c from the second. A two-character result cannot contain both distinct strings."
+    },
+    "baseline": "Build the result recursively from the two prefixes. Matching endings can be added once after solving both shorter prefixes. Otherwise try including either ending character and choose the shorter completed string. Repeated prefix pairs and repeated string copying make this too expensive for long inputs.",
+    "approach": "If we simply concatenate the inputs, we use n + m characters. We can save a character whenever a shared position serves both strings. Those shared characters must stay in order in each input, so the largest possible saving is the LCS length L. The shortest possible length is n + m − L.\n\nBuild an LCS-length table, then walk backward as in the print-LCS lesson. This time, keep characters even when they are not shared. On a match, append the character once and move diagonally. On a mismatch, move toward the larger LCS neighbor and append the character from the string whose prefix is shrinking. That preserves the character while leaving the most possible sharing for the rest.\n\nWhen one prefix becomes empty, append every character still left in the other. Reverse the collected sequence once at the end. Choosing either direction on an equal-length tie can give a different but equally short answer.",
+    "steps": [
+      "Build the full LCS-length table.",
+      "Start at the bottom-right cell.",
+      "For equal ending characters, append one copy and shorten both prefixes.",
+      "Otherwise follow an optimal LCS neighbor and append the character being removed from that prefix.",
+      "Append the remaining prefix when the other one is empty.",
+      "Reverse the builder and return it."
+    ],
+    "java": "static int[][] lcsLengths(String first, String second) {\n    int[][] dp = new int[first.length()+1][second.length()+1];\n    for (int i = 1; i <= first.length(); i++) for (int j = 1; j <= second.length(); j++) {\n        if (first.charAt(i-1) == second.charAt(j-1)) dp[i][j] = 1+dp[i-1][j-1];\n        else dp[i][j] = Math.max(dp[i-1][j],dp[i][j-1]);\n    }\n    return dp;\n}\n\nstatic String shortestCommonSupersequence(String first, String second) {\n    int[][] dp = lcsLengths(first,second);\n    int i = first.length(), j = second.length();\n    StringBuilder reversed = new StringBuilder(i+j-dp[i][j]);\n    while (i > 0 && j > 0) {\n        if (first.charAt(i-1) == second.charAt(j-1)) {\n            reversed.append(first.charAt(i-1));\n            i--; j--;\n        } else if (dp[i-1][j] >= dp[i][j-1]) {\n            reversed.append(first.charAt(i-1));\n            i--;\n        } else {\n            reversed.append(second.charAt(j-1));\n            j--;\n        }\n    }\n    while (i > 0) reversed.append(first.charAt(--i));\n    while (j > 0) reversed.append(second.charAt(--j));\n    return reversed.reverse().toString();\n}",
+    "time": "O(n × m) for the table and O(n + m) for reconstruction.",
+    "space": "O((n + 1) × (m + 1)) for the table, plus O(n + m) for the output.",
+    "pitfalls": [
+      "Unlike print-LCS, a skipped prefix character must still be appended to the supersequence.",
+      "Append leftover characters after one prefix becomes empty.",
+      "Check that the answer contains both inputs as subsequences as well as having minimum length.",
+      "Different valid answers may arise from different tie decisions.",
+      "A supersequence is not required to contain each input as a contiguous substring."
+    ],
+    "tests": [
+      "assert shortestCommonSupersequence(\"ab\",\"bc\").equals(\"abc\");assert shortestCommonSupersequence(\"\",\"cat\").equals(\"cat\");assert shortestCommonSupersequence(\"same\",\"same\").equals(\"same\");",
+      "class Check { boolean contains(String text,String wanted){int matched=0;for(int i=0;i<text.length()&&matched<wanted.length();i++)if(text.charAt(i)==wanted.charAt(matched))matched++;return matched==wanted.length();} }\nCheck check=new Check();List<String> words=new ArrayList<>();words.add(\"\");for(int length=1;length<=4;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder word=new StringBuilder();for(int i=0;i<length;i++)word.append((bits&(1<<i))==0?'a':'b');words.add(word.toString());}\nfor(String a:words)for(String b:words){int expected=-1;for(int length=Math.max(a.length(),b.length());length<=a.length()+b.length()&&expected<0;length++)for(int bits=0;bits<(1<<length);bits++){StringBuilder candidate=new StringBuilder();for(int i=0;i<length;i++)candidate.append((bits&(1<<i))==0?'a':'b');if(check.contains(candidate.toString(),a)&&check.contains(candidate.toString(),b)){expected=length;break;}}\n String result=shortestCommonSupersequence(a,b),recursive=supersequenceRecursive(a,b,a.length(),b.length());assert result.length()==expected;assert check.contains(result,a)&&check.contains(result,b);assert recursive.length()==expected;assert check.contains(recursive,a)&&check.contains(recursive,b);\n}",
+      "String a=\"a\".repeat(1000),b=\"b\".repeat(1000);String result=shortestCommonSupersequence(a,b);assert result.length()==2000;assert result.chars().filter(x->x==97).count()==1000;assert result.chars().filter(x->x==98).count()==1000;assert shortestCommonSupersequence(a,a).equals(a);"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/shortest-common-supersequence",
+      "title": "Shortest common supersequence",
+      "checkedOn": "2026-10-29",
+      "approach": "Share an LCS once and retain both strings’ other characters during table backtracking.",
+      "adaptation": "The public statement, both LCS hints, and reconstruction FAQ were checked. The full solution requires sign-in, so its Java was not inspected. This original implementation follows that table walk, including unmatched leftovers and deterministic tie handling. Independent small-string enumeration checks both validity and shortest length."
+    },
+    "baselineJava": "static String supersequenceRecursive(String first, String second, int i, int j) {\n    if (i == 0) return second.substring(0,j);\n    if (j == 0) return first.substring(0,i);\n    if (first.charAt(i-1) == second.charAt(j-1)) {\n        return supersequenceRecursive(first,second,i-1,j-1)+first.charAt(i-1);\n    }\n    String fromFirst = supersequenceRecursive(first,second,i-1,j)+first.charAt(i-1);\n    String fromSecond = supersequenceRecursive(first,second,i,j-1)+second.charAt(j-1);\n    return fromFirst.length() <= fromSecond.length() ? fromFirst : fromSecond;\n}",
+    "baselineTime": "O(2^(n + m) × (n + m)) time as an upper bound. Stack depth is O(n + m); retained and copied strings can use O((n + m)²) live space. Use only for short examples."
   }
 }
