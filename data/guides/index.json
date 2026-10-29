@@ -9026,5 +9026,114 @@
     },
     "baselineJava": "static int niceByExpansion(int[] nums, int k) {\n    int count = 0;\n    for (int start = 0; start < nums.length; start++) {\n        int odds = 0;\n        for (int end = start; end < nums.length; end++) {\n            if (nums[end] % 2 != 0) odds++;\n            if (odds == k) count++;\n            if (odds > k) break;\n        }\n    }\n    return count;\n}",
     "baselineTime": "O(n²) time and O(1) extra space."
+  },
+  "236": {
+    "problem": "Count contiguous substrings containing at least one a, one b and one c.",
+    "assumptions": "The string contains only a, b and c. Repeated letters are allowed. The current Striver Java returns long; the linked LeetCode signature uses int within its length limit. The version below keeps long.",
+    "example": {
+      "input": "s = \"abca\"",
+      "output": "3",
+      "explanation": "The valid substrings are \"abc\" at [0..2], \"abca\" at [0..3] and \"bca\" at [1..3]."
+    },
+    "baseline": "For each start, grow the end and count the three letters. Once all appear, every later end is also valid. Add n − end and stop that start. This avoids checking all longer ranges individually, but still takes O(n²) overall.",
+    "approach": "Keep one window and three frequency counts. Move right until all three letters are present. At that moment, a substring starting at left can end here or anywhere later: extending it cannot remove a letter. There are n − right choices of end, so add that many.\n\nNow remove the leftmost letter and advance left. If all three letters remain, count another group for this new start. Keep shrinking until a letter is missing, then continue moving right. Each start is counted once, at its first valid end, so no substring is counted twice.",
+    "steps": [
+      "Add s[right] to its frequency count.",
+      "While all three counts are positive, add n − right.",
+      "Remove s[left] from its count and advance left.",
+      "Continue until every right endpoint has been processed."
+    ],
+    "java": "static long numberOfSubstrings(String s) {\n    int[] frequency = new int[3];\n    int left = 0;\n    long count = 0;\n    for (int right = 0; right < s.length(); right++) {\n        frequency[s.charAt(right) - 'a']++;\n        while (frequency[0] > 0 && frequency[1] > 0 && frequency[2] > 0) {\n            count += s.length() - right;\n            frequency[s.charAt(left) - 'a']--;\n            left++;\n        }\n    }\n    return count;\n}",
+    "time": "O(n): each character enters and leaves the window at most once.",
+    "space": "O(1), using three counts.",
+    "pitfalls": [
+      "Add n − right here, not right − left + 1: we are counting possible later endings for a fixed start.",
+      "Keep shrinking while all three letters remain; several starting positions may become valid at once.",
+      "The three-slot array assumes no letters outside a, b and c.",
+      "A string missing any one of the three letters contributes zero."
+    ],
+    "tests": [
+      "assert numberOfSubstrings(\"abca\")==3;assert numberOfSubstrings(\"abcabc\")==10;assert numberOfSubstrings(\"aaacb\")==3;assert numberOfSubstrings(\"aabb\")==0;assert numberOfSubstrings(\"\")==0;",
+      "for(int n=0;n<=9;n++){int limit=1;for(int i=0;i<n;i++)limit*=3;for(int encoded=0;encoded<limit;encoded++){int x=encoded;StringBuilder s=new StringBuilder();for(int i=0;i<n;i++){s.append((char)('a'+x%3));x/=3;}String value=s.toString();long expected=0;for(int l=0;l<n;l++)for(int r=l;r<n;r++){int mask=0;for(int j=l;j<=r;j++)mask|=1<<(value.charAt(j)-'a');if(mask==7)expected++;}assert numberOfSubstrings(value)==expected;assert threeByExpansion(value)==expected;}}",
+      "String s=\"abc\".repeat(33334);long n=s.length();assert numberOfSubstrings(s)==(n-1)*(n-2)/2;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/count-substrings-containing-all-three-characters-a-b-and-c",
+      "title": "Count Substrings Containing All Three Characters a, b and c",
+      "checkedOn": "2026-10-29",
+      "approach": "Count all later endings once a start first contains all three letters, then reuse the window across starts.",
+      "adaptation": "All three current public Java methods were checked. This follows the article’s frequency-window solution and long return type, rather than substituting the different last-seen-position formula. For LeetCode’s int signature, cast the result only under its stated bounds."
+    },
+    "baselineJava": "static long threeByExpansion(String s) {\n    long count = 0;\n    for (int start = 0; start < s.length(); start++) {\n        int[] frequency = new int[3];\n        for (int end = start; end < s.length(); end++) {\n            frequency[s.charAt(end) - 'a']++;\n            if (frequency[0] > 0 && frequency[1] > 0 && frequency[2] > 0) {\n                count += s.length() - end;\n                break;\n            }\n        }\n    }\n    return count;\n}",
+    "baselineTime": "O(n²) time and O(1) space.",
+    "trace": {
+      "columns": [
+        "Right / letter",
+        "Start being counted",
+        "Possible ends",
+        "Added"
+      ],
+      "rows": [
+        [
+          "2 / c",
+          "0",
+          "2, 3",
+          "2"
+        ],
+        [
+          "3 / a",
+          "1",
+          "3",
+          "1"
+        ]
+      ]
+    }
+  },
+  "237": {
+    "problem": "Choose exactly k cards, taking each card from either end of the remaining row. Return the largest total score.",
+    "assumptions": "The linked task has positive scores, but the same method also handles negative scores when sums fit int. The source additionally allows k = 0 and returns −1 for k outside 0..n. It is not valid to take an isolated middle card.",
+    "example": {
+      "input": "cardPoints = [6, 2, 9, 1, 5], k = 2",
+      "output": "11",
+      "explanation": "Take 6 from the left and 5 from the right. Taking the two left cards gives 8; taking the two right cards gives 6."
+    },
+    "baseline": "Any selection consists of a prefix and a suffix whose lengths add to k. Try every split and recalculate both sums. There are k + 1 splits, each summing k cards, for O(k²) time.",
+    "approach": "Start by taking the first k cards. Then replace the rightmost card of that selected prefix with the last card of the array. This produces the split with k − 1 left cards and 1 right card. Repeat: remove the next selected left card and add the next available right card.\n\nAfter k swaps, all selected cards come from the right. We have tried every prefix/suffix split while updating the score with just one subtraction and one addition. The order in which cards were originally picked does not matter for their total; only the final split matters.",
+    "steps": [
+      "Sum the first k cards and use that valid score as best.",
+      "Move the selected-left boundary from k − 1 down to 0.",
+      "Subtract that left card and add the next card from the right end.",
+      "Update best after every swap."
+    ],
+    "java": "static int maxScore(int[] cardPoints, int k) {\n    int n = cardPoints.length;\n    if (k < 0 || k > n) return -1;\n    int score = 0;\n    for (int i = 0; i < k; i++) score += cardPoints[i];\n    int best = score;\n    int right = n - 1;\n    for (int left = k - 1; left >= 0; left--) {\n        score -= cardPoints[left];\n        score += cardPoints[right--];\n        best = Math.max(best, score);\n    }\n    return best;\n}",
+    "time": "O(k) time, or O(1) when k = 0.",
+    "space": "O(1).",
+    "pitfalls": [
+      "Take exactly k cards, even if some scores are negative.",
+      "Initialize best from a real selection, not zero.",
+      "Remove the rightmost card of the chosen prefix; removing its first card would no longer represent a prefix.",
+      "For k = n the total stays unchanged during swaps, so the general loop also works.",
+      "Use long if score bounds can exceed int; the linked task’s sums fit int."
+    ],
+    "tests": [
+      "assert maxScore(new int[]{6,2,9,1,5},2)==11;assert maxScore(new int[]{1,2,3,4,5,6,1},3)==12;assert maxScore(new int[]{-5,-2,-7},2)==-7;assert maxScore(new int[]{4},0)==0;assert maxScore(new int[]{4},2)==-1;",
+      "Random r=new Random(237);for(int n=0;n<=9;n++)for(int trial=0;trial<100;trial++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=r.nextInt(21)-10;for(int k=0;k<=n;k++){int expected=Integer.MIN_VALUE;for(int choices=0;choices<(1<<k);choices++){int left=0,right=n-1,sum=0;for(int step=0;step<k;step++)sum+=((choices>>step)&1)==0?a[left++]:a[right--];expected=Math.max(expected,sum);}assert maxScore(a,k)==expected;assert cardsBySplits(a,k)==expected;assert cardsByPrefixSuffix(a,k)==expected;}}",
+      "int[]a=new int[100000];Arrays.fill(a,10000);assert maxScore(a,a.length)==1000000000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/maximum-points-you-can-obtain-from-cards",
+      "title": "Maximum Points You Can Obtain from Cards",
+      "checkedOn": "2026-10-29",
+      "approach": "Enumerate prefix/suffix splits, precompute both sums, then replace one selected left card with one right card.",
+      "adaptation": "All three public Java solutions were checked. The same swap order and valid-score initialization are preserved. The general loops handle k = 0 and k = n directly, while the source’s invalid-k return is retained."
+    },
+    "baselineJava": "static int cardsBySplits(int[] cards, int k) {\n    if (k < 0 || k > cards.length) return -1;\n    int best = Integer.MIN_VALUE;\n    for (int leftCount = 0; leftCount <= k; leftCount++) {\n        int sum = 0;\n        for (int i = 0; i < leftCount; i++) sum += cards[i];\n        for (int i = 0; i < k - leftCount; i++) sum += cards[cards.length - 1 - i];\n        best = Math.max(best, sum);\n    }\n    return best;\n}",
+    "baselineTime": "O(k² + 1) time and O(1) space.",
+    "better": {
+      "explanation": "Save sums for taking 0 through k cards from each end. A split score is then leftSum[leftCount] + rightSum[k − leftCount]. This avoids repeated summation but uses two extra arrays.",
+      "java": "static int cardsByPrefixSuffix(int[] cards, int k) {\n    if (k < 0 || k > cards.length) return -1;\n    int[] leftSum = new int[k + 1], rightSum = new int[k + 1];\n    for (int i = 1; i <= k; i++) {\n        leftSum[i] = leftSum[i - 1] + cards[i - 1];\n        rightSum[i] = rightSum[i - 1] + cards[cards.length - i];\n    }\n    int best = Integer.MIN_VALUE;\n    for (int leftCount = 0; leftCount <= k; leftCount++) {\n        best = Math.max(best, leftSum[leftCount] + rightSum[k - leftCount]);\n    }\n    return best;\n}",
+      "time": "O(k + 1).",
+      "space": "O(k + 1)."
+    }
   }
 }
