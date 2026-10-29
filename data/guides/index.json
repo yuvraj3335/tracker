@@ -14010,5 +14010,118 @@
     },
     "baselineJava": "static long[] dagByDfs(int vertices, int[][] edges) {\n    List<List<int[]>> graph = weightedDirected(vertices,edges);\n    int[] state = new int[vertices];\n    List<Integer> finished = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) if (state[v] == 0) finishDag(v,graph,state,finished);\n    Collections.reverse(finished);\n    return relaxDag(graph,finished);\n}\nstatic void finishDag(int vertex, List<List<int[]>> graph, int[] state, List<Integer> finished) {\n    if (state[vertex] == 1) throw new IllegalArgumentException(\"A DAG is required\");\n    if (state[vertex] == 2) return;\n    state[vertex] = 1;\n    for (int[] edge : graph.get(vertex)) finishDag(edge[0],graph,state,finished);\n    state[vertex] = 2;\n    finished.add(vertex);\n}",
     "baselineTime": "O(V + E) time and graph storage, with O(V) recursive stack."
+  },
+  "359": {
+    "problem": "Find the shortest weighted distance from a source to every vertex in an undirected graph with nonnegative edge weights.",
+    "assumptions": "Edges are [u,v,weight] and work both ways. Zero weights are allowed. The pinned practice requires 10^9 for unreachable vertices and has bounds that keep valid shortest distances below that marker. The long helper supports larger sums and uses Long.MAX_VALUE for unreachable. The source must be valid for a nonempty graph.",
+    "example": {
+      "input": "V = 5; edges = [[0,1,9], [0,2,1], [2,1,1], [1,3,0]]; source = 0",
+      "output": "[0,2,1,2,1000000000]",
+      "explanation": "The direct route to 1 costs 9, but 0→2→1 costs 2. The zero-weight edge keeps 3 at distance 2. Vertex 4 is unreachable."
+    },
+    "baseline": "Keep tentative distances and linearly scan all unsettled vertices to choose the smallest one. Settle it and relax its outgoing edges. This is Dijkstra’s same greedy rule, but minimum selection costs O(V²) overall.",
+    "approach": "A tentative distance is the best route found so far. Repeatedly take the smallest tentative distance. With nonnegative edges, reaching that vertex through any other unsettled vertex cannot make it cheaper, because the other route already costs at least as much and can only add more.\n\nA min-heap makes this choice efficient. For each outgoing edge, try current cost + weight. If it improves the neighbor, update the distance and insert a new heap pair. Java’s PriorityQueue does not update old pairs automatically.\n\nThe old pair may still be removed later. If its cost no longer matches distance[vertex], skip it. Use strict improvement when inserting so zero-weight cycles do not create endless equal-cost entries.",
+    "steps": [
+      "Build two-way weighted adjacency and initialize source distance to 0.",
+      "Remove the smallest distance–vertex pair.",
+      "Skip it if a better distance has already replaced it.",
+      "Relax outgoing edges and insert only strict improvements."
+    ],
+    "java": "static List<List<int[]>> weightedUndirected(int vertices, int[][] edges) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        if (edge[2] < 0) throw new IllegalArgumentException(\"Dijkstra requires nonnegative weights\");\n        graph.get(edge[0]).add(new int[]{edge[1],edge[2]});\n        graph.get(edge[1]).add(new int[]{edge[0],edge[2]});\n    }\n    return graph;\n}\n\nstatic long[] dijkstraDistances(int vertices, int[][] edges, int source) {\n    List<List<int[]>> graph = weightedUndirected(vertices,edges);\n    long[] distance = new long[vertices];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    if (vertices == 0) return distance;\n    PriorityQueue<long[]> heap = new PriorityQueue<>(Comparator.comparingLong((long[] item) -> item[0]));\n    distance[source] = 0;\n    heap.add(new long[]{0,source});\n    while (!heap.isEmpty()) {\n        long[] item = heap.remove();\n        long cost = item[0];\n        int vertex = (int) item[1];\n        if (cost != distance[vertex]) continue;\n        for (int[] edge : graph.get(vertex)) {\n            int next = edge[0];\n            long candidate = cost + edge[1];\n            if (candidate < distance[next]) {\n                distance[next] = candidate;\n                heap.add(new long[]{candidate,next});\n            }\n        }\n    }\n    return distance;\n}\nstatic int[] dijkstra(int vertices, int[][] edges, int source) {\n    long[] distance = dijkstraDistances(vertices,edges,source);\n    int[] answer = new int[vertices];\n    for (int v = 0; v < vertices; v++) answer[v] = distance[v] == Long.MAX_VALUE ? 1_000_000_000 : Math.toIntExact(distance[v]);\n    return answer;\n}",
+    "time": "O(V + E log(E + 1)) with a lazy heap; commonly O((V + E) log V) for simple graphs.",
+    "space": "O(V + E) including adjacency and up to O(E) heap entries.",
+    "pitfalls": [
+      "Dijkstra requires nonnegative edge weights.",
+      "A vertex’s first discovery is not necessarily its shortest route.",
+      "Use long for sums and a comparator that does not subtract and overflow.",
+      "The pinned judge’s unreachable marker is 10^9, unlike the article’s −1.",
+      "Do not mutate the cost inside an object already stored in the heap."
+    ],
+    "tests": [
+      "Random random=new Random(359);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(16);long inf=1000000000000L;long[][]expected=new long[n][n];for(int i=0;i<n;i++){Arrays.fill(expected[i],inf);expected[i][i]=0;}\n List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(random.nextInt(4)==0){int w=random.nextInt(10001);list.add(new int[]{i,j,w});expected[i][j]=expected[j][i]=Math.min(expected[i][j],w);if(random.nextInt(3)==0){w=random.nextInt(10001);list.add(new int[]{i,j,w});expected[i][j]=expected[j][i]=Math.min(expected[i][j],w);}}\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)expected[i][j]=Math.min(expected[i][j],expected[i][k]+expected[k][j]);\n int[][]edges=list.toArray(new int[0][]);\n for(int source=0;source<n;source++){long[]a=dijkstraDistances(n,edges,source),b=dijkstraByScan(n,edges,source);int[]wrapper=dijkstra(n,edges,source);for(int v=0;v<n;v++){long wanted=expected[source][v]==inf?Long.MAX_VALUE:expected[source][v];assert a[v]==wanted&&b[v]==wanted;assert wrapper[v]==(wanted==Long.MAX_VALUE?1000000000:(int)wanted);}}\n}",
+      "int[][]e={{0,1,9},{0,2,1},{2,1,1},{1,3,0}};assert Arrays.equals(dijkstra(5,e,0),new int[]{0,2,1,2,1000000000});assert Arrays.equals(dijkstraDistances(3,new int[][]{{0,1,0},{1,2,0},{2,0,0}},0),new long[]{0,0,0});",
+      "int[][]e={{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}};assert dijkstraDistances(4,e,0)[2]==2L*Integer.MAX_VALUE;assert dijkstraByScan(4,e,0)[2]==2L*Integer.MAX_VALUE;boolean failed=false;try{dijkstraDistances(2,new int[][]{{0,1,-1}},0);}catch(IllegalArgumentException x){failed=true;}assert failed;",
+      "int n=100000;int[][]e=new int[n-1][3];for(int i=1;i<n;i++)e[i-1]=new int[]{i-1,i,1};assert dijkstraDistances(n,e,0)[n-1]==n-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/dijkstras-algorithm",
+      "title": "Dijkstra’s Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Select the smallest tentative distance using a min-heap, and skip stale entries.",
+      "adaptation": "Both complete public Java methods and the pinned practice statement were checked. The article returns −1 for unreachable vertices, while the practice requires 10^9. The int wrapper follows the practice; the long helper keeps Long.MAX_VALUE for unreachable. Negative weights are explicitly rejected, and checked conversion avoids silent int overflow."
+    },
+    "baselineJava": "static long[] dijkstraByScan(int vertices, int[][] edges, int source) {\n    List<List<int[]>> graph = weightedUndirected(vertices,edges);\n    long[] distance = new long[vertices];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    if (vertices == 0) return distance;\n    boolean[] settled = new boolean[vertices];\n    distance[source] = 0;\n    for (int pass = 0; pass < vertices; pass++) {\n        int vertex = -1;\n        for (int v = 0; v < vertices; v++)\n            if (!settled[v] && (vertex == -1 || distance[v] < distance[vertex])) vertex = v;\n        if (vertex == -1 || distance[vertex] == Long.MAX_VALUE) break;\n        settled[vertex] = true;\n        for (int[] edge : graph.get(vertex)) {\n            if (!settled[edge[0]]) distance[edge[0]] = Math.min(distance[edge[0]],distance[vertex]+edge[1]);\n        }\n    }\n    return distance;\n}",
+    "baselineTime": "O(V² + E) time and O(V + E) space including the graph."
+  },
+  "360": {
+    "problem": "Understand why Dijkstra uses a min-priority queue, and why a normal FIFO queue with first-visit marking is insufficient for weighted shortest paths.",
+    "assumptions": "The graph has nonnegative weights. This row shares the Dijkstra practice link, so the same working implementation is included. The heap stores [distance,vertex] pairs ordered by distance, not by vertex label. The int wrapper uses the pinned judge’s 10^9 unreachable marker.",
+    "example": {
+      "input": "edges 0–1 cost 9, 0–2 cost 1, 2–1 cost 1; source 0",
+      "output": "heap removals include (0,0), (1,2), (2,1), then stale (9,1)",
+      "explanation": "The route through 2 improves vertex 1 before the old cost-9 entry is processed. FIFO discovery order would encounter 1 through its expensive direct edge first."
+    },
+    "baseline": "A heap is not required for correctness if we scan every unsettled vertex to find the smallest tentative distance. That selection costs O(V) per vertex and O(V²) overall. The heap speeds up this specific operation.",
+    "approach": "A FIFO queue answers “which item arrived first?” Dijkstra needs “which currently known route costs least?” Those are the same ordering only when every edge has equal cost, which is the special case handled by BFS.\n\nThe priority queue keeps the smallest cost available at the front. An improved route is inserted as a new pair because Java’s PriorityQueue has no efficient built-in decrease-key operation. Older pairs remain until removed, then fail the stale-cost check.\n\nUse the distance array as the current record and heap entries as snapshots of earlier discoveries. Never change an entry’s sort key in place: the heap will not rearrange itself just because a field changed. Also avoid remove(Object) for each improvement; that search is linear in Java’s PriorityQueue.",
+    "steps": [
+      "Order heap pairs by their stored distance.",
+      "Insert a fresh pair whenever a route strictly improves.",
+      "Compare popped cost with the current distance array to discard old snapshots.",
+      "Relax neighbors only from a current minimum entry."
+    ],
+    "java": "static List<List<int[]>> weightedUndirected(int vertices, int[][] edges) {\n    List<List<int[]>> graph = new ArrayList<>();\n    for (int v = 0; v < vertices; v++) graph.add(new ArrayList<>());\n    for (int[] edge : edges) {\n        if (edge[2] < 0) throw new IllegalArgumentException(\"Dijkstra requires nonnegative weights\");\n        graph.get(edge[0]).add(new int[]{edge[1],edge[2]});\n        graph.get(edge[1]).add(new int[]{edge[0],edge[2]});\n    }\n    return graph;\n}\n\nstatic long[] dijkstraDistances(int vertices, int[][] edges, int source) {\n    List<List<int[]>> graph = weightedUndirected(vertices,edges);\n    long[] distance = new long[vertices];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    if (vertices == 0) return distance;\n    PriorityQueue<long[]> heap = new PriorityQueue<>(Comparator.comparingLong((long[] item) -> item[0]));\n    distance[source] = 0;\n    heap.add(new long[]{0,source});\n    while (!heap.isEmpty()) {\n        long[] item = heap.remove();\n        long cost = item[0];\n        int vertex = (int) item[1];\n        if (cost != distance[vertex]) continue;\n        for (int[] edge : graph.get(vertex)) {\n            int next = edge[0];\n            long candidate = cost + edge[1];\n            if (candidate < distance[next]) {\n                distance[next] = candidate;\n                heap.add(new long[]{candidate,next});\n            }\n        }\n    }\n    return distance;\n}\nstatic int[] dijkstra(int vertices, int[][] edges, int source) {\n    long[] distance = dijkstraDistances(vertices,edges,source);\n    int[] answer = new int[vertices];\n    for (int v = 0; v < vertices; v++) answer[v] = distance[v] == Long.MAX_VALUE ? 1_000_000_000 : Math.toIntExact(distance[v]);\n    return answer;\n}",
+    "time": "O(V + E log(E + 1)) for this lazy min-heap implementation, compared with O(V² + E) for linear selection.",
+    "space": "O(V + E); stale pairs can make the heap larger than V.",
+    "pitfalls": [
+      "PriorityQueue iteration is not sorted order; repeatedly poll/remove the minimum.",
+      "Ordering by vertex number does not implement Dijkstra.",
+      "First-visit BFS marking is wrong for unequal weights.",
+      "A queue that repeatedly relaxes improved distances is a different algorithm; it does not inherit BFS’s linear bound.",
+      "The heap changes selection cost, not the nonnegative-weight requirement."
+    ],
+    "tests": [
+      "Random random=new Random(359);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(16);long inf=1000000000000L;long[][]expected=new long[n][n];for(int i=0;i<n;i++){Arrays.fill(expected[i],inf);expected[i][i]=0;}\n List<int[]>list=new ArrayList<>();for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)if(random.nextInt(4)==0){int w=random.nextInt(10001);list.add(new int[]{i,j,w});expected[i][j]=expected[j][i]=Math.min(expected[i][j],w);if(random.nextInt(3)==0){w=random.nextInt(10001);list.add(new int[]{i,j,w});expected[i][j]=expected[j][i]=Math.min(expected[i][j],w);}}\n for(int k=0;k<n;k++)for(int i=0;i<n;i++)for(int j=0;j<n;j++)expected[i][j]=Math.min(expected[i][j],expected[i][k]+expected[k][j]);\n int[][]edges=list.toArray(new int[0][]);\n for(int source=0;source<n;source++){long[]a=dijkstraDistances(n,edges,source),b=dijkstraByScan(n,edges,source);int[]wrapper=dijkstra(n,edges,source);for(int v=0;v<n;v++){long wanted=expected[source][v]==inf?Long.MAX_VALUE:expected[source][v];assert a[v]==wanted&&b[v]==wanted;assert wrapper[v]==(wanted==Long.MAX_VALUE?1000000000:(int)wanted);}}\n}",
+      "int[][]e={{0,1,9},{0,2,1},{2,1,1},{1,3,0}};assert Arrays.equals(dijkstra(5,e,0),new int[]{0,2,1,2,1000000000});assert Arrays.equals(dijkstraDistances(3,new int[][]{{0,1,0},{1,2,0},{2,0,0}},0),new long[]{0,0,0});",
+      "int[][]e={{0,1,Integer.MAX_VALUE},{1,2,Integer.MAX_VALUE}};assert dijkstraDistances(4,e,0)[2]==2L*Integer.MAX_VALUE;assert dijkstraByScan(4,e,0)[2]==2L*Integer.MAX_VALUE;boolean failed=false;try{dijkstraDistances(2,new int[][]{{0,1,-1}},0);}catch(IllegalArgumentException x){failed=true;}assert failed;",
+      "int n=100000;int[][]e=new int[n-1][3];for(int i=1;i<n;i++)e[i-1]=new int[]{i-1,i,1};assert dijkstraDistances(n,e,0)[n-1]==n-1;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/dijkstras-algorithm",
+      "title": "Dijkstra’s Algorithm",
+      "checkedOn": "2026-10-29",
+      "approach": "Select the smallest tentative distance using a min-heap, and skip stale entries.",
+      "adaptation": "Both complete public Java methods and the pinned practice statement were checked. The article returns −1 for unreachable vertices, while the practice requires 10^9. The int wrapper follows the practice; the long helper keeps Long.MAX_VALUE for unreachable. Negative weights are explicitly rejected, and checked conversion avoids silent int overflow."
+    },
+    "trace": {
+      "columns": [
+        "Action",
+        "Best distance to 1",
+        "Heap candidates"
+      ],
+      "rows": [
+        [
+          "Process source 0",
+          "9",
+          "(1,2), (9,1)"
+        ],
+        [
+          "Process vertex 2 at cost 1",
+          "2",
+          "(2,1), (9,1)"
+        ],
+        [
+          "Process vertex 1 at cost 2",
+          "2",
+          "(9,1)"
+        ],
+        [
+          "Remove old cost 9",
+          "2",
+          "Skip: 9 differs from the current distance 2"
+        ]
+      ]
+    },
+    "baselineJava": "static long[] dijkstraByScan(int vertices, int[][] edges, int source) {\n    List<List<int[]>> graph = weightedUndirected(vertices,edges);\n    long[] distance = new long[vertices];\n    Arrays.fill(distance,Long.MAX_VALUE);\n    if (vertices == 0) return distance;\n    boolean[] settled = new boolean[vertices];\n    distance[source] = 0;\n    for (int pass = 0; pass < vertices; pass++) {\n        int vertex = -1;\n        for (int v = 0; v < vertices; v++)\n            if (!settled[v] && (vertex == -1 || distance[v] < distance[vertex])) vertex = v;\n        if (vertex == -1 || distance[vertex] == Long.MAX_VALUE) break;\n        settled[vertex] = true;\n        for (int[] edge : graph.get(vertex)) {\n            if (!settled[edge[0]]) distance[edge[0]] = Math.min(distance[edge[0]],distance[vertex]+edge[1]);\n        }\n    }\n    return distance;\n}",
+    "baselineTime": "O(V² + E) time and O(V + E) storage. This is the same greedy selection rule without a heap."
   }
 }
