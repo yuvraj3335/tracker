@@ -10949,5 +10949,157 @@
       "approach": "Store unfinished ancestors while descending left, then visit and move right.",
       "adaptation": "The public traversal contract and current foundation definitions were checked. This is authored iterative Java because no public Java editorial was available. Tests independently order nodes by their paths and include a 100000-node chain."
     }
+  },
+  "285": {
+    "problem": "Return postorder traversal using two stacks: all left-subtree nodes, then right-subtree nodes, then their parent.",
+    "assumptions": "The tree may be empty or contain repeated values. The stacks store node references, not a set of values. The original child links remain unchanged.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "[6,4,9,8]",
+      "explanation": "The first stack produces Root → Right → Left order: 8,9,4,6. Popping the second stack reverses that to Left → Right → Root."
+    },
+    "baseline": "Recursive postorder directly visits left, right, then root. For an iterative version, an explicit stack must remember whether children have already been processed. Two stacks offer a simpler alternative: produce the reverse order first.",
+    "approach": "Use the first stack for a modified preorder walk. Pop a node into the second stack, then push its left child followed by its right child onto the first stack. The right child is popped next, so the generated order is Root → Right → Left.\n\nNow pop every node from the second stack. Reversing the generated sequence puts the entire left subtree before the right subtree and the parent last. The second stack may hold all nodes, so this method uses O(n) extra space even when the tree is short.",
+    "steps": [
+      "Push the root onto the first stack if present.",
+      "Pop a node from the first stack and push it onto the second.",
+      "Push left then right children onto the first stack.",
+      "After the first stack empties, pop the second into the answer."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> postorderTraversal(TreeNode root) {\n    List<Integer> result = new ArrayList<>();\n    if (root == null) return result;\n    Deque<TreeNode> pending = new ArrayDeque<>(), reverse = new ArrayDeque<>();\n    pending.push(root);\n    while (!pending.isEmpty()) {\n        TreeNode node = pending.pop();\n        reverse.push(node);\n        if (node.left != null) pending.push(node.left);\n        if (node.right != null) pending.push(node.right);\n    }\n    while (!reverse.isEmpty()) result.add(reverse.pop().val);\n    return result;\n}",
+    "time": "O(n).",
+    "space": "O(n) for the two stacks, plus O(n) output.",
+    "pitfalls": [
+      "Push left before right in this algorithm; this intentionally differs from ordinary iterative preorder.",
+      "Reverse Root → Right → Left, not Root → Left → Right.",
+      "Two stacks are simple but do not reduce the auxiliary bound to O(h)."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert postorderTraversal(r).equals(List.of(6,4,9,8));assert postorderTraversal(null).isEmpty();",
+      "Random r=new Random(279);for(int t=0;t<500;t++){int n=1+r.nextInt(75);TreeNode root=new TreeNode(r.nextInt(11)-5);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size()));TreeNode child=new TreeNode(r.nextInt(11)-5);boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+\"Z\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert postorderTraversal(root).equals(want);assert postorderTraversal(root).equals(want);}",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}List<Integer>a=postorderTraversal(r);assert a.size()==100000;for(int i=0;i<a.size();i++)assert a.get(i)==99999-i;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/postorder-traversal",
+      "title": "Postorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Reverse a Root → Right → Left walk using two stacks.",
+      "adaptation": "The public contract and current foundation traversal order were checked. The practice solution tab requires sign-in; this is an authored two-stack implementation for the pinned lesson, tested against node-path ordering and a deep tree."
+    }
+  },
+  "286": {
+    "problem": "Return postorder traversal with one explicit stack, recording each parent only after both of its subtrees are finished.",
+    "assumptions": "The tree may contain repeated values. Completion checks must compare node references, not values. No child links are changed. A null root returns an empty list.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "[6,4,9,8]",
+      "explanation": "After finishing 6, node 4 can be recorded. Node 8 must still wait until its right child 9 has been processed."
+    },
+    "baseline": "The two-stack method first builds a reversed traversal and stores up to n nodes in its second stack. One stack can instead remember the unfinished ancestor path and the last node whose subtree was completed.",
+    "approach": "Walk left while pushing nodes. When current becomes null, inspect the top node without removing it. If it has a right subtree that has not yet been completed, enter that subtree. Otherwise, both children are finished: pop and record the node.\n\nlastVisited identifies the most recently completed subtree root. When lastVisited is the top node’s right child, that entire right subtree has finished, so it is safe to record the parent. Reference identity is essential: two different nodes may hold the same value.",
+    "steps": [
+      "Push nodes while moving left.",
+      "When current is null, peek at the pending parent.",
+      "Enter its right subtree if it exists and was not just completed.",
+      "Otherwise pop, record the node and set lastVisited to it."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic List<Integer> postorderTraversal(TreeNode root) {\n    List<Integer> result = new ArrayList<>();\n    Deque<TreeNode> stack = new ArrayDeque<>();\n    TreeNode current = root, lastVisited = null;\n    while (current != null || !stack.isEmpty()) {\n        if (current != null) {\n            stack.push(current);\n            current = current.left;\n        } else {\n            TreeNode node = stack.peek();\n            if (node.right != null && lastVisited != node.right) {\n                current = node.right;\n            } else {\n                lastVisited = stack.pop();\n                result.add(lastVisited.val);\n            }\n        }\n    }\n    return result;\n}",
+    "time": "O(n): each node is pushed and popped once, with a constant number of inspections.",
+    "space": "O(h) stack space for height h, plus O(n) output.",
+    "pitfalls": [
+      "Use lastVisited != node.right, not a comparison of their values.",
+      "Peek while deciding whether the right subtree is pending; popping early loses the parent.",
+      "Do not clear lastVisited after completing a subtree.",
+      "The condition is current != null OR stack not empty."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert postorderTraversal(r).equals(List.of(6,4,9,8));assert postorderTraversal(null).isEmpty();",
+      "Random r=new Random(279);for(int t=0;t<500;t++){int n=1+r.nextInt(75);TreeNode root=new TreeNode(r.nextInt(11)-5);Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size()));TreeNode child=new TreeNode(r.nextInt(11)-5);boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+\"Z\"));List<Integer>want=new ArrayList<>();for(TreeNode x:ordered)want.add(x.val);assert postorderTraversal(root).equals(want);assert postorderTraversal(root).equals(want);}",
+      "TreeNode r=new TreeNode(5);r.left=new TreeNode(2);r.right=new TreeNode(2);r.right.left=new TreeNode(7);assert postorderTraversal(r).equals(List.of(2,7,2,5));",
+      "TreeNode r=new TreeNode(0),p=r;for(int i=1;i<100000;i++){p.right=new TreeNode(i);p=p.right;}List<Integer>a=postorderTraversal(r);assert a.size()==100000;for(int i=0;i<a.size();i++)assert a.get(i)==99999-i;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/postorder-traversal",
+      "title": "Postorder Traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Use one ancestor stack and the last completed subtree to delay each parent until both children finish.",
+      "adaptation": "The public postorder contract was checked, but its solution tab requires sign-in. This authored one-stack implementation follows Left → Right → Root and is tested with equal-valued sibling nodes and a 100000-node chain."
+    }
+  },
+  "278": {
+    "problem": "Learn how preorder, inorder and postorder differ, and return all three lists from a single walk through a binary tree.",
+    "assumptions": "The linked TUF task returns lists in the order [inorder, preorder, postorder]. That output order differs from the order in its title. Each list contains every node once, including repeated values. The tree may be empty.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "inorder [4,6,8,9]; preorder [8,4,6,9]; postorder [6,4,9,8]",
+      "explanation": "The structure stays the same. Only the moment when a node’s value is recorded changes."
+    },
+    "baseline": "Run three separate DFS traversals, recording the root before, between or after the child calls. Three O(n) passes are still O(n), but a single traversal can collect all three outputs together.",
+    "approach": "Imagine three moments during a visit to a node: before its left subtree, after the left subtree, and after the right subtree. Record the node at the first moment for preorder, at the second for inorder, and at the third for postorder.\n\nA frame stores a node and which moment comes next. At stage 1, record preorder, schedule stage 2, then enter the left child. At stage 2, record inorder, schedule stage 3, then enter the right child. At stage 3, record postorder and finish the node. Scheduling the continuation before the child puts the child on top of the stack, so the subtree finishes first.\n\nThe explicit stack handles deep trees without relying on Java recursion. “One traversal” does not mean one operation per node: each node has three constant-size stages, still O(n) work.",
+    "steps": [
+      "At stage 1, append to preorder and schedule the left subtree.",
+      "At stage 2, append to inorder and schedule the right subtree.",
+      "At stage 3, append to postorder.",
+      "Return the lists in the linked task’s required order: inorder, preorder, postorder."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class Frame {\n    final TreeNode node;\n    final int stage;\n    Frame(TreeNode node, int stage) { this.node = node; this.stage = stage; }\n}\nstatic List<List<Integer>> treeTraversal(TreeNode root) {\n    List<Integer> inorder = new ArrayList<>();\n    List<Integer> preorder = new ArrayList<>();\n    List<Integer> postorder = new ArrayList<>();\n    Deque<Frame> stack = new ArrayDeque<>();\n    if (root != null) stack.push(new Frame(root, 1));\n    while (!stack.isEmpty()) {\n        Frame frame = stack.pop();\n        TreeNode node = frame.node;\n        if (frame.stage == 1) {\n            preorder.add(node.val);\n            stack.push(new Frame(node, 2));\n            if (node.left != null) stack.push(new Frame(node.left, 1));\n        } else if (frame.stage == 2) {\n            inorder.add(node.val);\n            stack.push(new Frame(node, 3));\n            if (node.right != null) stack.push(new Frame(node.right, 1));\n        } else {\n            postorder.add(node.val);\n        }\n    }\n    return List.of(inorder, preorder, postorder);\n}",
+    "time": "O(n), with three stage events per node.",
+    "space": "O(h) pending frames, plus O(n) space for each of the three output lists; total output is 3n values.",
+    "pitfalls": [
+      "DFS ordering describes when a parent is recorded relative to its subtrees.",
+      "Do not return lists in title order; the public task expects inorder first.",
+      "A stage is per node, not a single global counter.",
+      "A value may appear repeatedly because different nodes can have equal values."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert treeTraversal(r).equals(List.of(List.of(4,6,8,9),List.of(8,4,6,9),List.of(6,4,9,8)));assert treeTraversal(null).equals(List.of(List.of(),List.of(),List.of()));",
+      "Random r=new Random(287);for(int t=0;t<500;t++){int n=1+r.nextInt(80);TreeNode root=new TreeNode(r.nextInt(9));Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size())),child=new TreeNode(r.nextInt(9));boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<List<Integer>>want=new ArrayList<>();for(String suffix:new String[]{\"M\",\"\",\"Z\"}){List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+suffix));List<Integer>values=new ArrayList<>();for(TreeNode x:ordered)values.add(x.val);want.add(values);}assert treeTraversal(root).equals(want);assert treeTraversal(root).equals(want);}",
+      "TreeNode root=new TreeNode(0),p=root;for(int i=1;i<100000;i++){p.left=new TreeNode(i);p=p.left;}List<List<Integer>>a=treeTraversal(root);for(List<Integer>v:a)assert v.size()==100000;for(int i=0;i<100000;i++){assert a.get(0).get(i)==99999-i;assert a.get(1).get(i)==i;assert a.get(2).get(i)==99999-i;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/pre%2C-post%2C-inorder-in-one-traversal",
+      "title": "Pre, Post, Inorder in one traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Collect values at three stages of the same depth-first walk.",
+      "adaptation": "The public statement, examples, 100000-node bound and output list order were checked, together with the current foundation definitions. No public Java editorial was available. This authored frame-stack implementation avoids recursion depth limits."
+    }
+  },
+  "287": {
+    "problem": "Produce inorder, preorder and postorder in one iterative traversal, using a stack of nodes with stages 1, 2 and 3.",
+    "assumptions": "The linked TUF task returns lists in the order [inorder, preorder, postorder]. That output order differs from the order in its title. Each list contains every node once, including repeated values. The tree may be empty.",
+    "example": {
+      "input": "root 8 has children 4 and 9; 4 has right child 6",
+      "output": "inorder [4,6,8,9]; preorder [8,4,6,9]; postorder [6,4,9,8]",
+      "explanation": "The structure stays the same. Only the moment when a node’s value is recorded changes."
+    },
+    "baseline": "Run three separate DFS traversals, recording the root before, between or after the child calls. Three O(n) passes are still O(n), but a single traversal can collect all three outputs together.",
+    "approach": "The separate recursive traversals differ only in the position of the “record this node” action. A stack frame lets us pause and resume one traversal at all three positions.\n\nStage 1 means neither subtree has been processed: record preorder, save stage 2, then enter the left child. Stage 2 means the left subtree is finished: record inorder, save stage 3, then enter the right child. Stage 3 means both subtrees are finished: record postorder and remove the frame permanently.\n\nThe child frame is pushed after its parent’s continuation, so it runs first. Every node moves through the three stages exactly once. Return [inorder, preorder, postorder] to match the current practice task.",
+    "steps": [
+      "At stage 1, append to preorder and schedule the left subtree.",
+      "At stage 2, append to inorder and schedule the right subtree.",
+      "At stage 3, append to postorder.",
+      "Return the lists in the linked task’s required order: inorder, preorder, postorder."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic class Frame {\n    final TreeNode node;\n    final int stage;\n    Frame(TreeNode node, int stage) { this.node = node; this.stage = stage; }\n}\nstatic List<List<Integer>> treeTraversal(TreeNode root) {\n    List<Integer> inorder = new ArrayList<>();\n    List<Integer> preorder = new ArrayList<>();\n    List<Integer> postorder = new ArrayList<>();\n    Deque<Frame> stack = new ArrayDeque<>();\n    if (root != null) stack.push(new Frame(root, 1));\n    while (!stack.isEmpty()) {\n        Frame frame = stack.pop();\n        TreeNode node = frame.node;\n        if (frame.stage == 1) {\n            preorder.add(node.val);\n            stack.push(new Frame(node, 2));\n            if (node.left != null) stack.push(new Frame(node.left, 1));\n        } else if (frame.stage == 2) {\n            inorder.add(node.val);\n            stack.push(new Frame(node, 3));\n            if (node.right != null) stack.push(new Frame(node.right, 1));\n        } else {\n            postorder.add(node.val);\n        }\n    }\n    return List.of(inorder, preorder, postorder);\n}",
+    "time": "O(n), with three stage events per node.",
+    "space": "O(h) pending frames, plus O(n) space for each of the three output lists; total output is 3n values.",
+    "pitfalls": [
+      "DFS ordering describes when a parent is recorded relative to its subtrees.",
+      "Do not return lists in title order; the public task expects inorder first.",
+      "A stage is per node, not a single global counter.",
+      "A value may appear repeatedly because different nodes can have equal values."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert treeTraversal(r).equals(List.of(List.of(4,6,8,9),List.of(8,4,6,9),List.of(6,4,9,8)));assert treeTraversal(null).equals(List.of(List.of(),List.of(),List.of()));",
+      "Random r=new Random(287);for(int t=0;t<500;t++){int n=1+r.nextInt(80);TreeNode root=new TreeNode(r.nextInt(9));Map<TreeNode,String>path=new IdentityHashMap<>();path.put(root,\"\");List<TreeNode>open=new ArrayList<>();open.add(root);for(int i=1;i<n;i++){TreeNode parent=open.get(r.nextInt(open.size())),child=new TreeNode(r.nextInt(9));boolean left=parent.left==null&&(parent.right!=null||r.nextBoolean());if(left)parent.left=child;else parent.right=child;path.put(child,path.get(parent)+(left?\"L\":\"R\"));if(parent.left!=null&&parent.right!=null)open.remove(parent);open.add(child);}List<List<Integer>>want=new ArrayList<>();for(String suffix:new String[]{\"M\",\"\",\"Z\"}){List<TreeNode>ordered=new ArrayList<>(path.keySet());ordered.sort(Comparator.comparing(x->path.get(x)+suffix));List<Integer>values=new ArrayList<>();for(TreeNode x:ordered)values.add(x.val);want.add(values);}assert treeTraversal(root).equals(want);assert treeTraversal(root).equals(want);}",
+      "TreeNode root=new TreeNode(0),p=root;for(int i=1;i<100000;i++){p.left=new TreeNode(i);p=p.left;}List<List<Integer>>a=treeTraversal(root);for(List<Integer>v:a)assert v.size()==100000;for(int i=0;i<100000;i++){assert a.get(0).get(i)==99999-i;assert a.get(1).get(i)==i;assert a.get(2).get(i)==99999-i;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/pre%2C-post%2C-inorder-in-one-traversal",
+      "title": "Pre, Post, Inorder in one traversal",
+      "checkedOn": "2026-10-29",
+      "approach": "Collect values at three stages of the same depth-first walk.",
+      "adaptation": "The public statement, examples, 100000-node bound and output list order were checked, together with the current foundation definitions. No public Java editorial was available. This authored frame-stack implementation avoids recursion depth limits."
+    }
   }
 }
