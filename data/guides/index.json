@@ -15672,8 +15672,8 @@
       "int[][] grid=new int[200][200];for(int[] row:grid)Arrays.fill(row,200);assert minPathSum(grid)==79800;"
     ],
     "reference": {
-      "url": "https://leetcode.com/problems/minimum-path-sum/",
-      "title": "Minimum Path Sum — tracker problem and source difference",
+      "url": "https://takeuforward.org/data-structure/minimum-path-sum-in-a-grid-dp-10",
+      "title": "Minimum Path Sum In a Grid (DP 10) — unavailable original source",
       "checkedOn": "2026-10-29",
       "approach": "Right/down grid DP: recursion, saved cell answers, a full table, then one rolling row.",
       "adaptation": "The pinned LeetCode statement and constraints were checked. Striver’s old DP-10 grid URL returned Page Not Found; the current blog titled Minimum Path Sum instead describes falling paths. No matching public Striver Java was available to inspect for this entry. This original Java uses the right/down dependencies taught in the preceding grid lessons and solves the tracker’s actual problem."
