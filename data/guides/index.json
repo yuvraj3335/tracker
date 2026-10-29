@@ -10607,5 +10607,119 @@
       "approach": "Keep compatible intervals in earliest-finish order and count the rest as removals.",
       "adaptation": "The public Java method and touching-endpoint rule were checked. This version sorts a reference copy. Its space bound includes Java object-array sorting, rather than repeating the article’s constant-space summary."
     }
+  },
+  "275": {
+    "problem": "Understand a binary tree’s nodes, child links, leaves, depth and height. Use a small Java tree to count nodes and leaves and measure its height.",
+    "assumptions": "A valid tree has no cycles, and each non-root node has exactly one parent. A binary tree has at most two children per node; it does not require left values to be smaller. This page measures height in edges: a leaf has height 0 and an empty tree has height −1. The later maximum-depth problem counts nodes instead.",
+    "example": {
+      "input": "root 8 has children 4 and 9; node 4 has right child 6",
+      "output": "4 nodes, 2 leaves, edge height 2",
+      "explanation": "8 is the root. 6 and 9 have no children, so they are leaves. The longest path 8 → 4 → 6 contains two edges."
+    },
+    "baseline": "Draw the tree and count by hand. For a program, following the child references is safer than assuming values or array positions identify the structure. A missing child is null, not a node holding zero.",
+    "approach": "Each node stores a value and two child references. The root is your entry point. A leaf has neither child; an internal node has at least one. A subtree is a node together with everything below it.\n\nTo count nodes, count the left subtree, count the right subtree, and add one for the current node. To measure edge height, take the larger child height and add one. Returning −1 for null makes a leaf’s height 0.\n\nKeep the tree types separate: full means every node has zero or two children; complete means the last level fills from the left; perfect means every internal node has two children and all leaves are at one depth. Height-balanced means the two subtree heights differ by at most one at every node. None of these definitions makes a general binary tree a binary search tree.",
+    "steps": [
+      "Represent missing children with null.",
+      "Stop recursion at null.",
+      "Combine the two subtree counts or heights.",
+      "State whether height counts edges or nodes before using a formula."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic int countNodes(TreeNode root) {\n    if (root == null) return 0;\n    return 1 + countNodes(root.left) + countNodes(root.right);\n}\nstatic int countLeaves(TreeNode root) {\n    if (root == null) return 0;\n    if (root.left == null && root.right == null) return 1;\n    return countLeaves(root.left) + countLeaves(root.right);\n}\nstatic int edgeHeight(TreeNode root) {\n    if (root == null) return -1;\n    return 1 + Math.max(edgeHeight(root.left), edgeHeight(root.right));\n}",
+    "time": "Each helper visits every node: O(n). Calling all three is still O(n).",
+    "space": "O(h + 1) recursion space for edge height h, plus the existing tree. A long chain can exhaust Java’s call stack.",
+    "pitfalls": [
+      "A single-node tree is also a leaf.",
+      "Depth measures the path from the root; height measures the longest downward path.",
+      "A non-empty tree with n nodes has n − 1 edges.",
+      "Inorder is sorted only when the tree also satisfies a BST ordering rule."
+    ],
+    "tests": [
+      "TreeNode r=new TreeNode(8);r.left=new TreeNode(4);r.right=new TreeNode(9);r.left.right=new TreeNode(6);assert countNodes(r)==4;assert countLeaves(r)==2;assert edgeHeight(r)==2;",
+      "assert countNodes(null)==0&&countLeaves(null)==0&&edgeHeight(null)==-1;TreeNode r=new TreeNode(0);assert countNodes(r)==1&&countLeaves(r)==1&&edgeHeight(r)==0;",
+      "TreeNode r=new TreeNode(1),p=r;for(int i=0;i<100;i++){p.right=new TreeNode(1);p=p.right;}assert countNodes(r)==101&&countLeaves(r)==1&&edgeHeight(r)==100;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-tree-data-structure",
+      "title": "Binary Tree: Types, Structure and Basic Terminology",
+      "checkedOn": "2026-10-29",
+      "approach": "Define a binary tree and distinguish node count, leaf count, depth and edge-based height.",
+      "adaptation": "The current public foundation article was read. The pinned older foundation URLs return Page Not Found. The current article explains concepts without a Java code tab; these are authored Java examples of those concepts."
+    }
+  },
+  "276": {
+    "problem": "Understand the linked and array representations of a binary tree. Translate the pinned C++ representation lesson into Java, and build a complete tree from an array.",
+    "assumptions": "The tracker keeps the original “Binary Tree Representation in C++” title. This Java-focused guide explains the same structure: C++ child pointers correspond to Java object references, and nullptr corresponds to null. The array builder here is specifically for a complete tree with no missing positions; it is not a parser for compact level-order arrays containing null.",
+    "example": {
+      "input": "values = [8,4,9,2,6]",
+      "output": "8 has children 4 and 9; 4 has children 2 and 6",
+      "explanation": "With zero-based indexing, the children of index 1 are at indices 3 and 4."
+    },
+    "baseline": "Connect every node manually when the tree is tiny. For a complete tree represented by an array, repeating those assignments by hand is unnecessary because child positions follow a formula.",
+    "approach": "In a linked tree, each node refers directly to its children. In a zero-based complete-tree array, the left child of position i is 2i + 1 and the right child is 2i + 2. A non-root node’s parent is (i − 1) / 2.\n\nCreate a Java node for each array value, then connect children using those indices when they are in bounds. This separates creating objects from wiring them together. It also avoids recursion. Sparse trees are usually easier to store with references: an array indexed by complete-tree positions can waste many empty slots.",
+    "steps": [
+      "Allocate one TreeNode per value.",
+      "For each position, calculate its left and right child indices.",
+      "Connect existing child positions; leave others null.",
+      "Return node 0, or null for an empty array."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode fromCompleteArray(int[] values) {\n    if (values.length == 0) return null;\n    TreeNode[] nodes = new TreeNode[values.length];\n    for (int i = 0; i < values.length; i++) nodes[i] = new TreeNode(values[i]);\n    for (int i = 0; i < nodes.length; i++) {\n        long left = 2L * i + 1, right = left + 1;\n        if (left < nodes.length) nodes[i].left = nodes[(int) left];\n        if (right < nodes.length) nodes[i].right = nodes[(int) right];\n    }\n    return nodes[0];\n}",
+    "time": "O(n).",
+    "space": "O(n) new tree nodes and O(n) temporary reference-array space.",
+    "pitfalls": [
+      "The array formula describes tree positions, not BST value ordering.",
+      "Do not use 2i + 1 on a compact level-order serialization after null parents have been omitted.",
+      "Java has no C++ delete operation; unreachable objects are managed by garbage collection.",
+      "Two equal values still need two different node objects when they occupy different positions."
+    ],
+    "tests": [
+      "TreeNode r=fromCompleteArray(new int[]{8,4,9,2,6});assert r.val==8&&r.left.val==4&&r.right.val==9;assert r.left.left.val==2&&r.left.right.val==6;assert r.right.left==null;",
+      "assert fromCompleteArray(new int[]{})==null;TreeNode r=fromCompleteArray(new int[]{7,7,7});assert r!=r.left&&r.left!=r.right;",
+      "for(int n=1;n<150;n++){int[]a=new int[n];for(int i=0;i<n;i++)a[i]=i;TreeNode r=fromCompleteArray(a);Queue<TreeNode>q=new ArrayDeque<>();q.add(r);int i=0;while(!q.isEmpty()){TreeNode x=q.remove();assert x.val==i++;if(x.left!=null)q.add(x.left);if(x.right!=null)q.add(x.right);}assert i==n;}"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-tree-data-structure",
+      "title": "Binary Tree: Types, Structure and Basic Terminology",
+      "checkedOn": "2026-10-29",
+      "approach": "Use node references or zero-based complete-tree indices to represent child relationships.",
+      "adaptation": "The current public foundation article was read. The pinned older foundation URLs return Page Not Found. The current article explains concepts without a Java code tab; these are authored Java examples of those concepts."
+    }
+  },
+  "277": {
+    "problem": "Create a binary tree in Java with a node class, then connect and inspect its left and right children.",
+    "assumptions": "Each new TreeNode is a separate object. left and right start as null. The root variable is a reference to the first node. A valid tree has no cycles or shared child nodes.",
+    "example": {
+      "input": "buildExample()",
+      "output": "8 → left 4, right 9; 4 → right 6",
+      "explanation": "The code creates four objects. Assigning root.left.right connects node 6 beneath node 4; it does not change node 9."
+    },
+    "baseline": "Parallel arrays of values and child indices can represent a tree, but direct object references are simpler for irregular shapes and are the interface used by most linked-tree interview questions.",
+    "approach": "The constructor gives a node its value. Creating a node does not automatically attach it anywhere. Assignment makes the connection: root.left = new TreeNode(4) creates a node and stores its reference in root’s left field.\n\nA second variable pointing to root refers to the same object. Changing a field through either reference changes that object. Reassigning the second variable to null only changes that variable; it does not delete the tree or change root.\n\nThe sample uses val to match the linked LeetCode conventions. Some TUF stubs call the field data; adapt the field name to the supplied class rather than defining a second node type inside a judge solution.",
+    "steps": [
+      "Define value, left and right fields.",
+      "Create the root with new TreeNode(value).",
+      "Attach child objects through left and right.",
+      "Check for null before following another child link."
+    ],
+    "java": "static class TreeNode {\n    int val;\n    TreeNode left, right;\n    TreeNode(int value) { val = value; }\n}\n\nstatic TreeNode buildExample() {\n    TreeNode root = new TreeNode(8);\n    root.left = new TreeNode(4);\n    root.right = new TreeNode(9);\n    root.left.right = new TreeNode(6);\n    return root;\n}\nstatic boolean isLeaf(TreeNode node) {\n    return node != null && node.left == null && node.right == null;\n}",
+    "time": "The fixed example takes O(1). Creating a general n-node tree takes O(n); accessing a known child reference takes O(1).",
+    "space": "The fixed example allocates four nodes. A general linked binary tree uses O(n) storage.",
+    "pitfalls": [
+      "null is a missing reference, not a node value. Zero is a valid value.",
+      "Do not compare values to decide whether two references identify the same node.",
+      "Do not attach the same child object under two parents if the algorithm expects a tree.",
+      "A node class must match the judge’s provided field names and constructor."
+    ],
+    "tests": [
+      "TreeNode r=buildExample();assert r.val==8&&r.left.val==4&&r.right.val==9&&r.left.right.val==6;assert !isLeaf(r)&&isLeaf(r.right)&&isLeaf(r.left.right);assert r.left.left==null&&!isLeaf(null);",
+      "TreeNode root=buildExample(),alias=root;alias.left.val=12;assert root.left.val==12;alias=null;assert root!=null&&root.left.val==12;",
+      "TreeNode a=buildExample(),b=buildExample();a.left.right.val=-5;assert b.left.right.val==6;assert a!=b&&a.left!=b.left;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/binary-tree-data-structure",
+      "title": "Binary Tree: Types, Structure and Basic Terminology",
+      "checkedOn": "2026-10-29",
+      "approach": "Represent a node as a value with left and right references, and build a tree by assigning those references.",
+      "adaptation": "The current public foundation article was read. The pinned older foundation URLs return Page Not Found. The current article explains concepts without a Java code tab; these are authored Java examples of those concepts."
+    }
   }
 }
