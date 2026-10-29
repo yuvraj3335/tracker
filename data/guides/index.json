@@ -15493,5 +15493,53 @@
       "time": "O(n) for each approach across both ranges.",
       "space": "O(n); memoization also has O(n) recursion depth."
     }
+  },
+  "390": {
+    "problem": "Choose exactly one of three activities each day to maximize total points, without repeating an activity on consecutive days.",
+    "assumptions": "points has three nonnegative scores per day, matching the canonical variant. Activity IDs are 0, 1, and 2. State value 3 means “nothing is forbidden”; it is not a fourth activity. Core totals use long, and ninjaTraining returns a checked int.",
+    "example": {
+      "input": "points = [[8,7,1], [100,1,1]]",
+      "output": "107",
+      "explanation": "Choose activity 1 on day 0 for 7, then activity 0 for 100. Taking the largest score 8 on the first day would block the 100 on the second day."
+    },
+    "baseline": "Work backward from the final day. Try every activity that is not forbidden by the next day, add its points, and recursively schedule the earlier days. Direct recursion explores exponentially many schedules.",
+    "approach": "The state is best(day, blocked): the maximum score for days 0 through day when activity blocked cannot be chosen on day. Why is it blocked? In the backward recursion, it is the activity chosen on the next day.\n\nTry each activity different from blocked. Its candidate total is today’s points plus best(day − 1, activity). Today’s chosen activity becomes forbidden on the preceding day. Start with blocked = 3 so the last day has no restriction.\n\nTabulation preserves exactly this meaning. Fill all four states for day 0, then build each later row from the completed previous row. Only one previous row is needed, so the primary version keeps two four-element arrays. Never overwrite previous while still calculating current.",
+    "steps": [
+      "For day 0, record the best allowed score for each blocked value 0…3.",
+      "For each later day, create a fresh four-state row.",
+      "For each blocked value, try the three real activities except the blocked one.",
+      "Add today’s score to previous[activity] and keep the maximum.",
+      "Replace previous only after all four states are complete; return previous[3]."
+    ],
+    "java": "static long trainingPoints(int[][] points) {\n    if (points.length == 0) return 0;\n    long[] previous = new long[4];\n    for (int blocked = 0; blocked < 4; blocked++) for (int activity = 0; activity < 3; activity++)\n        if (activity != blocked) previous[blocked] = Math.max(previous[blocked],points[0][activity]);\n    for (int day = 1; day < points.length; day++) {\n        long[] current = new long[4];\n        for (int blocked = 0; blocked < 4; blocked++) for (int activity = 0; activity < 3; activity++)\n            if (activity != blocked) current[blocked] = Math.max(current[blocked],points[day][activity]+previous[activity]);\n        previous = current;\n    }\n    return previous[3];\n}\nstatic int ninjaTraining(int[][] points) { return Math.toIntExact(trainingPoints(points)); }",
+    "time": "O(n) time: four states × three choices per day.",
+    "space": "O(1) extra space for two arrays of length four.",
+    "pitfalls": [
+      "The second state coordinate is the forbidden activity, not the activity just selected on this day.",
+      "State 3 means no restriction, not a real activity.",
+      "Use a new current row; in-place updates would mix answers from different days.",
+      "Choose exactly one activity each day. The zero initial maximum here relies on nonnegative scores.",
+      "For a negative-score variant, initialize maxima below every valid total and change the memo sentinel; do not reuse zero initialization blindly."
+    ],
+    "tests": [
+      "int[][]p={{8,7,1},{100,1,1}};assert ninjaTraining(p)==107;assert trainingRecursive(p,p.length-1,3)==107;assert trainingMemoized(p)==107;assert trainingTabulated(p)==107;assert ninjaTraining(new int[][]{{0,0,0}})==0;assert trainingPoints(new int[0][])==0;",
+      "Random random=new Random(390);\nfor(int trial=0;trial<1000;trial++){\n int n=1+random.nextInt(8);int[][]p=new int[n][3];for(int[]row:p)for(int a=0;a<3;a++)row[a]=random.nextInt(21);\n int schedules=1;for(int i=0;i<n;i++)schedules*=3;long expected=0;\n for(int encoded=0;encoded<schedules;encoded++){int code=encoded,previous=-1;long total=0;boolean valid=true;for(int day=0;day<n;day++){int activity=code%3;code/=3;if(activity==previous){valid=false;break;}total+=p[day][activity];previous=activity;}if(valid)expected=Math.max(expected,total);}\n assert trainingPoints(p)==expected;assert trainingMemoized(p)==expected;assert trainingTabulated(p)==expected;assert trainingRecursive(p,n-1,3)==expected;\n}",
+      "int[][]p={{Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE},{Integer.MAX_VALUE,Integer.MAX_VALUE,Integer.MAX_VALUE}};assert trainingPoints(p)==2L*Integer.MAX_VALUE;assert trainingMemoized(p)==2L*Integer.MAX_VALUE;assert trainingTabulated(p)==2L*Integer.MAX_VALUE;int[][]large=new int[100000][3];for(int[]row:large){row[0]=1;row[1]=2;row[2]=3;}assert trainingPoints(large)==250000;assert trainingTabulated(large)==250000;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/blogs/data-structure-and-algorithm/ninjas-training",
+      "title": "Ninja’s Training: Dynamic Programming for Maximum Points",
+      "checkedOn": "2026-10-29",
+      "approach": "Backward forbidden-activity state, memoization, four-column tabulation, and rolling rows.",
+      "adaptation": "All four complete public Java methods were checked. The variable last is renamed blocked to make the backward state meaning clear. The guide retains the source’s nonnegative-score assumption, uses long totals, and shows all four versions."
+    },
+    "baselineJava": "static long trainingRecursive(int[][] points, int day, int blocked) {\n    if (day < 0) return 0;\n    long best = 0;\n    for (int activity = 0; activity < 3; activity++) if (activity != blocked)\n        best = Math.max(best,points[day][activity]+trainingRecursive(points,day-1,activity));\n    return best;\n}",
+    "baselineTime": "O(2^n) time up to the constant three initial choices; O(n) recursion space.",
+    "better": {
+      "explanation": "Memoization saves each (day, blocked) answer. Tabulation starts with day 0 and fills four states per later day. The full table helps inspect the state; the primary version discards rows older than the previous day. Both versions below use the same blocked-activity meaning.",
+      "java": "static long trainingMemoized(int[][] points) {\n    long[][] memo = new long[points.length][4];\n    for (long[] row : memo) Arrays.fill(row,-1);\n    return trainingMemo(points,points.length-1,3,memo);\n}\nstatic long trainingMemo(int[][] points, int day, int blocked, long[][] memo) {\n    if (day < 0) return 0;\n    if (memo[day][blocked] != -1) return memo[day][blocked];\n    long best = 0;\n    for (int activity = 0; activity < 3; activity++) if (activity != blocked)\n        best = Math.max(best,points[day][activity]+trainingMemo(points,day-1,activity,memo));\n    return memo[day][blocked] = best;\n}\nstatic long trainingTabulated(int[][] points) {\n    if (points.length == 0) return 0;\n    long[][] dp = new long[points.length][4];\n    for (int blocked = 0; blocked < 4; blocked++) for (int activity = 0; activity < 3; activity++)\n        if (activity != blocked) dp[0][blocked] = Math.max(dp[0][blocked],points[0][activity]);\n    for (int day = 1; day < points.length; day++)\n        for (int blocked = 0; blocked < 4; blocked++) for (int activity = 0; activity < 3; activity++)\n            if (activity != blocked) dp[day][blocked] = Math.max(dp[day][blocked],points[day][activity]+dp[day-1][activity]);\n    return dp[points.length-1][3];\n}",
+      "time": "O(n) for either version.",
+      "space": "O(n) for the four-column table; memoization additionally uses O(n) recursion depth."
+    }
   }
 }
