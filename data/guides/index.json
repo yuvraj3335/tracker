@@ -18475,5 +18475,82 @@
         ]
       ]
     }
+  },
+  "437": {
+    "problem": "Partition the array into contiguous blocks of at most k elements. Replace each block’s values with its maximum, and maximize the resulting total.",
+    "assumptions": "All values are nonnegative, each block has length from 1 to k, and every element belongs to exactly one block. The result fits int under the source’s guarantee. The long helper also handles larger totals; the method computes the total without modifying the input array.",
+    "example": {
+      "input": "arr = [2,8,1,5], k = 2",
+      "output": "26",
+      "explanation": "Choose [2,8] and [1,5]. Their contributions are 2×8 = 16 and 2×5 = 10, so the total is 26. Blocks of length three are not allowed."
+    },
+    "baseline": "Try every allowed ending position for the first block, then recursively partition the remaining suffix. Different choices repeatedly reach the same suffix, so the direct recursion is exponential.",
+    "approach": "Once the first block ends at end, everything after end is a smaller independent problem. Let best[start] be the largest total obtainable from start onward. Try block lengths one through k, stopping at the array end.\n\nA block contributes its length multiplied by its largest value. As we extend the candidate block by one element, update a running maximum instead of scanning the block again. Add best[end+1] for the remaining suffix and keep the largest candidate.\n\nFill start positions from right to left. The empty suffix after the final element contributes zero, and every possible next suffix has already been solved. We never need to physically replace any values: length×maximum gives the block’s contribution directly.\n\nThe locally largest block contribution is not enough to choose a cut. It also changes where the remaining suffix starts, which can change the best grouping of later values.",
+    "steps": [
+      "Set the empty suffix’s best total to zero.",
+      "Walk start indices backward.",
+      "Extend the first block by up to k elements while updating its maximum.",
+      "Compare blockLength×blockMaximum + best[nextIndex] for every ending.",
+      "Save the largest candidate and return best[0]."
+    ],
+    "java": "static long partitionMaximum(int[] arr,int k) {\n    long[] best=new long[arr.length+1];\n    for(int start=arr.length-1;start>=0;start--) {\n        int largest=0;\n        for(int length=1;length<=k && start+length<=arr.length;length++) {\n            largest=Math.max(largest,arr[start+length-1]);\n            best[start]=Math.max(best[start],(long)length*largest+best[start+length]);\n        }\n    }\n    return best[0];\n}\nstatic int maxSumAfterPartitioning(int[] arr,int k) {\n    return Math.toIntExact(partitionMaximum(arr,k));\n}",
+    "time": "O(nk).",
+    "space": "O(n).",
+    "pitfalls": [
+      "k is the maximum block length, not the required length or the number of blocks.",
+      "Reset the running maximum for each new start index.",
+      "Multiply by the block length, not the endpoint index.",
+      "Blocks must be contiguous and cover the whole array; sorting or skipping values changes the problem.",
+      "Use long for length×maximum before adding the suffix total."
+    ],
+    "tests": [
+      "assert maxSumAfterPartitioning(new int[]{2,8,1,5},2)==26;assert maxSumAfterPartitioning(new int[]{2,8,1,5},1)==16;assert maxSumAfterPartitioning(new int[]{2,8,1,5},4)==32;assert partitionMaximum(new int[]{},1)==0;",
+      "Random random=new Random(437);for(int trial=0;trial<900;trial++){int n=1+random.nextInt(11),k=1+random.nextInt(n);int[] a=new int[n];for(int i=0;i<n;i++)a[i]=random.nextInt(20);int[] saved=a.clone();long expected=0;for(int mask=0;mask<(1<<(n-1));mask++){int start=0;long sum=0;boolean valid=true;for(int end=1;end<=n;end++)if(end==n||(mask&(1<<(end-1)))!=0){if(end-start>k){valid=false;break;}int largest=0;for(int i=start;i<end;i++)largest=Math.max(largest,a[i]);sum+=(long)(end-start)*largest;start=end;}if(valid)expected=Math.max(expected,sum);}assert partitionMaximum(a,k)==expected;assert partitionMemo(a,k)==expected;assert partitionRecursive(a,k,0)==expected;assert Arrays.equals(a,saved);}",
+      "int[] a=new int[500];Arrays.fill(a,1000000000);assert partitionMaximum(a,500)==500000000000L;assert partitionMemo(a,500)==500000000000L;"
+    ],
+    "reference": {
+      "url": "https://takeuforward.org/practice/dsa/partition-array-for-maximum-sum",
+      "title": "Partition Array for Maximum Sum",
+      "checkedOn": "2026-10-29",
+      "approach": "Choose the first contiguous block, maintain its maximum while extending it, and combine with the best remaining suffix.",
+      "adaptation": "The current statement, constraints, examples, and judge stub were checked. This page has no public algorithm hints and its Solution panel requires sign-in. The saved explanation and Java are an original, checked suffix-DP solution of that contract; no claim is made that locked source Java was inspected."
+    },
+    "baselineJava": "static long partitionRecursive(int[] arr,int k,int start) {\n    if(start==arr.length) return 0;\n    long best=0;\n    int largest=0;\n    for(int length=1;length<=k && start+length<=arr.length;length++) {\n        largest=Math.max(largest,arr[start+length-1]);\n        best=Math.max(best,(long)length*largest+partitionRecursive(arr,k,start+length));\n    }\n    return best;\n}",
+    "baselineTime": "Exponential time in the number of possible cut patterns; O(n) stack. Small arrays only.",
+    "better": {
+      "explanation": "Memoization saves the result for each start index. The first-block choices are unchanged, but each suffix is solved only once. A −1 marker is safe because all valid totals are nonnegative.",
+      "java": "static long partitionMemo(int[] arr,int k) {\n    long[] saved=new long[arr.length];\n    Arrays.fill(saved,-1);\n    return partitionAt(arr,k,0,saved);\n}\nstatic long partitionAt(int[] arr,int k,int start,long[] saved) {\n    if(start==arr.length) return 0;\n    if(saved[start]!=-1) return saved[start];\n    long best=0;\n    int largest=0;\n    for(int length=1;length<=k && start+length<=arr.length;length++) {\n        largest=Math.max(largest,arr[start+length-1]);\n        best=Math.max(best,(long)length*largest+partitionAt(arr,k,start+length,saved));\n    }\n    return saved[start]=best;\n}",
+      "time": "O(nk).",
+      "space": "O(n) cache and O(n) stack."
+    },
+    "trace": {
+      "columns": [
+        "Start index",
+        "Candidate first blocks",
+        "Best suffix total"
+      ],
+      "rows": [
+        [
+          "3",
+          "[5] → 5",
+          "5"
+        ],
+        [
+          "2",
+          "[1] → 1+5; [1,5] → 10",
+          "10"
+        ],
+        [
+          "1",
+          "[8] → 8+10; [8,1] → 16+5",
+          "21"
+        ],
+        [
+          "0",
+          "[2] → 2+21; [2,8] → 16+10",
+          "26"
+        ]
+      ]
+    }
   }
 }
